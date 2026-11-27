@@ -1,7 +1,7 @@
 //! The colours every view draws with: the theme's tokens for the appearance on screen, a few
 //! made from them, and the same applied to gpui-kit's own theme (its buttons, inputs, links).
-//! No colour literal appears in a view; the one exception is a room's dot, its goal's
-//! categorical colour ([`room_color`]).
+//! No colour literal appears in a view: the categorical ones too (a room's goal, a category,
+//! a calendar tone) are here.
 
 use gpui_kit::component::{Theme, ThemeColor, ThemeMode};
 use gpui_kit::{App, Global, Hsla, Window, WindowAppearance, rgb, transparent_black};
@@ -485,21 +485,32 @@ fn kit_hues(p: &Pal, t: &mut ThemeColor) {
 }
 
 /// A room's dot: its goal's colour by rank, as on the other apps (categorical, not the
-/// theme's); a room without a goal takes the faint grey.
+/// theme's), in the appearance on screen; a room without a goal takes the faint grey.
 #[must_use]
 pub(crate) fn room_color(goal_rank: Option<i32>, p: &Pal) -> Hsla {
-    // Orange, green, purple, cyan, pink, yellow, mint.
-    const GOALS: [Rgb; 7] = [
-        0xFF_95_00, 0x34_C7_59, 0xAF_52_DE, 0x32_AD_E6, 0xFF_2D_55, 0xFF_CC_00, 0x00_C7_BE,
-    ];
     match goal_rank
         .and_then(|rank| usize::try_from(rank).ok())
         .filter(|&rank| rank >= 1)
     {
-        Some(rank) => color(GOALS[(rank - 1) % GOALS.len()]),
+        Some(rank) => {
+            let goals = if p.dark { &GOALS_DARK } else { &GOALS_LIGHT };
+            color(goals[(rank - 1) % goals.len()])
+        }
         None => p.faint,
     }
 }
+
+/// The goals' colours in light, by rank: orange, green, purple, cyan, pink, yellow and mint,
+/// each deep enough to read 3:1 on any light ground (as a dot, an icon, a progress ring).
+/// The iOS colours they stand for are too light for it: the yellow reads 1.4:1 on paper.
+const GOALS_LIGHT: [Rgb; 7] = [
+    0xB4_5A_00, 0x21_80_3A, 0x8E_3F_BF, 0x1F_72_A8, 0xC8_20_3F, 0x8A_6A_00, 0x00_83_7C,
+];
+
+/// The same in dark: iOS's own dark-mode colours, light enough on any dark ground.
+const GOALS_DARK: [Rgb; 7] = [
+    0xFF_9F_0A, 0x30_D1_58, 0xBF_5A_F2, 0x64_D2_FF, 0xFF_37_5F, 0xFF_D6_0A, 0x63_E6_E2,
+];
 
 /// A categorical colour, steady for `index` (an About you category, a Chrome profile's
 /// badge): blue, indigo, green, orange, pink, teal, purple, red, as on the other apps. Like a
@@ -932,6 +943,33 @@ mod tests {
                 dark || popover >= luminance(rgb_of(p.surface_raised)),
                 "{preset} dark={dark}"
             );
+        }
+    }
+
+    #[test]
+    fn every_goals_colour_reads_on_every_presets_grounds() {
+        for (preset, _, p) in every_palette() {
+            for rank in 1..=7 {
+                let goal = room_color(Some(rank), &p);
+                for (ground_name, ground) in [
+                    ("background", p.background),
+                    ("surface", p.surface),
+                    ("raised", p.surface_raised),
+                ] {
+                    let r = contrast(goal, ground);
+                    assert!(
+                        r >= 3.0,
+                        "{preset} dark={} goal {rank} on {ground_name}: {r:.2}",
+                        p.dark
+                    );
+                }
+            }
+            assert_eq!(
+                room_color(Some(8), &p),
+                room_color(Some(1), &p),
+                "round the seven"
+            );
+            assert_eq!(room_color(None, &p), p.faint);
         }
     }
 }
