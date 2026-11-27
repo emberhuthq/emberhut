@@ -5,17 +5,17 @@
 use emberhut_api::calendar::CalendarPage;
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::prelude::*;
-use gpui_kit::{ElementId, FontWeight, Window, div, px, rgb, white};
+use gpui_kit::{ElementId, FontWeight, Window, div, px};
 use jiff::civil::Date;
 
-use super::chips::{all_day_chip, color, event_words, item_chip};
+use super::chips::{all_day_chip, event_words, item_chip};
 use super::{CalendarView, open_item};
 use crate::prose::direction::marked;
 use crate::store::calendar::layout;
 use crate::store::calendar::range::WEEKDAYS;
 use crate::store::calendar::words::Tone;
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::palette::Pal;
+use crate::ui::palette::{Pal, calendar};
 
 /// What the window keeps above the weeks: the bar, the weekday names and the margins.
 const CHROME: f32 = 110.;
@@ -114,8 +114,8 @@ impl CalendarView {
                     .text_size(px(12.))
                     .text_color(if in_month { p.text } else { p.muted })
                     .when(today, |d| {
-                        d.bg(rgb(0x00FF_3B30))
-                            .text_color(white())
+                        d.bg(p.danger)
+                            .text_color(Pal::readable_on(p.danger))
                             .font_weight(FontWeight::BOLD)
                     })
                     .child(day.day().to_string()),
@@ -151,11 +151,11 @@ impl CalendarView {
                     .min_w_0()
                     .text_size(px(10.))
                     .child(
-                        div()
-                            .size(px(6.))
-                            .flex_none()
-                            .rounded_full()
-                            .bg(color(Tone::of_event(event), p)),
+                        div().size(px(6.)).flex_none().rounded_full().bg(calendar(
+                            Tone::of_event(event),
+                            p,
+                        )
+                        .fill),
                     )
                     .child(div().min_w_0().truncate().child(marked(&event.title)))
             };

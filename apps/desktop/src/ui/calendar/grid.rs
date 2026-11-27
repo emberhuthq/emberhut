@@ -1,26 +1,25 @@
-//! Day and Week: the days across (Week: their names and dates, today's in a red circle, a click
-//! opens the day), a strip for each day's work and all-day events, then the hours, with each
-//! timed event where it falls and side by side when they overlap, and now as a red line.
+//! Day and Week: the days across (Week: their names and dates, today's in a circle of the
+//! danger colour, a click opens the day), a strip for each day's work and all-day events, then
+//! the hours, with each timed event where it falls and side by side when they overlap, and now
+//! as a line of the same colour.
 
 use emberhut_api::calendar::{CalendarEvent, CalendarPage};
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::prelude::*;
-use gpui_kit::{AnyElement, Div, ElementId, FontWeight, div, px, relative, rgb, white};
+use gpui_kit::{AnyElement, Div, ElementId, FontWeight, div, px, relative};
 use jiff::Timestamp;
 use jiff::civil::Date;
 
-use super::chips::{all_day_chip, color, event_words, item_chip};
+use super::chips::{all_day_chip, event_words, item_chip};
 use super::{CalendarView, HOUR, open_item};
 use crate::prose::direction;
 use crate::store::calendar::layout::{self, Laid};
 use crate::store::calendar::words::{self, Tone};
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::palette::Pal;
+use crate::ui::palette::{Pal, calendar};
 
 /// The hours' gutter.
 const GUTTER: f32 = 52.;
-/// The red of today and of now.
-const NOW_RED: u32 = 0x00FF_3B30;
 
 impl CalendarView {
     /// The grid.
@@ -229,8 +228,8 @@ impl CalendarView {
                     .right_0()
                     .flex()
                     .items_center()
-                    .child(div().size(px(7.)).rounded_full().bg(rgb(NOW_RED)))
-                    .child(div().flex_1().h(px(1.5)).bg(rgb(NOW_RED))),
+                    .child(div().size(px(7.)).rounded_full().bg(p.danger))
+                    .child(div().flex_1().h(px(1.5)).bg(p.danger)),
             );
         }
         column.into_any_element()
@@ -244,12 +243,7 @@ impl CalendarView {
         narrow: bool,
         p: &Pal,
     ) -> gpui_kit::Stateful<Div> {
-        let fill = color(Tone::of_event(event), p);
-        let ink = if p.dark {
-            fill.opacity(1.)
-        } else {
-            fill.blend(p.text.opacity(0.45))
-        };
+        let colors = calendar(Tone::of_event(event), p);
         div()
             .id(ElementId::Name(
                 format!("event-{}-{}", event.id, event.day).into(),
@@ -265,8 +259,8 @@ impl CalendarView {
             .py(px(2.))
             .rounded(px(5.))
             .overflow_hidden()
-            .bg(fill.opacity(0.22))
-            .text_color(ink)
+            .bg(colors.tint)
+            .text_color(colors.on_tint)
             .cursor_pointer()
             .child(
                 div()
@@ -275,7 +269,7 @@ impl CalendarView {
                     .top_0()
                     .bottom_0()
                     .w(px(3.))
-                    .bg(fill),
+                    .bg(colors.fill),
             )
             .child(
                 div()
@@ -295,7 +289,7 @@ impl CalendarView {
     }
 }
 
-/// A day's name and date over its column; today's date in a red circle.
+/// A day's name and date over its column; today's date in a circle of the danger colour.
 fn day_head(day: Date, today: bool, p: &Pal) -> Div {
     div()
         .flex()
@@ -306,7 +300,7 @@ fn day_head(day: Date, today: bool, p: &Pal) -> Div {
             div()
                 .text_size(px(10.5))
                 .font_weight(FontWeight::MEDIUM)
-                .text_color(if today { rgb(NOW_RED).into() } else { p.muted })
+                .text_color(if today { p.danger } else { p.muted })
                 .child(day.strftime("%a").to_string()),
         )
         .child(
@@ -318,8 +312,8 @@ fn day_head(day: Date, today: bool, p: &Pal) -> Div {
                 .rounded_full()
                 .text_size(px(14.))
                 .when(today, |d| {
-                    d.bg(rgb(NOW_RED))
-                        .text_color(white())
+                    d.bg(p.danger)
+                        .text_color(Pal::readable_on(p.danger))
                         .font_weight(FontWeight::BOLD)
                 })
                 .child(day.day().to_string()),

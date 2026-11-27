@@ -11,10 +11,9 @@ use gpui_kit::{Div, FontWeight, div, px};
 use jiff::tz::TimeZone;
 
 use super::CalendarView;
-use super::chips::color;
 use crate::store::calendar::words::{self, LEGEND_NOTE, Tone};
 use crate::ui::a11y::Accessible as _;
-use crate::ui::palette::Pal;
+use crate::ui::palette::{Pal, calendar};
 use crate::ui::settings::parts::selectable;
 
 /// The server's note over the days (the calendar's source didn't answer), with a moon.
@@ -64,7 +63,12 @@ pub(super) fn legend(p: &Pal, cx: &mut Context<'_, CalendarView>) -> impl IntoEl
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .child(div().size(px(14.)).rounded(px(3.)).bg(color(tone, p)))
+                .child(
+                    div()
+                        .size(px(14.))
+                        .rounded(px(3.))
+                        .bg(calendar(tone, p).fill),
+                )
                 .child(tone.name()),
         );
     }
@@ -93,7 +97,7 @@ fn line(name: &'static str, value: impl IntoElement, p: &Pal) -> Div {
 /// An event's head (its colour, title, day and time) and its lines (calendar, kind, people,
 /// place).
 fn facts(event: &CalendarEvent, zone: &TimeZone, p: &Pal) -> (Div, Div) {
-    let fill = color(Tone::of_event(event), p);
+    let fill = calendar(Tone::of_event(event), p).fill;
     let place = event
         .location
         .clone()
