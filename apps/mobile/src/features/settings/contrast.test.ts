@@ -11,7 +11,7 @@ describe("custom colour", () => {
   });
 
   it("says how it reads, never rounding up past AA", () => {
-    expect(contrastLines(builtInTheme, "light")).toEqual(["Text on it 5.1:1 · AA", "As text on the background 4.7:1"]);
+    expect(contrastLines(builtInTheme, "light")).toEqual(["Text on it 5.3:1 · AA", "As text on the background 4.9:1"]);
     const close = {
       ...builtInTheme,
       contrast: { ...builtInTheme.contrast, light: { ...builtInTheme.contrast.light, onAccent: 4.48 } },
@@ -30,8 +30,8 @@ describe("custom colour", () => {
       },
     };
     expect(contrastLines(yellow, "dark")).toEqual([
-      "Text on it 7.6:1 · AA",
-      "As text on the background 7.4:1",
+      "Text on it 8.7:1 · AA",
+      "As text on the background 8.9:1",
       "Darkened to #8A7400 in light mode, so it reads",
     ]);
   });

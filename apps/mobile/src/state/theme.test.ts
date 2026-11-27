@@ -6,12 +6,12 @@ import { applyLocally, createThemeStore, currentTheme } from "@/state/theme";
 import { fakeApi, json } from "@/test/fakes";
 import { builtInTheme } from "@/theme/builtIn";
 
-const blue = builtInTheme.presets[0]!;
+const paper = builtInTheme.presets.find((p) => p.id === "paper")!;
 const purple = {
   id: "purple",
   name: "Purple",
-  light: { ...blue.light, accent: "#7C3AED", accentSoft: "#EFE7FD" },
-  dark: { ...blue.dark, accent: "#A78BFA", accentSoft: "#3A3352" },
+  light: { ...paper.light, accent: "#7C3AED", accentSoft: "#EFE7FD" },
+  dark: { ...paper.dark, accent: "#A78BFA", accentSoft: "#3A3352" },
 };
 
 const settle = () => new Promise((done) => setTimeout(done, 10));
@@ -26,10 +26,10 @@ function setup(choice: Partial<ThemeChoice> = {}) {
   const net = { down: false, refuse: null as string | null, at: 0 };
   let saved: ThemeChoice = { ...builtInTheme.choice, ...choice };
   const page = (c: ThemeChoice): ThemePage => {
-    const preset = c.preset === "purple" ? purple : blue;
+    const preset = c.preset === "purple" ? purple : paper;
     const tokens = { light: { ...preset.light }, dark: { ...preset.dark } };
     if (c.accent) tokens.light.accent = tokens.dark.accent = c.accent;
-    return { ...builtInTheme, choice: c, tokens, presets: [blue, purple] };
+    return { ...builtInTheme, choice: c, tokens, presets: [paper, purple] };
   };
   server.on("GET", "/api/theme", () => {
     if (net.down) throw new TypeError("Network request failed");
@@ -59,16 +59,16 @@ function setup(choice: Partial<ThemeChoice> = {}) {
 }
 
 describe("theme sync", () => {
-  it("shows the built-in blue in the phone's old appearance before Emberhut ever answers", () => {
+  it("shows the built-in paper in the phone's old appearance before Emberhut ever answers", () => {
     const { prefs } = setup();
     prefs.getState().setTheme("dark");
-    expect(currentTheme(prefs.getState())).toMatchObject({ choice: { preset: "blue", appearance: "dark" }, tokens: builtInTheme.tokens });
+    expect(currentTheme(prefs.getState())).toMatchObject({ choice: { preset: "paper", appearance: "dark" }, tokens: builtInTheme.tokens });
   });
 
   it("caches the first answer and sends nothing when this phone was on System", async () => {
     const { store, prefs, posts } = setup();
     await store.getState().refresh();
-    expect(prefs.getState().themeCache?.presets.map((p) => p.id)).toEqual(["blue", "purple"]);
+    expect(prefs.getState().themeCache?.presets.map((p) => p.id)).toEqual(["paper", "purple"]);
     expect(prefs.getState().themeMigrated).toBe(true);
     expect(posts()).toEqual([]);
   });
@@ -140,7 +140,7 @@ describe("theme sync", () => {
       throw new TypeError("Network request failed");
     });
     const prefs = createPrefsStore(storage);
-    prefs.getState().setThemeCache({ ...builtInTheme, presets: [blue, purple] });
+    prefs.getState().setThemeCache({ ...builtInTheme, presets: [paper, purple] });
     await createThemeStore(api, prefs).getState().choose({ preset: "purple", accent: null });
     const again = createPrefsStore(storage);
     await again.persist.rehydrate();
@@ -151,11 +151,11 @@ describe("theme sync", () => {
   it("goes back when the server refuses, and says why", async () => {
     const { store, prefs, net } = setup();
     await store.getState().refresh();
-    net.refuse = "preset: one of graphite, blue";
+    net.refuse = "preset: one of paper, graphite";
     await store.getState().choose({ preset: "purple", accent: null });
-    expect(prefs.getState().themeCache?.choice.preset).toBe("blue");
-    expect(prefs.getState().themeCache?.tokens.light.accent).toBe("#2563EB");
-    expect(store.getState().error).toBe("preset: one of graphite, blue");
+    expect(prefs.getState().themeCache?.choice.preset).toBe("paper");
+    expect(prefs.getState().themeCache?.tokens.light.accent).toBe("#B83D0C");
+    expect(store.getState().error).toBe("preset: one of paper, graphite");
     expect(prefs.getState().themePending).toBeNull();
   });
 
@@ -181,7 +181,7 @@ describe("theme sync", () => {
 });
 
 describe("a change before the server answers", () => {
-  const page = { ...builtInTheme, presets: [blue, purple] };
+  const page = { ...builtInTheme, presets: [paper, purple] };
 
   it("resolves a preset from the cached ones, and can't resolve one it doesn't have", () => {
     expect(applyLocally(page, { preset: "purple", accent: null })?.tokens.dark.accent).toBe("#A78BFA");
@@ -192,11 +192,11 @@ describe("a change before the server answers", () => {
     const custom = {
       ...page,
       choice: { ...page.choice, accent: "#BE123C" },
-      tokens: { light: { ...blue.light, accent: "#BE123C" }, dark: blue.dark },
+      tokens: { light: { ...paper.light, accent: "#BE123C" }, dark: paper.dark },
     };
     expect(applyLocally(custom, { accent: null })).toMatchObject({
-      choice: { preset: "blue", accent: null },
-      tokens: { light: { accent: "#2563EB" } },
+      choice: { preset: "paper", accent: null },
+      tokens: { light: { accent: "#B83D0C" } },
     });
   });
 
