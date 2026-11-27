@@ -1,9 +1,11 @@
-//! Appearance: light or dark (or the system's), the colour presets, a custom colour typed as
-//! hex, and a preview of what the colour paints. A typed colour is previewed by the server
+//! Appearance: light or dark (or the system's), the sidebar's agents (shown or hidden, above
+//! or below the rooms), the colour presets, a custom colour typed as hex, and a preview of what
+//! the colour paints. A typed colour is previewed by the server
 //! (which holds it to WCAG AA) once the typing stops; Apply or Return uses it.
 
 use std::time::Duration;
 
+use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
@@ -15,12 +17,26 @@ use gpui_kit::{
 
 use super::parts::{note, page_body, problem_line, section};
 use crate::color::normalize_hex;
-use crate::store::Store;
+use crate::store::approvals::shown::visible;
+use crate::store::approvals::words::agent_line;
 use crate::store::settings::appearance::{NOT_A_HEX, contrast_line, preset_name, to_preview};
+use crate::store::{AgentsPlace, Store};
 use crate::ui::a11y::{self, Accessible as _};
+use crate::ui::column::{self, Column};
 use crate::ui::palette::Pal;
 use crate::ui::widgets::dot;
+use emberhut_api::ids::RoomId;
 use emberhut_api::theme::{Appearance, DEFAULT_PRESET, ThemePage, Tokens};
+use gpui_kit::component::switch::Switch;
+
+/// The Show agents switch, for tests to find.
+pub(crate) const SHOW_AGENTS: &str = "show-agents-switch";
+/// The Below rooms segment, for tests to find.
+pub(crate) const AGENTS_BELOW: &str = "agents-below";
+/// The Above rooms segment, for tests to find.
+pub(crate) const AGENTS_ABOVE: &str = "agents-above";
+/// A hidden agent's row, before its room's id, for tests to find.
+pub(crate) const HIDDEN_AGENT: &str = "hidden-agent";
 
 /// How long after the last key a typed colour is previewed.
 const PREVIEW_AFTER: Duration = Duration::from_millis(350);
@@ -265,6 +281,7 @@ impl Render for AppearancePane {
                 vec![self.modes(&page.choice.appearance, &p).into_any_element()],
                 Some("System follows this device's light or dark setting.".to_owned()),
             ))
+            .child(self.sidebar(&p, cx))
             .child(section(
                 &p,
                 "Colour",
@@ -395,6 +412,160 @@ fn painted(p: &Pal, tokens: Option<&Tokens>) -> Div {
                 .child(state(IconName::Clock, "Late", p.warn))
                 .child(state(IconName::CircleX, "Failed", p.danger)),
         )
+}
+
+impl AppearancePane {
+    /// The sidebar's agents: shown or hidden, and above or below the rooms. Kept on this
+    /// computer only, like the sidebar's width. While they are hidden, each agent is listed
+    /// here to open its room, so none is out of reach.
+    fn sidebar(&self, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
+        let store = self.store.read(cx);
+        let shown = store.agents_shown();
+        let place = store.agents_place();
+        let hidden: Vec<(RoomId, String, String, bool)> = if shown {
+            Vec::new()
+        } else {
+            store
+                .agent_rooms()
+                .iter()
+                .map(|own| {
+                    (
+                        own.agent.room,
+                        visible(&own.agent.name).into_owned(),
+                        agent_line(own.agent),
+                        own.agent.enabled,
+                    )
+                })
+                .collect()
+        };
+        let switch_store = self.store.clone();
+        let show =
+            labelled(
+                p,
+                "Show agents",
+                if shown {
+                    "Each agent's room, in the sidebar"
+                } else {
+                    "Hidden from the sidebar"
+                },
+            )
+            .child(Switch::new(SHOW_AGENTS).checked(shown).on_click(
+                move |on, _, cx| {
+                    switch_store.update(cx, |store, cx| store.show_agents(*on, cx));
+                },
+            ));
+        let mut places = div()
+            .flex()
+            .flex_none()
+            .gap(px(2.))
+            .p(px(2.))
+            .rounded(px(9.))
+            .bg(p.surface_raised)
+            .when(!shown, |d| d.opacity(0.5));
+        for (id, chosen, label) in [
+            (AGENTS_BELOW, AgentsPlace::Below, "Below rooms"),
+            (AGENTS_ABOVE, AgentsPlace::Above, "Above rooms"),
+        ] {
+            let segment = segment(id, label, place == chosen, p);
+            let segment = if shown {
+                let store = self.store.clone();
+                segment.on_click(move |_, _, cx| {
+                    store.update(cx, |store, cx| store.place_agents(chosen, cx));
+                })
+            } else {
+                segment.hint("Shown agents only: turn on Show agents first")
+            };
+            // Seen by the headless tests (a no-op outside them).
+            places = places.child(segment.test_support());
+        }
+        let place_row = labelled(
+            p,
+            "Where agents sit",
+            match place {
+                AgentsPlace::Below => "After your rooms, projects, sessions and goals",
+                AgentsPlace::Above => "Right under Needs you and Tasks",
+            },
+        )
+        .child(places);
+        let mut rows = vec![show.into_any_element(), place_row.into_any_element()];
+        for (room, name, line, enabled) in hidden {
+            let store = self.store.clone();
+            rows.push(hidden_agent(store, (room, name, line, enabled), p).into_any_element());
+        }
+        let footer = if shown {
+            "Your rooms come first; the agents' rooms follow, or sit above them."
+        } else {
+            "Hidden agents stay here and in Find (⌘K): open one to go to its room."
+        };
+        section(p, "Sidebar", None, rows, Some(footer.to_owned()))
+    }
+}
+
+/// A setting's row: its title and a line under it at the left; its control goes at the right.
+fn labelled(p: &Pal, title: &'static str, line: &'static str) -> Div {
+    div().flex().items_center().gap(px(12.)).child(
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_w_0()
+            .gap(px(2.))
+            .child(div().text_size(px(13.)).child(title))
+            .child(div().text_size(px(12.)).text_color(p.muted).child(line)),
+    )
+}
+
+/// A hidden agent's row: its name and whom it works for; a click opens its room and shows the
+/// chat.
+fn hidden_agent(
+    store: Entity<Store>,
+    (room, name, line, enabled): (RoomId, String, String, bool),
+    p: &Pal,
+) -> impl IntoElement {
+    div()
+        .id(ElementId::Name(format!("{HIDDEN_AGENT}-{room}").into()))
+        .button_named(format!("Open {name}'s room, {line}"))
+        .flex()
+        .items_center()
+        .gap(px(8.))
+        .px(px(6.))
+        .py(px(5.))
+        .rounded(px(6.))
+        .cursor_pointer()
+        .hover(|d| d.bg(p.hover))
+        .child(
+            Icon::new(IconName::Bot)
+                .size(px(14.))
+                .text_color(if enabled { p.accent } else { p.faint }),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_w_0()
+                .child(div().text_size(px(13.)).truncate().child(name))
+                .child(
+                    div()
+                        .text_size(px(11.5))
+                        .text_color(p.muted)
+                        .truncate()
+                        .child(line),
+                ),
+        )
+        .child(
+            Icon::new(IconName::ChevronRight)
+                .size(px(12.))
+                .text_color(p.faint),
+        )
+        .on_click(move |_, window, cx| {
+            store.update(cx, |store, cx| store.switch_room(room, cx));
+            if let Some(column) = column::of(window, cx) {
+                column.update(cx, Column::close);
+            }
+        })
+        // Seen by the headless tests (a no-op outside them).
+        .test_support()
 }
 
 /// One of the Mode switch's segments.

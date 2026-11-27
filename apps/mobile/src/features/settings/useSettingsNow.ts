@@ -18,6 +18,8 @@ export function useSettingsNow(): Now {
   const { scheme } = useTheme();
   const cache = usePrefs((s) => s.themeCache);
   const local = usePrefs((s) => s.theme);
+  const showAgents = usePrefs((s) => s.showAgents);
+  const agentsPlace = usePrefs((s) => s.agentsPlace);
   const appearance = currentTheme({ themeCache: cache, theme: local }).choice.appearance;
   const devices = state.data?.auth?.devices;
   const sources = (environments.data?.groups ?? []).flatMap((g) => g.items).filter((e) => e.group === "connections");
@@ -37,5 +39,7 @@ export function useSettingsNow(): Now {
     sourcesToFix: sources.filter((e) => e.state === "warn" || e.state === "down").map((e) => e.name),
     sourcesOn: sources.filter((e) => e.state === "ok").length,
     hasAccount: accountConfig !== null,
+    showAgents,
+    agentsPlace,
   };
 }

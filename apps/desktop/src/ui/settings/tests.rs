@@ -980,3 +980,74 @@ fn on_duty_switches_from_your_embers_page(cx: &mut TestAppContext) {
         backend.calls()
     );
 }
+
+#[gpui_kit::test]
+fn appearance_hides_the_agents_moves_them_and_still_opens_their_rooms(cx: &mut TestAppContext) {
+    use super::appearance::{AGENTS_ABOVE, AGENTS_BELOW, HIDDEN_AGENT, SHOW_AGENTS};
+    use crate::store::AgentsPlace;
+
+    let pane = SettingsPane::Appearance;
+    let (_backend, store, _, mut cx) = open_settings_view(cx, Some(pane));
+    store.update(&mut cx, |store, cx| {
+        store.take_state_for_tests(
+            crate::fixtures::state(json!({
+            "rooms": [crate::fixtures::room(1, json!({})), crate::fixtures::room(9, json!({}))],
+            "agents": [
+                {"id": "main", "name": "Main", "principal": "the owner", "room": 1,
+                 "enabled": true, "pendingApprovals": 0},
+                {"id": "helper", "name": "Example helper", "principal": "Example Ltd",
+                 "room": 9, "enabled": true, "pendingApprovals": 0}
+            ]
+            })),
+            cx,
+        );
+        store.show_in_test_column(Some(Page::SettingsPane(pane)), cx);
+    });
+    cx.run_until_parked();
+    // The row of the agent whose room is 9.
+    let hidden_row: &'static str = "hidden-agent-9";
+    assert!(hidden_row.starts_with(HIDDEN_AGENT));
+    draws_light_and_dark(&mut cx, &[SHOW_AGENTS, AGENTS_BELOW, AGENTS_ABOVE]);
+    let now = |cx: &VisualTestContext| {
+        store.read_with(cx, |store, _| (store.agents_shown(), store.agents_place()))
+    };
+    assert_eq!(
+        now(&cx),
+        (true, AgentsPlace::Below),
+        "shown, below the rooms"
+    );
+    cx.update(|window, cx| {
+        assert!(
+            window.try_find(hidden_row).is_none(),
+            "listed in the sidebar"
+        );
+        window.click(AGENTS_ABOVE, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(now(&cx), (true, AgentsPlace::Above));
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(SHOW_AGENTS, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(now(&cx), (false, AgentsPlace::Above), "hidden");
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(AGENTS_BELOW, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        now(&cx),
+        (false, AgentsPlace::Above),
+        "the place waits for the agents to show"
+    );
+    draws_light_and_dark(&mut cx, &[SHOW_AGENTS, AGENTS_BELOW]);
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        assert!(window.try_find(hidden_row).is_some(), "listed here instead");
+        window.click(hidden_row, cx);
+    });
+    cx.run_until_parked();
+    let room = store.read_with(&cx, |store, _| store.room());
+    assert_eq!(room, emberhut_api::ids::RoomId::new(9), "its room opens");
+}

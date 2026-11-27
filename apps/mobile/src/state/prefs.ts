@@ -15,6 +15,9 @@ export interface SessionFilter {
 /** How Needs you is grouped: by project, the default, or by when you have to decide. */
 export type NeedsGroupingPreference = "project" | "when";
 
+/** Where the agents' rooms sit in the rooms list: after the paused fold, the default, or before it. */
+export type AgentsPlace = "below" | "above";
+
 export interface PrefsState {
   /** The appearance this phone kept for itself before the theme lived on the server: sent there once. */
   theme: ThemePreference;
@@ -29,6 +32,9 @@ export interface PrefsState {
   needsGrouping: NeedsGroupingPreference;
   /** The Sessions tab's Worker and Environment picks, kept across launches. */
   sessionFilter: SessionFilter;
+  /** Whether the rooms list shows the agents' rooms; hidden ones still open from Settings › Appearance. */
+  showAgents: boolean;
+  agentsPlace: AgentsPlace;
   setTheme: (theme: ThemePreference) => void;
   setThemeCache: (page: ThemePage | null) => void;
   setThemePending: (change: ThemeChange | null) => void;
@@ -36,6 +42,8 @@ export interface PrefsState {
   setRoom: (room: number) => void;
   setNeedsGrouping: (grouping: NeedsGroupingPreference) => void;
   setSessionFilter: (filter: SessionFilter) => void;
+  setShowAgents: (show: boolean) => void;
+  setAgentsPlace: (place: AgentsPlace) => void;
 }
 
 /** What this device keeps for itself (not secrets: those are in secure storage). */
@@ -50,6 +58,8 @@ export function createPrefsStore(storage: StateStorage) {
         room: mainRoom,
         needsGrouping: "project",
         sessionFilter: {},
+        showAgents: true,
+        agentsPlace: "below",
         setTheme: (theme) => set({ theme }),
         setThemeCache: (themeCache) => set({ themeCache }),
         setThemePending: (themePending) => set({ themePending }),
@@ -57,13 +67,16 @@ export function createPrefsStore(storage: StateStorage) {
         setRoom: (room) => set({ room }),
         setNeedsGrouping: (needsGrouping) => set({ needsGrouping }),
         setSessionFilter: (sessionFilter) => set({ sessionFilter }),
+        setShowAgents: (showAgents) => set({ showAgents }),
+        setAgentsPlace: (agentsPlace) => set({ agentsPlace }),
       }),
       {
         name: "emberhut.prefs",
-        // Still 1: the theme fields and sessionFilter are new keys, filled with their defaults on an older save.
+        // Still 1: the theme fields, sessionFilter, showAgents and agentsPlace are new keys, filled with their defaults on an
+        // older save.
         version: 1,
         storage: createJSONStorage(() => storage),
-        partialize: ({ theme, themeCache, themePending, themeMigrated, room, needsGrouping, sessionFilter }) => ({
+        partialize: ({ theme, themeCache, themePending, themeMigrated, room, needsGrouping, sessionFilter, showAgents, agentsPlace }) => ({
           theme,
           themeCache,
           themePending,
@@ -71,6 +84,8 @@ export function createPrefsStore(storage: StateStorage) {
           room,
           needsGrouping,
           sessionFilter,
+          showAgents,
+          agentsPlace,
         }),
       },
     ),

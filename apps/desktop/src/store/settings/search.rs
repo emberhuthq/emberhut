@@ -208,6 +208,10 @@ mod tests {
             ("memory", "about-you"),
             ("gmail", "sources"),
             ("version", "updates"),
+            ("hide agents", "show-agents"),
+            ("agents", "show-agents"),
+            ("agents below rooms", "agents-place"),
+            ("move agents", "agents-place"),
         ] {
             assert_eq!(first(query), id, "{query}");
         }

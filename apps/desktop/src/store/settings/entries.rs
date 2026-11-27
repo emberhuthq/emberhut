@@ -9,6 +9,7 @@ use gpui_kit::assets::IconName;
 
 use super::SettingsPane;
 use super::now::{Now, computer};
+use crate::store::AgentsPlace;
 
 /// A group of Settings: a chip on the front door, and a page of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -490,6 +491,44 @@ pub(crate) const ENTRIES: &[Entry] = &[
     .at("Colour")
     .also(&["hex", "color", "accent", "preview"])
     .technical(None),
+    everyday(
+        "show-agents",
+        "Show agents",
+        Line::Live(|now| {
+            if now.agents_shown {
+                "Your agents' rooms, in the sidebar".to_owned()
+            } else {
+                "Hidden · open them from here or from Find".to_owned()
+            }
+        }),
+        Group::Appearance,
+        Destination::Pane(SettingsPane::Appearance),
+        IconName::Users,
+    )
+    .at("Sidebar")
+    .also(&["hide agents", "hide", "agents", "agent rooms", "sidebar"]),
+    everyday(
+        "agents-place",
+        "Where agents sit",
+        Line::Live(|now| match now.agents_place {
+            AgentsPlace::Below => "Below your rooms and the rest of the sidebar".to_owned(),
+            AgentsPlace::Above => "Above your rooms".to_owned(),
+        }),
+        Group::Appearance,
+        Destination::Pane(SettingsPane::Appearance),
+        IconName::Layers,
+    )
+    .at("Sidebar")
+    .also(&[
+        "agents below rooms",
+        "agents above rooms",
+        "below",
+        "above",
+        "move agents",
+        "order",
+        "sidebar order",
+        "agents",
+    ]),
     // Devices.
     everyday(
         "devices",
@@ -799,6 +838,16 @@ mod tests {
         (
             "Appearance › Custom colour, Preview",
             "custom-colour",
+            Group::Appearance,
+        ),
+        (
+            "Sidebar › Agents section shown",
+            "show-agents",
+            Group::Appearance,
+        ),
+        (
+            "Sidebar › Agents above or below the rooms",
+            "agents-place",
             Group::Appearance,
         ),
         ("Sign in › pairing form", "sign-in-here", Group::Devices),

@@ -1,21 +1,32 @@
+import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import type { Appearance as AppearanceChoice, ThemePage } from "@/api";
+import { agentLine } from "@/features/approvals/model";
+import { splitAgentRooms } from "@/features/chat/rooms";
 import { inBackground } from "@/log";
-import { themeStore } from "@/services";
+import { prefsStore, themeStore } from "@/services";
 import { offlineReason } from "@/state/connection";
 import { useConnection, usePrefs, useThemeStore } from "@/state/hooks";
+import type { AgentsPlace } from "@/state/prefs";
+import { useEmberhutState } from "@/state/queries";
 import { queryKeys } from "@/state/query";
 import { currentTheme } from "@/state/theme";
 import { minTap, useTheme } from "@/theme";
-import { Button, Icon, Section, Segmented, Text, TextField } from "@/ui";
+import { Button, Icon, ListRow, Section, Segmented, Text, TextField, Toggle } from "@/ui";
 import { contrastLines, normalHex } from "./contrast";
 
 const appearances: readonly { value: AppearanceChoice; label: string }[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
+];
+
+const agentsPlaces: readonly { value: AgentsPlace; label: string }[] = [
+  { value: "below", label: "Below rooms" },
+  { value: "above", label: "Before paused rooms" },
 ];
 
 /**
@@ -51,6 +62,63 @@ export function Appearance() {
       <Presets key="presets" page={page} />
       {/* A new saved colour (here or from another device) starts the field again. */}
       <CustomAccent key={`custom:${page.choice.accent ?? ""}`} page={page} />
+    </Section>
+  );
+}
+
+/**
+ * The rooms list, as this phone shows it: whether the agents' rooms show, and whether they sit after the paused fold or
+ * before it. While hidden, each agent is listed here instead and opens its room, so hiding one loses nothing.
+ */
+export function RoomsList() {
+  const { spacing } = useTheme();
+  const showAgents = usePrefs((s) => s.showAgents);
+  const agentsPlace = usePrefs((s) => s.agentsPlace);
+  const state = useEmberhutState();
+  const navigation = useNavigation();
+  const agents = useMemo(
+    () => splitAgentRooms(state.data?.rooms ?? [], state.data?.agents).agents,
+    [state.data?.rooms, state.data?.agents],
+  );
+  const prefs = prefsStore.getState();
+  // As the rooms list opens a room: it becomes the one on screen, in Chat.
+  const open = (id: number) => {
+    inBackground(Haptics.selectionAsync(), "RoomsList: selectionAsync");
+    prefsStore.getState().setRoom(id);
+    navigation.navigate("Tabs", { screen: "Chat", params: { room: id } });
+  };
+  const listed = !showAgents && agents.length > 0;
+  return (
+    <Section title="Rooms list" footer={listed ? "Hidden agents stay here; tap one to open its room." : undefined}>
+      <ListRow
+        key="show"
+        icon="people-circle-outline"
+        title="Show agents"
+        trailing={<Toggle value={showAgents} onChange={prefs.setShowAgents} label="Show agents" />}
+      />
+      <View key="place" style={{ gap: spacing.sm, padding: spacing.md }}>
+        <Text variant="callout" weight="600" tone={showAgents ? "primary" : "tertiary"}>
+          Where agents sit
+        </Text>
+        <Segmented
+          options={agentsPlaces}
+          value={agentsPlace}
+          onChange={prefs.setAgentsPlace}
+          disabled={!showAgents}
+          accessibilityLabel="Where agents sit"
+        />
+      </View>
+      {listed
+        ? agents.map(({ room, agent }) => (
+            <ListRow
+              key={`agent:${room.id}`}
+              icon="person-circle-outline"
+              title={room.name}
+              subtitle={agentLine(agent)}
+              onPress={() => open(room.id)}
+            />
+          ))
+        : null}
     </Section>
   );
 }

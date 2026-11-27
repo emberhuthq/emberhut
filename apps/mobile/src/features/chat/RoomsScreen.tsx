@@ -23,17 +23,30 @@ import {
   roomColor,
   roomNeeds,
   roomPreview,
+  roomsSections,
   shortAgo,
   splitAgentRooms,
+  type RoomsSection,
 } from "./rooms";
 
+/** A section of the list: no title for the open rooms; the paused one folds. */
+interface ListSection {
+  key: RoomsSection;
+  title: string | null;
+  folds: boolean;
+  data: RoomRow[];
+}
+
 /**
- * Main and a room per project, one line each, then each agent's room under Agents (its name, who it works for, Off while
- * disabled); paused ones folded under their own header. A tap opens that room.
+ * Main and a room per project, one line each; paused ones folded under their own header; each agent's room under Agents
+ * (its name, who it works for, Off while disabled), after the paused fold or before it, or left out while hidden (the
+ * device's prefs). A tap opens that room.
  */
 export function RoomsScreen({ navigation }: RootScreenProps<"Rooms">) {
   const { scheme, spacing } = useTheme();
   const room = usePrefs((s) => s.room);
+  const showAgents = usePrefs((s) => s.showAgents);
+  const agentsPlace = usePrefs((s) => s.agentsPlace);
   const state = useEmberhutState(room);
   const [pausedOpen, setPausedOpen] = useState(false);
   const [menu, setMenu] = useState<RoomRow | null>(null);
@@ -55,13 +68,18 @@ export function RoomsScreen({ navigation }: RootScreenProps<"Rooms">) {
   if (state.data === undefined) return <Loading label="Reaching Emberhut" />;
   const rooms = split.rooms;
   const paused = foldedRooms(rooms);
-  const sections = [
-    { key: "open", title: null, folds: false, data: openRooms(rooms) },
-    ...(split.agents.length > 0
-      ? [{ key: "agents", title: `Agents · ${split.agents.length}`, folds: false, data: split.agents.map((a) => a.room) }]
-      : []),
-    ...(paused.length > 0 ? [{ key: "paused", title: `Paused · ${paused.length}`, folds: true, data: pausedOpen ? paused : [] }] : []),
-  ];
+  const sections = roomsSections(showAgents, agentsPlace).flatMap((key): ListSection[] => {
+    switch (key) {
+      case "open":
+        return [{ key, title: null, folds: false, data: openRooms(rooms) }];
+      case "agents":
+        return split.agents.length > 0
+          ? [{ key, title: `Agents · ${split.agents.length}`, folds: false, data: split.agents.map((a) => a.room) }]
+          : [];
+      case "paused":
+        return paused.length > 0 ? [{ key, title: `Paused · ${paused.length}`, folds: true, data: pausedOpen ? paused : [] }] : [];
+    }
+  });
   const open = (id: number) => {
     inBackground(Haptics.selectionAsync(), "RoomsScreen: selectionAsync");
     prefsStore.getState().setRoom(id);

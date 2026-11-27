@@ -1,12 +1,12 @@
 //! ↑ and ↓ through the sidebar: it keeps the keyboard after a click on one of its rows, and
-//! the arrows move through the places it lists (your ember, Needs you, Tasks, the agents, the
-//! rooms, Machines, Settings), opening each one they land on.
+//! the arrows move through the places it lists (your ember, Needs you, Tasks, the rooms, the
+//! agents where they are shown, Machines, Settings), opening each one they land on.
 
 use gpui_kit::prelude::*;
 use gpui_kit::{App, Div, KeyBinding, MouseButton, Window, actions};
 
 use super::window::MainWindow;
-use crate::store::{Page, Store, lookup};
+use crate::store::{AgentsPlace, Page, Store, lookup};
 
 actions!(
     sidebar,
@@ -40,18 +40,27 @@ pub(crate) fn places(store: &Store, more_open: bool) -> Vec<Page> {
         places.push(Page::Tasks);
     }
     places.push(Page::Scheduled);
-    places.extend(
+    let agents: Vec<Page> = if store.agents_shown() {
         store
             .agent_rooms()
             .iter()
-            .map(|own| Page::Room(own.agent.room)),
-    );
+            .map(|own| Page::Room(own.agent.room))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let (above, below) = match store.agents_place() {
+        AgentsPlace::Above => (agents, Vec::new()),
+        AgentsPlace::Below => (Vec::new(), agents),
+    };
+    places.extend(above);
     if store.rooms_open() {
         places.extend(switcher.listed().iter().map(|room| Page::Room(room.id)));
         if store.paused_open() {
             places.extend(switcher.paused().iter().map(|room| Page::Room(room.id)));
         }
     }
+    places.extend(below);
     if more_open {
         places.extend([Page::Machines, Page::Settings]);
     }
@@ -172,6 +181,49 @@ mod tests {
                 [r(1), Page::Needs, Page::Scheduled],
                 "no Tasks while the server hides them"
             );
+        });
+    }
+
+    /// The agents' rooms come after the rooms by default, right under the pages when Settings
+    /// puts them above, and nowhere while they are hidden.
+    #[gpui_kit::test]
+    fn the_agents_follow_the_sidebars_place_for_them(cx: &mut TestAppContext) {
+        let backend = Arc::new(FakeBackend::new([])) as Arc<dyn crate::backend::Backend>;
+        let store = cx.new(|_| Store::for_tests(backend));
+        let r = |id| Page::Room(RoomId::new(id));
+        store.update(cx, |store, cx| {
+            store.take_state_for_tests(
+                state(json!({
+                    "rooms": [room(1, json!({})), room(2, json!({})), room(9, json!({}))],
+                    "agents": [
+                        {"id": "main", "name": "Main", "principal": "the owner", "room": 1,
+                         "enabled": true, "pendingApprovals": 0},
+                        {"id": "helper", "name": "Example helper", "principal": "Example Ltd",
+                         "room": 9, "enabled": true, "pendingApprovals": 0}
+                    ]
+                })),
+                cx,
+            );
+            let top = [r(1), Page::Needs, Page::Tasks, Page::Scheduled];
+            let rooms: Vec<Page> = store
+                .switcher()
+                .listed()
+                .iter()
+                .map(|listed| Page::Room(listed.id))
+                .collect();
+            assert_eq!(
+                places(store, false),
+                [&top[..], &rooms, &[r(9)]].concat(),
+                "below the rooms, by default"
+            );
+            store.place_agents(AgentsPlace::Above, cx);
+            assert_eq!(
+                places(store, false),
+                [&top[..], &[r(9)], &rooms].concat(),
+                "above the rooms"
+            );
+            store.show_agents(false, cx);
+            assert_eq!(places(store, false), [&top[..], &rooms].concat(), "hidden");
         });
     }
 

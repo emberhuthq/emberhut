@@ -20,13 +20,16 @@ use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
 
 /// The Agents section: its title and a row per agent with a room of its own; nothing without
-/// one.
+/// one, or while Settings hides the agents.
 pub(crate) fn section(
     window: &MainWindow,
     p: &Pal,
     cx: &Context<'_, MainWindow>,
 ) -> Vec<AnyElement> {
     let store = window.store.read(cx);
+    if !store.agents_shown() {
+        return Vec::new();
+    }
     let own = store.agent_rooms();
     if own.is_empty() {
         return Vec::new();

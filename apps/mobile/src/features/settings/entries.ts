@@ -67,6 +67,10 @@ export interface Now {
   sourcesOn: number;
   /** Whether this build has the emberhut.com account. */
   hasAccount: boolean;
+  /** Whether the rooms list shows the agents' rooms (this device's choice). */
+  showAgents: boolean;
+  /** Where the agents' rooms sit in the rooms list: after the paused fold, or before it. */
+  agentsPlace: "below" | "above";
 }
 
 /** Nothing known yet. */
@@ -83,6 +87,8 @@ export const nothingKnown: Now = {
   sourcesToFix: [],
   sourcesOn: 0,
   hasAccount: false,
+  showAgents: true,
+  agentsPlace: "below",
 };
 
 /** Where opening a setting goes: its group's screen, or a screen of its own. */
@@ -209,6 +215,26 @@ export const entries: readonly Entry[] = [
     technical: true,
     to: { group: "appearance" },
     icon: "eyedrop-outline",
+  },
+  {
+    id: "show-agents",
+    title: "Show agents",
+    line: (now) => (now.showAgents ? "Your agents' rooms, in the rooms list" : "Hidden · open them from here"),
+    group: "appearance",
+    place: "Rooms list",
+    synonyms: ["hide agents", "hide", "agents", "agent rooms", "sidebar", "rooms list"],
+    to: { group: "appearance" },
+    icon: "people-circle-outline",
+  },
+  {
+    id: "agents-place",
+    title: "Where agents sit",
+    line: (now) => (now.agentsPlace === "below" ? "Below rooms, after paused ones" : "Before paused rooms"),
+    group: "appearance",
+    place: "Rooms list",
+    synonyms: ["agents below rooms", "agents above rooms", "below", "above", "move agents", "order", "sidebar order", "agents"],
+    to: { group: "appearance" },
+    icon: "swap-vertical-outline",
   },
   {
     id: "devices",

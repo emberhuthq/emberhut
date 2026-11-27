@@ -38,6 +38,12 @@
       "id": "custom-colour"
     },
     {
+      "id": "show-agents"
+    },
+    {
+      "id": "agents-place"
+    },
+    {
       "id": "devices"
     },
     {

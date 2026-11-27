@@ -93,7 +93,7 @@ pub(crate) use self::reports::ReportPage;
 pub(crate) use self::room_line::RoomLine;
 pub(crate) use self::talk::PendingMessage;
 pub(crate) use self::theme::ThemeState;
-pub(crate) use self::view_file::ViewFile;
+pub(crate) use self::view_file::{AgentsPlace, ViewFile};
 
 use self::answers::Answers;
 use self::attachments::Attachments;

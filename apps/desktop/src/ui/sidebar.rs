@@ -1,5 +1,6 @@
-//! The sidebar: your ember (the assistant's row), Needs you, Tasks, the agents, the rooms, the
-//! recent sessions, and More (Machines, Settings, and the windows of their own this build has).
+//! The sidebar: your ember (the assistant's row), Needs you, Tasks, the rooms, the recent
+//! sessions, the agents (below all those unless Settings puts them above the rooms, or hidden),
+//! and More (Machines, Settings, and the windows of their own this build has).
 //! Its right edge drags it wider or narrower; Recent sessions and More fold, kept across
 //! launches. Every row explains itself on hover and is in the Tab order.
 
@@ -31,7 +32,7 @@ use crate::shell::{WindowKind, windows};
 use crate::store::lookup;
 use crate::store::room_line::WIDE_FROM;
 use crate::store::settings::SettingsPane;
-use crate::store::{Page, Store};
+use crate::store::{AgentsPlace, Page, Store};
 
 /// How many recent sessions the sidebar lists.
 const RECENT_SESSIONS: usize = 6;
@@ -39,7 +40,17 @@ const RECENT_SESSIONS: usize = 6;
 /// The sidebar.
 pub(crate) fn sidebar(window: &mut MainWindow, cx: &mut Context<'_, MainWindow>) -> Div {
     let p = pal(cx);
-    let width = window.store.read(cx).sidebar_width();
+    let (width, place) = {
+        let store = window.store.read(cx);
+        (store.sidebar_width(), store.agents_place())
+    };
+    // The agents sit above the rooms or below them all, as set in Settings › Appearance; hidden,
+    // the section is empty.
+    let agents = super::sidebar_agents::section(window, &p, cx);
+    let (above, below) = match place {
+        AgentsPlace::Above => (agents, Vec::new()),
+        AgentsPlace::Below => (Vec::new(), agents),
+    };
     let list = div()
         .id("sidebar-list")
         .flex()
@@ -53,11 +64,12 @@ pub(crate) fn sidebar(window: &mut MainWindow, cx: &mut Context<'_, MainWindow>)
                 .into_iter()
                 .map(TestSupportExt::test_support),
         )
-        .children(super::sidebar_agents::section(window, &p, cx))
+        .children(above)
         .children(super::rooms::section(window, width >= WIDE_FROM, &p, cx))
         .children(super::sidebar_places::projects(window, &p, cx))
         .children(sessions(window, &p, cx))
         .children(super::sidebar_places::goals(window, &p, cx))
+        .children(below)
         .children(
             more(window, &p, cx)
                 .into_iter()

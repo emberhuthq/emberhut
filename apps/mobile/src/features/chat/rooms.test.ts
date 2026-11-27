@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ASSISTANT, OWNER, type AgentRow, type Approval, type EmberhutState, type RoomRow, type WorkRow } from "@/api";
 import { needsCount, needsRows } from "@/features/needsYou/model";
 import { goalColors } from "@/theme/goalColors";
-import { dayFromNow, foldedRooms, openRooms, roomColor, roomNeeds, roomPreview, shortAgo, splitAgentRooms } from "./rooms";
+import { dayFromNow, foldedRooms, openRooms, roomColor, roomNeeds, roomPreview, roomsSections, shortAgo, splitAgentRooms } from "./rooms";
 import { emberhutStatus } from "./status";
 
 const room = (id: number, extra: Partial<RoomRow> = {}): RoomRow => ({
@@ -124,6 +124,21 @@ describe("rooms", () => {
     expect(shortAgo("2026-11-24T09:00:00Z", now)).toBe("3h");
     expect(shortAgo(null, now)).toBeNull();
     expect(dayFromNow(7, new Date(2026, 10, 28))).toBe("2026-12-05");
+  });
+});
+
+describe("roomsSections", () => {
+  it("puts the agents after the paused rooms by default", () => {
+    expect(roomsSections(true, "below")).toEqual(["open", "paused", "agents"]);
+  });
+
+  it("puts the agents before the paused rooms when asked", () => {
+    expect(roomsSections(true, "above")).toEqual(["open", "agents", "paused"]);
+  });
+
+  it("leaves the agents out while they are hidden, wherever they would sit", () => {
+    expect(roomsSections(false, "below")).toEqual(["open", "paused"]);
+    expect(roomsSections(false, "above")).toEqual(["open", "paused"]);
   });
 });
 

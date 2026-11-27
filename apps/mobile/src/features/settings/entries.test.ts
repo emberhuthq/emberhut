@@ -46,6 +46,8 @@ describe("search", () => {
       ["QR", "pair"],
       ["forget", "about-you"],
       ["memory", "about-you"],
+      ["hide agents", "show-agents"],
+      ["agents below rooms", "agents-place"],
     ] as const) {
       expect(first(query), query).toBe(id);
     }
@@ -64,6 +66,14 @@ describe("search", () => {
     expect(found.nothing).toBe(true);
     expect(found.rows[0]?.entry.id).toBe("appearance-mode");
     expect(search("zzzz", nothingKnown).rows).toEqual([]);
+  });
+
+  it("says how the agents sit in the rooms list now", () => {
+    const line = (query: string, now: typeof nothingKnown) => search(query, now).rows[0]?.line;
+    expect(line("hide agents", nothingKnown)).toBe("Your agents' rooms, in the rooms list");
+    expect(line("hide agents", { ...nothingKnown, showAgents: false })).toBe("Hidden · open them from here");
+    expect(line("agents below rooms", nothingKnown)).toBe("Below rooms, after paused ones");
+    expect(line("agents below rooms", { ...nothingKnown, agentsPlace: "above" })).toBe("Before paused rooms");
   });
 
   it("finds the account only in builds with it", () => {

@@ -10,9 +10,9 @@ use emberhut_api::theme::Appearance;
 use super::about::listed_count;
 use super::appearance::summary as theme_summary;
 use super::chrome::{self, Health};
-use crate::store::Store;
 use crate::store::credentials::saved_line;
 use crate::store::working::environments::health;
+use crate::store::{AgentsPlace, Store};
 
 /// The computer the app runs on, in the words of "as your Mac is".
 #[must_use]
@@ -79,6 +79,10 @@ pub(crate) struct Now {
     pub(crate) push: bool,
     /// Whether this build has the emberhut.com account.
     pub(crate) has_account: bool,
+    /// Whether the sidebar lists the agents.
+    pub(crate) agents_shown: bool,
+    /// Where the sidebar lists them.
+    pub(crate) agents_place: AgentsPlace,
 }
 
 impl Now {
@@ -203,6 +207,8 @@ impl Store {
             server: self.server().to_string(),
             push: state.is_some_and(|state| state.push),
             has_account,
+            agents_shown: self.agents_shown(),
+            agents_place: self.agents_place(),
         }
     }
 }
