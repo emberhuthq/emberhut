@@ -24,6 +24,7 @@ use crate::store::{AgentsPlace, Store};
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
 use crate::ui::palette::Pal;
+use crate::ui::spotlight::SEARCH_KEYS;
 use crate::ui::widgets::dot;
 use emberhut_api::ids::RoomId;
 use emberhut_api::theme::{Appearance, DEFAULT_PRESET, ThemePage, Tokens};
@@ -503,11 +504,13 @@ impl AppearancePane {
             rows.push(hidden_agent((room, name, line, enabled), p).into_any_element());
         }
         let footer = if shown {
-            "Your rooms come first; the agents' rooms follow, or sit above them."
+            "Your rooms come first; the agents' rooms follow, or sit above them.".to_owned()
         } else {
-            "Hidden agents stay here and in Find (⌘K): open one to go to its room."
+            format!(
+                "Hidden agents stay here and in Search ({SEARCH_KEYS}): open one to go to its room."
+            )
         };
-        section(p, "Sidebar", None, rows, Some(footer.to_owned()))
+        section(p, "Sidebar", None, rows, Some(footer))
     }
 }
 

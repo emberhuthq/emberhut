@@ -1,4 +1,4 @@
-//! Find, as a spotlight over the window (⌘K): one field that finds tasks (by key, title or
+//! Search, as a spotlight over the window (⌘K): one field that finds tasks (by key, title or
 //! text, done and archived ones too, asked of the server after a pause in the typing), projects,
 //! agents (by name or who they work for, so an agent stays one search away while the sidebar
 //! hides them) and people (what the assistant knows about them), and opens the one picked. With

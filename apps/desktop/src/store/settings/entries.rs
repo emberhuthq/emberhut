@@ -498,7 +498,7 @@ pub(crate) const ENTRIES: &[Entry] = &[
             if now.agents_shown {
                 "Your agents' rooms, in the sidebar".to_owned()
             } else {
-                "Hidden · open them from here or from Find".to_owned()
+                "Hidden · open them from here or from Search".to_owned()
             }
         }),
         Group::Appearance,

@@ -28,7 +28,7 @@ pub(crate) struct ViewFile {
     /// The sidebar's width, in logical pixels, once the user dragged its edge.
     pub(crate) sidebar_width: Option<f32>,
     /// Whether the sidebar lists the agents. Hidden, they stay in Settings › Appearance and in
-    /// Find.
+    /// Search.
     pub(crate) agents_shown: bool,
     /// Where the sidebar lists the agents.
     pub(crate) agents_place: AgentsPlace,
