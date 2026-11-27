@@ -192,7 +192,8 @@ Not run by CI (no Xcode or Android SDK there); record the result in the pull req
   and a tap above it closes it. The chat's title is centred, and the Sessions button's count sits whole on its icon's
   corner.
 - The native chrome, on iOS 26 and on one older iOS (18):
-  - the five tabs with their SF Symbols, and the Needs you badge;
+  - the five tabs: four with SF Symbols, Your ember's with the ember in its own colours (grey off duty), and the
+    Needs you badge;
   - large titles that collapse as Needs you, Tasks, Sessions and More scroll;
   - the chat's solid header with no scroll-edge fade over its list, on a cold start straight into the chat (iOS 26
     Simulator: quit the app, open it), and again after switching rooms and tabs;
@@ -200,7 +201,7 @@ Not run by CI (no Xcode or Android SDK there); record the result in the pull req
 - The native chrome, on Android 14 or later:
   - predictive back from a tab's root, from a pushed screen, from a modal, and from New session's folder browser (which
     holds back for itself);
-  - the Material 3 bar with all five labels and the pill behind the tab picked;
+  - the Material 3 bar with all five labels, the ember untinted on Your ember's tab, and the pill behind the tab picked;
   - TalkBack on the tabs;
   - dialogs (`Alert`) under the Material 3 theme.
 
@@ -248,7 +249,7 @@ Not run by CI (no Xcode or Android SDK there); record the result in the pull req
 ```
 App.tsx              providers: safe area, the query cache, the theme, navigation
 app.config.ts        the Expo config; android/ and ios/ are generated from it (Expo CNG)
-assets/              the icon, Emberhut's face, and Android's tab icons (assets/tabs)
+assets/              the icon, Emberhut's face (and its grey off-duty copy), and Android's tab icons (assets/tabs)
 plugins/             config plugins: release signing for the generated Gradle project, the camera as the scanner uses it
 src/
   config/            Main's room id, the app's link schemes, and whether the build has the account (account.ts)
