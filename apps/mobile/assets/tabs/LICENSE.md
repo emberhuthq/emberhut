@@ -1,7 +1,6 @@
 # The tab bar icons in this folder
 
-The PNGs here (`chat-bubble-outline`, `chat-bubble`, `back-hand`, `checklist`, `terminal`, `more-horiz`, each at 1x,
-2x and 3x) are renders of Google's **Material Icons** (https://github.com/google/material-design-icons), copyright
+The PNGs here (`back-hand`, `checklist`, `terminal`, `more-horiz`, each at 1x, 2x and 3x) are renders of Google's **Material Icons** (https://github.com/google/material-design-icons), copyright
 Google LLC. They were rendered from the `MaterialIcons.ttf` font that `@expo/vector-icons` ships (from
 react-native-vector-icons), at 24 dp, black on transparent, unchanged otherwise.
 

@@ -17,4 +17,17 @@ describe("Android tab icons", () => {
   it("bundle each one by a literal require", () => {
     for (const name of names) expect(source).toContain(`require("../../assets/tabs/${name}.png")`);
   });
+
+  it("leave your ember's tab to the ember itself", () => {
+    expect(Object.keys(materialTabIcons)).not.toContain("Chat");
+  });
+});
+
+describe("Your ember's tab icon", () => {
+  it("ships and bundles the ember, as it is and off duty", () => {
+    for (const name of ["emberhut-face", "emberhut-face-off"]) {
+      expect(existsSync(new URL(`../../assets/${name}.png`, import.meta.url)), name).toBe(true);
+      expect(source).toContain(`require("../../assets/${name}.png")`);
+    }
+  });
 });
