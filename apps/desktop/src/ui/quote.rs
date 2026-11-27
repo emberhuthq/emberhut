@@ -63,6 +63,49 @@ fn thumbnail_icon(kind: &FileKind) -> AssetIcon {
     }
 }
 
+/// A quote's colours.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Inks {
+    /// The bar down its side.
+    bar: Hsla,
+    /// Who said it and when.
+    who: Hsla,
+    /// Its words.
+    text: Hsla,
+    /// Its ground.
+    background: Hsla,
+}
+
+impl Inks {
+    /// The colours of a quote on `surface`, of the user's own message when `mine`.
+    ///
+    /// On the chat, the bar of the user's own quote is their bubble's colour, but its first
+    /// line is in the accent: in the dark appearance the bubble is the accent sunk into the
+    /// page, a fine bar but too dim to read as text.
+    fn of(surface: Surface, mine: bool, p: &Pal) -> Self {
+        match surface {
+            Surface::OnMine => Self {
+                bar: p.on_mine,
+                who: p.on_mine,
+                text: p.on_mine.opacity(0.85),
+                background: p.on_mine.opacity(0.18),
+            },
+            Surface::Plain if mine => Self {
+                bar: p.mine,
+                who: p.accent,
+                text: p.muted,
+                background: p.hover,
+            },
+            Surface::Plain => Self {
+                bar: p.warn,
+                who: p.warn,
+                text: p.muted,
+                background: p.hover,
+            },
+        }
+    }
+}
+
 /// The quote, drawn on `surface`, its time in `now`'s time zone (the chat's clock this frame).
 pub(crate) fn view(
     quote: &Quote,
@@ -71,11 +114,12 @@ pub(crate) fn view(
     store: &Store,
     p: &Pal,
 ) -> Div {
-    let (bar, text, background): (Hsla, Hsla, Hsla) = match surface {
-        Surface::OnMine => (p.on_mine, p.on_mine.opacity(0.85), p.on_mine.opacity(0.18)),
-        Surface::Plain if quote.mine => (p.mine, p.muted, p.hover),
-        Surface::Plain => (p.warn, p.muted, p.hover),
-    };
+    let Inks {
+        bar,
+        who,
+        text,
+        background,
+    } = Inks::of(surface, quote.mine, p);
     let thumbnail = quote.file.as_ref().map(|file| match file.kind {
         FileKind::Image => match store.picture(&file.url) {
             Some(image) => img(ImageSource::Render(image))
@@ -121,7 +165,7 @@ pub(crate) fn view(
                     div()
                         .text_size(px(11.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(bar)
+                        .text_color(who)
                         .child(who_and_when(quote, now)),
                 )
                 .child(
@@ -141,6 +185,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::color::{Rgb, contrast_ratio, mix, to_byte};
+    use crate::theme::{built_in, preset_tokens};
 
     fn quote(value: serde_json::Value) -> Quote {
         serde_json::from_value(value).unwrap()
@@ -163,6 +209,36 @@ mod tests {
         let video = quote(json!({"id": 3, "mine": false, "at": null, "text": "",
             "file": {"name": "a.mov", "url": "/uploads/a.mov", "kind": "video"}}));
         assert_eq!(words(&video), "Video");
+    }
+
+    /// `colour` as a packed RGB value (alpha ignored).
+    fn rgb(colour: Hsla) -> Rgb {
+        let colour = colour.to_rgb();
+        let byte = |value: f32| u32::from(to_byte(value * 255.0));
+        (byte(colour.r) << 16) | (byte(colour.g) << 8) | byte(colour.b)
+    }
+
+    #[test]
+    fn a_quote_on_the_chat_reads_in_every_preset() {
+        for preset in emberhut_core::theme::PRESETS.map(|preset| preset.id) {
+            let mut page = built_in();
+            page.tokens = preset_tokens(preset);
+            for dark in [false, true] {
+                let p = Pal::new(&page, dark);
+                // The quote's ground: the hover tint over the chat's surface.
+                let ground = mix(rgb(p.hover), rgb(p.surface), p.hover.a);
+                for mine in [true, false] {
+                    let inks = Inks::of(Surface::Plain, mine, &p);
+                    for (what, ink) in [("who", inks.who), ("words", inks.text)] {
+                        let ratio = contrast_ratio(rgb(ink), ground);
+                        assert!(
+                            ratio >= 4.5,
+                            "{preset} dark={dark} mine={mine}: {what} reads {ratio:.2}:1"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
