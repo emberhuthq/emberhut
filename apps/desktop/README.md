@@ -25,6 +25,33 @@ The first of these that is set:
 
 An address must start with `http://` or `https://`; one that doesn't is skipped with a warning.
 
+### A fallback server
+
+`config.json` can name a fallback server, which the app turns to by itself when the server
+stops answering, and say which of the two speaks the wire dialect the app was built with
+(`EMBERHUT_WIRE_DIALECT`, see `emberhut-client`'s `dialect` module; `dialect` is `true` when
+left out, and a build without a dialect ignores it):
+
+```json
+{
+  "server": "https://new.example.com",
+  "dialect": false,
+  "fallback": { "server": "https://old.example.com", "dialect": true }
+}
+```
+
+- While on the server, the app asks its `GET /health` every 15 s. After 3 failed checks in a
+  row, or at start-up a first check and 2 quick retries that fail, every request goes to the
+  fallback server, and a bar over the chat says the server isn't answering and that you're on
+  the fallback server.
+- The app never turns back by itself: what you do on the fallback server stays there, and
+  turning back unasked would split your work between two servers. The bar's **Try again** asks
+  the server and turns back only if it answers. A relaunch stays on the fallback server too
+  (`fallback.json` remembers it) until you turn back.
+- Each server has its own session. On macOS that is a Keychain item per server address, so
+  moving a server's address from `server` to `fallback` keeps it signed in as the fallback;
+  the new server is paired as usual. Elsewhere the fallback's session is in `fallback/`.
+
 ### The app's files
 
 | Platform | Directory |
@@ -33,13 +60,14 @@ An address must start with `http://` or `https://`; one that doesn't is skipped 
 | Linux | `$XDG_CONFIG_HOME/emberhut` (usually `~/.config/emberhut`) |
 | Windows | `%APPDATA%\emberhut` |
 
-- `config.json`: your settings (only `server` so far).
+- `config.json`: your settings: the server, and the fallback server (see above).
 - `session.json`: this device's session, kept by `emberhut-client` (readable by you only). On
   macOS the session lives in the Keychain instead (a generic password of `com.emberhut.desktop`
   per server, never synced); a `session.json` from an earlier launch moves into it once. As
   with the file, a newer app's session is neither read nor overwritten, and an item that isn't
   a session is removed once, after which this device signs in again.
 - `theme.json`: the last theme the server sent, so the app starts in your colours offline.
+- `fallback.json`: that the app is on the fallback server, and for which server (see above).
 - `layout.json`: the report panel's width, as a share of the window, so it opens as you left it.
 - `view.json`: how the window was left: the open room (the next launch opens it), whether the
   sidebar's Rooms section is folded, and the sidebar's width. It is apart from `layout.json`

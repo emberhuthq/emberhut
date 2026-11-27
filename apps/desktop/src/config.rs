@@ -5,6 +5,23 @@
 //! expects; elsewhere `emberhut` in the config directory (`$XDG_CONFIG_HOME/emberhut`, usually
 //! `~/.config/emberhut`, on Linux; `%APPDATA%\emberhut` on Windows). The server's address comes from
 //! `EMBERHUT_URL`, else `config.json`'s `server`, else [`DEFAULT_SERVER`].
+//!
+//! `config.json` may also name a fallback server, the one the app turns to when the server stops
+//! answering (see `backend::failover`), and say which of the two speaks the wire dialect this
+//! app was built with (`emberhut_client::dialect`; a build without one ignores it):
+//!
+//! ```json
+//! {
+//!   "server": "https://new.example",
+//!   "dialect": false,
+//!   "fallback": { "server": "https://old.example", "dialect": true }
+//! }
+//! ```
+//!
+//! `dialect` is `true` when left out, as every server was spoken to before it existed. Each
+//! server has its own session: on macOS a Keychain item per server address, so the session of
+//! a server that becomes the fallback (its address moved from `server` to `fallback`) stays
+//! its own, signed in.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -97,6 +114,76 @@ impl fmt::Display for ServerUrl {
 pub(crate) struct ConfigFile {
     /// The server's address.
     pub(crate) server: Option<String>,
+    /// Whether the server speaks the built wire dialect (`true` when left out).
+    pub(crate) dialect: Option<bool>,
+    /// The server to turn to when the server stops answering.
+    pub(crate) fallback: Option<FallbackFile>,
+}
+
+/// `config.json`'s `fallback`.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub(crate) struct FallbackFile {
+    /// Its address.
+    pub(crate) server: String,
+    /// Whether it speaks the built wire dialect (`true` when left out).
+    #[serde(default)]
+    pub(crate) dialect: Option<bool>,
+}
+
+/// A server to talk to: its address, and whether it spells the wire words as the dialect this
+/// app was built with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Server {
+    /// Its address.
+    pub(crate) url: ServerUrl,
+    /// Whether the built dialect applies to it.
+    pub(crate) dialect: bool,
+}
+
+impl Server {
+    /// The server at `url`, spoken to in the built dialect (as every server was before a
+    /// server could say otherwise).
+    #[must_use]
+    pub(crate) fn at(url: ServerUrl) -> Self {
+        Self { url, dialect: true }
+    }
+}
+
+impl From<ServerUrl> for Server {
+    fn from(url: ServerUrl) -> Self {
+        Self::at(url)
+    }
+}
+
+/// The servers the app talks to: the server, and the fallback it turns to when the server
+/// stops answering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Servers {
+    /// The server.
+    pub(crate) primary: Server,
+    /// The fallback, when one is set (and isn't the server itself).
+    pub(crate) fallback: Option<Server>,
+}
+
+impl Servers {
+    /// Only `url`, with no fallback.
+    #[must_use]
+    pub(crate) fn only(url: ServerUrl) -> Self {
+        Self {
+            primary: Server::at(url),
+            fallback: None,
+        }
+    }
+}
+
+impl fmt::Display for Servers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.primary.url)?;
+        if let Some(fallback) = &self.fallback {
+            write!(f, " (falling back to {})", fallback.url)?;
+        }
+        Ok(())
+    }
 }
 
 /// The app's own files.
@@ -147,6 +234,22 @@ impl AppFiles {
     #[must_use]
     pub(crate) fn session(&self) -> PathBuf {
         self.dir.join("session.json")
+    }
+
+    /// The fallback server's own files, in `fallback` here: its session (where sessions are
+    /// kept in files; on macOS, where a session would be moved into its Keychain item from).
+    #[must_use]
+    pub(crate) fn fallback(&self) -> Self {
+        Self {
+            dir: self.dir.join("fallback"),
+        }
+    }
+
+    /// `fallback.json`: that the app turned to the fallback server, and for which server, so a
+    /// relaunch stays on the fallback until the user turns back.
+    #[must_use]
+    pub(crate) fn fallback_mark(&self) -> PathBuf {
+        self.dir.join("fallback.json")
     }
 
     /// `theme.json`: the last theme the server sent, to start in it offline.
@@ -242,6 +345,31 @@ pub(crate) fn server_url(from_env: Option<&str>, file: &ConfigFile) -> ServerUrl
         .unwrap_or_else(|| ServerUrl(DEFAULT_SERVER.to_owned()))
 }
 
+/// The servers to talk to: [`server_url`]'s, with the config file's word on its dialect, and the
+/// file's fallback when it has one (an address that isn't one, or the server's own, is skipped
+/// with a warning).
+#[must_use]
+pub(crate) fn servers(from_env: Option<&str>, file: &ConfigFile) -> Servers {
+    let primary = Server {
+        url: server_url(from_env, file),
+        dialect: file.dialect.unwrap_or(true),
+    };
+    let fallback = file.fallback.as_ref().and_then(|fallback| {
+        let url = ServerUrl::parse(&fallback.server)
+            .inspect_err(|error| log::warn!("{error}; no fallback server"))
+            .ok()?;
+        if url == primary.url {
+            log::warn!("the fallback server is the server itself; no fallback server");
+            return None;
+        }
+        Some(Server {
+            url,
+            dialect: fallback.dialect.unwrap_or(true),
+        })
+    });
+    Servers { primary, fallback }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,6 +450,7 @@ mod tests {
     fn the_environment_wins_then_the_file_then_the_default() {
         let file = ConfigFile {
             server: Some("http://file.example".into()),
+            ..ConfigFile::default()
         };
         assert_eq!(
             server_url(Some("http://env.example"), &file).to_string(),
@@ -338,6 +467,7 @@ mod tests {
     fn a_bad_address_falls_through_to_the_next() {
         let file = ConfigFile {
             server: Some("http://file.example".into()),
+            ..ConfigFile::default()
         };
         assert_eq!(
             server_url(Some("nonsense"), &file).to_string(),
@@ -377,5 +507,57 @@ mod tests {
         );
         std::fs::write(files.config(), "not json").unwrap();
         assert_eq!(files.read_config(), ConfigFile::default());
+    }
+
+    #[test]
+    fn the_config_file_names_a_fallback_and_each_servers_dialect() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = AppFiles::in_dir(dir.path());
+        std::fs::write(
+            files.config(),
+            r#"{"server": "http://new.example", "dialect": false,
+                "fallback": {"server": "http://old.example/", "dialect": true}}"#,
+        )
+        .unwrap();
+        let servers = servers(None, &files.read_config());
+        assert_eq!(servers.primary.url.as_str(), "http://new.example");
+        assert!(!servers.primary.dialect);
+        let fallback = servers.fallback.unwrap();
+        assert_eq!(fallback.url.as_str(), "http://old.example");
+        assert!(fallback.dialect);
+    }
+
+    #[test]
+    fn a_server_speaks_the_built_dialect_unless_the_file_says_not() {
+        let file = ConfigFile {
+            server: Some("http://file.example".into()),
+            fallback: Some(FallbackFile {
+                server: "http://other.example".into(),
+                dialect: None,
+            }),
+            ..ConfigFile::default()
+        };
+        let servers = servers(None, &file);
+        assert!(servers.primary.dialect, "as before the setting existed");
+        assert!(servers.fallback.unwrap().dialect);
+        assert_eq!(
+            super::servers(None, &ConfigFile::default()),
+            Servers::only(ServerUrl(DEFAULT_SERVER.to_owned()))
+        );
+    }
+
+    #[test]
+    fn a_fallback_that_isnt_another_server_is_none() {
+        for address in ["nonsense", "http://file.example/"] {
+            let file = ConfigFile {
+                server: Some("http://file.example".into()),
+                fallback: Some(FallbackFile {
+                    server: address.into(),
+                    dialect: Some(true),
+                }),
+                ..ConfigFile::default()
+            };
+            assert_eq!(servers(None, &file).fallback, None, "{address}");
+        }
     }
 }

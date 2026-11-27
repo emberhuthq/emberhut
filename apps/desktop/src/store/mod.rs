@@ -24,6 +24,7 @@ pub(crate) mod decision;
 pub(crate) mod devices;
 pub(crate) mod diary;
 mod disk;
+mod fallback;
 mod fetched;
 pub(crate) mod files;
 mod flaky;
@@ -283,6 +284,8 @@ pub(crate) struct Store {
     updates: updates::Updates,
     /// The approval requests and the user's answers on them.
     approvals: approvals::ApprovalsFeed,
+    /// The user's last Try again of the server, while on the fallback server.
+    primary_retry: fallback::Retry,
 }
 
 impl Store {
@@ -390,6 +393,7 @@ impl Store {
             calendar: calendar::CalendarFeed::default(),
             updates: updates::Updates::default(),
             approvals: approvals::ApprovalsFeed::default(),
+            primary_retry: fallback::Retry::default(),
         }
     }
 
