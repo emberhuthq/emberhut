@@ -31,6 +31,12 @@
 //!   out; with none saved, on the CLI's own login. The provider is read at every turn: a
 //!   session started on another (or none) is closed and resumed on the new one. On another
 //!   endpoint than Anthropic's, an error is a failed turn, never an account out of usage.
+//! - **Not logged in.** A turn whose result says the CLI isn't logged in
+//!   ([`says_not_logged_in`]) closes its session and puts [`CANT_THINK`] in the chat in place
+//!   of the CLI's words: for the owner's own message every time, for a turn nobody asked for
+//!   only the first time. The CLI is kept as signed out ([`Heard::SignedOut`]), so nothing
+//!   unattended starts ([`Assistant::can_think`]) until a provider is saved or removed, or a
+//!   later turn answers ([`Heard::Answered`]).
 //! - **A session that dies** (the CLI crashed or was updated) fails its turn; the next turn
 //!   starts it again on the same conversation. A kept session found dead at a turn's start
 //!   (it ends before writing a line for the turn) is started again for that turn, once.
@@ -51,7 +57,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use emberhut_core::failover::{AccountPool, LimitHit, says_out_of_usage};
+use emberhut_core::failover::{AccountPool, LimitHit, says_not_logged_in, says_out_of_usage};
 use emberhut_core::{Clock, RoomId};
 use emberhut_db::{DbError, PrefKey, RoomStore, SettingKey, SettingStore};
 use futures_util::future::BoxFuture;
@@ -63,7 +69,7 @@ pub use agent_room::{AgentRooms, FIXED_CORE};
 pub use cli::{CliPipes, CliSpawner, Launch, ProcessSpawner, STOP_GRACE, SpawnError};
 pub use stream::{MCP_TOKEN_VAR, Said};
 
-use crate::services::agent_provider::{ProviderEnv, ProviderStore};
+use crate::services::agent_provider::{AgentLogin, Heard, ProviderEnv, ProviderStore};
 use crate::services::talk::{Assistant, AssistantError, LiveSink, Turn};
 use emberhut_api as api;
 
@@ -79,6 +85,10 @@ pub(crate) const TOOL_TIMEOUT_MS: &str = "120000";
 /// The message that carries a turn on after its session moved to another account mid-turn.
 pub const CARRY_ON: &str = "(Your account ran out of usage in the middle of that, so the \
 server moved you to another account. Nothing is lost: carry on where you stopped.)";
+
+/// What the chat says in place of the CLI's words when it isn't logged in: the owner chooses a
+/// provider in the apps' Setup, never on a terminal.
+pub const CANT_THINK: &str = "I can't think yet: choose what I think with in Setup.";
 
 /// What the assistant is told about where it runs, after the CLI's own system prompt.
 const RULES: &str = "You are the owner's personal assistant, running on their own server. The \
@@ -250,8 +260,13 @@ struct Ran {
 
 /// How a turn's reading ended.
 enum Ending {
-    /// Its answer.
-    Answer(Option<String>),
+    /// Its answer, and whether the CLI answered on its login (a result that is no error).
+    Answer {
+        text: Option<String>,
+        answered: bool,
+    },
+    /// The CLI isn't logged in: the session has nothing to think with.
+    SignedOut,
     /// The account ran out: move and go on. The answer as it came (what reaches the chat
     /// when no account is left), and whether the turn had done something already.
     Out {
@@ -518,11 +533,16 @@ impl ClaudeAssistant {
             }
             kept_open = false;
             match read {
-                Ok(Ending::Answer(answer)) => {
+                Ok(Ending::Answer { text, answered }) => {
                     session.used_at = self.clock.now();
                     self.state().open.insert(room, session);
-                    return Ok(answer);
+                    if answered {
+                        self.hear(Heard::Answered).await?;
+                    }
+                    return Ok(text);
                 }
+                // Closed, so a login made since is read when the next turn starts it.
+                Ok(Ending::SignedOut) => return Ok(self.signed_out(turn).await?),
                 Ok(Ending::Out {
                     hit,
                     answer,
@@ -571,6 +591,31 @@ impl ClaudeAssistant {
         }
         let exclude: Vec<&str> = from.into_iter().collect();
         state.pool.choose(from, &exclude, now).map(str::to_owned)
+    }
+
+    /// `turn`'s CLI isn't logged in: kept so, and [`CANT_THINK`] for the chat when the owner
+    /// asked, or when it is news.
+    async fn signed_out(&self, turn: &Turn) -> Result<Option<String>, DbError> {
+        tracing::warn!(room = %turn.room, "the agent CLI isn't logged in");
+        let new = self.hear(Heard::SignedOut).await?;
+        Ok((turn.from_owner || new).then(|| CANT_THINK.to_owned()))
+    }
+
+    /// Keeps what a turn showed of the CLI's login; whether that is news (always, with nowhere
+    /// to keep it).
+    async fn hear(&self, heard: Heard) -> Result<bool, DbError> {
+        match &self.providers {
+            Some(store) => store.hear(heard).await,
+            None => Ok(true),
+        }
+    }
+
+    /// How the sessions sign in: the configured accounts, or the saved provider.
+    fn login(&self) -> AgentLogin {
+        match self.config.accounts.len() {
+            0 => AgentLogin::Saved,
+            accounts => AgentLogin::Accounts(accounts),
+        }
     }
 
     /// The account a session on `current` runs on now; none without accounts.
@@ -909,7 +954,15 @@ impl ClaudeAssistant {
             limit = Some(LimitHit::usage());
         }
         if ran.interrupted {
-            return Ok(Ending::Answer(None));
+            return Ok(Ending::Answer {
+                text: None,
+                answered: false,
+            });
+        }
+        // On any endpoint, before its error is read as anything else: a refused login is not
+        // a limit, and the CLI's words are a terminal's, not the owner's.
+        if says_not_logged_in(&text, is_error) {
+            return Ok(Ending::SignedOut);
         }
         if ran.elsewhere && is_error && limit.is_none() {
             return Err(ClaudeError::Unreachable(text));
@@ -924,7 +977,10 @@ impl ClaudeAssistant {
         if text.trim_start().to_lowercase().starts_with("api error") {
             return Err(ClaudeError::Unreachable(text));
         }
-        Ok(Ending::Answer((!text.trim().is_empty()).then_some(text)))
+        Ok(Ending::Answer {
+            text: (!text.trim().is_empty()).then_some(text),
+            answered: !is_error,
+        })
     }
 
     fn take_test_limit(&self, room: RoomId) -> bool {
@@ -1110,6 +1166,23 @@ impl Assistant for ClaudeAssistant {
 
     fn close_idle(&self) {
         self.close_idle_but(None);
+    }
+
+    /// As the saved provider and the CLI's turns say ([`ProviderStore::thinks_with`]); with
+    /// nowhere to read them, yes: only the CLI can tell.
+    fn can_think(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async move {
+            let Some(store) = &self.providers else {
+                return true;
+            };
+            match store.thinks_with(self.login()).await {
+                Ok(thinks) => thinks.thinks(),
+                Err(error) => {
+                    tracing::warn!(%error, "what the agent thinks with wasn't read");
+                    false
+                }
+            }
+        })
     }
 }
 

@@ -740,7 +740,9 @@ How you work:
 
     /// The tick's work: the tasks the owner answered (or gave a new brief) resume first, with
     /// it; then every assistant task with a brief and no worker starts; one that sat unstarted
-    /// in to do for three minutes with room for it is the assistant's to look at (once).
+    /// in to do for three minutes with room for it is the assistant's to look at (once). None
+    /// of it while the agent has nothing to think with
+    /// ([`crate::services::claude::worker::WorkerConfig::thinks`]).
     ///
     /// # Errors
     ///
@@ -749,7 +751,7 @@ How you work:
         if let Err(error) = self.sweep().await {
             tracing::warn!(%error, "the sub-agents' sweep failed");
         }
-        if self.inner.parts.runtime.is_none() {
+        if !self.may_start().await? {
             return Ok(());
         }
         let now = self.now();
@@ -845,6 +847,15 @@ How you work:
             }
         }
         Ok(())
+    }
+
+    /// Whether the tick may start workers: a runtime is configured and the agent has something
+    /// to think with (otherwise the tasks wait in to do for the first tick it can).
+    async fn may_start(&self) -> Result<bool, WorkerError> {
+        Ok(match &self.inner.parts.runtime {
+            Some(runtime) => runtime.config.thinks().await?,
+            None => false,
+        })
     }
 
     /// Runs [`Self::tick`] every `every` until `stop`; a tick in flight is dropped at `stop`.

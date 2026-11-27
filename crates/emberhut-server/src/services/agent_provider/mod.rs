@@ -19,10 +19,15 @@
 //!   loopback and `OpenAI`'s to the endpoint.
 //! - **Accounts first.** While the server configures accounts (`EMBERHUT_AGENT_ACCOUNTS`), each
 //!   a CLI login of its own with failover between them, the saved provider isn't used.
+//! - **Nothing to think with, nothing unattended.** What the agent thinks with now
+//!   ([`ThinksWith`]) is read from the configuration, the saved provider and what the CLI's
+//!   turns showed of its login ([`Heard`]); routines, check-ins and the other turns nobody asked
+//!   for wait while it has nothing.
 
 pub mod bridge;
 mod check;
 mod env;
+mod thinks;
 
 use std::fmt;
 use std::sync::Arc;
@@ -41,6 +46,7 @@ pub use check::{
     Target,
 };
 pub use env::{MODEL_VARS, OLLAMA_TOKEN, ProviderEnv};
+pub use thinks::{Heard, ThinksWith};
 
 use self::bridge::BridgeAccess;
 use crate::convert::timestamp_to_api;
@@ -481,6 +487,15 @@ impl AgentProviderService {
         self.parts.store.bridges()
     }
 
+    /// What the agent thinks with now.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`] when a setting can't be read.
+    pub async fn thinks_with(&self) -> Result<ThinksWith, DbError> {
+        self.parts.store.thinks_with(self.parts.login).await
+    }
+
     /// What is saved, without the key.
     ///
     /// # Errors
@@ -527,7 +542,8 @@ impl AgentProviderService {
 
     /// Checks `request` with its provider and, once it passes, saves it in place of whatever
     /// was saved before (another provider's key is removed). The agent's sessions run on it
-    /// from their next turn.
+    /// from their next turn, and what the CLI's turns showed of its login is forgotten (a CLI
+    /// that said it isn't logged in is tried again).
     ///
     /// # Errors
     ///
@@ -573,6 +589,8 @@ impl AgentProviderService {
             None => store.remove_key(provider).await,
         }
         .map_err(ProviderError::Storage)?;
+        // A new provider: what the CLI's turns showed of the old one says nothing of it.
+        store.forget_heard().await?;
         tracing::info!(
             provider = provider.kind().as_str(),
             "the agent's model provider was saved"
@@ -593,6 +611,7 @@ impl AgentProviderService {
                 .await
                 .map_err(ProviderError::Storage)?;
         }
+        store.forget_heard().await?;
         if store.settings.remove(&SAVED).await? {
             tracing::info!("the agent's model provider was removed");
         }

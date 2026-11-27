@@ -1,8 +1,9 @@
 //! The wake rule, per room: the server notices (events, check-ins coming due, watches'
 //! reminders, routines), and the assistant decides. A room's waiting events are batched into
 //! one turn of at most ten ([`emberhut_core::wake`]); a room in a turn is left until it ends, so
-//! one room's busy turn never holds back another's news. Paused (the `on` setting off),
-//! nothing wakes.
+//! one room's busy turn never holds back another's news. Paused (the `on` setting off), or
+//! with nothing to think with (no agent CLI, no provider it runs on, or a CLI that said it
+//! isn't logged in), nothing wakes, and what is due waits.
 //!
 //! Check-ins (`wake_me_at`) and watches are kept as settings (`checkins`, `watches`,
 //! `watchSeq`), so they survive a restart and import as they are.
@@ -457,7 +458,11 @@ impl WakeService {
     /// One look, as the server takes every [`TICK_EVERY`]: the assistant's idle sessions close
     /// ([`crate::services::talk::Assistant::close_idle`]), due routines and check-ins become
     /// events, each room not in a turn wakes for its waiting events (by the wake rule), and
-    /// each watch due reminds its room. Nothing but the closing while the assistant is paused.
+    /// each watch due reminds its room. Nothing but the closing while the assistant is paused,
+    /// or while it has nothing to think with
+    /// ([`crate::services::talk::Assistant::can_think`]): then everything waits as it is (a
+    /// routine still due that day, a check-in or watch past its time, the events) for the
+    /// first tick it can think again.
     ///
     /// # Errors
     ///
@@ -466,6 +471,10 @@ impl WakeService {
         // Sessions idle too long close whether or not anything wakes (also while paused).
         self.inner.talk.assistant().close_idle();
         if !self.is_on().await? {
+            return Ok(());
+        }
+        if !self.inner.talk.assistant().can_think().await {
+            tracing::debug!("the assistant has nothing to think with: nothing wakes it");
             return Ok(());
         }
         self.inner.routines.tick(&self.inner.room_service).await?;

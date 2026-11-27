@@ -105,6 +105,7 @@ mod ultra;
 mod upload_routes;
 mod voice_notes;
 mod voice_routes;
+mod waits_to_think;
 mod wake_tools;
 mod whatsapp;
 mod wire_paths;
