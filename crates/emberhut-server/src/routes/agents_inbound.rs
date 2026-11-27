@@ -1,19 +1,25 @@
 //! `POST /api/agents/{id}/inbound`: a bridge passes on a message from one of the agent's
-//! channels; `POST /api/agents/{id}/notes`: the bridge's own note about itself. It proves
-//! itself with the agent's inbound bearer token (no session); the bearer is checked before the
-//! body is read. Nothing that arrives here is ever an approval.
+//! channels; `POST /api/agents/{id}/notes`: the bridge's own note about itself;
+//! `POST /api/agents/{id}/slack-actions`: a click on one of the agent's approval buttons, as
+//! the bridge's Slack Socket Mode connection received it. The bridge proves itself with the
+//! agent's inbound bearer token (no session); the bearer is checked before the body is read.
+//! No message or note is ever an approval: only a button click, decided by the approvals'
+//! own checks.
 
 use axum::Json;
+use axum::body::Bytes;
 use axum::extract::{FromRequest as _, Path, Request, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use emberhut_api::agents::{InboundMessage, InboundNote, InboundReply};
 use emberhut_api::error::ErrorBody;
 
+use super::agents::Failure;
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::extract::Valid;
 use crate::services::agents::InboundError;
+use crate::services::approvals::ApprovalError;
 
 impl IntoResponse for InboundError {
     fn into_response(self) -> Response {
@@ -121,5 +127,62 @@ pub(super) async fn notes(
     match conversations.note(&agent, &note).await {
         Ok(reply) => Json(reply).into_response(),
         Err(error) => error.into_response(),
+    }
+}
+
+/// A click on one of the agent's approval buttons in Slack, passed on by its bridge: for a
+/// Slack app on Socket Mode, whose clicks reach only its connection and carry no signature to
+/// check. The body is Slack's `block_actions` payload as the connection received it. The click
+/// decides only one of this agent's requests, and only as a signed one would: the approver's
+/// own team and user, on the request's own message, on its hash.
+#[utoipa::path(
+    post,
+    path = "/api/agents/{id}/slack-actions",
+    tag = "agents",
+    security(("bearer" = [])),
+    params(("id" = String, Path, description = "The agent's id")),
+    request_body(
+        content = Object,
+        description = "Slack's `block_actions` payload, as a Socket Mode envelope's `payload` holds it"
+    ),
+    responses(
+        (status = 200, description = "Decided"),
+        (status = 400, description = "Not an approval's button", body = ErrorBody),
+        (
+            status = 401,
+            description = "Not the agent's inbound token (`agent-<id>-inbound`), or no such \
+                secret saved",
+            body = ErrorBody
+        ),
+        (status = 403, description = "The click is not the approver's, or not on the request's own message", body = ErrorBody),
+        (status = 404, description = "No such request of this agent's, or no such configured agent", body = ErrorBody),
+        (status = 409, description = "The hash is not the request's, or it was decided already", body = ErrorBody),
+    )
+)]
+pub(super) async fn slack_action(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    request: Request,
+) -> Response {
+    // The bearer first, as for a message.
+    let agent = match app
+        .agent_conversations()
+        .bridge_of(&id, super::mcp::bearer(request.headers()))
+        .await
+    {
+        Ok(agent) => agent,
+        Err(error) => return error.into_response(),
+    };
+    let Ok(body) = Bytes::from_request(request, &()).await else {
+        return Failure::Approvals(ApprovalError::Malformed("not an approval's button"))
+            .into_response();
+    };
+    let Ok(payload) = serde_json::from_slice::<serde_json::Value>(&body) else {
+        return Failure::Approvals(ApprovalError::Malformed("not an approval's button"))
+            .into_response();
+    };
+    match app.approvals().bridged_slack_action(&agent, &payload).await {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(error) => Failure::Approvals(error).into_response(),
     }
 }

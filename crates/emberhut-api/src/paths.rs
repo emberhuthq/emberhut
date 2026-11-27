@@ -272,6 +272,10 @@ pub const AGENT_INBOUND: &str = "/api/agents/{id}/inbound";
 /// `POST`: a note from an agent's bridge about the bridge itself, with the agent's inbound
 /// bearer token ([`crate::agents::InboundNote`]).
 pub const AGENT_NOTES: &str = "/api/agents/{id}/notes";
+/// `POST`: a click on one of an agent's approval buttons in Slack, as its bridge's Socket Mode
+/// connection received it (Slack's `block_actions` payload), with the agent's inbound bearer
+/// token.
+pub const AGENT_SLACK_ACTIONS: &str = "/api/agents/{id}/slack-actions";
 /// `GET`: every external approver ([`crate::agents::ApproversPage`]); `POST`: a new one
 /// ([`crate::agents::Approver`]).
 pub const APPROVERS: &str = "/api/approvers";

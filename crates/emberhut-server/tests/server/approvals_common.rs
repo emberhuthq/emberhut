@@ -257,14 +257,28 @@ pub(crate) fn slack_click_on(
     action: &str,
     value: &str,
 ) -> String {
-    let payload = json!({
+    form_urlencoded::Serializer::new(String::new())
+        .append_pair(
+            "payload",
+            &slack_click_payload(message_ts, team, user, action, value).to_string(),
+        )
+        .finish()
+}
+
+/// Slack's `block_actions` payload for a click on `action` with `value`, by `user` of `team`,
+/// on the DM message at `message_ts`: what a Socket Mode connection receives.
+pub(crate) fn slack_click_payload(
+    message_ts: &str,
+    team: &str,
+    user: &str,
+    action: &str,
+    value: &str,
+) -> Value {
+    json!({
         "type": "block_actions",
         "team": { "id": team },
         "user": { "id": user, "team_id": team },
         "container": { "channel_id": DM, "message_ts": message_ts },
         "actions": [{ "action_id": action, "value": value }],
-    });
-    form_urlencoded::Serializer::new(String::new())
-        .append_pair("payload", &payload.to_string())
-        .finish()
+    })
 }

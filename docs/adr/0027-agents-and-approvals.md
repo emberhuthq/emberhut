@@ -298,7 +298,18 @@ a file edited after it was approved does not match.
   five minutes old), and counts only when the click's team and user are the approver's, the
   button is on the very message the server posted (its channel and timestamp, kept when it was
   posted), and the hash is the request's. The message is then updated to say what was decided,
-  after the click is answered. Everything shown in the DM (and on the link's page) has its
+  after the click is answered. A Slack app on Socket Mode has no interactivity address: Slack
+  sends its clicks over the app's own connection, which holds the app-level token, and signs
+  nothing, since the connection is already Slack's proof. For such an app the agent's bridge
+  (the program holding that connection) passes the click's `block_actions` payload on as it got
+  it, to `POST /api/agents/{id}/slack-actions` with the agent's inbound bearer (checked before
+  the body is read). The bridge's token stands where the signing secret stands: both are files in
+  the secrets directory, and either lets its holder forge a click. Everything else is checked as
+  for a signed click (the approver's team and user, the button on the request's own message, the
+  request's hash, once), and one agent's bridge decides only that agent's requests (another's:
+  404). The decision is recorded `via: slack`, its `by` naming the bridge. A bridge's message or
+  note is still never an approval: only the button's click, with the server's own action and
+  value, counts, and only for the request the server posted it with. Everything shown in the DM (and on the link's page) has its
   invisible characters (bidirectional controls, zero-width and other format characters) written
   out as `[U+XXXX]`, and a file's name may not hold one.
 - **Signed link** (`SignedLink`): a one-time page `GET /approve/{token}` that needs no account.
@@ -357,9 +368,9 @@ auth mode: report mode's pass without a session reads the app, never these):
 - `GET /api/approvals?state=&agent=` (a state or agent no request has: none),
   `GET /api/approvals/{id}`,
   `POST /api/approvals/{id}/decision` (the owner), `POST /api/approvals/{id}/withdraw`;
-- unauthenticated, each proving itself as above: `POST /api/agents/{id}/inbound` and
-  `POST /api/agents/{id}/notes` (the bridge's bearer), `POST /api/approvals/slack` (Slack's
-  signature), `POST /api/approvals/{id}/webhook` (the approver's signature), `GET`/`POST
+- unauthenticated, each proving itself as above: `POST /api/agents/{id}/inbound`,
+  `POST /api/agents/{id}/notes` and `POST /api/agents/{id}/slack-actions` (the bridge's bearer),
+  `POST /api/approvals/slack` (Slack's signature), `POST /api/approvals/{id}/webhook` (the approver's signature), `GET`/`POST
   /approve/{token}` (the signed link).
 
 The state (`GET /api/state`) gains `agents` (id, name, room, pending approvals count; left out
@@ -452,8 +463,9 @@ live step's hash ever matches it and it can never be used.
 ### Threat model
 
 - **Spoofed approver.** An approval counts only as its channel proves it: a signed-in device for
-  the owner; Slack's request signature, the approver's team and user, and the request's hash for
-  a button; possession of a one-time token whose MAC covers the request and its hash for a link;
+  the owner; Slack's request signature (or, for a Socket Mode app, the agent's bridge's bearer,
+  for that agent's requests only), the approver's team and user, the request's own message, and
+  the request's hash for a button; possession of a one-time token whose MAC covers the request and its hash for a link;
   the approver's own HMAC for a webhook. Words in a conversation, a bridge's report of who said
   "yes", the agent's statement, a task note or a tool argument are never approvals. The approver's
   addresses are set only by the owner and never shown to an agent, so an agent cannot point a

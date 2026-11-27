@@ -237,6 +237,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(agents::policies))
         .routes(routes!(agents_inbound::inbound))
         .routes(routes!(agents_inbound::notes))
+        .routes(routes!(agents_inbound::slack_action))
         .routes(routes!(agents::approvers, agents::create_approver))
         .routes(routes!(agents::change_approver, agents::delete_approver))
         .routes(routes!(

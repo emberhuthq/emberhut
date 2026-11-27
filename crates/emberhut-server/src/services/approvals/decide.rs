@@ -3,9 +3,11 @@
 //! - the owner, from a signed-in device (the route checks the session), on requests that wait
 //!   on the owner;
 //! - a Slack button: the request checked with the workspace's signing secret (at most five
-//!   minutes old), then the click's team and user must be the approver's, the button must be
-//!   on the very message the server posted (its channel and timestamp), and the button's hash
-//!   the request's;
+//!   minutes old), or, for a Slack app on Socket Mode (where Slack proves a click only to the
+//!   connection), passed on by the agent's bridge with its inbound token and only for that
+//!   agent's requests; then the click's team and user must be the approver's, the button must
+//!   be on the very message the server posted (its channel and timestamp), and the button's
+//!   hash the request's;
 //! - a signed link: the token's MAC (keyed by the link key) covers the request and its hash,
 //!   its nonce must still be the request's (the first decision clears it), and the form must
 //!   carry the hash the page showed;
@@ -19,6 +21,7 @@
 //! update) is done after it is recorded, in the background, so Slack is answered at once.
 
 use emberhut_api::approvals::WebhookDecision;
+use emberhut_core::agents::AgentId;
 use emberhut_core::approvals::link::{self, LinkClaims};
 use emberhut_core::approvals::slack::signing_secret_name;
 use emberhut_core::approvals::{
@@ -208,7 +211,42 @@ impl ApprovalService {
             self.now(),
         )
         .map_err(|_| ApprovalError::Unproven(UNPROVEN))?;
+        self.slack_click(&payload, team, None).await
+    }
 
+    /// Records a Slack button click that `agent`'s bridge passes on
+    /// (`POST /api/agents/{id}/slack-actions`): Slack's `block_actions` payload as a Socket Mode
+    /// connection receives it, unsigned, since Slack proves such a click only to the connection.
+    /// The bridge is already proven by the agent's inbound token; it decides only the agent's own
+    /// requests, and the click counts as a signed one does: the approver's team and user, on the
+    /// request's own message, on its hash.
+    ///
+    /// # Errors
+    ///
+    /// [`ApprovalError::Malformed`], [`ApprovalError::NotFound`] (also for another agent's
+    /// request), [`ApprovalError::NotYours`] for a click from anyone but the request's approver
+    /// or on any message but the request's own, [`ApprovalError::Mismatch`],
+    /// [`ApprovalError::Closed`], or the database's.
+    pub async fn bridged_slack_action(
+        &self,
+        agent: &AgentId,
+        payload: &Value,
+    ) -> Result<ApprovalRequest, ApprovalError> {
+        let team = payload["team"]["id"]
+            .as_str()
+            .filter(|team| is_slack_id(team))
+            .ok_or(ApprovalError::Malformed("the click names no workspace"))?;
+        self.slack_click(payload, team, Some(agent)).await
+    }
+
+    /// Records the click in `payload`, from `team` (proven by Slack's signature, or by the
+    /// bridge of the agent `bridged_for`, whose requests alone it may decide).
+    async fn slack_click(
+        &self,
+        payload: &Value,
+        team: &str,
+        bridged_for: Option<&AgentId>,
+    ) -> Result<ApprovalRequest, ApprovalError> {
         let user = payload["user"]["id"]
             .as_str()
             .ok_or(ApprovalError::Malformed("the click names no user"))?;
@@ -229,6 +267,7 @@ impl ApprovalService {
             .approvals
             .get(id)
             .await?
+            .filter(|request| bridged_for.is_none_or(|agent| request.agent == *agent))
             .ok_or(ApprovalError::NotFound)?;
         let clicked = SlackIdentity {
             workspace: team.to_owned(),
@@ -258,7 +297,10 @@ impl ApprovalService {
             &request,
             &hash,
             decision,
-            &format!("Slack user {user} of {team}"),
+            &match bridged_for {
+                None => format!("Slack user {user} of {team}"),
+                Some(_) => format!("Slack user {user} of {team}, through the agent's bridge"),
+            },
             DecidedVia::Slack,
             None,
             ApprovalError::Closed,
