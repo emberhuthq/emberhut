@@ -78,6 +78,8 @@ pub struct MessagingDeps {
     pub voice_max_seconds: f64,
     /// The pause before a voice note is tried again at once.
     pub voice_retry_pause: Duration,
+    /// The first pause before Slack's live socket is opened again after a failure.
+    pub slack_live_pause: Duration,
 }
 
 impl Default for MessagingDeps {
@@ -99,6 +101,7 @@ impl Default for MessagingDeps {
             assistant_phone: None,
             voice_max_seconds: emberhut_core::messaging::voice::MAX_SECONDS,
             voice_retry_pause: Duration::from_secs(3),
+            slack_live_pause: Duration::from_secs(3),
         }
     }
 }
@@ -177,6 +180,7 @@ impl Messaging {
                 mac: Arc::clone(&deps.mac),
                 voice: voice.clone(),
                 files,
+                live_pause: deps.slack_live_pause,
             },
         );
         let public = parts.public_url.trim_end_matches('/').to_owned();
@@ -285,7 +289,10 @@ impl Messaging {
         voice.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             tokio::select! {
-                () = stop.cancelled() => return,
+                () = stop.cancelled() => {
+                    self.slack.stop_live();
+                    return;
+                }
                 _ = collect.tick() => self.collect().await,
                 _ = voice.tick() => {
                     if let Err(error) = self.voice.tick().await {

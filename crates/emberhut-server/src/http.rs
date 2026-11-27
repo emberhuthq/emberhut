@@ -1,6 +1,7 @@
 //! The one HTTP client stack the server reaches other services with (Apple's and Google's push
 //! services, the Mac helper, the coding-thread app): reqwest on rustls with **ring** and the
 //! Mozilla root store, so a container needs no system certificates and no other TLS library.
+//! Slack's Socket Mode websocket uses the same TLS configuration ([`tls_config`]).
 //!
 //! reqwest is given its TLS configuration ready-made, with ring as its crypto provider, rather
 //! than a process-wide default provider: nothing has to be installed before a client is made,
@@ -49,15 +50,7 @@ pub(crate) fn shared_client() -> Result<Client, HttpSetupError> {
 /// A pooled client speaking `protocol`. Plain `http://` is taken too: the Mac helper and the
 /// coding-thread app are on the person's own network, and tests use stand-ins on loopback.
 pub(crate) fn client(protocol: Protocol) -> Result<Client, ClientError> {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let roots = rustls::RootCertStore {
-        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-    };
-    let mut tls = rustls::ClientConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()
-        .map_err(ClientError::Tls)?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+    let mut tls = tls_config().map_err(ClientError::Tls)?;
     // A configuration given ready-made is used as it is, so it names the protocols itself.
     tls.alpn_protocols = match protocol {
         Protocol::Http2Only => vec![b"h2".to_vec()],
@@ -72,6 +65,23 @@ pub(crate) fn client(protocol: Protocol) -> Result<Client, ClientError> {
         Protocol::Any => builder,
     };
     builder.build().map_err(ClientError::Build)
+}
+
+/// The TLS client configuration every outside connection uses: ring as the crypto provider,
+/// the Mozilla root store, no client certificate and no application protocol named.
+///
+/// # Errors
+///
+/// [`rustls::Error`] when the provider takes none of the safe protocol versions.
+pub(crate) fn tls_config() -> Result<rustls::ClientConfig, rustls::Error> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    Ok(rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?
+        .with_root_certificates(roots)
+        .with_no_client_auth())
 }
 
 /// An answer's body, read up to `limit` bytes.

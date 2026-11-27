@@ -1,4 +1,4 @@
-//! The owner's Slack, in one table, from up to three sources:
+//! The owner's Slack, in one table, from up to four sources:
 //!
 //! - Slack's notifications on the owner's Mac (DMs, mentions, the owner's threads; never the
 //!   owner's own replies), collected every 2 minutes through the Mac helper. Every workspace
@@ -9,6 +9,9 @@
 //!   `slack-<workspace>-user`, given on a one-time secret page), Slack's Web API: every 2
 //!   minutes a search for the owner's own messages (`from:me`), so the assistant sees what was
 //!   answered already; and each conversation read fresh when it is read.
+//! - Where that app also has an app-level token (the secret `slack-<workspace>-app`), Slack's
+//!   Socket Mode (`slack/live.rs`): every message in the owner's DMs, group DMs and channels as it
+//!   arrives. Once they flow, that workspace's notifications from the Mac are skipped.
 //!
 //! Voice clips are transcribed (`voice_notes`); any other file reads
 //! `[file: name.ext, kind; slack_file F…]`, and `slack_file` fetches it.
@@ -20,7 +23,7 @@
 //! [`SlackApi`] is the seam: [`HttpSlack`] is Slack's Web API, [`NoSlackApi`] stands in when it
 //! isn't set up, and tests swap in a fake.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::{self, Write as _};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -41,6 +44,7 @@ use futures_util::future::BoxFuture;
 use jiff::{SignedDuration, Timestamp};
 use serde::Serialize;
 use serde_json::{Value, json};
+use tokio_util::sync::CancellationToken;
 
 use super::context::Context;
 use super::guard::{
@@ -51,6 +55,8 @@ use super::hooks::{Ask, TaskId};
 use super::mac::{MacMessages, encode};
 use super::voice_notes::{VoiceNotes, truthy};
 use super::web::{WebClient, WebRequest};
+
+mod live;
 
 /// How long a call to Slack may take.
 const CALL_WAIT: Duration = Duration::from_secs(20);
@@ -265,6 +271,10 @@ struct Memory {
     people: HashMap<String, String>,
     /// Conversations' names by their id.
     rooms: HashMap<String, String>,
+    /// The workspaces' short names whose live events are running.
+    sockets: HashSet<String>,
+    /// The workspaces whose messages have come in live, by their name in lower case.
+    flowing: HashSet<String>,
 }
 
 /// `messages_chats`' Slack row.
@@ -380,6 +390,9 @@ pub struct SlackParts {
     pub voice: VoiceNotes,
     /// Where `slack_file` saves files.
     pub files: PathBuf,
+    /// The pause before a live socket is opened again after a failure; it doubles with each
+    /// failure in a row.
+    pub live_pause: Duration,
 }
 
 /// The owner's Slack.
@@ -388,6 +401,8 @@ pub struct SlackService {
     ctx: Context,
     parts: SlackParts,
     memory: Arc<Mutex<Memory>>,
+    /// Cancelled when the server stops: every live socket closes.
+    stop: CancellationToken,
 }
 
 impl SlackService {
@@ -398,6 +413,7 @@ impl SlackService {
             ctx,
             parts,
             memory: Arc::default(),
+            stop: CancellationToken::new(),
         }
     }
 
@@ -423,7 +439,8 @@ impl SlackService {
     }
 
     /// Connects each workspace the secrets hold a user token for that isn't yet (or whose last
-    /// try is due again), and takes a new token for one connected already.
+    /// try is due again), takes a new token for one connected already, and starts the live
+    /// events of each one with an app-level token.
     pub async fn connect_all(&self) {
         let now = self.ctx.now();
         for name in self.ctx.secrets.names().await {
@@ -453,6 +470,7 @@ impl SlackService {
                 tracing::warn!(%error, "Slack's clips weren't tried again");
             }
         }
+        self.start_live().await;
     }
 
     /// Connects workspace `short` with its user token: who the owner is there, then their own
@@ -581,6 +599,10 @@ impl SlackService {
             let Some(at) = n["at"].as_str().and_then(|at| at.parse::<Timestamp>().ok()) else {
                 continue;
             };
+            // That workspace comes in whole, live.
+            if self.flowing(&text_of(&n["title"])) {
+                continue;
+            }
             let message = SlackMessage {
                 id: text_of(&n["id"]),
                 workspace: text_of(&n["title"]),
