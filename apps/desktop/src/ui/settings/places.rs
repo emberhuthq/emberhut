@@ -21,10 +21,11 @@ use crate::ui::working::look::badge;
 pub(super) fn sources(store: &Entity<Store>, chrome: AnyElement, p: &Pal, cx: &App) -> Div {
     let (mut rows, count) = env_rows(store, p, cx, |env| env.group.is_data_source());
     rows.push(chrome);
+    // Counted once listed, the Chrome profiles' row with them.
     section(
         p,
         "Data sources",
-        Some(count),
+        count.map(|count| count + 1),
         rows,
         Some(
             "Reconnect and Unlink are in each one's page. Unlink deletes only its sign-in, \
@@ -37,20 +38,20 @@ pub(super) fn sources(store: &Entity<Store>, chrome: AnyElement, p: &Pal, cx: &A
 /// Where the assistant works: its runners, workers, browser and external threads.
 pub(super) fn workplaces(store: &Entity<Store>, p: &Pal, cx: &App) -> Div {
     let (rows, count) = env_rows(store, p, cx, |env| env.group.is_workplace());
-    section(p, "Where your ember works", Some(count), rows, None)
+    section(p, "Where your ember works", count, rows, None)
 }
 
 /// The rows `pick` picks, and how many; while the page hasn't come, a line saying so (or why
-/// not), and none.
+/// not), and no count: nothing is listed yet.
 fn env_rows(
     store: &Entity<Store>,
     p: &Pal,
     cx: &App,
     pick: impl Fn(&Environment) -> bool,
-) -> (Vec<AnyElement>, usize) {
+) -> (Vec<AnyElement>, Option<usize>) {
     let feed = store.read(cx).environments();
     let Some(page) = feed.page() else {
-        return (vec![loading(feed.problem(), p).into_any_element()], 0);
+        return (vec![loading(feed.problem(), p).into_any_element()], None);
     };
     let rows: Vec<AnyElement> = page
         .rows()
@@ -58,7 +59,7 @@ fn env_rows(
         .map(|env| env_row(store, env, p).into_any_element())
         .collect();
     let count = rows.len();
-    (rows, count)
+    (rows, Some(count))
 }
 
 /// `Looking…` with a spinner, or why the page didn't come.
