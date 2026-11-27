@@ -80,6 +80,7 @@ mod releases;
 mod renewal;
 mod runner;
 mod session;
+mod setup;
 pub mod sse;
 pub mod transport;
 mod upload;

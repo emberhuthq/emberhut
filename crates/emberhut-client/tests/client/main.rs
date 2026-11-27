@@ -30,6 +30,8 @@ mod runner;
 #[cfg(test)]
 mod settings;
 #[cfg(test)]
+mod setup;
+#[cfg(test)]
 mod support;
 #[cfg(test)]
 mod uploads;
