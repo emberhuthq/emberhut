@@ -11,6 +11,13 @@ pub const AUTH_STATUS: &str = "/api/auth/status";
 /// `GET`: what the server has set up, item by item ([`crate::setup::SetupPage`]), for a
 /// signed-in device.
 pub const SETUP: &str = "/api/setup";
+/// `GET`: the model provider saved for the agent ([`crate::agent_provider::AgentProvider`]);
+/// `PUT`: check one and save it ([`crate::agent_provider::ProviderRequest`]); `DELETE`: remove
+/// it. A signed-in device only.
+pub const AGENT_PROVIDER: &str = "/api/agent/provider";
+/// `POST`: check a provider ([`crate::agent_provider::ProviderRequest`]) and list its models
+/// ([`crate::agent_provider::ProviderTest`]), saving nothing. A signed-in device only.
+pub const AGENT_PROVIDER_TEST: &str = "/api/agent/provider/test";
 /// `POST`: where the server pushes this phone's alerts ([`crate::push::PushRegistration`]).
 pub const DEVICES: &str = "/api/devices";
 /// `GET`: a one-time secret link's page; `POST`: its form. `{token}` is the link's token.

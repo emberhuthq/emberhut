@@ -1,7 +1,8 @@
 //! A worker's session of the agent CLI: one task's run, started with its brief and read until
 //! its result. A worker reaches the server's worker endpoint (`POST /mcp/worker`, its tools act
 //! on its own task) with its task's token in its environment ([`MCP_TOKEN_VAR`]), never on its
-//! command line. Its permission mode is the configured one (`dontAsk` by default, its own
+//! command line; so is the model provider the owner saved, while no account is configured
+//! ([`ProviderStore::env`]). Its permission mode is the configured one (`dontAsk` by default, its own
 //! server's tools allowed). Unless the owner's words cover its outward steps, its push, merge
 //! and release commands are refused outright and it gets the gate as a hook before each shell
 //! command; an ultra run's lead gets the gate before each new sub-agent as well. The hook asks
@@ -11,9 +12,12 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
+use emberhut_db::DbError;
+
 use super::cli::{CliPipes, CliSpawner, Launch, SpawnError};
 use super::stream::{self, MCP_TOKEN_VAR, Said};
 use super::{AgentAccount, TOOL_TIMEOUT_MS};
+use crate::services::agent_provider::{ProviderEnv, ProviderStore};
 
 /// The shell commands a worker may never run unless the owner's words cover its outward steps:
 /// matched by their first words only, so they back the gate up and never stand in for it.
@@ -49,6 +53,9 @@ pub struct WorkerConfig {
     pub gate_url: String,
     /// Where workers run when their task names no folder.
     pub workdir: Option<PathBuf>,
+    /// Where the model provider workers run on is saved; none: their account's or the CLI's
+    /// own login.
+    pub provider: Option<ProviderStore>,
 }
 
 /// One worker run to start.
@@ -119,9 +126,28 @@ pub fn gate_settings(gate_url: &str, matcher: &str) -> String {
 }
 
 impl WorkerConfig {
-    /// What the CLI runs with for `run`, its token given as `token`.
+    /// The provider a worker starting now runs on: the saved one while no account is
+    /// configured.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`] when it can't be read.
+    pub async fn session_provider(&self) -> Result<Option<ProviderEnv>, DbError> {
+        match &self.provider {
+            Some(store) => store.env(&self.accounts).await,
+            None => Ok(None),
+        }
+    }
+
+    /// What the CLI runs with for `run`, its token given as `token`, on `provider` when there
+    /// is one.
     #[must_use]
-    pub fn launch(&self, run: &WorkerLaunch, token: &str) -> Launch {
+    pub fn launch(
+        &self,
+        run: &WorkerLaunch,
+        token: &str,
+        provider: Option<&ProviderEnv>,
+    ) -> Launch {
         let mut args: Vec<String> = [
             "--output-format",
             "stream-json",
@@ -197,17 +223,22 @@ impl WorkerConfig {
             None if run.account.is_some() => env_remove.push("CLAUDE_CONFIG_DIR".to_owned()),
             None => {}
         }
-        Launch {
+        let mut launch = Launch {
             program: self.command.clone(),
             args,
             env,
             env_remove,
+            env_remove_prefixed: Vec::new(),
             cwd: if run.agent.is_some() {
                 Some(run.folder.clone())
             } else {
                 self.workdir.clone()
             },
+        };
+        if let Some(provider) = provider {
+            provider.apply(&mut launch);
         }
+        launch
     }
 }
 

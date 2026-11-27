@@ -352,7 +352,8 @@ pub struct TaskConfig {
 }
 
 /// The agent CLI the assistant runs, a session per room. Without a command the server answers
-/// nothing (the silent assistant).
+/// nothing (the silent assistant). It runs on the accounts configured here, or, with none, on
+/// the model provider saved from the apps (`PUT /api/agent/provider`), or else on its own login.
 #[derive(Clone, Debug, Default, Args)]
 pub struct AgentSettings {
     /// The agent CLI's program (`claude`, or a path to it).
@@ -405,6 +406,15 @@ pub struct AgentSettings {
         value_name = "FILE"
     )]
     pub prompt_file: Option<PathBuf>,
+    /// Anthropic's API, where an Anthropic API key saved from the apps is checked
+    /// (`PUT /api/agent/provider`); a stand-in's address in tests.
+    #[arg(
+        long = "anthropic-url",
+        env = "EMBERHUT_ANTHROPIC_URL",
+        value_name = "URL",
+        default_value = "https://api.anthropic.com"
+    )]
+    pub anthropic_url: String,
     /// Sessions open at once, Main's included.
     #[arg(
         long = "agent-max-sessions",
@@ -1313,6 +1323,7 @@ mod tests {
         };
         assert_eq!(config.link_base(), "http://127.0.0.1:9");
         assert_eq!(config.secrets_dir, PathBuf::from("secrets"));
+        assert_eq!(config.agent.anthropic_url, "https://api.anthropic.com");
         assert_eq!(config.apns.key_id, None);
         let Command::Serve(config) = parse(&["--public-url", "https://emberhut.example.com/"])
             .unwrap()

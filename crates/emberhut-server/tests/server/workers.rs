@@ -36,6 +36,7 @@ pub(crate) fn worker_config() -> WorkerConfig {
         mcp_url: format!("http://127.0.0.1:18990{WORKER}"),
         gate_url: format!("http://127.0.0.1:18990{}", emberhut_api::paths::ULTRA_GATE),
         workdir: Some("/work".into()),
+        provider: None,
     }
 }
 

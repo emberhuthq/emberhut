@@ -188,7 +188,8 @@ These parts of an agent loop belong to one installation or to other areas of the
 ## Consequences
 
 - An installation gets a working assistant by setting `EMBERHUT_AGENT_COMMAND` (and, for failover,
-  `EMBERHUT_AGENT_ACCOUNTS`); without it nothing changes. It acts only through the server's tools
+  `EMBERHUT_AGENT_ACCOUNTS`); without it nothing changes. Without accounts, the CLI runs on the
+  model provider the owner saves from the apps ([ADR 0028](0028-agent-model-providers.md)). It acts only through the server's tools
   until `EMBERHUT_AGENT_PERMISSION_MODE=bypassPermissions` lets it run commands and edit files.
 - The session's MCP token is not on the CLI's command line (which any user of the machine can
   read, through `ps`), only in the child's environment, which only its own user (and root) can

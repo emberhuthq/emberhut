@@ -8,7 +8,9 @@ use crate::support::{assert_round_trip, fixture, from_value, to_value, with_unkn
 #[test]
 fn reads_and_writes_the_checklist() {
     let page: SetupPage = assert_round_trip("setup.json");
-    assert_eq!(page.items.len(), 10);
+    assert_eq!(page.items.len(), 11);
+    let provider = page.item(&SetupItemId::Provider).unwrap();
+    assert_eq!(provider.state, SetupState::Ready);
     let public = page.item(&SetupItemId::PublicUrl).unwrap();
     assert_eq!(public.state, SetupState::Ready);
     assert_eq!(public.detail.as_deref(), Some("https://box.example"));

@@ -13,6 +13,9 @@ open_enum! {
     pub enum SetupItemId {
         /// The agent CLI the assistant and its workers run on (`EMBERHUT_AGENT_COMMAND`).
         Agent = "agent",
+        /// What the agent thinks with: the provider saved from the apps
+        /// (`PUT /api/agent/provider`), or the server's configured accounts.
+        Provider = "provider",
         /// The accounts the runners report for the agent CLI, and whether they are logged in.
         Accounts = "accounts",
         /// The devices signed in.

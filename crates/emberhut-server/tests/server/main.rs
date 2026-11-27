@@ -8,6 +8,7 @@
 mod agent_desk;
 mod agent_guard;
 mod agent_inbound;
+mod agent_provider;
 mod agent_session;
 mod agent_tools;
 mod agent_workers;

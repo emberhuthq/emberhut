@@ -24,6 +24,13 @@
 //!   one in a turn). A room's session idle for [`IDLE`] is closed at the server's next tick
 //!   ([`Assistant::close_idle`]) or the next turn anywhere (never Main's); it resumes with its
 //!   next turn.
+//! - **The model provider.** A session on a configured account runs on that account's login.
+//!   With no account configured, it runs on the provider the owner saved from the apps
+//!   (`services::agent_provider`): Anthropic's key, or an Anthropic-compatible endpoint with
+//!   its token and models, in the CLI's environment only, the server's own `ANTHROPIC_*` kept
+//!   out; with none saved, on the CLI's own login. The provider is read at every turn: a
+//!   session started on another (or none) is closed and resumed on the new one. On another
+//!   endpoint than Anthropic's, an error is a failed turn, never an account out of usage.
 //! - **A session that dies** (the CLI crashed or was updated) fails its turn; the next turn
 //!   starts it again on the same conversation. A kept session found dead at a turn's start
 //!   (it ends before writing a line for the turn) is started again for that turn, once.
@@ -56,6 +63,7 @@ pub use agent_room::{AgentRooms, FIXED_CORE};
 pub use cli::{CliPipes, CliSpawner, Launch, ProcessSpawner, STOP_GRACE, SpawnError};
 pub use stream::{MCP_TOKEN_VAR, Said};
 
+use crate::services::agent_provider::{ProviderEnv, ProviderStore};
 use crate::services::talk::{Assistant, AssistantError, LiveSink, Turn};
 use emberhut_api as api;
 
@@ -169,6 +177,8 @@ fn kept_key(room: RoomId) -> SettingKey<Kept> {
 struct Session {
     pipes: CliPipes,
     account: Option<String>,
+    /// The provider it was started on (none: its account's or the CLI's own login).
+    provider: Option<ProviderEnv>,
     /// The fingerprint of the configured agent it runs as (none: the default agent).
     agent: Option<String>,
     used_at: Timestamp,
@@ -215,6 +225,8 @@ pub struct ClaudeAssistant {
     accounts: Option<emberhut_db::PrefStore>,
     /// The configured agents, whose rooms' sessions are theirs, once set.
     agents: Option<AgentRooms>,
+    /// Where the model provider the sessions run on is saved, once set.
+    providers: Option<ProviderStore>,
 }
 
 impl fmt::Debug for ClaudeAssistant {
@@ -231,6 +243,9 @@ struct Ran {
     interrupted: bool,
     stepped: bool,
     limit: Option<LimitHit>,
+    /// The session runs on another endpoint than Anthropic's: its errors aren't a Claude
+    /// account's limits.
+    elsewhere: bool,
 }
 
 /// How a turn's reading ended.
@@ -272,6 +287,23 @@ impl ClaudeAssistant {
             rules: None,
             accounts: None,
             agents: None,
+            providers: None,
+        }
+    }
+
+    /// Runs the sessions on the model provider saved in `store` while no account is
+    /// configured (read at every turn, so one saved later is used from the next one).
+    #[must_use]
+    pub fn with_provider(mut self, store: ProviderStore) -> Self {
+        self.providers = Some(store);
+        self
+    }
+
+    /// The provider a session starting now runs on.
+    async fn session_provider(&self) -> Result<Option<ProviderEnv>, DbError> {
+        match &self.providers {
+            Some(store) => store.env(&self.config.accounts).await,
+            None => Ok(None),
         }
     }
 
@@ -442,8 +474,16 @@ impl ClaudeAssistant {
             .await?
             .unwrap_or_default();
         let pinned = self.pinned().await;
+        let provider = self.session_provider().await?;
         let taken = self.state().open.remove(&room);
-        let taken = reusable(room, agent, &mut kept, taken, pinned.as_deref());
+        let taken = reusable(
+            room,
+            agent,
+            &mut kept,
+            taken,
+            pinned.as_deref(),
+            provider.as_ref(),
+        );
         // A session kept from an earlier turn may have died since (the CLI crashed or was
         // updated): if it ends before writing a line for this turn, and the turn was not
         // stopped, the turn starts it again once. Once it said something (a tool may have run),
@@ -454,7 +494,8 @@ impl ClaudeAssistant {
         } else {
             let current = pinned.as_deref().or(kept.account.as_deref());
             let account = self.choose(current, &[]);
-            self.start(room, turn, agent, account, &mut kept).await?
+            self.start(room, turn, agent, account, provider.clone(), &mut kept)
+                .await?
         };
         let mut prompt = turn.prompt.clone();
         loop {
@@ -470,7 +511,9 @@ impl ClaudeAssistant {
                 tracing::info!(%room, "the room's agent session had ended; starting it again");
                 let account = session.account.clone();
                 drop(session);
-                session = self.start(room, turn, agent, account, &mut kept).await?;
+                session = self
+                    .start(room, turn, agent, account, provider.clone(), &mut kept)
+                    .await?;
                 continue;
             }
             kept_open = false;
@@ -486,18 +529,7 @@ impl ClaudeAssistant {
                     stepped,
                 }) => {
                     let from = session.account.clone();
-                    let next = {
-                        let now = self.clock.now();
-                        let mut state = self.state();
-                        if let Some(from) = &from {
-                            state.pool.mark_out(from, &hit, now);
-                        }
-                        let exclude: Vec<&str> = from.as_deref().into_iter().collect();
-                        state
-                            .pool
-                            .choose(from.as_deref(), &exclude, now)
-                            .map(str::to_owned)
-                    };
+                    let next = self.move_on(from.as_deref(), &hit);
                     let Some(next) = next else {
                         tracing::warn!(
                             %room,
@@ -517,7 +549,9 @@ impl ClaudeAssistant {
                         "moved the session to another account"
                     );
                     drop(session);
-                    session = self.start(room, turn, agent, Some(next), &mut kept).await?;
+                    session = self
+                        .start(room, turn, agent, Some(next), provider.clone(), &mut kept)
+                        .await?;
                     if stepped {
                         CARRY_ON.clone_into(&mut prompt);
                     }
@@ -525,6 +559,18 @@ impl ClaudeAssistant {
                 Err(error) => return Err(error),
             }
         }
+    }
+
+    /// Marks `from` out for `hit`, and names the account the session moves to, if one has
+    /// room.
+    fn move_on(&self, from: Option<&str>, hit: &LimitHit) -> Option<String> {
+        let now = self.clock.now();
+        let mut state = self.state();
+        if let Some(from) = from {
+            state.pool.mark_out(from, hit, now);
+        }
+        let exclude: Vec<&str> = from.into_iter().collect();
+        state.pool.choose(from, &exclude, now).map(str::to_owned)
     }
 
     /// The account a session on `current` runs on now; none without accounts.
@@ -538,13 +584,15 @@ impl ClaudeAssistant {
             .map(str::to_owned)
     }
 
-    /// Starts `room`'s session on `account`, resuming its conversation when it has one.
+    /// Starts `room`'s session on `account` (on `provider`, when there is one), resuming its
+    /// conversation when it has one.
     async fn start(
         &self,
         room: RoomId,
         turn: &Turn,
         agent: &agent_room::RoomAgent,
         account: Option<String>,
+        provider: Option<ProviderEnv>,
         kept: &mut Kept,
     ) -> Result<Session, ClaudeError> {
         let setup = match agent {
@@ -554,12 +602,19 @@ impl ClaudeAssistant {
             agent_room::RoomAgent::Disabled => return Err(ClaudeError::Disabled),
         };
         self.make_room(room);
-        let launch = self.launch(turn, setup, account.as_deref(), kept.id.as_deref());
+        let launch = self.launch(
+            turn,
+            setup,
+            account.as_deref(),
+            provider.as_ref(),
+            kept.id.as_deref(),
+        );
         let pipes = self.spawner.spawn(&launch)?;
         let mut session = Session {
             pipes,
             agent: agent.fingerprint().map(str::to_owned),
             account: account.clone(),
+            provider,
             used_at: self.clock.now(),
             requests: 0,
             heard: 0,
@@ -586,13 +641,14 @@ impl ClaudeAssistant {
         Ok(session)
     }
 
-    /// What the CLI runs with for a session of `turn`'s room on `account`; `agent`: a
-    /// configured agent's room's setup.
+    /// What the CLI runs with for a session of `turn`'s room on `account`, on `provider` when
+    /// there is one; `agent`: a configured agent's room's setup.
     fn launch(
         &self,
         turn: &Turn,
         agent: Option<&agent_room::AgentSetup>,
         account: Option<&str>,
+        provider: Option<&ProviderEnv>,
         resume: Option<&str>,
     ) -> Launch {
         let config = &self.config;
@@ -655,16 +711,21 @@ impl ClaudeAssistant {
             None if account.is_some() => env_remove.push("CLAUDE_CONFIG_DIR".to_owned()),
             None => {}
         }
-        Launch {
+        let mut launch = Launch {
             program: config.command.clone(),
             args,
             env,
             env_remove,
+            env_remove_prefixed: Vec::new(),
             cwd: agent.map_or_else(
                 || config.workdir.clone(),
                 |setup| Some(setup.folder.clone()),
             ),
+        };
+        if let Some(provider) = provider {
+            provider.apply(&mut launch);
         }
+        launch
     }
 
     /// The system prompt after the CLI's own: the server's rules, the room, the configured
@@ -813,6 +874,10 @@ impl ClaudeAssistant {
                         interrupted,
                         stepped,
                         limit,
+                        elsewhere: session
+                            .provider
+                            .as_ref()
+                            .is_some_and(ProviderEnv::elsewhere),
                     };
                     return self.ending(room, ran, is_error, text);
                 }
@@ -833,15 +898,20 @@ impl ClaudeAssistant {
         is_error: bool,
         text: String,
     ) -> Result<Ending, ClaudeError> {
-        let mut limit = ran.limit;
+        // Another endpoint's rate limits and errors aren't a Claude account's: nothing is
+        // marked out, and an error fails the turn.
+        let mut limit = ran.limit.filter(|_| !ran.elsewhere);
         if self.take_test_limit(room) {
             limit = Some(LimitHit::test(self.clock.now()));
         }
-        if limit.is_none() && is_error && says_out_of_usage(&text) {
+        if limit.is_none() && is_error && !ran.elsewhere && says_out_of_usage(&text) {
             limit = Some(LimitHit::usage());
         }
         if ran.interrupted {
             return Ok(Ending::Answer(None));
+        }
+        if ran.elsewhere && is_error && limit.is_none() {
+            return Err(ClaudeError::Unreachable(text));
         }
         if let Some(hit) = limit {
             return Ok(Ending::Out {
@@ -968,14 +1038,16 @@ impl crate::services::workers_view::AssistantTasks for ClaudeAssistant {
 
 /// The session `taken` from `room`'s open ones, when the turn may go on in it: not when the
 /// owner pinned another account (the conversation moves there), nor when it runs as another
-/// agent than `agent` now (another agent, or the same one changed). A kept conversation made
-/// as another agent is not resumed either: `kept` forgets it.
+/// agent than `agent` now (another agent, or the same one changed), nor when it was started
+/// on another model provider than `provider` (the conversation resumes on it). A kept
+/// conversation made as another agent is not resumed either: `kept` forgets it.
 fn reusable(
     room: RoomId,
     agent: &agent_room::RoomAgent,
     kept: &mut Kept,
     taken: Option<Session>,
     pinned: Option<&str>,
+    provider: Option<&ProviderEnv>,
 ) -> Option<Session> {
     let now = agent.fingerprint();
     if kept.agent.as_deref() != now && kept.id.is_some() {
@@ -993,6 +1065,11 @@ fn reusable(
         // Between turns the session moves to the account the owner pinned; its
         // conversation goes on there.
         tracing::info!(%room, to = pin, "moving the session to the pinned account");
+        return None;
+    }
+    if open.provider.as_ref() != provider {
+        // A provider saved, changed or removed since: the conversation goes on with it.
+        tracing::info!(%room, "the model provider changed: restarting the session on it");
         return None;
     }
     Some(open)
