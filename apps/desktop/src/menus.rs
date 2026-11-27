@@ -215,7 +215,7 @@ fn view_menu(shown: Shown) -> Menu {
     let mut items = vec![
         MenuItem::action(sidebar, ToggleSidebar),
         MenuItem::separator(),
-        MenuItem::action("Chat", Room0),
+        MenuItem::action("Your ember", Room0),
         MenuItem::action("Needs you", OpenNeeds),
         MenuItem::action("Tasks", OpenTasks),
         MenuItem::action("Machines", OpenMachines),

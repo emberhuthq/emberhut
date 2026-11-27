@@ -594,14 +594,25 @@ impl Store {
     #[must_use]
     pub(crate) fn status(&self) -> StatusLine {
         let now = jiff::ZonedDateTime::now();
-        status::line(status::Standing {
+        status::line(self.standing(&now))
+    }
+
+    /// Whether the assistant is at work now (see [`status::Standing::is_working`]).
+    #[must_use]
+    pub(crate) fn is_working(&self) -> bool {
+        self.standing(&jiff::ZonedDateTime::now()).is_working()
+    }
+
+    /// Where the assistant stands at `now`, for its status line.
+    fn standing<'a>(&'a self, now: &'a jiff::ZonedDateTime) -> status::Standing<'a> {
+        status::Standing {
             state: self.state.as_ref(),
             here: self.is_state_here(),
             offline: self.outage(),
             live: self.live.as_ref(),
             now: now.timestamp(),
             zone: now.time_zone(),
-        })
+        }
     }
 
     /// Loads the page of the open room's chat before what is held.

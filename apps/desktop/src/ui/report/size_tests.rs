@@ -407,7 +407,7 @@ fn choosing_the_page_already_showing_brings_the_report_back(cx: &mut TestAppCont
 
     // Main's row in the sidebar, on Main.
     expand(cx);
-    click_id("chat", cx);
+    click_id("ember", cx);
     assert_eq!(page(&view, cx), main);
     assert!(!is_expanded(&view, cx), "Main's row");
     assert!(composer_focused(&view, cx));

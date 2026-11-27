@@ -40,6 +40,7 @@ mod settings_more;
 mod share;
 mod sidebar;
 mod sidebar_agents;
+mod sidebar_ember;
 mod sidebar_keys;
 pub(crate) mod sidebar_places;
 mod sign_in;

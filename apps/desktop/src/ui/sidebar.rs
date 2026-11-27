@@ -1,25 +1,22 @@
-//! The sidebar: the assistant's row, Chat, Needs you, Tasks, the agents, the rooms, the recent
-//! sessions, and More (Machines, Settings, and the windows of their own this build has). Its right
-//! edge drags it wider or narrower; Recent sessions and More fold, kept across launches. Every
-//! row explains itself on hover and is in the Tab order.
+//! The sidebar: your ember (the assistant's row), Needs you, Tasks, the agents, the rooms, the
+//! recent sessions, and More (Machines, Settings, and the windows of their own this build has).
+//! Its right edge drags it wider or narrower; Recent sessions and More fold, kept across
+//! launches. Every row explains itself on hover and is in the Tab order.
 
 use gpui_kit::TestSupportExt;
 use gpui_kit::assets::IconName as AssetIcon;
-use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
 use gpui_kit::component::{Icon, IconName};
 use gpui_kit::prelude::*;
 use gpui_kit::{
     AnyElement, Div, DragMoveEvent, ElementId, Empty, FontWeight, MouseButton, MouseUpEvent, Role,
-    Stateful, Window, div, img, px,
+    Stateful, Window, div, px,
 };
 
 use super::controls::{tab_stop, tip, tip_for};
 use super::palette::{Pal, pal};
 use super::routes;
-use super::widgets::{dot, icon, pill, section_title};
-use super::window::{MainWindow, OpenMachines, OpenNeeds, OpenSettings, OpenTasks, Room0};
-use crate::assets::FACE;
+use super::widgets::{icon, pill, section_title};
+use super::window::{MainWindow, OpenMachines, OpenNeeds, OpenSettings, OpenTasks};
 use crate::store::sessions::lists as sessions_lists;
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
@@ -33,7 +30,6 @@ use crate::shell::{WindowKind, windows};
 use crate::store::lookup;
 use crate::store::room_line::WIDE_FROM;
 use crate::store::settings::SettingsPane;
-use crate::store::status::Tone;
 use crate::store::{Page, Store};
 
 /// How many recent sessions the sidebar lists.
@@ -76,7 +72,7 @@ pub(crate) fn sidebar(window: &mut MainWindow, cx: &mut Context<'_, MainWindow>)
         .bg(p.sidebar)
         .border_r_1()
         .border_color(p.border)
-        .child(header(window, &p, cx))
+        .child(super::sidebar_ember::row_with_menu(window, &p, cx))
         .child(list)
         .child(edge(&p, cx))
         .on_drag_move(
@@ -129,100 +125,14 @@ fn let_go(
     this.store.update(cx, Store::let_go_of_sidebar);
 }
 
-/// The assistant's row: its face, its name, its status. A click opens its menu: the on-duty
-/// switch, what it knows about the user, and Settings.
-fn header(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Div {
-    let store = window.store.read(cx);
-    let status = store.status();
-    let on = store.is_on_duty();
-    let menu_store = window.store.clone();
-    let row = Button::new("assistant-menu")
-        .ghost()
-        .w_full()
-        .tooltip(format!(
-            "{}\nOn duty: when off, {APP_NAME} does nothing and wakes for nothing; it still \
-             answers you in the chat.",
-            status.text
-        ))
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(7.))
-                .w_full()
-                .child(img(FACE).size(px(20.)).rounded_full())
-                .child(
-                    div()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_size(px(13.5))
-                        .child(APP_NAME),
-                )
-                .child(icon(IconName::ChevronDown, p.muted, 10.))
-                .child(div().flex_1())
-                .child(
-                    div()
-                        .text_size(px(11.))
-                        .text_color(match status.tone {
-                            Tone::Quiet => p.faint,
-                            tone => super::chat::reading::status_color(tone, p),
-                        })
-                        .max_w(px(120.))
-                        .truncate()
-                        .child(status.text),
-                ),
-        )
-        .dropdown_menu(move |menu, _, _| {
-            let duty = menu_store.clone();
-            menu.item(
-                PopupMenuItem::new("On duty")
-                    .checked(on)
-                    .on_click(move |_, _, cx| {
-                        duty.update(cx, |store, cx| store.set_on_duty(!on, cx));
-                    }),
-            )
-            .separator()
-            .item(
-                PopupMenuItem::new(format!("What {APP_NAME} knows about you…")).on_click(
-                    move |_, window, cx| {
-                        routes::open_settings(Some(SettingsPane::AboutYou), window, cx);
-                    },
-                ),
-            )
-            .item(
-                PopupMenuItem::new("Settings…").on_click(move |_, window, cx| {
-                    routes::open_settings(None, window, cx);
-                }),
-            )
-        });
-    div().px(px(8.)).pt(px(8.)).pb(px(4.)).child(row)
-}
-
-/// Chat, Needs you and Tasks.
+/// Needs you, Tasks, Scheduled, and Sessions (and the Browser while it is handed over).
 fn pages(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<Stateful<Div>> {
     let store = window.store.read(cx);
     let column = window.column.read(cx).current();
-    let room = store.room();
-    let main = store
-        .switcher()
-        .main()
-        .map(|room| (room.id, room.unread > 0));
     let needs = store.needs_count();
     let open_tasks = store.needs().map_or(0, |needs| needs.open_tasks().len());
     let shows_tasks = store.state().is_none_or(lookup::shows_tasks);
     let mut rows = Vec::new();
-    if let Some((id, unread)) = main {
-        let chat = row("chat", room == id, p);
-        rows.push(
-            tip_for(chat, format!("{APP_NAME}'s main chat"), &Room0)
-                .aria_label(if unread { "Chat, new" } else { "Chat" })
-                .child(icon(IconName::Bot, p.muted, 14.))
-                .child("Chat")
-                .when(unread, |d| d.child(dot(p.accent, 6.)))
-                .on_click(
-                    cx.listener(move |this, _, window, cx| this.open(Page::Room(id), window, cx)),
-                ),
-        );
-    }
     let needs_row = row("needs", column == Some(Page::Needs), p);
     rows.push(
         tip_for(
@@ -639,7 +549,7 @@ fn window_note(kind: WindowKind) -> Option<String> {
 }
 
 /// A one-line row.
-fn row(id: impl Into<ElementId>, selected: bool, p: &Pal) -> Stateful<Div> {
+pub(super) fn row(id: impl Into<ElementId>, selected: bool, p: &Pal) -> Stateful<Div> {
     let row = div()
         .id(id)
         // A screen reader hears a row as a button, named by its caller (else by its text).

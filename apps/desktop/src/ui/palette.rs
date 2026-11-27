@@ -21,6 +21,8 @@ pub(crate) struct Pal {
     pub(crate) accent: Hsla,
     /// The soft accent.
     pub(crate) accent_soft: Hsla,
+    /// The glow around the assistant's picture while it works: the accent, partly see-through.
+    pub(crate) glow: Hsla,
     /// Text on the accent.
     pub(crate) on_accent: Hsla,
     /// The window's background.
@@ -80,6 +82,11 @@ const SIDEBAR_ALPHA_FLOOR_DARK: f32 = 0.84;
 /// is too faint to see, so the sidebar is opaque and the window isn't blurred for it.
 const SIDEBAR_ALPHA_MOST: f32 = 0.96;
 
+/// How much of the accent shows in the working glow, light and dark (a dark page needs more for
+/// the glow to read).
+const GLOW_LIGHT: f32 = 0.55;
+const GLOW_DARK: f32 = 0.7;
+
 /// The share of the text colour that tints a row under the pointer, light and dark.
 const HOVER_LIGHT: f32 = 0.05;
 const HOVER_DARK: f32 = 0.07;
@@ -130,6 +137,7 @@ impl Pal {
             dark,
             accent: c(&tokens.accent),
             accent_soft: c(&tokens.accent_soft),
+            glow: c(&tokens.accent).opacity(if dark { GLOW_DARK } else { GLOW_LIGHT }),
             on_accent: c(&tokens.on_accent),
             background: c(&tokens.background),
             surface: c(&tokens.surface),

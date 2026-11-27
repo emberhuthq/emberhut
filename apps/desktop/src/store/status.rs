@@ -46,6 +46,18 @@ pub(crate) struct Standing<'a> {
     pub(crate) zone: &'a TimeZone,
 }
 
+impl Standing<'_> {
+    /// Whether the assistant is at work: online and on duty, with a live step streaming or the
+    /// open room busy.
+    #[must_use]
+    pub(crate) fn is_working(&self) -> bool {
+        self.offline.is_none()
+            && self
+                .state
+                .is_some_and(|state| state.on && (self.live.is_some() || self.here && state.busy))
+    }
+}
+
 /// Why the state polls fail, for the status line's word.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Outage {
@@ -86,7 +98,7 @@ pub(crate) fn line(standing: Standing<'_>) -> StatusLine {
         Some(Outage::ServerError) => return quiet("Server error", Tone::Warn),
         None => {}
     }
-    let working = standing.live.is_some() || standing.here && state.busy;
+    let working = standing.is_working();
     let jobs = state.tasks.iter().filter(|task| task.is_running()).count();
     let mut text = if !state.on {
         "Paused"
@@ -100,11 +112,7 @@ pub(crate) fn line(standing: Standing<'_>) -> StatusLine {
         let plural = if jobs == 1 { "" } else { "s" };
         text = format!("{text} · {jobs} job{plural}");
     }
-    let base_tone = if working && state.on {
-        Tone::Working
-    } else {
-        Tone::Quiet
-    };
+    let base_tone = if working { Tone::Working } else { Tone::Quiet };
     let account = state.account.as_ref();
     let limited = account
         .and_then(|account| account.limited_until.as_ref())
@@ -201,6 +209,31 @@ mod tests {
             now: at("2026-01-10T12:00:00Z"),
             zone: &UTC,
         }
+    }
+
+    #[test]
+    fn it_works_only_online_on_duty_and_busy_or_streaming() {
+        let busy = state(json!({"on": true, "busy": true}));
+        assert!(standing(Some(&busy)).is_working());
+        let elsewhere = Standing {
+            here: false,
+            ..standing(Some(&busy))
+        };
+        assert!(!elsewhere.is_working(), "another room's busy");
+        let doing = step("Reading");
+        let streaming = Standing {
+            live: Some(&doing),
+            ..elsewhere
+        };
+        assert!(streaming.is_working(), "a live step");
+        let offline = Standing {
+            offline: Some(Outage::Unreachable),
+            ..standing(Some(&busy))
+        };
+        assert!(!offline.is_working());
+        let paused = state(json!({"on": false, "busy": true}));
+        assert!(!standing(Some(&paused)).is_working());
+        assert!(!standing(None).is_working());
     }
 
     #[test]
