@@ -1,5 +1,7 @@
 //! The agent's model provider: read, checked, saved and removed, a refusal in the server's words.
 
+use std::time::Duration;
+
 use emberhut_api::agent_provider::{ProviderKind, ProviderRequest};
 use emberhut_client::Error;
 use serde_json::json;
@@ -78,5 +80,29 @@ fn a_refused_key_comes_back_in_the_servers_words() {
     assert!(
         matches!(&error, Error::Status { status: 422, message: Some(m) } if m.contains("didn't accept")),
         "{error:?}"
+    );
+}
+
+#[test]
+fn a_quick_check_gives_up_once_its_time_is_out() {
+    let server = TestServer::start(|_| {
+        std::thread::sleep(Duration::from_millis(600));
+        Reply::Json(200, json!({ "checked": true, "models": [] }))
+    });
+    let ollama = ProviderRequest {
+        provider: ProviderKind::Ollama,
+        api_key: None,
+        base_url: None,
+        model: None,
+        fast_model: None,
+    };
+    let error = server
+        .client(fresh("r1"))
+        .test_agent_provider_within(&ollama, Duration::from_millis(100))
+        .unwrap_err();
+    assert!(matches!(error, Error::Network(_)), "{error:?}");
+    assert_eq!(
+        server.requests_to("/api/agent/provider/test")[0].json(),
+        json!({ "provider": "ollama" })
     );
 }

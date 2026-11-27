@@ -35,7 +35,21 @@ impl Client {
     /// [`Error::Status`] with the server's sentence: 400 for what the provider doesn't take,
     /// 422 for a key it refused, 502 when it didn't answer; as [`Client::agent_provider`].
     pub fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
-        exchange::json(self.post_within(paths::AGENT_PROVIDER_TEST, request, CHECK_TIMEOUT)?)
+        self.test_agent_provider_within(request, CHECK_TIMEOUT)
+    }
+
+    /// Checks a provider as [`Client::test_agent_provider`] does, giving the whole answer
+    /// `within` (a quick look for a local Ollama that isn't worth waiting on).
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::test_agent_provider`]; the transport's timeout once `within` is out.
+    pub fn test_agent_provider_within(
+        &self,
+        request: &ProviderRequest,
+        within: Duration,
+    ) -> Result<ProviderTest, Error> {
+        exchange::json(self.post_within(paths::AGENT_PROVIDER_TEST, request, within)?)
     }
 
     /// Checks a provider and saves it in place of whatever was saved
