@@ -4,6 +4,8 @@
 // Every module is `cfg(test)` (always true here) so clippy treats its helpers as test code,
 // where the workspace lets them unwrap and panic.
 #[cfg(test)]
+mod agent_provider;
+#[cfg(test)]
 mod approvals;
 #[cfg(test)]
 mod browser;
