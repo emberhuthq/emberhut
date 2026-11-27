@@ -10,9 +10,9 @@ import { readAccountSettings } from "./src/config/account.ts";
  * The Android versionCode. Bump before every Google Play upload: Play takes each one once (1 is taken), and Android never
  * installs over a higher one.
  */
-const BUILD_NUMBER = 4;
+const BUILD_NUMBER = 5;
 /** Bump before every TestFlight upload: App Store Connect takes each build number once per version. */
-const IOS_BUILD_NUMBER = 6;
+const IOS_BUILD_NUMBER = 8;
 const VERSION = "0.1.0";
 
 /**
