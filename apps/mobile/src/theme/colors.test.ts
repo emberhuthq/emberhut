@@ -1,18 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ThemeTokens } from "@/api";
 import { builtInTheme } from "./builtIn";
-import { mix, paletteFrom } from "./colors";
-
-// WCAG's ratio, to check what the palette derives.
-function ratio(a: string, b: string): number {
-  const lum = (hex: string) =>
-    [1, 3, 5]
-      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-      .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
-      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i]!, 0);
-  const [x, y] = [lum(a), lum(b)];
-  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
-}
+import { contrast as ratio, mix, paletteFrom } from "./colors";
 
 describe("palette from the theme's tokens", () => {
   const { light, dark } = builtInTheme.tokens;
@@ -61,6 +50,12 @@ describe("palette from the theme's tokens", () => {
       const p = paletteFrom({ ...dark, accent }, "dark");
       expect(ratio(p.onBubbleMine, p.bubbleMine)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it("measures contrast as WCAG 2 does", () => {
+    expect(ratio("#000000", "#FFFFFF")).toBeCloseTo(21, 9);
+    expect(ratio("#123456", "#123456")).toBe(1);
+    expect(ratio("#2563EB", "#FFFFFF")).toBeCloseTo(5.17, 2);
   });
 
   it("mixes as the server does", () => {

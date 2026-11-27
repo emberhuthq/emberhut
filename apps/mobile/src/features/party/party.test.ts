@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Party, PartyMessage, PartyModel, PartyPersona } from "@/api";
+import type { Party, PartyColor, PartyMessage, PartyModel, PartyPersona } from "@/api";
+import { contrast, readableOn } from "@/theme/colors";
 import {
   addPersona,
   applyPartyEvent,
@@ -104,6 +105,18 @@ describe("the numbers", () => {
     expect(personaColor("green", "light")).toBe("#34C759");
     expect(personaColor("green", "dark")).toBe("#30D158");
     expect(personaColor("", "light")).toBe("#8E8E93");
+  });
+
+  it("puts each persona's initial in white or near-black, whichever reads 4.5:1 on its colour", () => {
+    const colors: (PartyColor | "")[] = ["blue", "orange", "green", "purple", "pink", ""];
+    for (const scheme of ["light", "dark"] as const) {
+      for (const color of colors) {
+        const fill = personaColor(color, scheme);
+        expect(contrast(readableOn(fill), fill), `${color} ${scheme}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    expect(readableOn("#34C759")).toBe("#0B0D10");
+    expect(readableOn("#5856D6")).toBe("#FFFFFF");
   });
 });
 
