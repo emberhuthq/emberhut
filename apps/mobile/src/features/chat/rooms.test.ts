@@ -160,10 +160,10 @@ describe("roomColor", () => {
   ];
   it("takes its goal's color by rank, round the seven, and gray without one", () => {
     const light = goalColors("light");
-    expect(roomColor(inGoal(7), goals, light)).toBe("#FF9500");
-    expect(roomColor(inGoal(8), goals, light)).toBe("#34C759");
-    expect(roomColor(inGoal(null), goals, light)).toBe("#8E8E93");
-    expect(roomColor(inGoal(99), goals, light)).toBe("#8E8E93");
+    expect(roomColor(inGoal(7), goals, light)).toBe("#B45A00");
+    expect(roomColor(inGoal(8), goals, light)).toBe("#21803A");
+    expect(roomColor(inGoal(null), goals, light)).toBe("#6E6E73");
+    expect(roomColor(inGoal(99), goals, light)).toBe("#6E6E73");
   });
 
   it("follows dark mode", () => {
