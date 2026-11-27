@@ -286,15 +286,15 @@ away); nothing is deleted until that button, or Delete in the note's menu, is pr
 
 ## Shortcuts
 
-⌘ on macOS, Ctrl on Linux and Windows: ⌘0 Main, ⌘1…⌘9 the rooms in the sidebar's order, ⌘,
-Settings, ⌘[ Back in the column, ⌘⇧↩ lets a report fill the window beside the sidebar and
-brings it back, Esc brings an expanded report back, otherwise closes the report, then the
-column; ⌘N a new window, ⌘W closes it, ⇧⌘N a quick note, ⇧⌘D the diary, ⇧⌘Y the calendar
-(Ctrl-Shift elsewhere). The sidebar shows and hides with ⌃⌘S on macOS (Ctrl+Shift+S
-elsewhere). After a click in the sidebar, ↑ and ↓ move through it and open each
+⌘ on macOS, Ctrl on Linux and Windows: ⌘0 your ember (the main room), ⌘1…⌘9 the rooms in the
+sidebar's order, ⌘, Settings, ⌘[ Back in the column, ⌘⇧↩ lets a report fill the window beside
+the sidebar and brings it back, Esc brings an expanded report back, otherwise closes the
+report, then the column; ⌘N a new window, ⌘W closes it, ⇧⌘N a quick note, ⇧⌘D the diary, ⇧⌘Y
+the calendar (Ctrl-Shift elsewhere). The sidebar shows and hides with ⌃⌘S on macOS
+(Ctrl+Shift+S elsewhere). After a click in the sidebar, ↑ and ↓ move through it and open each
 place they land on. macOS also has the menu bar, ⌘Q, ⌘H, ⌥⌘H, ⌘M and ⌃⌘F full screen (F11
-elsewhere). Tab moves through the sidebar's rows and the column's buttons; Enter or Space
-opens the one focused.
+elsewhere). Tab moves through the sidebar's rows and the column's buttons; Enter or Space opens
+the one focused.
 
 ⇧⌘P opens the Party window from any window (Ctrl+Shift+P elsewhere); in it ⌥⌘N starts a new
 party, and Return or ⌘Return sends the line that jumps in or steers.

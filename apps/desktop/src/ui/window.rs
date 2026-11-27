@@ -974,10 +974,7 @@ mod tests {
         });
         cx.update_window(window.into(), |_, window, cx| {
             window.render_frame(cx);
-            assert!(
-                window.try_find("assistant-menu").is_none(),
-                "connecting: no sidebar"
-            );
+            assert!(window.try_find("ember").is_none(), "connecting: no sidebar");
         })
         .unwrap();
         store.update(cx, |store, cx| {
@@ -985,10 +982,7 @@ mod tests {
         });
         cx.update_window(window.into(), |_, window, cx| {
             window.render_frame(cx);
-            assert!(
-                window.try_find("assistant-menu").is_some(),
-                "connected: the sidebar"
-            );
+            assert!(window.try_find("ember").is_some(), "connected: the sidebar");
         })
         .unwrap();
     }

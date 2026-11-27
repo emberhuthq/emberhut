@@ -1,6 +1,6 @@
 //! ↑ and ↓ through the sidebar: it keeps the keyboard after a click on one of its rows, and
-//! the arrows move through the places it lists (Chat, Needs you, Tasks, the agents, the rooms,
-//! Machines, Settings), opening each one they land on.
+//! the arrows move through the places it lists (your ember, Needs you, Tasks, the agents, the
+//! rooms, Machines, Settings), opening each one they land on.
 
 use gpui_kit::prelude::*;
 use gpui_kit::{App, Div, KeyBinding, MouseButton, Window, actions};
