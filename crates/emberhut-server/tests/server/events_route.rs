@@ -217,6 +217,10 @@ pub(crate) async fn in_report_mode_a_request_without_a_session_never_tells_the_a
 
 /// An app whose programs hold `program-key-for-tests`, with a project's room as an import
 /// writes it: project 3's room is room 2, and room 5 is a room of no project.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper: a failure here fails the test that called it"
+)]
 async fn with_program_key() -> TestApp {
     let app = TestApp::with_dependencies(emberhut_server::config::AuthMode::Enforce, |deps, _| {
         emberhut_server::app::Dependencies {
