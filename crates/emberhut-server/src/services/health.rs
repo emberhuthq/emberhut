@@ -229,7 +229,8 @@ mod tests {
     async fn work_that_held_a_worker_is_reported_by_name() {
         let monitor = LoopMonitor::new();
         monitor.note_slow(Duration::from_millis(10), "GET /api/quick");
-        monitor.note_slow(Duration::from_millis(80), "GET /api/state");
+        // Far above the held work's 60 ms, so a slow machine can't swap their order.
+        monitor.note_slow(Duration::from_millis(5_000), "GET /api/state");
         let held = Held {
             work: Box::pin(async {
                 std::thread::sleep(Duration::from_millis(60));

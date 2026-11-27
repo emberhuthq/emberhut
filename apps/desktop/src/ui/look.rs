@@ -223,6 +223,12 @@ mod tests {
         store
     }
 
+    /// Whether this machine lets windows be translucent (a Mac set to reduce transparency
+    /// doesn't, and the material then stays opaque).
+    fn transparency_allowed() -> bool {
+        Transparency::current() == Transparency::Allowed
+    }
+
     /// Opens a window as the app does, on macOS (the material allowed), and follows.
     fn open_on_macos(store: &Entity<Store>, cx: &mut TestAppContext) -> AnyWindowHandle {
         cx.update(|cx| {
@@ -293,7 +299,8 @@ mod tests {
     fn once_followed_the_dark_window_paints_nothing_under_the_sidebar(cx: &mut TestAppContext) {
         let store = store(Appearance::Dark, cx);
         let window = open_on_macos(&store, cx);
-        assert!(root_is_clear(window, cx));
+        // A Mac set to reduce transparency keeps every window opaque.
+        assert_eq!(root_is_clear(window, cx), transparency_allowed());
     }
 
     #[gpui_kit::test]
@@ -315,7 +322,11 @@ mod tests {
                     .update(cx, |_, window, cx| show_sidebar(shown, &page, window, cx))
                     .unwrap();
             });
-            assert_eq!(root_is_clear(window, cx), shown, "shown={shown}");
+            assert_eq!(
+                root_is_clear(window, cx),
+                shown && transparency_allowed(),
+                "shown={shown}"
+            );
         }
     }
 
