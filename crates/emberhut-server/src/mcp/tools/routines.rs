@@ -27,7 +27,7 @@ pub(crate) struct SetRoutinesArgs {
     meeting_prep: Option<bool>,
 }
 
-/// A routine: at `at` (`HH:MM`, server time) every day, what to do.
+/// A routine: at `at` (`HH:MM`, server time), every day or on one weekday, what to do.
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
 pub(crate) struct RoutineArg {
     /// `HH:MM`.
@@ -37,6 +37,9 @@ pub(crate) struct RoutineArg {
     /// What to do then.
     #[garde(length(min = 1, max = 4000))]
     what: String,
+    /// Its weekday, 0 Sunday to 6 Saturday, for a weekly routine; left out: every day.
+    #[garde(range(max = 6))]
+    day: Option<u8>,
 }
 
 /// Quiet hours, `HH:MM` to `HH:MM`.
@@ -71,9 +74,9 @@ impl Tool for SetRoutines {
     }
 
     fn description(&self) -> &'static str {
-        "Change the owner's daily routines (each: at \"HH:MM\" server time, what to do) and/or \
-         quiet hours, and turn off or on the wakes for new messages (news) and meeting prep \
-         (meeting_prep), when they ask."
+        "Change the owner's routines (each: at \"HH:MM\" server time, what to do, and day 0-6 \
+         (Sunday to Saturday) for a weekly one) and/or quiet hours, and turn off or on the wakes \
+         for new messages (news) and meeting prep (meeting_prep), when they ask."
     }
 
     async fn call(
@@ -87,7 +90,7 @@ impl Tool for SetRoutines {
                 .map(|routine| Routine {
                     at: routine.at,
                     what: routine.what,
-                    day: None,
+                    day: routine.day,
                 })
                 .collect()
         });
