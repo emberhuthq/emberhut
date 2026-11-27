@@ -451,6 +451,10 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/settings/chrome.rs` | the Chrome profiles' changes and the sheet open over them; a change's answer replaces the state's profiles |
 | `store/settings/on_duty.rs` | pausing and resuming the assistant, shown at once until the state agrees |
 | `store/settings/appearance.rs` | the Appearance row's summary, a custom colour's contrast line, which typed colour is previewed |
+| `store/settings/entries.rs` | every setting described once: id, title, fixed or live line, group and place, synonyms, everyday or technical, where it opens; ids checked against `apps/fixtures/settings-entries.json` with the phone's |
+| `store/settings/now.rs` | how the things Settings speaks of stand, gathered from the store for the live lines, suggestions and status lines |
+| `store/settings/search.rs` | Settings' search over the entries: words in any order, synonyms, title matches first, the closest few when nothing matches |
+| `store/settings/suggest.rs` | the front door's Suggested rows, worked out from how things stand, never what is done |
 | `format.rs` | how sizes read (`gigabytes`), times |
 | `material/mod.rs` | which surfaces have material for the platform, Reduce Transparency and `--opaque` (`Material::choose`) |
 | `material/alpha.rs` | how translucent the sidebar may be for its text to keep its contrast over any backdrop |
