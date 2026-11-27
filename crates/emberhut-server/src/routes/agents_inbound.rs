@@ -24,8 +24,8 @@ impl IntoResponse for InboundError {
             Self::Talk(_) | Self::Db(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         if status.is_server_error() {
-            tracing::error!(error = %self, "an agent's inbound message was not taken");
-            return (status, Json(ErrorBody::new("The message was not taken."))).into_response();
+            tracing::error!(error = %self, "an agent's inbound message or bridge note was not taken");
+            return (status, Json(ErrorBody::new("It was not taken."))).into_response();
         }
         (status, Json(ErrorBody::new(self.to_string()))).into_response()
     }

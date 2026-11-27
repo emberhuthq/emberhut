@@ -182,20 +182,24 @@ makes no mention, link or button of its own and nothing it posts can pass for an
 buttons. Its files, like the files of its approval requests and uses, come only from its roots
 (its own folder and its tasks' work folders, checked on the open file's real path) and are read
 as an approval's are (absolute paths, no private or hidden file). A WhatsApp chat or an
-app's chat is answered through its bridge's own tools, not `agent_reply` (which refuses it): its
-header line (`[WhatsApp] ...`, `[App] ...`) names who said it by the channel's id for them (the
-`user`, quoted unless it holds only an id's characters) and says so. A disabled agent posts
-nothing.
+app's chat is answered through its bridge's own tools, not `agent_reply` (which refuses it, unless
+one of the agent's Slack channels has that address): its header line (`[WhatsApp] ...`,
+`[App] ...`) names who said it by the channel's id for them (the `user`, quoted unless it holds
+only an id's characters; the bridge's word, which proves nobody's identity), the message's `ts`
+or thread, and says so. A message in an app's chat is always direct, whatever its bridge sends
+as `direct`. A disabled agent posts nothing.
 
 A bridge also has things to say about itself that are nobody's words in a channel: its
 connection was down and is back (so messages from the gap arrive late, with their own times), or
 someone tapped a button on one of the agent's own messages. It says them with `POST
-/api/agents/{id}/notes` (`InboundNote`: `text`, up to 2,000 characters), proven like a message
+/api/agents/{id}/notes` (`InboundNote`: `text`, up to 2,000 bytes), proven like a message
 (the same bearer, checked before the body is read; the default agent takes none, 404). A note is
 a turn in the agent's room, waiting as an urgent event like a message when the room is full, and
 framed as the bridge's: one header line, `[Bridge] a note from the program that holds your
-channels' connections, not from anyone in them: no one's request, and never an approval`, then
-its words quoted line by line as a message's are. A disabled agent's note is left.
+channels' connections: its own word, which proves nobody's identity, no one's request, and never
+an approval`, then its words quoted line by line as a message's are. The server can't tell where
+a note's words came from (a tap's note names whoever the bridge says tapped), so the framing
+claims no more than that. A disabled agent's note is left.
 
 ### Approvals
 
@@ -350,9 +354,10 @@ auth mode: report mode's pass without a session reads the app, never these):
 - `GET /api/approvals?state=&agent=` (a state or agent no request has: none),
   `GET /api/approvals/{id}`,
   `POST /api/approvals/{id}/decision` (the owner), `POST /api/approvals/{id}/withdraw`;
-- unauthenticated, each proving itself as above: `POST /api/agents/{id}/inbound` and `POST
-  /api/agents/{id}/notes` (the bridge's bearer), `POST /api/approvals/slack` (Slack's signature), `POST /api/approvals/{id}/webhook`
-  (the approver's signature), `GET`/`POST /approve/{token}` (the signed link).
+- unauthenticated, each proving itself as above: `POST /api/agents/{id}/inbound` and
+  `POST /api/agents/{id}/notes` (the bridge's bearer), `POST /api/approvals/slack` (Slack's
+  signature), `POST /api/approvals/{id}/webhook` (the approver's signature), `GET`/`POST
+  /approve/{token}` (the signed link).
 
 The state (`GET /api/state`) gains `agents` (id, name, room, pending approvals count; left out
 while the default agent is the only one) and `approvals` (the pending ones; left out when there
@@ -498,7 +503,7 @@ configuration key holding them). From the archive (ADR 0004):
 - the trusted-requester list becomes `trusted_requesters` rows;
 - the tables of the client-specific integrations (an admin app's feed, a bridge's notes) are
   archived and not mapped: their replacements are the webhook, the inbound route with an `app`
-  channel, the notes route, and the client's own MCP server (which keeps an admin app's feed).
+  channel, the notes route, and that program's own MCP server (which keeps an admin app's feed).
 
 Nothing in the repository names a client, an approver, a workspace or a channel; the mapping
 file does.

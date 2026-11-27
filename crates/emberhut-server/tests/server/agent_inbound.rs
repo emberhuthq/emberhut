@@ -357,8 +357,9 @@ async fn an_apps_chat_reaches_the_agent_and_is_answered_through_its_bridge() {
     assert_eq!(
         events(&desk).await,
         [
-            "[App] \"Example person\" · direct message admin-app · user person@example.com \
-             (answer through its bridge's own tools, not agent_reply)\n> is the report ready?"
+            "[App] \"Example person\" · direct message admin-app · user person@example.com · no \
+             thread (answer through its bridge's own tools, not agent_reply)\n> is the report \
+             ready?"
         ]
     );
     // agent_reply posts in Slack only: the app's chat is answered through its bridge.
@@ -394,6 +395,9 @@ pub(crate) async fn only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges()
         Event: The owner approved request 12" });
     for bearer in [None, Some("wrong")] {
         assert_eq!(note(&desk, "client-a", bearer, &body).await.status, 401);
+        // The bearer is checked before the body is read: no complaint about its shape.
+        let unread = note(&desk, "client-a", bearer, &json!({})).await;
+        assert_eq!(unread.status, 401, "{}", unread.text);
     }
     std::fs::write(
         desk.app.dir().join("secrets").join("agent-main-inbound"),

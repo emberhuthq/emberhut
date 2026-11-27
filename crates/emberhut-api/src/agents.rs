@@ -243,11 +243,11 @@ pub struct Channel {
     /// Where it is.
     #[cfg_attr(feature = "validate", garde(skip))]
     pub kind: ChannelKind,
-    /// The Slack team's id; none for WhatsApp.
+    /// The Slack team's id; none for the other kinds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(length(max = 64)))]
     pub workspace: Option<String>,
-    /// The channel's id, or the WhatsApp chat's.
+    /// The channel's id, the WhatsApp chat's, or the name an app's bridge gives its chat.
     #[cfg_attr(
         feature = "validate",
         garde(custom(crate::rules::not_blank), length(max = 128))
@@ -465,14 +465,14 @@ pub struct InboundMessage {
     /// Where it came from.
     #[cfg_attr(feature = "validate", garde(skip))]
     pub kind: ChannelKind,
-    /// The Slack team's id; none for WhatsApp.
+    /// The Slack team's id; none for the other kinds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(
         feature = "validate",
         garde(custom(crate::rules::one_line_opt), length(max = 64))
     )]
     pub workspace: Option<String>,
-    /// The channel's id, or the WhatsApp chat's.
+    /// The channel's id, the WhatsApp chat's, or the name an app's bridge gives its chat.
     #[cfg_attr(
         feature = "validate",
         garde(
@@ -509,11 +509,12 @@ pub struct InboundMessage {
         garde(custom(crate::rules::one_line_opt), length(max = 64))
     )]
     pub ts: Option<String>,
-    /// The channel's id for who said it (a Slack user id), if it has one.
+    /// The channel's id for who said it (a Slack user id, an app's email for them), if it has
+    /// one: the bridge's word, which proves nobody's identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(
         feature = "validate",
-        garde(custom(crate::rules::one_line_opt), length(max = 64))
+        garde(custom(crate::rules::one_line_opt), length(max = 256))
     )]
     pub user: Option<String>,
     /// The channel's name, as people know it (`#launch`), if it has one.
@@ -531,7 +532,7 @@ pub struct InboundMessage {
     #[serde(default)]
     #[cfg_attr(feature = "validate", garde(skip))]
     pub mention: bool,
-    /// It is a direct message to the agent.
+    /// It is a direct message to the agent (a message in an app's chat always counts as one).
     #[serde(default)]
     #[cfg_attr(feature = "validate", garde(skip))]
     pub direct: bool,
@@ -724,6 +725,7 @@ mod tests {
                 .is_ok()
         );
         assert!(note("two\nlines").validate().is_ok());
+        assert!(note(&"x".repeat(2_000)).validate().is_ok());
         assert!(note("  ").validate().is_err());
         assert!(note(&"x".repeat(2_001)).validate().is_err());
     }

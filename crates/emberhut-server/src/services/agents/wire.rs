@@ -115,7 +115,7 @@ pub(crate) fn channels(channels: &[api::Channel]) -> Result<Vec<Channel>, Refusa
         .map(|(index, channel)| {
             Ok(Channel {
                 kind: ChannelKind::parse(channel.kind.as_str())
-                    .ok_or_else(|| format!("channels[{index}].kind: slack or whatsapp"))?,
+                    .ok_or_else(|| format!("channels[{index}].kind: slack, whatsapp or app"))?,
                 workspace: channel.workspace.clone(),
                 address: channel.address.clone(),
                 token_secret: channel

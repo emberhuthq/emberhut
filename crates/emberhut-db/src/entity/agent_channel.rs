@@ -18,11 +18,11 @@ pub(crate) struct Model {
     pub(crate) agent_id: String,
     /// Its place in the agent's list.
     pub(crate) position: i32,
-    /// `slack` or `whatsapp`.
+    /// `slack`, `whatsapp` or `app`.
     pub(crate) kind: String,
-    /// The Slack team's id; none for WhatsApp.
+    /// The Slack team's id; none for the other kinds.
     pub(crate) workspace: Option<String>,
-    /// The channel's or chat's id.
+    /// The channel's or chat's id, or the name an app's bridge gives its chat.
     pub(crate) address: String,
     /// The secret holding a Slack channel's bot token.
     pub(crate) token_secret: Option<String>,
