@@ -220,17 +220,14 @@ enum Ollama {
 /// Whether the agent can run on `kind` today, so its row can be picked.
 ///
 /// The server says so in `usable`, but only of the provider saved: for that one its word is
-/// taken. For the others this follows the server's rule (`docs/adr/0028-agent-model-providers.md`):
-/// every provider runs but `openai` and `openai-compatible`, which need a bridge from
-/// Anthropic's API the agent doesn't have yet. A provider this app doesn't know doesn't run.
+/// taken. For the others this follows the server's rule (`docs/adr/0028-agent-model-providers.md`
+/// and `0029-openai-bridge.md`): every provider runs, `openai` and `openai-compatible` through
+/// the server's `OpenAI` bridge. A provider this app doesn't know doesn't run.
 #[must_use]
 pub(crate) fn runs_today(kind: &ProviderKind, saved: Option<&AgentProvider>) -> bool {
     match saved {
         Some(saved) if saved.provider.as_ref() == Some(kind) => saved.usable,
-        _ => !matches!(
-            kind,
-            ProviderKind::OpenAi | ProviderKind::OpenAiCompatible | ProviderKind::Other(_)
-        ),
+        _ => !matches!(kind, ProviderKind::Other(_)),
     }
 }
 

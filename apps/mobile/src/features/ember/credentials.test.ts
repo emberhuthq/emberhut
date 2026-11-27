@@ -77,7 +77,7 @@ describe("the provider rows", () => {
   });
 
   it("takes the server's usable for the saved provider and its documented rule for the rest", () => {
-    expect(ROWS.filter((r) => !canRunOn(r.kind, undefined)).map((r) => r.kind)).toEqual(["openai", "openai-compatible"]);
+    expect(ROWS.filter((r) => !canRunOn(r.kind, undefined)).map((r) => r.kind)).toEqual([]);
     expect(canRunOn("openai", saved({ provider: "openai", usable: true }))).toBe(true);
     expect(canRunOn("anthropic", saved({ usable: false }))).toBe(false);
     expect(canRunOn("deepseek", saved({ usable: false }))).toBe(true);
@@ -88,8 +88,8 @@ describe("the provider rows", () => {
 
   it("tags a row Coming next only while it can't be run on", () => {
     const openai = ROWS.find((r) => r.kind === "openai")!;
-    expect(rowTag(openai, undefined)).toBe(COMING_NEXT);
-    expect(rowTag(openai, saved({ provider: "openai", usable: true }))).toBeUndefined();
+    expect(rowTag(openai, undefined)).toBeUndefined();
+    expect(rowTag(openai, saved({ provider: "openai", usable: false }))).toBe(COMING_NEXT);
     expect(rowTag(ROWS[0]!, undefined)).toBe("Recommended");
   });
 
@@ -164,9 +164,11 @@ describe("the picker", () => {
   });
 
   it("doesn't select a row it can't run on", () => {
-    const start = run([{ type: "select", kind: "anthropic", saved: undefined }]);
-    expect(pickerReducer(start, { type: "select", kind: "openai", saved: undefined })).toBe(start);
-    expect(run([{ type: "select", kind: "openai", saved: saved({ provider: "openai", usable: true }) }]).selected).toBe("openai");
+    // A server without the OpenAI bridge says so of the saved provider.
+    const unbridged = saved({ provider: "openai", usable: false });
+    const start = run([{ type: "select", kind: "anthropic", saved: unbridged }]);
+    expect(pickerReducer(start, { type: "select", kind: "openai", saved: unbridged })).toBe(start);
+    expect(run([{ type: "select", kind: "openai", saved: undefined }]).selected).toBe("openai");
   });
 
   it("clears what was typed, the test and the error when another row is selected", () => {
@@ -335,15 +337,16 @@ describe("another service", () => {
     expect(run([{ type: "select", kind: "openai-compatible", saved: undefined }]).selected).toBe("openai-compatible");
   });
 
-  it("can't test OpenAI-style until the server says it runs", () => {
+  it("can't test OpenAI-style on a server that says it doesn't run", () => {
     const openAiStyle = run([
       { type: "select", kind: "openai-compatible", saved: undefined },
       { type: "edit", field: "baseUrl", value: "https://example.test/v1" },
     ]);
-    expect(canTest(openAiStyle, undefined)).toBe(false);
-    expect(pickerReducer(openAiStyle, { type: "testStarted" })).toBe(openAiStyle);
+    const unbridged = saved({ provider: "openai-compatible", usable: false });
+    expect(canTest(openAiStyle, unbridged)).toBe(false);
+    expect(pickerReducer(openAiStyle, { type: "testStarted", saved: unbridged })).toBe(openAiStyle);
     expect(comingNextFor("openai-compatible")).toBe("Coming next: your ember can't think with an OpenAI-style service yet.");
-    expect(canTest(openAiStyle, saved({ provider: "openai-compatible", usable: true }))).toBe(true);
+    expect(canTest(openAiStyle, undefined)).toBe(true);
   });
 
   it("speaks Anthropic-style with what was typed kept, and needs its key", () => {

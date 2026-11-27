@@ -56,7 +56,7 @@ fn refused(status: u16, sentence: &str) -> Error {
 }
 
 #[test]
-fn six_rows_and_the_ones_needing_the_bridge_cant_be_picked() {
+fn six_rows_each_can_be_picked_but_a_provider_the_app_doesnt_know() {
     let kinds: Vec<_> = ROWS.iter().map(|row| row.kind.clone()).collect();
     assert_eq!(
         kinds,
@@ -70,15 +70,15 @@ fn six_rows_and_the_ones_needing_the_bridge_cant_be_picked() {
         ]
     );
     let mut picker = Credentials::default();
-    assert!(!picker.pick(&ProviderKind::OpenAi), "coming next");
+    assert!(!picker.pick(&ProviderKind::from("unheard-of")));
+    assert_eq!(picker.picked(), None);
+    assert!(picker.pick(&ProviderKind::OpenAi), "through the bridge");
     assert_eq!(
         picker
             .row_tag(row(&ProviderKind::OpenAi).unwrap())
             .as_deref(),
-        Some(COMING_NEXT)
+        None
     );
-    assert!(!picker.pick(&ProviderKind::from("unheard-of")));
-    assert_eq!(picker.picked(), None);
     assert!(picker.pick(&ProviderKind::DeepSeek));
     assert_eq!(picker.picked(), Some(&ProviderKind::DeepSeek));
 }
@@ -88,7 +88,7 @@ fn another_service_is_one_row_that_speaks_either_api() {
     let mut picker = Credentials::default();
     let another = row(&ProviderKind::OpenAiCompatible).unwrap();
     assert_eq!(row(&ProviderKind::AnthropicCompatible), Some(another));
-    assert_eq!(picker.row_tag(another), None, "Anthropic-style runs today");
+    assert_eq!(picker.row_tag(another), None, "both styles run");
     assert!(picker.pick(&ProviderKind::OpenAiCompatible));
     assert_eq!(
         picker.picked(),
@@ -96,7 +96,7 @@ fn another_service_is_one_row_that_speaks_either_api() {
         "OpenAI-style first"
     );
     picker.set_base_url("https://example.test/v1");
-    assert!(!picker.can_test(), "coming next: not checked");
+    assert!(picker.can_test(), "through the server's OpenAI bridge");
     assert_eq!(
         coming_next_for(&ProviderKind::OpenAiCompatible),
         "Coming next: your ember can't think with an OpenAI-style service yet."
@@ -168,7 +168,11 @@ fn the_servers_word_on_the_saved_provider_wins() {
         runs_today(&ProviderKind::Ollama, Some(&broken)),
         "the others by the rule"
     );
-    assert!(!runs_today(&ProviderKind::OpenAiCompatible, None));
+    assert!(
+        runs_today(&ProviderKind::OpenAiCompatible, None),
+        "through the bridge"
+    );
+    assert!(!runs_today(&ProviderKind::Other("new".to_owned()), None));
 }
 
 #[test]

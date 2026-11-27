@@ -80,12 +80,21 @@ export const ROWS: readonly ProviderRow[] = [
 export const COMING_NEXT = "Coming next";
 
 /** Providers the agent runs on today, by the server's documented rule: all but openai and openai-compatible. */
-const runsToday: ReadonlySet<string> = new Set(["claude", "anthropic", "deepseek", "openrouter", "ollama", "anthropic-compatible"]);
+const runsToday: ReadonlySet<string> = new Set([
+  "claude",
+  "anthropic",
+  "deepseek",
+  "openrouter",
+  "ollama",
+  "anthropic-compatible",
+  "openai",
+  "openai-compatible",
+]);
 
 /**
  * Whether the agent can think with `kind`, so whether its row can be picked. The server says `usable` only for the saved
- * provider, so that is its word when `kind` is the saved one; for any other the server's documented rule stands in: only
- * openai and openai-compatible need a bridge that isn't built yet, and a provider this app doesn't know can't be picked.
+ * provider, so that is its word when `kind` is the saved one; for any other the server's documented rule stands in: every
+ * provider runs (openai and openai-compatible through the server's OpenAI bridge), and one this app doesn't know can't.
  */
 export function canRunOn(kind: ProviderKind, saved: AgentProvider | undefined): boolean {
   if (saved?.provider === kind) return saved.usable;
