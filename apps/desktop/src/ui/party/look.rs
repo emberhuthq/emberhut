@@ -68,3 +68,22 @@ pub(crate) fn cast_dots(personas: &[Persona], p: &Pal) -> Div {
 pub(crate) fn glyph(name: IconName, color: Hsla, size: f32) -> Icon {
     Icon::new(name).size(px(size)).text_color(color)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::built_in;
+    use crate::ui::palette::contrast;
+
+    #[test]
+    fn every_personas_initial_reads_on_its_colour() {
+        for dark in [false, true] {
+            let p = Pal::new(&built_in(), dark);
+            for name in ["blue", "green", "orange", "pink", "purple", "unknown"] {
+                let fill = persona_color(name, &p);
+                let ratio = contrast(Pal::readable_on(fill), fill);
+                assert!(ratio >= 4.5, "{name} dark={dark}: {ratio:.2}");
+            }
+        }
+    }
+}
