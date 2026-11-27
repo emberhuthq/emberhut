@@ -11,7 +11,7 @@ export type TabParamList = {
   Tasks: undefined;
   /** Your own sessions and the runner's. */
   Sessions: undefined;
-  /** About you, settings, the browser. */
+  /** What your ember knows about you, settings, the browser. */
   More: undefined;
 };
 

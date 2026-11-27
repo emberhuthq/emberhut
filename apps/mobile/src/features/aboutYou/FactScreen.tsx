@@ -7,7 +7,7 @@ import { useTheme } from "@/theme";
 import { Button, EmptyState, ListRow, Loading, Screen, Section, Text, TextField, Toggle } from "@/ui";
 import { useFactChange } from "./useFactChange";
 
-/** Fix a fact (Emberhut uses your version from then on), wake Emberhut for a person's messages, or forget it. */
+/** Fix a fact (your ember uses your version from then on), wake your ember for a person's messages, or forget it. */
 export function FactScreen({ route, navigation }: RootScreenProps<"Fact">) {
   const facts = useFacts();
   // Held here, not in the editor: a forget hides the fact at once, and its failure must still show when it comes back.
@@ -23,7 +23,7 @@ export function FactScreen({ route, navigation }: RootScreenProps<"Fact">) {
   if (facts.isPending) return <Loading />;
   if (!fact) {
     if (change.isPending) return <Loading />;
-    return <EmptyState icon="person-circle-outline" title="Forgotten" message="Emberhut doesn't keep this one anymore." />;
+    return <EmptyState icon="person-circle-outline" title="Forgotten" message="Your ember doesn't keep this one anymore." />;
   }
   return (
     <FactEditor fact={fact} send={send} sending={change.isPending} failed={failed} setTitle={(title) => navigation.setOptions({ title })} />
@@ -47,7 +47,7 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
   const unchanged = text.trim() === "" || text.trim() === fact.text.trim();
   const save = () => send({ factSet: { id: fact.id, category: fact.category, title: fact.title, text: text.trim() } });
   const forget = () =>
-    Alert.alert(`Forget "${fact.title}"?`, "Emberhut stops using it.", [
+    Alert.alert(`Forget "${fact.title}"?`, "Your ember stops using it.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Forget",
@@ -66,7 +66,7 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
           placeholder="What's true"
         />
         <Text variant="footnote" tone="secondary" style={{ paddingHorizontal: spacing.xs }}>
-          From {fact.source || "Emberhut"}. Emberhut will use your version from now on.
+          From {fact.source || "your ember"}. Your ember will use your version from now on.
         </Text>
         <Button label="Save" onPress={save} disabled={unchanged || sending} />
         {failed}
@@ -74,7 +74,7 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
       {fact.category === "people" ? (
         <Section
           title="What's going on now"
-          footer="Emberhut keeps this note from your chats. Important people's messages reach Emberhut at once instead of every 15 minutes."
+          footer="Your ember keeps this note from your chats. Important people's messages reach it at once instead of every 15 minutes."
         >
           {fact.now ? (
             <View key="now" style={{ padding: spacing.lg }}>
@@ -83,12 +83,12 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
           ) : null}
           <ListRow
             key="wake"
-            title="Wake Emberhut when they write"
+            title="Wake your ember when they write"
             trailing={
               <Toggle
                 value={fact.important === true}
                 onChange={(important) => change.mutate({ personSet: { id: fact.id, important } })}
-                label="Wake Emberhut when they write"
+                label="Wake your ember when they write"
               />
             }
           />
