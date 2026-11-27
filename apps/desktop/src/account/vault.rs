@@ -4,7 +4,8 @@
 //! session, and signing a device out touches no account.
 //!
 //! The item is behind `SecretItem`, so the rules here are tested with an item in memory.
-//! Other systems have no item yet: the account works there for one launch.
+//! Other systems have no item yet, and a Mac keeps none in a test run or for a user with no
+//! default keychain: the account works there for one launch.
 
 #[cfg(target_os = "macos")]
 mod system;
@@ -17,10 +18,6 @@ use super::tokens::AccountTokens;
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum VaultError {
     /// This system has no place for them yet.
-    #[cfg_attr(
-        all(target_os = "macos", not(test)),
-        expect(dead_code, reason = "the Mac keeps them in a keychain item")
-    )]
     #[error("keeping the account's sign-in isn't supported on this system yet")]
     Unsupported,
     /// A newer app's tokens are in the item: neither read nor overwritten.
@@ -157,11 +154,16 @@ impl<I: SecretItem> Vault for ItemVault<I> {
 }
 
 /// The vault where this system keeps the account's tokens, for the account at `issuer`: the
-/// login Keychain on macOS.
+/// login Keychain on macOS; none in a test run or for a user with no default keychain
+/// ([`crate::backend::has_keychain`]), where the account works for one launch.
 #[cfg(target_os = "macos")]
 #[must_use]
 pub(crate) fn for_system(issuer: &str) -> Box<dyn Vault> {
-    Box::new(ItemVault::new(system::SystemItem::new(issuer)))
+    if crate::backend::has_keychain() {
+        Box::new(ItemVault::new(system::SystemItem::new(issuer)))
+    } else {
+        Box::new(Unsupported)
+    }
 }
 
 /// The vault where this system keeps the account's tokens: none yet off macOS.
@@ -174,10 +176,6 @@ pub(crate) fn for_system(_issuer: &str) -> Box<dyn Vault> {
 /// The vault of a system with no keychain support yet: it keeps nothing, and says so
 /// ([`VaultError::Unsupported`]) for every save.
 #[derive(Debug)]
-#[cfg_attr(
-    all(target_os = "macos", not(test)),
-    expect(dead_code, reason = "macOS keeps the tokens in the Keychain")
-)]
 struct Unsupported;
 
 impl Vault for Unsupported {

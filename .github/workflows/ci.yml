@@ -29,6 +29,8 @@ env:
   # Every warning fails the build: rustc, clippy, rustdoc and Cargo's own manifest warnings.
   CARGO_BUILD_WARNINGS: deny
   RUST_BACKTRACE: short
+  # A test run: the desktop app keeps its secrets out of the Keychain (apps/desktop/README.md).
+  EMBERHUT_TEST: "1"
   # GPUI's system libraries on Ubuntu, and ALSA's for the desktop's microphone (dictation).
   LINUX_DEPS: >-
     libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev

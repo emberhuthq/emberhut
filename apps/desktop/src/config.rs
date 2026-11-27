@@ -34,6 +34,20 @@ use crate::wire::DEFAULT_SERVER;
 /// The environment variable that names the server.
 pub(crate) const SERVER_ENV: &str = "EMBERHUT_URL";
 
+/// The environment variable that marks a test run (a test harness, a screenshot run): set to
+/// anything but `0`, the app keeps its secrets out of the Keychain (macOS).
+#[cfg(target_os = "macos")]
+pub(crate) const TEST_ENV: &str = "EMBERHUT_TEST";
+
+/// Whether this launch is a test run: the app's own tests always are; otherwise [`TEST_ENV`]
+/// says, and a debug or automation build is one unless it is `0`.
+#[cfg(target_os = "macos")]
+#[must_use]
+pub(crate) fn is_test_run() -> bool {
+    let by_default = cfg!(any(debug_assertions, feature = "automation"));
+    cfg!(test) || std::env::var_os(TEST_ENV).map_or(by_default, |value| value != "0")
+}
+
 /// A server's base address: `http` or `https`, no trailing slash.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct ServerUrl(String);
