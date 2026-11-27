@@ -1941,7 +1941,7 @@
         "tags": [
           "talk"
         ],
-        "summary": "Tells the assistant `text`: an event it reads at its next wake, in the room of `project`\n(a room's name) when the server has one by that name, in Main otherwise.",
+        "summary": "Tells the assistant `text`: an event it reads at its next wake, in the room `project`\nnames when the server has it, in Main otherwise. A name (`Atlas`) is a room's name; a number\n(`4` or `\"4\"`) is a project's id, its room, else a room's id.",
         "operationId": "events",
         "requestBody": {
           "content": {
@@ -1975,7 +1975,7 @@
             }
           },
           "401": {
-            "description": "No signed-in device (in either auth mode)",
+            "description": "Neither a signed-in device nor the program key (in either auth mode)",
             "content": {
               "application/json": {
                 "schema": {
@@ -12635,7 +12635,7 @@
               "string",
               "null"
             ],
-            "description": "The project (its room's name, or its id) the news is about."
+            "description": "The room the news is about: a room's name, or a number (a project's id, its room;\nelse a room's id)."
           }
         }
       },

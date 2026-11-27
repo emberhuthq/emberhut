@@ -123,7 +123,8 @@ pub struct EventRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(custom(crate::rules::event_kind)))]
     pub kind: Option<String>,
-    /// The project (its room's name, or its id) the news is about.
+    /// The room the news is about: a room's name, or a number (a project's id, its room;
+    /// else a room's id).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
     #[cfg_attr(feature = "validate", garde(skip))]

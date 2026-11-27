@@ -5,13 +5,14 @@ use std::net::SocketAddr;
 use axum::body::Bytes;
 use axum::extract::rejection::{BytesRejection, FailedToBufferBody};
 use axum::extract::{ConnectInfo, FromRequest, FromRequestParts, Query, Request};
-use axum::http::header;
 use axum::http::request::Parts;
+use axum::http::{HeaderMap, header};
 use axum::response::{IntoResponse, Response};
 use emberhut_core::{DeviceId, RoomId};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use subtle::ConstantTimeEq as _;
 
 use crate::app::AppState;
 use crate::config::AuthMode;
@@ -221,6 +222,15 @@ impl SignedIn {
     }
 }
 
+/// Whether the request carries the server's program key as its bearer: a program on the
+/// server's machine, never a device's session. Always `false` when the server has no key.
+pub(crate) fn carries_program_key(headers: &HeaderMap, state: &AppState) -> bool {
+    match (state.program_key(), bearer_of(headers)) {
+        (Some(key), Some(given)) => bool::from(key.as_bytes().ct_eq(given.as_bytes())),
+        _ => false,
+    }
+}
+
 /// The signed-in device behind the request, if there is one, in either auth mode: for what
 /// answers with or without a session (`GET /api/auth/status`).
 #[derive(Clone, Copy, Debug)]
@@ -244,7 +254,12 @@ async fn session(parts: &Parts, state: &AppState) -> Result<Option<DeviceId>, Ap
 }
 
 fn bearer(parts: &Parts) -> Option<&str> {
-    let value = parts.headers.get(header::AUTHORIZATION)?.to_str().ok()?;
+    bearer_of(&parts.headers)
+}
+
+/// The token of an `Authorization: Bearer <token>` header (the prefix in any case).
+fn bearer_of(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     let (scheme, token) = value.split_once(' ')?;
     scheme
         .eq_ignore_ascii_case("bearer")
