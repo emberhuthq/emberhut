@@ -1,6 +1,6 @@
 //! `cargo xtask bundle-hands`: build Emberhut Hands (`apps/hands`), bundle it as
-//! `Emberhut Hands.app` with its entitlements, sign it, zip it, and optionally install it to
-//! `~/Applications` with its launch agent (ADR 0024). The signing, the build command and the
+//! `Emberhut Hands.app` with its icon and entitlements, sign it, zip it, and optionally install it
+//! to `~/Applications` with its launch agent (ADR 0024). The signing, the build command and the
 //! plist writer are `bundle-macos`'s.
 
 mod app;
@@ -12,7 +12,7 @@ use std::fs;
 
 use anyhow::{Context as _, bail};
 
-use self::app::{BUNDLE_DIR, EXECUTABLE, Layout, PACKAGE, VERSION};
+use self::app::{BUNDLE_DIR, EXECUTABLE, ICON_NAME, Layout, PACKAGE, VERSION};
 pub(crate) use self::args::HandsArgs;
 use crate::bundle_macos::build::{CargoBuild, cargo_build, executable};
 use crate::bundle_macos::plan::BuildProfile;
@@ -69,6 +69,12 @@ pub(crate) fn run(args: &HandsArgs) -> anyhow::Result<()> {
     let program = macos.join(EXECUTABLE);
     fs::copy(&binary, &program)
         .with_context(|| format!("copying {} to {}", binary.display(), program.display()))?;
+    let resources = bundle.join("Contents").join("Resources");
+    fs::create_dir_all(&resources).with_context(|| format!("creating {}", resources.display()))?;
+    let icon = layout.icon_source();
+    let icns = resources.join(format!("{ICON_NAME}.icns"));
+    fs::copy(&icon, &icns)
+        .with_context(|| format!("copying {} to {}", icon.display(), icns.display()))?;
     let info = bundle.join("Contents").join("Info.plist");
     fs::write(&info, files::info_plist(VERSION))
         .with_context(|| format!("writing {}", info.display()))?;

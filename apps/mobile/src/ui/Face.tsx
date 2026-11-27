@@ -2,7 +2,7 @@ import { Image } from "react-native";
 
 const face = require("../../assets/emberhut-face.png");
 
-/** Emberhut's face: the soft gold character with two calm eyes. */
+/** Emberhut's face: the ember, a glowing coal with a charcoal base, with a cream rim for dark themes. */
 export function Face({ size = 30 }: { size?: number }) {
   return (
     <Image

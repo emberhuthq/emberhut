@@ -85,12 +85,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme,
   version: VERSION,
   orientation: "default",
-  // A placeholder until the app's own identity has an icon.
+  // The ember on its light tile; iOS and Android get their own variants below.
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
   platforms: ["android", "ios"],
   ios: {
     bundleIdentifier: appId,
+    // iOS 18's home screen styles: dark draws the ember on the system's dark backdrop, tinted is greyscale for the tint.
+    icon: { light: "./assets/icon.png", dark: "./assets/icon-dark.png", tinted: "./assets/icon-tinted.png" },
     buildNumber: String(IOS_BUILD_NUMBER),
     supportsTablet: false,
     ...(appleTeamId ? { appleTeamId } : {}),
@@ -105,7 +107,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     versionCode: BUILD_NUMBER,
     // Android 13 on: a back swipe shows where it goes before it gets there.
     predictiveBackGestureEnabled: true,
-    adaptiveIcon: { foregroundImage: "./assets/icon.png", backgroundColor: "#091828" },
+    // The ember inside the adaptive icon's safe zone, on the light tile; the monochrome layer is Android 13's themed icon.
+    adaptiveIcon: {
+      foregroundImage: "./assets/adaptive-foreground.png",
+      backgroundImage: "./assets/adaptive-background.png",
+      monochromeImage: "./assets/adaptive-monochrome.png",
+      backgroundColor: "#FFE6C4",
+    },
     // FCM push: without the file the app builds and runs, only without push.
     ...(googleServicesFile ? { googleServicesFile } : {}),
   },
@@ -115,7 +123,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["react-native-bottom-tabs", { theme: "material3" }],
     // The server's pushes name this channel (its name on the wire); FCM uses it too for any that arrive before
     // the app made it.
-    ["expo-notifications", { defaultChannel: pushChannel, color: "#F5C451" }],
+    ["expo-notifications", { defaultChannel: pushChannel, icon: "./assets/notification-icon.png", color: "#E0501E" }],
     // Plain HTTP to a server on a private network, in release builds too. Android's network security config can't name
     // address ranges (only hosts), so cleartext is on for the app and the sign-in screen keeps plain http to private and
     // CGNAT addresses and localhost (src/api/localNetwork.ts); host names always need https.
