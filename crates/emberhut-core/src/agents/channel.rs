@@ -18,6 +18,18 @@ wire_enum! {
         Slack = "slack",
         /// A WhatsApp chat.
         WhatsApp = "whatsapp",
+        /// A chat in another program (an admin app's assistant panel): its bridge passes its
+        /// messages on, and the agent answers through that program's own MCP server.
+        App = "app",
+    }
+}
+
+impl ChannelKind {
+    /// Whether the agent answers this kind of channel through its bridge (its own MCP server)
+    /// rather than with `agent_reply`.
+    #[must_use]
+    pub const fn answered_by_its_bridge(self) -> bool {
+        matches!(self, Self::WhatsApp | Self::App)
     }
 }
 
@@ -26,17 +38,19 @@ wire_enum! {
 pub struct Channel {
     /// Where it is.
     pub kind: ChannelKind,
-    /// The Slack team's id (`T0EXAMPLE`); none for WhatsApp.
+    /// The Slack team's id (`T0EXAMPLE`); none for the other kinds.
     pub workspace: Option<String>,
-    /// The channel's id (`C0EXAMPLE`), or a WhatsApp chat's id.
+    /// The channel's id (`C0EXAMPLE`), a WhatsApp chat's id, or the name an app's bridge gives
+    /// its chat (`admin-app`).
     pub address: String,
-    /// For Slack, the secret holding the bot token, read at every use; none for WhatsApp.
+    /// For Slack, the secret holding the bot token, read at every use; none for the other
+    /// kinds.
     pub token_secret: Option<SecretName>,
 }
 
 impl Channel {
     /// Checks the channel: Slack's with a team id, a channel id and its token's secret;
-    /// WhatsApp's with a chat id only.
+    /// WhatsApp's with a chat id only, and an app's with its chat's name only.
     ///
     /// # Errors
     ///
@@ -58,14 +72,16 @@ impl Channel {
                 if self.workspace.is_some() || self.token_secret.is_some() {
                     return Err("a WhatsApp channel has no workspace and no token secret");
                 }
-                let fits = !self.address.is_empty()
-                    && self.address.len() <= ADDRESS_MAX
-                    && !self
-                        .address
-                        .chars()
-                        .any(|c| c.is_whitespace() || c.is_control());
-                if !fits {
+                if !is_address(&self.address) {
                     return Err("a WhatsApp channel's address is its chat's id, without spaces");
+                }
+            }
+            ChannelKind::App => {
+                if self.workspace.is_some() || self.token_secret.is_some() {
+                    return Err("an app's channel has no workspace and no token secret");
+                }
+                if !is_address(&self.address) {
+                    return Err("an app's channel's address is its chat's name, without spaces");
                 }
             }
         }
@@ -77,6 +93,14 @@ impl Channel {
     pub fn is(&self, kind: ChannelKind, workspace: Option<&str>, address: &str) -> bool {
         self.kind == kind && self.workspace.as_deref() == workspace && self.address == address
     }
+}
+
+/// Whether `text` fits as a WhatsApp chat's id or an app's chat's name: up to
+/// [`ADDRESS_MAX`] bytes, with no spaces or control characters.
+fn is_address(text: &str) -> bool {
+    !text.is_empty()
+        && text.len() <= ADDRESS_MAX
+        && !text.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
 /// Whether `text` is a Slack id (a team's, a channel's or a user's): capital letters and
@@ -135,9 +159,18 @@ mod tests {
         }
     }
 
+    fn app() -> Channel {
+        Channel {
+            kind: ChannelKind::App,
+            workspace: None,
+            address: "admin-app".to_owned(),
+            token_secret: None,
+        }
+    }
+
     #[test]
     fn good_channels() {
-        assert_eq!(validate_channels(&[slack(), whatsapp()]), Ok(()));
+        assert_eq!(validate_channels(&[slack(), whatsapp(), app()]), Ok(()));
         assert_eq!(validate_channels(&[]), Ok(()));
     }
 
@@ -170,6 +203,28 @@ mod tests {
     }
 
     #[test]
+    fn an_app_channel_is_a_name_only() {
+        let changes: [fn(&mut Channel); 4] = [
+            |c| c.workspace = Some("T0EXAMPLE".to_owned()),
+            |c| c.token_secret = Some(SecretName::parse("slack-example-bot").unwrap()),
+            |c| c.address = "admin app".to_owned(),
+            |c| c.address = String::new(),
+        ];
+        for change in changes {
+            let mut channel = app();
+            change(&mut channel);
+            assert!(channel.check().is_err(), "{channel:?}");
+        }
+    }
+
+    #[test]
+    fn whatsapp_and_apps_are_answered_by_their_bridge() {
+        assert!(!ChannelKind::Slack.answered_by_its_bridge());
+        assert!(ChannelKind::WhatsApp.answered_by_its_bridge());
+        assert!(ChannelKind::App.answered_by_its_bridge());
+    }
+
+    #[test]
     fn a_channel_listed_twice_is_refused() {
         assert_eq!(
             validate_channels(&[whatsapp(), slack(), slack()]),
@@ -191,5 +246,6 @@ mod tests {
     fn kinds_have_wire_words() {
         assert_eq!(ChannelKind::WhatsApp.as_str(), "whatsapp");
         assert_eq!(ChannelKind::parse("slack"), Some(ChannelKind::Slack));
+        assert_eq!(ChannelKind::parse("app"), Some(ChannelKind::App));
     }
 }

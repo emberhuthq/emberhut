@@ -12,7 +12,8 @@
 //! - `GET`/`PUT /api/trusted-requesters` ([`TrustedRequestersPage`]);
 //! - `POST /api/agents/{id}/inbound` ([`InboundMessage`], answered [`InboundReply`]): a bridge
 //!   passes on a message from one of the agent's channels, with the agent's inbound bearer
-//!   token.
+//!   token; `POST /api/agents/{id}/notes` ([`InboundNote`], answered [`InboundReply`]): the
+//!   bridge's own note about its connection, with the same token.
 //!
 //! Every write answers the thing as it is after it ([`AgentPage`], [`Approver`],
 //! [`TrustedRequestersPage`]); a refusal is a 400 with an [`crate::error::ErrorBody`] naming
@@ -32,6 +33,9 @@ open_enum! {
         Slack = "slack",
         /// A WhatsApp chat.
         WhatsApp = "whatsapp",
+        /// A chat in another program (an admin app's assistant panel), passed on by its
+        /// bridge and answered through that program's own MCP server.
+        App = "app",
     }
 }
 
@@ -557,7 +561,22 @@ pub struct InboundFile {
     pub name: Option<String>,
 }
 
-/// What became of an inbound message.
+/// `POST /api/agents/{id}/notes`: a note from the agent's bridge about the bridge itself (its
+/// connection was down and is back, a button on one of the agent's own messages was tapped),
+/// not from anyone in a channel. It is no one's request and never an approval.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "validate", derive(garde::Validate))]
+pub struct InboundNote {
+    /// What the bridge says.
+    #[cfg_attr(
+        feature = "validate",
+        garde(custom(crate::rules::not_blank), length(max = 2_000))
+    )]
+    pub text: String,
+}
+
+/// What became of an inbound message or a bridge's note.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct InboundReply {
@@ -679,6 +698,34 @@ mod tests {
         let back: InboundMessage =
             serde_json::from_value(serde_json::to_value(&full).unwrap()).unwrap();
         assert_eq!(back, full);
+    }
+
+    #[test]
+    fn an_app_message_reads() {
+        let message: InboundMessage = serde_json::from_value(json!({
+            "kind": "app", "channel": "admin-app", "from": "Example person",
+            "user": "person@example.com", "text": "hello", "direct": true
+        }))
+        .unwrap();
+        assert_eq!(message.kind, ChannelKind::App);
+        assert_eq!(message.user.as_deref(), Some("person@example.com"));
+    }
+
+    #[cfg(feature = "validate")]
+    #[test]
+    fn a_note_has_words_and_a_limit() {
+        use garde::Validate as _;
+        let note = |text: &str| InboundNote {
+            text: text.to_owned(),
+        };
+        assert!(
+            note("The connection was down and is back.")
+                .validate()
+                .is_ok()
+        );
+        assert!(note("two\nlines").validate().is_ok());
+        assert!(note("  ").validate().is_err());
+        assert!(note(&"x".repeat(2_001)).validate().is_err());
     }
 
     #[cfg(feature = "validate")]
