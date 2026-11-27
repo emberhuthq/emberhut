@@ -540,7 +540,7 @@ impl Credentials {
         }
     }
 
-    /// With Ollama picked at its default address and nothing checked, the models of the one
+    /// With Ollama selected at its default address and nothing checked, the models of the one
     /// found there stand for a check that passed.
     fn fill_found(&mut self) {
         let Ollama::Found { models, .. } = &self.ollama else {
@@ -631,7 +631,7 @@ impl Credentials {
         self.save_problem = None;
     }
 
-    /// The picked row's request: its fields trimmed, a blank one left out, the model chosen
+    /// The selected row's request: its fields trimmed, a blank one left out, the model chosen
     /// only for a save. None while a field it needs is blank.
     fn request(&self, with_model: bool) -> Option<ProviderRequest> {
         let kind = self.picked.as_ref()?;
