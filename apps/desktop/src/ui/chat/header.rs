@@ -20,6 +20,15 @@ use crate::ui::column;
 use crate::ui::palette::{Pal, room_color};
 use crate::ui::widgets::{dot, icon, pill};
 
+/// The chat's width under which the bar's buttons show their icons alone, in pixels.
+const COMPACT_BELOW: f32 = 520.;
+
+/// The bar over the chat, for tests to find.
+pub(super) const HEADER: &str = "chat-header";
+
+/// The room's "N need you" button, for tests to find.
+pub(super) const ROOM_NEEDS: &str = "room-needs";
+
 impl ChatView {
     /// The bar over the chat.
     pub(super) fn header(&self, p: &Pal, window: &Window, cx: &mut Context<'_, Self>) -> Div {
@@ -58,7 +67,13 @@ impl ChatView {
         };
         let needs = room.map_or(0, |room| room.needs);
         let all_needs = store.needs_count();
+        // In a narrow chat the buttons drop their words for their icons, and the room's name
+        // and status give way first (ending in "…"), so nothing is pushed out of the bar. Before
+        // the list is laid out its width is unknown (0): the bar is drawn in full then.
+        let width = f32::from(self.list.viewport_bounds().size.width);
+        let compact = width > 0. && width < COMPACT_BELOW;
         div()
+            .debug_selector(|| HEADER.to_owned())
             .flex()
             .items_center()
             .gap(px(8.))
@@ -66,20 +81,24 @@ impl ChatView {
             .px(px(20.))
             .border_b_1()
             .border_color(p.border)
-            .when_some(color, |d, color| d.child(dot(color, 9.)))
+            .when_some(color, |d, color| {
+                d.child(div().flex_none().child(dot(color, 9.)))
+            })
             .child(
                 div()
                     .flex()
                     .flex_col()
+                    .flex_1()
+                    .min_w_0()
                     .child(title(name, agent.as_ref(), p))
                     .child(
                         div()
+                            .truncate()
                             .text_size(px(11.5))
                             .text_color(status_color)
                             .child(status_text),
                     ),
             )
-            .child(div().flex_1())
             .when_some(agent, |d, agent| {
                 d.child(approvals_button(&agent, waiting, p).on_click(cx.listener(
                     move |this, _, window, cx| {
@@ -90,36 +109,52 @@ impl ChatView {
                     },
                 )))
             })
-            .child(crate::ui::diary::note_button(p))
-            .child(crate::ui::spotlight::search_button(p))
+            .child(div().flex_none().child(crate::ui::diary::note_button(p)))
+            .child(crate::ui::spotlight::search_button(p, compact))
             .when(self.sidebar_hidden, |d| {
-                d.child(reading::needs_counter(all_needs, needs_open, p).on_click(
-                    cx.listener(|_, _, window, cx| column::toggle(Page::Needs, window, cx)),
-                ))
-            })
-            .when(needs > 0, |d| {
                 d.child(
-                    div()
-                        .id("room-needs")
-                        .cursor_pointer()
-                        .flex()
-                        .items_center()
-                        .gap(px(5.))
-                        .px(px(9.))
-                        .py(px(4.))
-                        .rounded(px(12.))
-                        .bg(p.accent_soft)
-                        .text_color(p.accent)
-                        .text_size(px(12.))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(icon(IconName::Inbox, p.accent, 13.))
-                        .child(format!("{needs} need you"))
-                        .on_click(cx.listener(|_, _, window, cx| {
-                            column::open(Page::Needs, window, cx);
-                        })),
+                    reading::needs_counter(all_needs, needs_open, p)
+                        .flex_none()
+                        .on_click(
+                            cx.listener(|_, _, window, cx| column::toggle(Page::Needs, window, cx)),
+                        ),
                 )
             })
+            .when(needs > 0, |d| {
+                d.child(room_needs_button(needs, compact, p).on_click(cx.listener(
+                    |_, _, window, cx| {
+                        column::open(Page::Needs, window, cx);
+                    },
+                )))
+            })
     }
+}
+
+/// The room's button with how many of its asks wait on the user: "3 need you", or the count
+/// alone when `compact` (its accessible name keeps the words).
+fn room_needs_button(needs: u32, compact: bool, p: &Pal) -> Stateful<Div> {
+    div()
+        .id("room-needs")
+        .debug_selector(|| ROOM_NEEDS.to_owned())
+        .button_named(format!("{needs} need you"))
+        .cursor_pointer()
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(px(5.))
+        .px(px(9.))
+        .py(px(4.))
+        .rounded(px(12.))
+        .bg(p.accent_soft)
+        .text_color(p.accent)
+        .text_size(px(12.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(icon(IconName::Inbox, p.accent, 13.))
+        .child(if compact {
+            needs.to_string()
+        } else {
+            format!("{needs} need you")
+        })
 }
 
 /// The room's name; an agent's marked as one, its icon dimmed while the agent is disabled.
@@ -127,6 +162,7 @@ fn title(name: String, agent: Option<&AgentRow>, p: &Pal) -> Div {
     div()
         .flex()
         .items_center()
+        .min_w_0()
         .gap(px(6.))
         .font_weight(FontWeight::SEMIBOLD)
         .text_size(px(14.))
@@ -137,7 +173,7 @@ fn title(name: String, agent: Option<&AgentRow>, p: &Pal) -> Div {
                     .text_color(if agent.enabled { p.accent } else { p.faint }),
             )
         })
-        .child(name)
+        .child(div().min_w_0().truncate().child(name))
         .when(agent.is_some(), |d| {
             d.child(pill("Agent", p.accent_soft, p.accent))
         })
@@ -149,6 +185,7 @@ fn approvals_button(agent: &AgentRow, waiting: usize, p: &Pal) -> Stateful<Div> 
     let label = approvals_count(waiting);
     div()
         .id("agent-approvals")
+        .flex_none()
         .button_named(format!("{}'s approvals: {label}", visible(&agent.name)))
         .hint("Opens this agent's pending approval requests")
         .cursor_pointer()
