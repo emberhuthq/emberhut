@@ -109,6 +109,13 @@ impl TestServer {
         Client::new(&self.config().with_download_limit(limit), store).unwrap()
     }
 
+    /// A client of this server with no session, told whether the server speaks the built
+    /// dialect.
+    pub(crate) fn client_speaking(&self, built_dialect: bool) -> Client {
+        let config = self.config().with_built_dialect(built_dialect);
+        Client::new(&config, MemorySessionStore::new()).unwrap()
+    }
+
     fn config(&self) -> ClientConfig {
         ClientConfig::new(&self.url)
             .unwrap()

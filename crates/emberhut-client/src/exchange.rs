@@ -19,7 +19,7 @@ use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc2822;
 
-use crate::dialect;
+use crate::dialect::Dialect;
 use crate::transport::{
     Answer, Body, Request, Timeouts, Transport, TransportError, TransportErrorKind,
 };
@@ -35,6 +35,8 @@ const USER_AGENT_VALUE: &str = concat!("emberhut-client/", env!("CARGO_PKG_VERSI
 #[derive(Debug)]
 pub(crate) struct Http {
     transport: Box<dyn Transport>,
+    /// The server's spelling of the wire words.
+    dialect: Dialect,
     /// For requests: a whole answer within the request timeout.
     request: Timeouts,
     /// For the live stream: no overall timeout, only one per read.
@@ -47,6 +49,7 @@ impl Http {
     pub(crate) fn new(transport: Box<dyn Transport>, config: &ClientConfig) -> Self {
         Self {
             transport,
+            dialect: config.dialect(),
             request: config.request_timeouts(),
             live: config.live_timeouts(),
             transfer: config.transfer_timeouts(),
@@ -57,10 +60,16 @@ impl Http {
         self.transport.base_url()
     }
 
+    /// The server's spelling of the wire words.
+    pub(crate) fn dialect(&self) -> Dialect {
+        self.dialect
+    }
+
     /// Sends `request` in the server's spelling of the wire words and reads its answer in the
-    /// contract's ([`dialect`]: as they are, unless the crate was built with one).
+    /// contract's ([`crate::dialect`]: as they are, unless the crate was built with one and
+    /// the server speaks it).
     fn send(&self, request: Request<'_>, timeouts: Timeouts) -> Result<Answer, Error> {
-        let dialect = &dialect::BUILT;
+        let dialect = self.dialect.table();
         let answer = self.transport.send(dialect.request(request), timeouts)?;
         Ok(dialect.answer(answer))
     }
@@ -79,6 +88,16 @@ impl Http {
             request = request.with_header(name, HeaderValue::try_from(value).map_err(invalid)?);
         }
         self.send(request, self.request)
+    }
+
+    /// An unsigned `GET` of a route, given `within` for the whole answer in place of the
+    /// request timeout (a quick probe).
+    pub(crate) fn get_within(&self, path: &str, within: Duration) -> Result<Answer, Error> {
+        let request = request(Method::GET, path, "", None)?;
+        self.send(
+            request,
+            self.request.with_connect(within).with_total(within),
+        )
     }
 
     /// A `GET` of a stream.
