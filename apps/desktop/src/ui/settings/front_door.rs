@@ -42,6 +42,8 @@ pub(super) struct Row {
     pub(super) title: (String, Vec<Range<usize>>),
     /// Its one line, and the parts of it to mark.
     pub(super) line: (String, Vec<Range<usize>>),
+    /// Its icon.
+    pub(super) icon: IconName,
 }
 
 /// What the list under the chips shows.
@@ -67,6 +69,7 @@ impl Listing {
                         entry: row.entry,
                         title: (row.title, Vec::new()),
                         line: (row.line, Vec::new()),
+                        icon: row.icon,
                     })
                     .collect(),
             );
@@ -79,6 +82,7 @@ impl Listing {
                 entry: hit.entry,
                 title: (hit.entry.title.to_owned(), hit.title_marks.clone()),
                 line: (hit.line.clone(), hit.line_marks.clone()),
+                icon: hit.entry.icon,
             })
             .collect();
         if found.hits.is_empty() {
@@ -256,7 +260,7 @@ fn list_row(
         .cursor_pointer()
         .when(picked, |d| d.bg(p.accent.opacity(0.14)))
         .when(!picked, |d| d.hover(|d| d.bg(p.hover)))
-        .child(Icon::new(entry.icon).size(px(16.)).text_color(p.muted))
+        .child(Icon::new(row.icon).size(px(16.)).text_color(p.muted))
         .child(
             div()
                 .flex()

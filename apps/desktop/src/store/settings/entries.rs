@@ -644,7 +644,7 @@ pub(crate) const ENTRIES: &[Entry] = &[
         Line::Fixed("Clear everything said off the record"),
         Group::Privacy,
         Destination::Group,
-        IconName::Moon,
+        IconName::Lock,
     )
     .also(&["off the record", "clear history", "delete", "incognito"]),
     everyday(
