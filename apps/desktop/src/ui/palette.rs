@@ -317,7 +317,10 @@ fn kit_grounds(p: &Pal, t: &mut ThemeColor) {
     t.muted_foreground = p.muted;
     t.accent = p.accent_soft;
     t.accent_foreground = p.text;
-    t.popover = p.surface_raised;
+    // Menus and popovers stand out from the page: in light the surface, the lightest ground
+    // (the raised one is a shade darker than the page, so a menu in it looked sunk); in dark
+    // the raised one, a shade lighter.
+    t.popover = if p.dark { p.surface_raised } else { p.surface };
     t.popover_foreground = p.text;
     // What a dialog dims the window with: the ink in light, the background in dark.
     t.overlay = if p.dark {
@@ -910,6 +913,25 @@ mod tests {
                 let r = contrast(ink, fill);
                 assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
             }
+        }
+    }
+
+    #[test]
+    fn menus_stand_out_from_the_page_in_either_appearance() {
+        for (preset, _, p) in every_palette() {
+            let (mut t, _) = blank_kit_colors();
+            kit_colors(&p, &mut t);
+            let popover = luminance(rgb_of(t.popover));
+            let dark = p.dark;
+            assert!(
+                popover > luminance(rgb_of(p.background)),
+                "{preset} dark={dark}"
+            );
+            // In light, not sunk below what is raised either.
+            assert!(
+                dark || popover >= luminance(rgb_of(p.surface_raised)),
+                "{preset} dark={dark}"
+            );
         }
     }
 }
