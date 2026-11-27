@@ -235,7 +235,7 @@ pub(super) fn dialog_button(
         .text_size(px(13.))
         .font_weight(FontWeight::MEDIUM)
         .map(|d| match fill {
-            Some(fill) => d.bg(fill).text_color(gpui_kit::white()),
+            Some(fill) => d.bg(fill).text_color(Pal::readable_on(fill)),
             None => d
                 .border_1()
                 .border_color(p.border)
