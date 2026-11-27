@@ -20,15 +20,18 @@ pub(crate) async fn the_theme_page_matches_its_fixture() {
     assert_eq!(
         page.choice,
         ThemeChoice::default(),
-        "blue, as the system is, never set"
+        "paper, as the system is, never set"
     );
+    assert_eq!(page.choice.preset, "paper");
+    assert_eq!(page.presets[0].id, "paper", "the default first");
+    assert!(page.contrast.aa);
 
     // The fixture's page for blue in dark mode, colour for colour.
     let reply: ThemeSetReply = app
         .call(
             Call::post(paths::THEME)
                 .token(&session)
-                .json(&json!({ "appearance": "dark" })),
+                .json(&json!({ "preset": "blue", "appearance": "dark" })),
         )
         .await
         .read_as();
@@ -44,7 +47,7 @@ pub(crate) async fn the_theme_page_matches_its_fixture() {
     assert_eq!(version, expected.version);
     assert_eq!(tokens, expected.tokens);
     assert_eq!(contrast, expected.contrast);
-    assert_eq!(presets.len(), 7);
+    assert_eq!(presets.len(), 8);
     for preset in &expected.presets {
         assert_eq!(
             presets.iter().find(|ours| ours.id == preset.id),
@@ -168,11 +171,11 @@ pub(crate) async fn a_value_the_theme_does_not_take_is_400_and_changes_nothing()
     for (body, error) in [
         (
             json!({ "preset": "pink" }),
-            "preset: one of graphite, blue, teal, green, orange, rose, purple",
+            "preset: one of paper, graphite, blue, teal, green, orange, rose, purple",
         ),
         (
             json!({ "preset": 5 }),
-            "preset: one of graphite, blue, teal, green, orange, rose, purple",
+            "preset: one of paper, graphite, blue, teal, green, orange, rose, purple",
         ),
         (
             json!({ "appearance": "dim" }),

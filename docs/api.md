@@ -813,7 +813,7 @@ unknown thread); 401 `{ signIn: true }` without a session.
 `ThemePage`: `{ version, choice, tokens: { light, dark }, contrast: { light, dark, aa }, presets: [{ id, name, light, dark }], names }`.
 
 - `choice`: `{ preset, appearance (system | light | dark), accent ("#RRGGBB" or null), at (null: never set) }`.
-  The default is `blue`, `system`.
+  The default is `paper`, `system`; a saved choice keeps the preset it names.
 - `tokens`: the choice's 14 colours per appearance, `#RRGGBB`: `accent`, `accentSoft`,
   `onAccent`, `background`, `surface`, `surfaceRaised`, `border`, `text`, `muted`, `faint`,
   `success`, `warn`, `danger`, `info` (`names` lists them in this order).
@@ -831,7 +831,7 @@ unknown thread); 401 `{ signIn: true }` without a session.
 `ThemeChange`: only the fields given change. `accent` left out keeps it, `null` goes back to the
 preset's own, a colour (`#RGB` or `#RRGGBB`, `#` optional) sets it. `preview: true` works the page
 out without saving. 200 `{ "ok": true, ...ThemePage }` (`ThemeSetReply`); 400
-`{ "ok": false, "error": "preset: one of graphite, blue, teal, ..." }`,
+`{ "ok": false, "error": "preset: one of paper, graphite, blue, ..." }`,
 `"appearance: system, light or dark"` or `"accent: a hex colour like #3366FF (or null for the preset's own)"`.
 
 ## The MCP endpoint

@@ -20427,7 +20427,7 @@
       },
       "ThemeChoice": {
         "type": "object",
-        "description": "A theme choice: a preset (its accent family), an appearance, and an optional custom accent.",
+        "description": "A theme choice: a preset (its accent family on its neutrals), an appearance, and an optional\ncustom accent.",
         "required": [
           "preset",
           "appearance"
@@ -20435,7 +20435,7 @@
         "properties": {
           "preset": {
             "type": "string",
-            "description": "The preset's id (`blue`, `graphite`, `teal`, ...)."
+            "description": "The preset's id (`paper`, `graphite`, `blue`, ...)."
           },
           "appearance": {
             "$ref": "#/components/schemas/Appearance",

@@ -43,6 +43,13 @@ fn a_presets_colours_come_from_the_page() {
     let graphite = page.preset_tokens("graphite").unwrap();
     assert_eq!(graphite.light.accent, "#374151");
     assert_eq!(graphite.dark.accent, "#D1D5DB");
+    let paper = page.preset_tokens("paper").unwrap();
+    assert_eq!(
+        (paper.light.accent.as_str(), paper.light.background.as_str()),
+        ("#B83D0C", "#F6F0E6"),
+        "the default: ember on kraft paper"
+    );
+    assert_eq!(paper.dark.background, "#15110E");
     assert_eq!(
         page.preset_tokens("blue").unwrap(),
         page.tokens,

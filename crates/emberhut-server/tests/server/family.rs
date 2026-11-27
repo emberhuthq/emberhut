@@ -139,7 +139,7 @@ pub(crate) async fn a_family_member_talks_in_their_own_home_room() {
     assert_ne!(i64::from(mine.room), 1, "never the owner's Main");
     assert_eq!(mine.chat, Vec::new());
     assert!(!mine.working);
-    assert_eq!(mine.theme.preset, "blue");
+    assert_eq!(mine.theme.preset, "paper");
 
     let unchanged = app
         .call(as_member(Call::get("/family/state"), SAM).header("if-none-match", &tag))
@@ -325,7 +325,7 @@ pub(crate) async fn a_family_member_s_theme_is_their_own() {
     let page = app.call(as_member(Call::get("/family/theme"), SAM)).await;
     assert_eq!(page.status, 200);
     let page: ThemePage = page.read_as();
-    assert_eq!(page.choice.preset, "blue");
+    assert_eq!(page.choice.preset, "paper");
     let set = app
         .call(as_member(Call::post("/family/theme"), SAM).json(&json!({ "preset": "teal" })))
         .await;
@@ -336,10 +336,10 @@ pub(crate) async fn a_family_member_s_theme_is_their_own() {
         .await;
     assert_eq!(refused.status, 400);
     assert_eq!(state(&app, SAM, "").await.theme.preset, "teal");
-    assert_eq!(state(&app, LEE, "").await.theme.preset, "blue");
+    assert_eq!(state(&app, LEE, "").await.theme.preset, "paper");
     assert_eq!(
         app.state.theme().choice().await.unwrap().preset,
-        "blue",
+        "paper",
         "the owner's"
     );
 }

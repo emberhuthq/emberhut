@@ -59,6 +59,42 @@
   },
   "presets": [
     {
+      "id": "paper",
+      "name": "Paper",
+      "light": {
+        "accent": "#B83D0C",
+        "accentSoft": "#F6E6DD",
+        "onAccent": "#FFF8EF",
+        "background": "#F6F0E6",
+        "surface": "#FFFDF9",
+        "surfaceRaised": "#EFE6D8",
+        "border": "#DCD6CD",
+        "text": "#1D1712",
+        "muted": "#65574C",
+        "faint": "#6E6055",
+        "success": "#2B7248",
+        "warn": "#8A5800",
+        "danger": "#A51D2D",
+        "info": "#2B5F8E"
+      },
+      "dark": {
+        "accent": "#FF9A5A",
+        "accentSoft": "#523725",
+        "onAccent": "#1D1206",
+        "background": "#15110E",
+        "surface": "#211B16",
+        "surfaceRaised": "#261F19",
+        "border": "#2C2723",
+        "text": "#F6EEE5",
+        "muted": "#BDAE9F",
+        "faint": "#A39486",
+        "success": "#7FD19B",
+        "warn": "#E8B04A",
+        "danger": "#FF8089",
+        "info": "#8DB8E0"
+      }
+    },
+    {
       "id": "graphite",
       "name": "Graphite",
       "light": {

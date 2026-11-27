@@ -1,7 +1,9 @@
-//! The theme: a preset (an accent family), an appearance and an optional custom accent, turned
-//! into the colour tokens every app draws with. An accent is held to WCAG AA (4.5:1) as text on
-//! the background and the surface and under its own text: one too light for light mode is
-//! darkened, one too dark for dark mode lightened, a step at a time, only as far as it needs.
+//! The theme: a preset (an accent family on its neutrals), an appearance and an optional custom
+//! accent, turned into the colour tokens every app draws with. Most presets share the graphite
+//! neutrals; paper, the default, has its own: warm kraft grounds and brown-black ink with an
+//! ember accent. An accent is held to WCAG AA (4.5:1) as text on the background and the surface
+//! and under its own text: one too light for light mode is darkened, one too dark for dark mode
+//! lightened, a step at a time, only as far as it needs.
 
 use std::fmt;
 
@@ -9,7 +11,7 @@ use std::fmt;
 pub const VERSION: u32 = 1;
 
 /// The preset a choice starts from.
-pub const DEFAULT_PRESET: &str = "blue";
+pub const DEFAULT_PRESET: &str = "paper";
 
 /// The token names, in the order the API lists them.
 pub const NAMES: [&str; 14] = [
@@ -31,11 +33,7 @@ pub const NAMES: [&str; 14] = [
 
 /// The contrast every accent is held to.
 const AA: f64 = 4.5;
-/// Text on an accent: whichever of these reads better.
-const WHITE: &str = "#FFFFFF";
-const INK: &str = "#0B0D10";
-
-/// A preset: its accent in light and dark mode, both readable on the neutrals.
+/// A preset: its accent in light and dark mode, both readable on its neutrals.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preset {
     /// Its id.
@@ -48,6 +46,8 @@ pub struct Preset {
     pub dark: &'static str,
     /// "Running" is blue (cyan when the accent is blue itself).
     blue_info: bool,
+    /// Its neutrals in light and dark mode.
+    neutrals: (&'static Neutrals, &'static Neutrals),
 }
 
 const fn preset(
@@ -62,11 +62,16 @@ const fn preset(
         light,
         dark,
         blue_info: true,
+        neutrals: (&LIGHT, &DARK),
     }
 }
 
 /// Every preset, in the order the API lists them.
-pub const PRESETS: [Preset; 7] = [
+pub const PRESETS: [Preset; 8] = [
+    Preset {
+        neutrals: (&PAPER_LIGHT, &PAPER_DARK),
+        ..preset("paper", "Paper", "#B83D0C", "#FF9A5A")
+    },
     preset("graphite", "Graphite", "#374151", "#D1D5DB"),
     Preset {
         blue_info: false,
@@ -223,7 +228,9 @@ impl Contrast {
     }
 }
 
-/// The neutrals of one appearance: the same for every preset.
+/// The neutrals of one appearance: the grounds, the text levels, the status colours, and the
+/// two colours text on an accent is drawn in.
+#[derive(Debug, PartialEq, Eq)]
 struct Neutrals {
     background: &'static str,
     surface: &'static str,
@@ -237,6 +244,9 @@ struct Neutrals {
     danger: &'static str,
     blue: &'static str,
     cyan: &'static str,
+    /// Text on an accent: whichever of these reads better.
+    on_light: &'static str,
+    on_dark: &'static str,
 }
 
 const LIGHT: Neutrals = Neutrals {
@@ -252,6 +262,8 @@ const LIGHT: Neutrals = Neutrals {
     danger: "#DC2626",
     blue: "#2563EB",
     cyan: "#0E7490",
+    on_light: "#FFFFFF",
+    on_dark: "#0B0D10",
 };
 
 const DARK: Neutrals = Neutrals {
@@ -267,6 +279,47 @@ const DARK: Neutrals = Neutrals {
     danger: "#F87171",
     blue: "#60A5FA",
     cyan: "#22D3EE",
+    on_light: "#FFFFFF",
+    on_dark: "#0B0D10",
+};
+
+/// Paper in light mode: kraft paper for the window, cream cards, paper a shade deeper for what
+/// is raised, the ink's own line at 12% on the paper, brown-black ink. Every text level and
+/// status colour reads 4.5:1 on all three grounds (the green is a step deeper than the brand's
+/// for it).
+const PAPER_LIGHT: Neutrals = Neutrals {
+    background: "#F6F0E6",
+    surface: "#FFFDF9",
+    surface_raised: "#EFE6D8",
+    border: "#DCD6CD",
+    text: "#1D1712",
+    muted: "#65574C",
+    faint: "#6E6055",
+    success: "#2B7248",
+    warn: "#8A5800",
+    danger: "#A51D2D",
+    blue: "#2B5F8E",
+    cyan: "#1F6F78",
+    on_light: "#FFF8EF",
+    on_dark: "#1D1206",
+};
+
+/// Paper in dark mode: dark paper, its cards a shade lighter, a warm line at 10%, cream ink.
+const PAPER_DARK: Neutrals = Neutrals {
+    background: "#15110E",
+    surface: "#211B16",
+    surface_raised: "#261F19",
+    border: "#2C2723",
+    text: "#F6EEE5",
+    muted: "#BDAE9F",
+    faint: "#A39486",
+    success: "#7FD19B",
+    warn: "#E8B04A",
+    danger: "#FF8089",
+    blue: "#8DB8E0",
+    cyan: "#6FCFD6",
+    on_light: "#FFF8EF",
+    on_dark: "#1D1206",
 };
 
 /// The colours of `preset` (the default preset when it is not one), with the `custom` accent
@@ -279,7 +332,11 @@ pub fn resolve(preset: &str, custom: Option<&str>, dark: bool) -> (Palette, Cont
         .or_else(|| PRESETS.iter().find(|p| p.id == DEFAULT_PRESET))
         .copied()
         .unwrap_or(PRESETS[0]);
-    let n = if dark { &DARK } else { &LIGHT };
+    let n = if dark {
+        preset.neutrals.1
+    } else {
+        preset.neutrals.0
+    };
     let wanted = custom
         .and_then(hex)
         .unwrap_or_else(|| (if dark { preset.dark } else { preset.light }).to_owned());
@@ -290,7 +347,7 @@ pub fn resolve(preset: &str, custom: Option<&str>, dark: bool) -> (Palette, Cont
         }
         accent = shift(&accent, if dark { 0.01 } else { -0.01 });
     }
-    let on = on_colour(&accent);
+    let on = on_colour(&accent, n);
     let blue_info = custom.map_or(preset.blue_info, |custom| !is_blue(custom));
     let contrast = Contrast {
         accent_on_background: round_down(ratio(&accent, n.background)),
@@ -321,14 +378,14 @@ pub fn resolve(preset: &str, custom: Option<&str>, dark: bool) -> (Palette, Cont
 fn readable(accent: &str, n: &Neutrals) -> bool {
     ratio(accent, n.background) >= AA
         && ratio(accent, n.surface) >= AA
-        && ratio(on_colour(accent), accent) >= AA
+        && ratio(on_colour(accent, n), accent) >= AA
 }
 
-fn on_colour(accent: &str) -> &'static str {
-    if ratio(WHITE, accent) >= ratio(INK, accent) {
-        WHITE
+fn on_colour(accent: &str, n: &Neutrals) -> &'static str {
+    if ratio(n.on_light, accent) >= ratio(n.on_dark, accent) {
+        n.on_light
     } else {
-        INK
+        n.on_dark
     }
 }
 
@@ -515,6 +572,71 @@ mod tests {
     }
 
     #[test]
+    fn the_paper_preset_is_the_default_and_resolves_to_its_colours() {
+        assert_eq!(DEFAULT_PRESET, "paper");
+        assert_eq!(PRESETS[0].id, DEFAULT_PRESET);
+        let (light, contrast) = resolve("paper", None, false);
+        assert_eq!(light.accent, "#B83D0C");
+        assert_eq!(light.on_accent, "#FFF8EF");
+        assert_eq!(light.background, "#F6F0E6");
+        assert_eq!(light.surface, "#FFFDF9");
+        assert_eq!(light.text, "#1D1712");
+        assert_eq!(light.info, "#2B5F8E");
+        assert!(contrast.is_aa());
+        assert!(!contrast.adjusted);
+        let (dark, contrast) = resolve("paper", None, true);
+        assert_eq!(dark.accent, "#FF9A5A");
+        assert_eq!(dark.on_accent, "#1D1206");
+        assert_eq!(dark.background, "#15110E");
+        assert_eq!(dark.text, "#F6EEE5");
+        assert!(contrast.is_aa());
+        assert!(!contrast.adjusted);
+    }
+
+    #[test]
+    fn every_paper_text_level_reads_aa_on_every_ground() {
+        for dark in [false, true] {
+            for custom in [None, Some("#2563EB")] {
+                let (p, _) = resolve("paper", custom, dark);
+                let grounds = [
+                    ("background", &p.background),
+                    ("surface", &p.surface),
+                    ("surfaceRaised", &p.surface_raised),
+                ];
+                let inks = [
+                    ("text", &p.text),
+                    ("muted", &p.muted),
+                    ("faint", &p.faint),
+                    ("success", &p.success),
+                    ("warn", &p.warn),
+                    ("danger", &p.danger),
+                    ("info", &p.info),
+                ];
+                for (ground_name, ground) in grounds {
+                    for (ink_name, ink) in inks {
+                        let r = ratio(ink, ground);
+                        assert!(
+                            r >= AA,
+                            "dark={dark} {custom:?} {ink_name} {ink} on {ground_name} {ground}: \
+                             {r:.2}"
+                        );
+                    }
+                }
+                assert!(ratio(&p.on_accent, &p.accent) >= AA, "dark={dark}");
+                assert!(ratio(&p.text, &p.accent_soft) >= AA, "dark={dark}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_blue_accent_on_paper_runs_in_cyan() {
+        let (light, _) = resolve("paper", Some("#2563EB"), false);
+        assert_eq!(light.info, PAPER_LIGHT.cyan);
+        let (light, _) = resolve("paper", Some("#BE123C"), false);
+        assert_eq!(light.info, PAPER_LIGHT.blue);
+    }
+
+    #[test]
     fn an_unreadable_accent_is_moved_until_it_reads() {
         let (light, contrast) = resolve("blue", Some("#FFFF00"), false);
         assert!(contrast.adjusted);
@@ -528,7 +650,7 @@ mod tests {
     fn an_unknown_preset_is_the_default() {
         assert_eq!(
             resolve("nowhere", None, false),
-            resolve("blue", None, false)
+            resolve("paper", None, false)
         );
     }
 
@@ -537,7 +659,7 @@ mod tests {
         assert_eq!(preset_id(" Teal "), Ok("teal"));
         assert_eq!(
             preset_id("pink").unwrap_err().to_string(),
-            "preset: one of graphite, blue, teal, green, orange, rose, purple"
+            "preset: one of paper, graphite, blue, teal, green, orange, rose, purple"
         );
         assert_eq!(appearance("DARK"), Ok(Appearance::Dark));
         assert_eq!(appearance("dim"), Err(ThemeRefusal::Appearance));
