@@ -60,7 +60,7 @@ emberhut/
 | Folder | Why it exists |
 | --- | --- |
 | `apps/` | Everything a user installs or opens; each app is built and shipped on its own. |
-| `apps/desktop` | The Mac (later Linux and Windows) app, in GPUI so it shares Rust types with the server. |
+| `apps/desktop` | The Mac (later Linux and Windows) app, in GPUI so it shares Rust types with the server. It can run the server on its own computer, the hut ([ADR 0030](adr/0030-the-hut-inside-the-app.md)): the binary ships in the bundle and is driven as a process, never linked. |
 | `apps/mobile` | The iOS and Android app, in React Native, one codebase for both phones. |
 | `apps/web` | The browser app, in TypeScript and React, sharing the generated client with mobile. |
 | `crates/` | Every Rust library and the server, so `crates/*` is the Rust workspace's member glob. |
@@ -114,6 +114,9 @@ mobile, web ──► packages/connect ◄── crates/emberhut-api/tests/fixtu
   contains no SQL: the schema is defined in migrations.
 - `emberhut-server` wires everything once, in `main`, into axum `State`. It uses constructor
   injection with no container.
+- `emberhut-desktop` doesn't depend on `emberhut-server`: the hut it runs is the server's binary,
+  bundled beside the app and started as a process (its `serve`, `pair --json`, `id` and
+  `--version`), and spoken to over HTTP like any server.
 
 ## Plugging an area into the server
 
