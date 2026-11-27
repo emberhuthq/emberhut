@@ -29,8 +29,10 @@ pub(crate) fn toast(
     window: &mut MainWindow,
     cx: &mut Context<'_, MainWindow>,
 ) -> Option<Stateful<Div>> {
-    let p = pal(cx);
     let held = window.store.read(cx);
+    // Drawn inverted, so it takes the other appearance's colours: its marks and Undo then read
+    // on its fill as the theme holds them to read on that appearance's surface.
+    let p = pal(cx).inverse(held.theme().page());
     let Some(toast) = held.answers().toast().cloned() else {
         let notice = held.tasks().notice()?.to_owned();
         return Some(
@@ -46,7 +48,7 @@ pub(crate) fn toast(
     let (mark, color) = if toast.failed() {
         (AssetIcon::TriangleAlert, p.warn)
     } else if toast.closes {
-        (AssetIcon::CircleX, p.faint)
+        (AssetIcon::CircleX, p.muted)
     } else {
         (AssetIcon::CircleCheck, p.success)
     };
@@ -55,7 +57,7 @@ pub(crate) fn toast(
         Some(
             Icon::new(AssetIcon::LoaderCircle)
                 .size(px(15.))
-                .text_color(p.faint)
+                .text_color(p.muted)
                 .with_animation(
                     "toast-sending",
                     Animation::new(Duration::from_secs(1)).repeat(),
@@ -69,7 +71,7 @@ pub(crate) fn toast(
                 .id("toast-hide")
                 .button_named("Hide")
                 .cursor_pointer()
-                .child(Icon::new(AssetIcon::X).size(px(14.)).text_color(p.faint))
+                .child(Icon::new(AssetIcon::X).size(px(14.)).text_color(p.muted))
                 .tooltip(|window, cx| Tooltip::new("Hide").build(window, cx))
                 .on_click(move |_, _, cx| hide.update(cx, Store::hide_toast))
                 .into_any_element(),
@@ -100,7 +102,7 @@ pub(crate) fn toast(
     )
 }
 
-/// The toast's pill, its mark, text and button to add.
+/// The toast's pill, its mark, text and button to add, in `p`, the page's palette inverted.
 fn frame(p: &Pal, said: String) -> Stateful<Div> {
     div()
         // Said by the screen reader as it shows, as the reference client announces it.
@@ -115,8 +117,8 @@ fn frame(p: &Pal, said: String) -> Stateful<Div> {
         .px(px(14.))
         .py(px(8.))
         .rounded(px(18.))
-        .bg(p.text)
-        .text_color(p.surface)
+        .bg(p.surface)
+        .text_color(p.text)
         .text_size(px(13.))
 }
 

@@ -107,11 +107,19 @@ impl Pal {
             // System, and an appearance this app doesn't know yet.
             _ => system_dark,
         };
-        let tokens = if dark {
-            &page.tokens.dark
-        } else {
-            &page.tokens.light
-        };
+        Self::of(appearance_tokens(page, dark), dark)
+    }
+
+    /// The same theme in the other appearance: what something drawn inverted (the toast, dark
+    /// on a light page and light on a dark one) takes its fill, text and marks from, so each
+    /// keeps the contrast the theme holds it to on its own grounds.
+    #[must_use]
+    pub(crate) fn inverse(self, page: &ThemePage) -> Self {
+        Self::of(appearance_tokens(page, !self.dark), !self.dark)
+    }
+
+    /// The palette of one appearance's `tokens`.
+    fn of(tokens: &Tokens, dark: bool) -> Self {
         let c = |token: &str| color(hex(token));
         let hover = if dark { HOVER_DARK } else { HOVER_LIGHT };
         // Every colour the sidebar draws text and icons in.
@@ -203,20 +211,22 @@ impl Pal {
     /// near-black by the fill's own luminance.
     #[must_use]
     pub(crate) fn readable_on(fill: Hsla) -> Hsla {
-        let fill = fill.to_rgb();
-        let channel = |value: f32| u32::from(crate::color::to_byte(value * 255.0));
-        let rgb = (channel(fill.r) << 16) | (channel(fill.g) << 8) | channel(fill.b);
-        color(crate::color::readable_on(rgb))
+        color(crate::color::readable_on(rgb_of(fill)))
     }
 
     /// The tokens a palette made from `page` draws with in this palette's appearance.
     #[must_use]
     pub(crate) fn tokens_of(self, page: &ThemePage) -> &Tokens {
-        if self.dark {
-            &page.tokens.dark
-        } else {
-            &page.tokens.light
-        }
+        appearance_tokens(page, self.dark)
+    }
+}
+
+/// `page`'s tokens in the dark appearance or the light one.
+fn appearance_tokens(page: &ThemePage, dark: bool) -> &Tokens {
+    if dark {
+        &page.tokens.dark
+    } else {
+        &page.tokens.light
     }
 }
 
@@ -321,6 +331,13 @@ fn color(value: Rgb) -> Hsla {
     rgb(value).into()
 }
 
+/// A colour as `0xRRGGBB`, its alpha left out.
+fn rgb_of(colour: Hsla) -> Rgb {
+    let colour = colour.to_rgb();
+    let channel = |value: f32| u32::from(crate::color::to_byte(value * 255.0));
+    (channel(colour.r) << 16) | (channel(colour.g) << 8) | channel(colour.b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,6 +354,22 @@ mod tests {
 
     fn both(page: &ThemePage) -> [Pal; 2] {
         [Pal::new(page, false), Pal::new(page, true)]
+    }
+
+    /// Every preset's theme as the server makes it, with its palette in each appearance.
+    fn every_palette() -> Vec<(&'static str, ThemePage, Pal)> {
+        emberhut_core::theme::PRESETS
+            .iter()
+            .flat_map(|preset| {
+                let page = preset_page(preset.id);
+                both(&page).map(|p| (preset.id, page.clone(), p))
+            })
+            .collect()
+    }
+
+    /// The WCAG 2 contrast ratio of two colours, each drawn opaque.
+    fn ratio(a: Hsla, b: Hsla) -> f64 {
+        contrast_ratio(rgb_of(a), rgb_of(b))
     }
 
     /// Checks, without `material::alpha`, that every colour the sidebar draws text in reads
@@ -507,5 +540,37 @@ mod tests {
         assert_eq!(p.material, Material::Opaque);
         assert_eq!(p.sidebar, p.background);
         assert_sidebar_reads(&page, &p, "at AA");
+    }
+
+    #[test]
+    fn the_inverse_is_the_other_appearance_of_the_same_theme() {
+        for (preset, page, p) in every_palette() {
+            let inverse = p.inverse(&page);
+            assert_eq!(inverse.dark, !p.dark, "{preset}");
+            assert_eq!(
+                inverse.surface,
+                Pal::new(&page, !p.dark).surface,
+                "{preset}"
+            );
+            assert_eq!(inverse.inverse(&page).text, p.text, "{preset}");
+        }
+    }
+
+    #[test]
+    fn every_presets_toast_inks_read_on_its_inverted_fill() {
+        for (preset, page, p) in every_palette() {
+            let toast = p.inverse(&page);
+            let inks = [
+                ("text", toast.text),
+                ("muted", toast.muted),
+                ("warn", toast.warn),
+                ("success", toast.success),
+                ("accent", toast.accent),
+            ];
+            for (name, ink) in inks {
+                let r = ratio(ink, toast.surface);
+                assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
+            }
+        }
     }
 }
