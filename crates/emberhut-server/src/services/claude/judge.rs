@@ -81,6 +81,7 @@ impl CliJudge {
             env_remove: vec!["CLAUDECODE".to_owned()],
             env_remove_prefixed: Vec::new(),
             cwd: None,
+            bridge: None,
         };
         if let Some(provider) = provider {
             provider.apply(&mut launch);

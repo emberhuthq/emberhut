@@ -15,10 +15,12 @@
 //!   reads the saved provider when it starts and gets its environment ([`ProviderEnv`]):
 //!   Anthropic's key, or an Anthropic-compatible endpoint (`DeepSeek`'s, `OpenRouter`'s, a local
 //!   Ollama's, any other) with its token and models. `OpenAI` and OpenAI-compatible endpoints are
-//!   saved and checked only: the setup checklist says they need a bridge.
+//!   reached through the server's own [`bridge`], which speaks Anthropic's API to the CLI on
+//!   loopback and `OpenAI`'s to the endpoint.
 //! - **Accounts first.** While the server configures accounts (`EMBERHUT_AGENT_ACCOUNTS`), each
 //!   a CLI login of its own with failover between them, the saved provider isn't used.
 
+pub mod bridge;
 mod check;
 mod env;
 
@@ -40,6 +42,7 @@ pub use check::{
 };
 pub use env::{MODEL_VARS, OLLAMA_TOKEN, ProviderEnv};
 
+use self::bridge::BridgeAccess;
 use crate::convert::timestamp_to_api;
 use crate::services::claude::AgentAccount;
 use crate::services::messaging::secrets::Secrets;
@@ -192,10 +195,11 @@ impl Provider {
         }
     }
 
-    /// Whether the agent CLI (Claude Code, which speaks Anthropic's API) runs on it today.
+    /// Whether the agent CLI (Claude Code, which speaks Anthropic's API only) reaches it
+    /// through the `OpenAI` [`bridge`].
     #[must_use]
-    pub const fn usable(self) -> bool {
-        !matches!(self, Self::OpenAi | Self::OpenAiCompatible)
+    pub const fn bridged(self) -> bool {
+        matches!(self, Self::OpenAi | Self::OpenAiCompatible)
     }
 
     /// Its usual address, when it has one (Anthropic's is the configured one).
@@ -243,7 +247,11 @@ impl Provider {
 
     const fn takes_model(self) -> Takes {
         match self {
-            Self::OpenRouter | Self::Ollama | Self::AnthropicCompatible => Takes::Required,
+            Self::OpenRouter
+            | Self::Ollama
+            | Self::AnthropicCompatible
+            | Self::OpenAi
+            | Self::OpenAiCompatible => Takes::Required,
             _ => Takes::Optional,
         }
     }
@@ -277,13 +285,26 @@ pub struct Current {
 pub struct ProviderStore {
     secrets: Secrets,
     settings: SettingStore,
+    bridge: Option<BridgeAccess>,
 }
 
 impl ProviderStore {
     /// The provider kept in `secrets` and `settings`.
     #[must_use]
     pub fn new(secrets: Secrets, settings: SettingStore) -> Self {
-        Self { secrets, settings }
+        Self {
+            secrets,
+            settings,
+            bridge: None,
+        }
+    }
+
+    /// Runs the agent CLI on `openai` and `openai-compatible` through the `OpenAI` bridge
+    /// `access` reaches; without it, they are saved but not run on.
+    #[must_use]
+    pub fn with_bridge(mut self, access: BridgeAccess) -> Self {
+        self.bridge = Some(access);
+        self
     }
 
     /// The provider saved, if there is one. A key in Anthropic's file with nothing saved (put
@@ -330,7 +351,22 @@ impl ProviderStore {
         if !accounts.is_empty() {
             return Ok(None);
         }
-        Ok(self.current().await?.as_ref().and_then(ProviderEnv::of))
+        Ok(self
+            .current()
+            .await?
+            .as_ref()
+            .and_then(|current| self.env_of(current)))
+    }
+
+    /// What `current` gives a launch, through this store's bridge when it needs it.
+    fn env_of(&self, current: &Current) -> Option<ProviderEnv> {
+        ProviderEnv::of(current, self.bridge.as_ref())
+    }
+
+    /// Whether the `OpenAI` bridge runs for the agent CLI.
+    #[must_use]
+    pub fn bridges(&self) -> bool {
+        self.bridge.is_some()
     }
 
     /// `provider`'s saved key, if there is one.
@@ -439,6 +475,12 @@ impl AgentProviderService {
         self.parts.login
     }
 
+    /// Whether the `OpenAI` bridge runs, for `openai` and `openai-compatible`.
+    #[must_use]
+    pub fn bridges(&self) -> bool {
+        self.parts.store.bridges()
+    }
+
     /// What is saved, without the key.
     ///
     /// # Errors
@@ -457,8 +499,9 @@ impl AgentProviderService {
             provider: Some(current.provider.kind()),
             key_set: current.key.is_some(),
             key_hint: current.key.as_ref().map(ApiKey::hint),
-            in_use: self.parts.login == AgentLogin::Saved && ProviderEnv::of(&current).is_some(),
-            usable: current.provider.usable(),
+            in_use: self.parts.login == AgentLogin::Saved
+                && self.parts.store.env_of(&current).is_some(),
+            usable: true,
             base_url: current.base_url,
             model: current.model,
             fast_model: current.fast_model,

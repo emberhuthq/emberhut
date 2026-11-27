@@ -9186,11 +9186,11 @@
           },
           "usable": {
             "type": "boolean",
-            "description": "The agent can run on this provider today: every provider but `openai` and\n`openai-compatible`, which are saved and checked but need a bridge the agent CLI\n(Claude Code, which speaks Anthropic's API) doesn't have yet."
+            "description": "The agent can run on this provider: true for every provider this server knows\n(`openai` and `openai-compatible` run through its `OpenAI` bridge), false when nothing is\nsaved. Kept for apps that read it."
           },
           "inUse": {
             "type": "boolean",
-            "description": "The server's agent sessions run on it now: no when it isn't [`Self::usable`], when no\nagent CLI is configured, or when the server's configured accounts\n(`EMBERHUT_AGENT_ACCOUNTS`) are its credentials instead."
+            "description": "The server's agent sessions run on it now: no when no agent CLI is configured, when the\nserver's configured accounts (`EMBERHUT_AGENT_ACCOUNTS`) are its credentials instead,\nor when what it needs isn't saved (its key's file removed, no model for a bridged one)."
           }
         }
       },
@@ -17485,7 +17485,7 @@
               "string",
               "null"
             ],
-            "description": "The model the agent runs on, as the provider names it: needed by `openrouter`,\n`ollama` and `anthropic-compatible`; none: the provider's default (`deepseek-v4-pro`\nfor `deepseek`) or, for `claude` and `anthropic`, the server's."
+            "description": "The model the agent runs on, as the provider names it: needed by `openrouter`,\n`ollama`, `anthropic-compatible`, `openai` and `openai-compatible` (to save; a test\ntakes none); none: the provider's default (`deepseek-v4-pro` for `deepseek`) or, for\n`claude` and `anthropic`, the server's."
           },
           "fastModel": {
             "type": [

@@ -15,6 +15,10 @@
 //! | `openrouter` | `<base>` (no `/v1`) | `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` empty |
 //! | `ollama` | `<base>` | `ANTHROPIC_AUTH_TOKEN` = [`OLLAMA_TOKEN`] |
 //! | `anthropic-compatible` | `<base>` | `ANTHROPIC_AUTH_TOKEN` |
+//! | `openai`, `openai-compatible` | the `OpenAI` bridge's, on loopback | `ANTHROPIC_AUTH_TOKEN` = a token of the launch's own, `ANTHROPIC_API_KEY` empty |
+//!
+//! The bridged providers' keys never reach the CLI: the bridge holds them, and each launch gets a
+//! token for the bridge alone ([`BridgeAccess::grant`]), revoked once its CLI has exited.
 //!
 //! With a model (given, or the provider's default), every model the CLI resolves is mapped to
 //! it ([`MODEL_VARS`]): the session's own (`ANTHROPIC_MODEL`), the `opus`, `sonnet` and `fable`
@@ -24,8 +28,12 @@
 
 use std::fmt;
 
+use super::bridge::BridgeAccess;
 use super::{ApiKey, Current, Provider};
 use crate::services::claude::Launch;
+
+/// The variable the CLI's token is set as.
+const AUTH_TOKEN: &str = "ANTHROPIC_AUTH_TOKEN";
 
 /// The token Ollama is given: it takes any, but the CLI needs one to send.
 pub const OLLAMA_TOKEN: &str = "ollama";
@@ -65,6 +73,8 @@ pub struct ProviderEnv {
     remove_prefixed: Vec<String>,
     models: bool,
     elsewhere: bool,
+    /// The bridge each launch gets a token of, for a bridged provider.
+    bridge: Option<BridgeAccess>,
 }
 
 impl fmt::Debug for ProviderEnv {
@@ -76,19 +86,19 @@ impl fmt::Debug for ProviderEnv {
             .field("remove_prefixed", &self.remove_prefixed)
             .field("models", &self.models)
             .field("elsewhere", &self.elsewhere)
+            .field("bridge", &self.bridge)
             .finish()
     }
 }
 
 impl ProviderEnv {
-    /// What `current` gives a launch; none when its provider can't run the agent CLI, or a key
-    /// it needs isn't saved (a file removed by hand).
+    /// What `current` gives a launch, through `bridge` for `openai` and `openai-compatible`;
+    /// none when a key it needs isn't saved (a file removed by hand), or a bridged provider has
+    /// no bridge or no model.
     #[must_use]
-    pub fn of(current: &Current) -> Option<Self> {
+    pub fn of(current: &Current, bridge: Option<&BridgeAccess>) -> Option<Self> {
         let provider = current.provider;
-        if !provider.usable() {
-            return None;
-        }
+        let mut via = None;
         let key = || current.key.as_ref().map(ApiKey::as_str);
         let base = current
             .base_url
@@ -116,7 +126,17 @@ impl ProviderEnv {
                 set.push(("ANTHROPIC_BASE_URL", base?.to_owned()));
                 set.push(("ANTHROPIC_AUTH_TOKEN", key()?.to_owned()));
             }
-            Provider::OpenAi | Provider::OpenAiCompatible => return None,
+            Provider::OpenAi | Provider::OpenAiCompatible => {
+                if provider == Provider::OpenAi {
+                    key()?;
+                }
+                current.model.as_ref()?;
+                let bridge = bridge?;
+                set.push(("ANTHROPIC_BASE_URL", bridge.url().to_owned()));
+                // The launch's token is the only credential: no Anthropic key alongside.
+                set.push(("ANTHROPIC_API_KEY", String::new()));
+                via = Some(bridge.clone());
+            }
         }
         let (main, quick) = provider.default_models();
         let model = current.model.as_deref().or(main);
@@ -138,7 +158,8 @@ impl ProviderEnv {
             remove,
             remove_prefixed: vec![ANTHROPIC_PREFIX.to_owned()],
             models: model.is_some(),
-            elsewhere: base.is_some() && provider != Provider::Anthropic,
+            elsewhere: via.is_some() || (base.is_some() && provider != Provider::Anthropic),
+            bridge: via,
         })
     }
 
@@ -149,8 +170,16 @@ impl ProviderEnv {
         self.elsewhere
     }
 
+    /// Whether it runs the CLI through the `OpenAI` bridge.
+    #[must_use]
+    pub fn bridged(&self) -> bool {
+        self.bridge.is_some()
+    }
+
     /// Makes `launch` run on the provider: the server's own variables for it kept out, its own
-    /// set, and the launch's `--model` dropped when the provider's models take its place.
+    /// set, and the launch's `--model` dropped when the provider's models take its place. On
+    /// the bridge, the launch gets a token of its own and holds it; without randomness for one
+    /// it gets none, and the bridge refuses it.
     pub fn apply(&self, launch: &mut Launch) {
         if self.models {
             launch.args.retain(|arg| !arg.starts_with("--model="));
@@ -163,6 +192,20 @@ impl ProviderEnv {
             .env
             .retain(|(name, _)| !self.set.iter().any(|(set, _)| set == name));
         launch.env.extend(self.set.iter().cloned());
+        if let Some(bridge) = &self.bridge {
+            launch.env.retain(|(name, _)| name != AUTH_TOKEN);
+            match bridge.grant() {
+                Ok((token, grant)) => {
+                    launch
+                        .env
+                        .push((AUTH_TOKEN.to_owned(), token.as_str().to_owned()));
+                    launch.bridge = Some(grant);
+                }
+                Err(error) => {
+                    tracing::error!(%error, "no token for the OpenAI bridge: the agent CLI is refused");
+                }
+            }
+        }
     }
 }
 
@@ -191,6 +234,7 @@ mod tests {
             env_remove: vec!["CLAUDECODE".to_owned()],
             env_remove_prefixed: Vec::new(),
             cwd: None,
+            bridge: None,
         };
         env.apply(&mut launch);
         launch
@@ -198,7 +242,8 @@ mod tests {
 
     #[test]
     fn deepseek_runs_on_its_anthropic_endpoint_with_its_two_models() {
-        let env = ProviderEnv::of(&current(Provider::DeepSeek, Some("sk-ds-1"), None)).unwrap();
+        let env =
+            ProviderEnv::of(&current(Provider::DeepSeek, Some("sk-ds-1"), None), None).unwrap();
         let launch = launched(&env);
         assert_eq!(
             launch.var("ANTHROPIC_BASE_URL"),
@@ -233,15 +278,19 @@ mod tests {
 
     #[test]
     fn anthropic_and_claude_keep_the_configured_model_unless_one_is_saved() {
-        let env = ProviderEnv::of(&current(Provider::Anthropic, Some("sk-ant-1"), None)).unwrap();
+        let env =
+            ProviderEnv::of(&current(Provider::Anthropic, Some("sk-ant-1"), None), None).unwrap();
         let launch = launched(&env);
         assert_eq!(launch.var("ANTHROPIC_API_KEY"), Some("sk-ant-1"));
         assert_eq!(launch.var("ANTHROPIC_BASE_URL"), None);
         assert_eq!(launch.flag("--model"), Some("claude-opus-5-5"));
         assert!(!env.elsewhere());
 
-        let own =
-            ProviderEnv::of(&current(Provider::Claude, None, Some("claude-sonnet-5-5"))).unwrap();
+        let own = ProviderEnv::of(
+            &current(Provider::Claude, None, Some("claude-sonnet-5-5")),
+            None,
+        )
+        .unwrap();
         let launch = launched(&own);
         assert_eq!(launch.var("ANTHROPIC_MODEL"), Some("claude-sonnet-5-5"));
         assert_eq!(launch.flag("--model"), None);
@@ -259,7 +308,7 @@ mod tests {
     fn openrouter_ollama_and_any_endpoint_get_their_base_and_token() {
         let mut router = current(Provider::OpenRouter, Some("sk-or-1"), Some("z-ai/glm-5"));
         router.fast_model = Some("z-ai/glm-5-air".to_owned());
-        let launch = launched(&ProviderEnv::of(&router).unwrap());
+        let launch = launched(&ProviderEnv::of(&router, None).unwrap());
         assert_eq!(
             launch.var("ANTHROPIC_BASE_URL"),
             Some("https://openrouter.ai/api")
@@ -281,7 +330,7 @@ mod tests {
 
         let mut ollama = current(Provider::Ollama, None, Some("qwen3-coder"));
         ollama.base_url = Some("http://10.0.0.5:11434".to_owned());
-        let launch = launched(&ProviderEnv::of(&ollama).unwrap());
+        let launch = launched(&ProviderEnv::of(&ollama, None).unwrap());
         assert_eq!(
             launch.var("ANTHROPIC_BASE_URL"),
             Some("http://10.0.0.5:11434")
@@ -294,7 +343,7 @@ mod tests {
 
         let mut any = current(Provider::AnthropicCompatible, Some("tok-1"), Some("m-1"));
         any.base_url = Some("https://gateway.example".to_owned());
-        let launch = launched(&ProviderEnv::of(&any).unwrap());
+        let launch = launched(&ProviderEnv::of(&any, None).unwrap());
         assert_eq!(
             launch.var("ANTHROPIC_BASE_URL"),
             Some("https://gateway.example")
@@ -303,21 +352,80 @@ mod tests {
     }
 
     #[test]
+    fn openai_runs_through_the_bridge_on_a_token_of_each_launch_s_own() {
+        let bridge = BridgeAccess::unserved("http://127.0.0.1:47000");
+        let mut saved = current(Provider::OpenAi, Some("sk-proj-saved-key"), Some("gpt-big"));
+        saved.fast_model = Some("gpt-small".to_owned());
+        let env = ProviderEnv::of(&saved, Some(&bridge)).unwrap();
+        assert!(env.bridged() && env.elsewhere());
+        let one = launched(&env);
+        let two = launched(&env);
+        assert_eq!(
+            one.var("ANTHROPIC_BASE_URL"),
+            Some("http://127.0.0.1:47000")
+        );
+        assert_eq!(one.var("ANTHROPIC_API_KEY"), Some(""));
+        assert_eq!(one.var("ANTHROPIC_MODEL"), Some("gpt-big"));
+        assert_eq!(one.var("ANTHROPIC_SMALL_FAST_MODEL"), Some("gpt-small"));
+        assert_eq!(one.flag("--model"), None);
+        let token = one.var("ANTHROPIC_AUTH_TOKEN").unwrap();
+        assert_ne!(
+            Some(token),
+            two.var("ANTHROPIC_AUTH_TOKEN"),
+            "one per launch"
+        );
+        assert!(bridge.admits(token));
+        for (_, value) in &one.env {
+            assert!(
+                !value.contains("sk-proj-saved-key"),
+                "the key stays with the bridge"
+            );
+        }
+        assert!(!format!("{env:?}").contains("sk-proj"));
+        assert_eq!(
+            ProviderEnv::of(&saved, Some(&bridge)),
+            Some(env.clone()),
+            "the same provider: the same environment, so a session goes on"
+        );
+        let token = token.to_owned();
+        drop(one);
+        assert!(!bridge.admits(&token), "revoked with its launch");
+
+        let local = current(Provider::OpenAiCompatible, None, Some("qwen"));
+        let launch = launched(&ProviderEnv::of(&local, Some(&bridge)).unwrap());
+        assert!(
+            launch.var("ANTHROPIC_AUTH_TOKEN").is_some(),
+            "keyless, but a token"
+        );
+    }
+
+    #[test]
     fn a_provider_that_cannot_run_the_agent_or_lost_its_key_changes_nothing() {
+        let bridge = BridgeAccess::unserved("http://127.0.0.1:47000");
         assert_eq!(
-            ProviderEnv::of(&current(Provider::OpenAi, Some("sk-1"), None)),
+            ProviderEnv::of(&current(Provider::OpenAi, Some("sk-1"), Some("m")), None),
+            None,
+            "no bridge"
+        );
+        assert_eq!(
+            ProviderEnv::of(&current(Provider::OpenAi, None, Some("m")), Some(&bridge)),
+            None,
+            "no key"
+        );
+        assert_eq!(
+            ProviderEnv::of(
+                &current(Provider::OpenAiCompatible, None, None),
+                Some(&bridge)
+            ),
+            None,
+            "no model"
+        );
+        assert_eq!(
+            ProviderEnv::of(&current(Provider::Anthropic, None, None), None),
             None
         );
         assert_eq!(
-            ProviderEnv::of(&current(Provider::OpenAiCompatible, None, Some("m"))),
-            None
-        );
-        assert_eq!(
-            ProviderEnv::of(&current(Provider::Anthropic, None, None)),
-            None
-        );
-        assert_eq!(
-            ProviderEnv::of(&current(Provider::DeepSeek, None, None)),
+            ProviderEnv::of(&current(Provider::DeepSeek, None, None), None),
             None
         );
     }

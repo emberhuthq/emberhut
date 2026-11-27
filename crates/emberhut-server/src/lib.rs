@@ -88,6 +88,9 @@ pub enum RunError {
     /// Serving failed.
     #[error("serving failed")]
     Serve(#[source] std::io::Error),
+    /// The `OpenAI` bridge couldn't listen on loopback.
+    #[error("the OpenAI bridge cannot listen on loopback")]
+    Bridge(#[source] std::io::Error),
     /// The `OpenAPI` document could not be written: the server would serve a broken one.
     #[error("cannot write the OpenAPI document")]
     Document(#[from] DocumentError),
@@ -162,7 +165,26 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
             address: config.listen,
             source,
         })?;
-    let state = AppState::new(&db, dependencies(config, &db).await?, config.auth_mode);
+    let bridge = match &config.agent.command {
+        Some(_) => Some(agent_bridge(config, &db)?),
+        None => None,
+    };
+    let access = bridge
+        .as_ref()
+        .map(services::agent_provider::bridge::OpenAiBridge::access);
+    let state = AppState::new(
+        &db,
+        dependencies(config, &db, access).await?,
+        config.auth_mode,
+    );
+    let bridging = bridge.map(|bridge| {
+        let stopping = state.stopping().clone();
+        tokio::spawn(async move {
+            if let Err(error) = bridge.serve(stopping.cancelled_owned()).await {
+                tracing::error!(%error, "the OpenAI bridge stopped");
+            }
+        })
+    });
     let paused = state.parties().pause_left_running().await?;
     if paused > 0 {
         tracing::info!(paused, "parties left running were paused");
@@ -272,6 +294,9 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
     expiring.abort();
     working.abort();
     collecting.abort();
+    if let Some(bridging) = bridging {
+        bridging.abort();
+    }
     db.close().await?;
     Ok(())
 }
@@ -283,7 +308,11 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
     clippy::too_many_lines,
     reason = "every dependency the configuration names, a line or a few each"
 )]
-async fn dependencies(config: &ServeConfig, db: &Database) -> Result<Dependencies, RunError> {
+async fn dependencies(
+    config: &ServeConfig,
+    db: &Database,
+    bridge: Option<services::agent_provider::bridge::BridgeAccess>,
+) -> Result<Dependencies, RunError> {
     let key = identity::serving_key(
         &config.machine_key.path(&config.database),
         &db.settings(),
@@ -335,7 +364,7 @@ async fn dependencies(config: &ServeConfig, db: &Database) -> Result<Dependencie
         .filter(|key| !key.is_empty()),
         None => None,
     };
-    let (assistant, assistant_tasks) = assistant(config, db, &clock)?;
+    let (assistant, assistant_tasks) = assistant(config, db, &clock, bridge.as_ref())?;
     let zone = time_zone(config.time_zone.as_deref());
     let voice = Arc::new(openai_voice(config, http.clone()));
     Ok(Dependencies {
@@ -404,8 +433,8 @@ async fn dependencies(config: &ServeConfig, db: &Database) -> Result<Dependencie
             ..PersonalDependencies::default()
         },
         messaging: messaging(config, http.clone())?,
-        guard: guard_deps(config, db),
-        worker_setup: worker_setup(config, db),
+        guard: guard_deps(config, db, bridge.as_ref()),
+        worker_setup: worker_setup(config, db, bridge.as_ref()),
         browser: browser_engine(&config.browser, http.clone()),
         browser_view: config.browser.view.clone(),
         browser_home: config.browser.home.clone(),
@@ -431,6 +460,7 @@ async fn dependencies(config: &ServeConfig, db: &Database) -> Result<Dependencie
             services::messaging::web::WebClient::new(http.clone()),
             &config.agent.anthropic_url,
         )),
+        agent_bridge: bridge,
         ..Dependencies::default()
     })
 }
@@ -454,12 +484,40 @@ fn approval_deps(
 }
 
 /// Where the model provider the server's own agent sessions run on is saved (`PUT
-/// /api/agent/provider`): its key in the secrets folder, the rest in the settings.
-fn agent_provider(config: &ServeConfig, db: &Database) -> services::agent_provider::ProviderStore {
-    services::agent_provider::ProviderStore::new(
+/// /api/agent/provider`): its key in the secrets folder, the rest in the settings; `openai`
+/// and `openai-compatible` run through `bridge`.
+fn agent_provider(
+    config: &ServeConfig,
+    db: &Database,
+    bridge: Option<&services::agent_provider::bridge::BridgeAccess>,
+) -> services::agent_provider::ProviderStore {
+    let store = services::agent_provider::ProviderStore::new(
         services::messaging::secrets::Secrets::new(config.secrets_dir.clone()),
         db.settings(),
-    )
+    );
+    match bridge {
+        Some(access) => store.with_bridge(access.clone()),
+        None => store,
+    }
+}
+
+/// The `OpenAI` bridge for the agent CLI, listening on loopback. It has a client of its own: the
+/// agent's long streams don't hold the pool the other services share.
+fn agent_bridge(
+    config: &ServeConfig,
+    db: &Database,
+) -> Result<services::agent_provider::bridge::OpenAiBridge, RunError> {
+    use services::agent_provider::bridge::{BridgeParts, OpenAiBridge};
+    let bridge = OpenAiBridge::bind(BridgeParts {
+        store: agent_provider(config, db, None),
+        client: http::shared_client()?,
+        random: Arc::new(OsRandom),
+    })
+    .map_err(RunError::Bridge)?;
+    if let Ok(address) = bridge.local_addr() {
+        tracing::info!(%address, "the OpenAI bridge listens for the agent CLI");
+    }
+    Ok(bridge)
 }
 
 /// The agent CLI's accounts as the configuration gives them (`ID` or `ID=CONFIG_DIR`).
@@ -498,7 +556,11 @@ fn local_url(config: &ServeConfig, path: &str) -> String {
 
 /// How the workers run: with the agent CLI when it is configured (none otherwise), and the
 /// ultra runs' caps.
-fn worker_setup(config: &ServeConfig, db: &Database) -> app::WorkerSetup {
+fn worker_setup(
+    config: &ServeConfig,
+    db: &Database,
+    bridge: Option<&services::agent_provider::bridge::BridgeAccess>,
+) -> app::WorkerSetup {
     let workers = &config.workers;
     let runtime = config
         .agent
@@ -526,7 +588,7 @@ fn worker_setup(config: &ServeConfig, db: &Database) -> app::WorkerSetup {
                 mcp_url: local_url(config, emberhut_api::paths::MCP_WORKER),
                 gate_url: local_url(config, emberhut_api::paths::ULTRA_GATE),
                 workdir: config.agent.workdir.clone(),
-                provider: Some(agent_provider(config, db)),
+                provider: Some(agent_provider(config, db, bridge)),
             },
         });
     app::WorkerSetup {
@@ -544,7 +606,11 @@ fn worker_setup(config: &ServeConfig, db: &Database) -> app::WorkerSetup {
 
 /// The guard rails' setup: the repositories always let through, the people messaged without
 /// an OK per text, and the ask guard's judge (the agent CLI, unless turned off).
-fn guard_deps(config: &ServeConfig, db: &Database) -> app::GuardDeps {
+fn guard_deps(
+    config: &ServeConfig,
+    db: &Database,
+    bridge: Option<&services::agent_provider::bridge::BridgeAccess>,
+) -> app::GuardDeps {
     let workers = &config.workers;
     let judge: Arc<dyn services::guard::Judge> = match &config.agent.command {
         Some(_) if workers.ask_guard_model.as_deref() == Some("off") => {
@@ -563,7 +629,7 @@ fn guard_deps(config: &ServeConfig, db: &Database) -> app::GuardDeps {
             );
             // As the sessions: the saved provider only while no account is configured.
             Arc::new(if accounts.is_empty() {
-                judge.with_provider(agent_provider(config, db))
+                judge.with_provider(agent_provider(config, db, bridge))
             } else {
                 judge
             })
@@ -598,6 +664,7 @@ fn assistant(
     config: &ServeConfig,
     db: &Database,
     clock: &Arc<dyn emberhut_core::Clock>,
+    bridge: Option<&services::agent_provider::bridge::BridgeAccess>,
 ) -> Result<Runtime, RunError> {
     let agent = &config.agent;
     let Some(command) = &agent.command else {
@@ -682,7 +749,7 @@ fn assistant(
             Arc::clone(clock),
         ))
         .with_accounts(db.prefs())
-        .with_provider(agent_provider(config, db))
+        .with_provider(agent_provider(config, db, bridge))
         .with_agents(services::claude::AgentRooms::new(
             db.agents(),
             config.secrets_dir.clone(),
