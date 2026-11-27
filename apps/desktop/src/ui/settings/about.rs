@@ -22,6 +22,15 @@ use crate::ui::palette::{Pal, category_color, pal};
 use emberhut_api::facts::{Fact, FactCategory, Trial};
 use emberhut_api::ids::{FactId, TrialId};
 
+/// A rule on trial's row, for tests to find.
+pub(super) const TRIAL_ROW: &str = "about-trial";
+
+/// The Drop button of a rule on trial, for tests to find.
+pub(super) const TRIAL_DROP: &str = "about-trial-drop";
+
+/// A fact's row, for tests to find.
+pub(super) const FACT_ROW: &str = "about-fact";
+
 /// The About you page.
 pub(crate) struct AboutPane {
     store: Entity<Store>,
@@ -138,17 +147,21 @@ impl AboutPane {
                     .flex()
                     .flex_col()
                     .gap(px(6.))
+                    .debug_selector(|| TRIAL_ROW.to_owned())
                     .child(
                         div()
                             .flex()
                             .items_start()
                             .gap(px(10.))
                             .child(
+                                // Without `min_w_0` the column is as wide as its longest line
+                                // unwrapped, and pushes the row and its Drop out of the card.
                                 div()
                                     .flex()
                                     .flex_col()
                                     .gap(px(3.))
                                     .flex_1()
+                                    .min_w_0()
                                     .child(div().text_size(px(13.)).child(trial.text.clone()))
                                     .when(!trial.said.is_empty(), |d| {
                                         d.child(
@@ -164,14 +177,23 @@ impl AboutPane {
                                     ),
                             )
                             .child(
-                                Button::new(ElementId::Name(format!("trial-{id}-drop").into()))
-                                    .small()
-                                    .danger()
-                                    .label("Drop")
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.dropping = Some(id);
-                                        cx.notify();
-                                    })),
+                                div()
+                                    .flex_none()
+                                    .debug_selector(|| TRIAL_DROP.to_owned())
+                                    .child(
+                                        Button::new(ElementId::Name(
+                                            format!("trial-{id}-drop").into(),
+                                        ))
+                                        .small()
+                                        .danger()
+                                        .label("Drop")
+                                        .on_click(
+                                            cx.listener(move |this, _, _, cx| {
+                                                this.dropping = Some(id);
+                                                cx.notify();
+                                            }),
+                                        ),
+                                    ),
                             ),
                     )
                     .when(confirming, |d| {
@@ -224,6 +246,7 @@ impl AboutPane {
         let store = self.store.clone();
         div()
             .id(ElementId::Name(format!("fact-{}", fact.id).into()))
+            .debug_selector(|| FACT_ROW.to_owned())
             .flex()
             .flex_col()
             .gap(px(3.))
@@ -235,6 +258,7 @@ impl AboutPane {
                     .gap(px(4.))
                     .child(
                         div()
+                            .min_w_0()
                             .text_size(px(12.5))
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(fact.title.clone()),

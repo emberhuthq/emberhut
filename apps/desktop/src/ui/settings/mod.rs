@@ -523,6 +523,48 @@ mod tests {
     }
 
     #[gpui_kit::test]
+    fn long_rules_and_facts_wrap_inside_a_narrow_window(cx: &mut TestAppContext) {
+        let (backend, store, _, mut cx) = open_settings_view(cx, Some(SettingsPane::AboutYou));
+        let long = "A scan or review is done only when every finding is marked landed or \
+                    superseded after a check in the code, not when its session says done. "
+            .repeat(3);
+        let page: FactsPage = serde_json::from_value(json!({
+            "facts": [{"id": "work/desk", "category": "work", "title": long, "text": long,
+                       "source": "chat", "updated": "2026-11-20T10:00:00Z"}],
+            "trials": [{"id": 4, "text": long, "at": "2026-11-20T10:00:00Z",
+                        "ends": "2026-12-04T10:00:00Z", "said": long}]}))
+        .unwrap();
+        backend.replies.push_facts(Ok(page));
+        store.update(&mut cx, |store, cx| {
+            store.show_in_test_column(Some(Page::SettingsPane(SettingsPane::AboutYou)), cx);
+        });
+        cx.run_until_parked();
+        cx.simulate_resize(gpui_kit::size(px(560.), px(900.)));
+        cx.update(Window::render_frame);
+        let edge = px(560.);
+        let row = cx
+            .debug_bounds(about::TRIAL_ROW)
+            .expect("the rule is drawn");
+        let drop = cx
+            .debug_bounds(about::TRIAL_DROP)
+            .expect("its Drop is drawn");
+        let fact = cx.debug_bounds(about::FACT_ROW).expect("the fact is drawn");
+        assert!(
+            row.right() <= edge,
+            "the rule wraps inside the window: {row:?}"
+        );
+        assert!(
+            drop.right() <= row.right(),
+            "Drop stays in its row: {drop:?} in {row:?}"
+        );
+        assert!(drop.size.width > px(0.), "Drop has room: {drop:?}");
+        assert!(
+            fact.right() <= edge,
+            "the fact wraps inside the window: {fact:?}"
+        );
+    }
+
+    #[gpui_kit::test]
     fn the_usage_card_and_where_the_assistant_works_draw_and_answer(cx: &mut TestAppContext) {
         let (backend, store, mut cx) = open_settings(cx);
         let page = serde_json::from_value(json!({"at": "2026-01-01T00:00:00Z",
