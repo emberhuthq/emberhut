@@ -735,17 +735,14 @@ pub(crate) struct PairedHere {
     pub(crate) signed_in: bool,
 }
 
-/// Forgets this device's session with `server`, kept in `files`, without the app's window.
+/// Removes this device's session with `server` from `files` (on macOS, its Keychain item),
+/// install id and all, without the app's window.
 ///
 /// # Errors
 ///
-/// [`Error::Local`]: the session store couldn't be read or written.
-pub(crate) fn forget_here(
-    server: Server,
-    files: &AppFiles,
-    device_name: &str,
-) -> Result<(), Error> {
-    client::EmberhutBackend::open(server, Some(files), device_name)?.sign_out_here()
+/// [`Error::Local`]: the session store couldn't be written.
+pub(crate) fn forget_here(server: &Server, files: &AppFiles) -> Result<(), Error> {
+    client::EmberhutBackend::forget(server, files)
 }
 
 /// Bytes an upload can read from memory, shared rather than copied.

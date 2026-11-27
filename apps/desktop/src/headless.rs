@@ -31,9 +31,9 @@ pub(crate) fn run(cli: &Cli) -> anyhow::Result<()> {
     let server = config::servers(from_env.as_deref(), &files.read_config()).primary;
     let url = server.url.clone();
     if cli.forget_session {
-        backend::forget_here(server, &files, &device::name())
+        backend::forget_here(&server, &files)
             .with_context(|| format!("couldn't forget the session with {url}"))?;
-        return say(&format!("Forgot this device's session with {url}."));
+        return say(&format!("Removed this device's session with {url}."));
     }
     let Some(code) = &cli.pair else {
         return Ok(());
