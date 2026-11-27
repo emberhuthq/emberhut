@@ -181,6 +181,8 @@ fn parts(
     );
     let bubble = div()
         .id(ElementId::Name(format!("bubble-{}", message.id).into()))
+        // Seen by the tests (a no-op in a normal build).
+        .debug_selector(|| format!("bubble-{}", message.id))
         .flex()
         .flex_col()
         .gap(px(6.))
