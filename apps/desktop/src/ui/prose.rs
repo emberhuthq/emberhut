@@ -58,6 +58,19 @@ pub(crate) struct Place {
     pub(crate) on_show_all: OnShowAll,
 }
 
+impl Place {
+    /// The id of the message's element `part`, at the width its text is laid out in.
+    ///
+    /// A markdown view keeps each paragraph's text layout from one frame to the next, and GPUI
+    /// answers a text's unconstrained measure (a bubble fitting its content asks for one) with
+    /// the size of that layout, wrapped at the width it was last laid out in. Once the chat
+    /// grows wider, a bubble would keep its old narrow width and only widen frame by frame. A
+    /// new width is a new id, so each text view is measured afresh in it.
+    fn id(&self, part: std::fmt::Arguments<'_>) -> ElementId {
+        ElementId::Name(format!("{part}-{}-w{}", self.message, self.width.round()).into())
+    }
+}
+
 /// The assistant's text: its blocks, then "Show all" when some of it is left out.
 pub(crate) fn answer(
     parsed: &Parsed,
@@ -104,7 +117,7 @@ pub(crate) fn mine(parsed: &Parsed, place: &Place, store: &Entity<Store>, p: &Pa
     }
     let words = parsed.blocks.iter().find_map(|block| match block {
         Drawn::Markdown(markdown) => Some(markdown_view(
-            ElementId::Name(format!("mine-{}", place.message).into()),
+            place.id(format_args!("mine")),
             Arc::clone(markdown),
             store,
         )),
@@ -148,8 +161,7 @@ fn show_all(parsed: &Parsed, place: &Place, p: &Pal) -> Option<impl IntoElement>
 /// that reads from the right laid out from the right edge, a list item's marker at its right.
 fn directed(place: &Place, at: usize, runs: &[Run], store: &Entity<Store>, p: &Pal) -> AnyElement {
     let runs = runs.iter().enumerate().map(|(r, run)| {
-        let id =
-            |part: usize| ElementId::Name(format!("md-{}-{at}-{r}-{part}", place.message).into());
+        let id = |part: usize| place.id(format_args!("md-{at}-{r}-{part}"));
         match run {
             Run::LeftToRight(text) => {
                 markdown_view(id(0), Arc::clone(text), store).into_any_element()
@@ -279,7 +291,7 @@ pub(crate) fn follow_web_link(store: &Entity<Store>, url: &str, cx: &mut App) {
 }
 
 fn id(place: &Place, at: usize, kind: &str) -> ElementId {
-    ElementId::Name(format!("{kind}-{}-{at}", place.message).into())
+    place.id(format_args!("{kind}-{at}"))
 }
 
 /// Something a click does.
@@ -363,7 +375,7 @@ fn quote_view(
 fn table_view(place: &Place, at: usize, table: &Table, store: &Entity<Store>, p: &Pal) -> Div {
     let cell = |row: usize, column: usize, text: &str| {
         markdown_view(
-            ElementId::Name(format!("cell-{}-{at}-{row}-{column}", place.message).into()),
+            place.id(format_args!("cell-{at}-{row}-{column}")),
             text.to_owned(),
             store,
         )
