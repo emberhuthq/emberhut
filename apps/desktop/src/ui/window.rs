@@ -287,8 +287,7 @@ impl MainWindow {
         // (minimised, the app hidden, covered) the store stops polling. The store hears every
         // main window's state summed (`shell::presence`).
         let id = window.window_handle().window_id();
-        presence::set_visible(id, window.is_visible(), &store, cx);
-        presence::set_active(id, window.is_window_active(), &store, cx);
+        presence::opened(window, &store, cx);
         cx.observe_window_activation(window, move |this, window, cx| {
             let active = window.is_window_active();
             if active {
