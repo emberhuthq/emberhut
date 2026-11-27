@@ -22,7 +22,6 @@ use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::{self as chrome_words, Health};
 use crate::store::settings::entries::{Fold, duty_word};
 use crate::store::settings::now::Now;
-use crate::store::working::settings_filter::SettingsFilter;
 use crate::store::{Page, Store};
 use crate::ui::column;
 use crate::ui::palette::{Pal, category_color};
@@ -230,7 +229,6 @@ impl SettingsView {
         p: &Pal,
         cx: &mut Context<'_, Self>,
     ) -> Vec<Block> {
-        let filter = SettingsFilter::default();
         let store = self.store.read(cx);
         let profiles = chrome_words::summary(store.chrome_profiles());
         let chrome = nav_row(
@@ -243,14 +241,8 @@ impl SettingsView {
         )
         .on_click(Self::opens(SettingsPane::ChromeProfiles))
         .test_support();
-        let chrome = places::OtherRow {
-            row: chrome.into_any_element(),
-            health: profiles.health,
-        };
-        let mut blocks = Vec::new();
-        if let Some(sources) = places::sources(&self.store, filter, chrome, p, cx) {
-            blocks.push(block(&["sources", "chrome"], sources));
-        }
+        let sources = places::sources(&self.store, chrome.into_any_element(), p, cx);
+        let mut blocks = vec![block(&["sources", "chrome"], sources)];
         let (tools, skills) = {
             let page = store.switches().page();
             let count = |on: usize, all: usize| format!("{on} of {all} on");
@@ -271,10 +263,10 @@ impl SettingsView {
             });
             (tools, skills)
         };
-        let servers = vec![switches::servers(&self.store, filter, p, cx).into_any_element()];
+        let servers = vec![switches::servers(&self.store, p, cx).into_any_element()];
         let tools = self.fold(Fold::Tools, ("Tools", tools), servers, p, cx);
         blocks.push(block(&["tools"], tools));
-        let skills_section = switches::skills(&self.store, filter, p, cx)
+        let skills_section = switches::skills(&self.store, p, cx)
             .into_iter()
             .map(IntoElement::into_any_element)
             .collect();
@@ -442,7 +434,6 @@ impl SettingsView {
 
     /// Advanced's blocks: updates, the server, diagnostics folded, where the agent works.
     pub(super) fn advanced_blocks(&self, p: &Pal, cx: &mut Context<'_, Self>) -> Vec<Block> {
-        let filter = SettingsFilter::default();
         let mut blocks = vec![block(
             &["updates"],
             updates::section_for(&self.store, p, cx),
@@ -471,9 +462,10 @@ impl SettingsView {
             cx,
         );
         blocks.push(block(&["diagnostics"], diagnostics));
-        if let Some(places) = places::workplaces(&self.store, filter, p, cx) {
-            blocks.push(block(&["workplaces"], places));
-        }
+        blocks.push(block(
+            &["workplaces"],
+            places::workplaces(&self.store, p, cx),
+        ));
         let store = self.store.read(cx);
         let places_problem = store
             .environments()

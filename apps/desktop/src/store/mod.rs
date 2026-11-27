@@ -329,7 +329,7 @@ impl Store {
         let tasks = TaskWork::new(files.as_ref());
         let needs_view = needs_view::NeedsView::load(files.as_ref());
         let sessions = sessions::SessionWork::new(files.as_ref());
-        let working = working::WorkingData::new(files.as_ref());
+        let working = working::WorkingData::default();
         let browser = browser::BrowserWork::new(files.as_ref());
         let diary = diary::DiaryData::load(files.as_ref());
         Self {

@@ -11,7 +11,6 @@ mod chrome;
 mod chrome_profile;
 mod chrome_sheets;
 pub(crate) mod environment;
-mod filter_bar;
 mod front_door;
 mod group;
 mod pages;
