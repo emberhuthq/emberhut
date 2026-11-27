@@ -1,14 +1,16 @@
 //! Find, as a spotlight over the window (⌘K): one field that finds tasks (by key, title or
-//! text, done and archived ones too, asked of the server after a pause in the typing), projects
-//! and people (what the assistant knows about them), and opens the one picked. With nothing
-//! typed it lists the latest tasks. Projects and people come first (few, and the likeliest
-//! pick), then the tasks, open ones before finished ones.
+//! text, done and archived ones too, asked of the server after a pause in the typing), projects,
+//! agents (by name or who they work for, so an agent stays one search away while the sidebar
+//! hides them) and people (what the assistant knows about them), and opens the one picked. With
+//! nothing typed it lists the latest tasks. Projects, agents and people come first (few, and the
+//! likeliest pick), then the tasks, open ones before finished ones.
 
 use std::sync::Arc;
 use std::time::Duration;
 
+use emberhut_api::agents::AgentRow;
 use emberhut_api::facts::Fact;
-use emberhut_api::ids::{FactId, ProjectId, TaskId};
+use emberhut_api::ids::{FactId, ProjectId, RoomId, TaskId};
 use emberhut_api::state::State;
 use emberhut_api::task_search::TaskQuery;
 use emberhut_api::tasks::{Issue, Project, ProjectStatus, TaskStatus};
@@ -33,6 +35,8 @@ pub(crate) enum Found {
     Task(TaskId),
     /// A project: its page.
     Project(ProjectId),
+    /// An agent: its room.
+    Agent(RoomId),
     /// A person the assistant knows: their page.
     Person(FactId),
 }
@@ -81,6 +85,8 @@ pub(crate) struct Spotlight {
 pub(crate) struct Results<'a> {
     /// The projects whose name matches.
     pub(crate) projects: Vec<&'a Project>,
+    /// The agents with rooms of their own whose name, or whom they work for, matches.
+    pub(crate) agents: Vec<&'a AgentRow>,
     /// The people whose name or note matches.
     pub(crate) people: Vec<&'a Fact>,
     /// The tasks found: none yet while asking.
@@ -132,6 +138,14 @@ impl Spotlight {
                     .filter(|project| project.status != ProjectStatus::Done && hits(&project.name))
                     .collect()
             });
+        let agents: Vec<&AgentRow> = state.map_or_default(|state| {
+            state
+                .agents
+                .iter()
+                .filter(|agent| !agent.id.is_main() && !agent.room.is_main())
+                .filter(|agent| hits(&format!("{} {}", agent.name, agent.principal)))
+                .collect()
+        });
         let people: Vec<&Fact> = people.map_or_default(|people| {
             people
                 .iter()
@@ -152,12 +166,14 @@ impl Spotlight {
         let order: Vec<Found> = projects
             .iter()
             .map(|project| Found::Project(project.id))
+            .chain(agents.iter().map(|agent| Found::Agent(agent.room)))
             .chain(people.iter().map(|person| Found::Person(person.id.clone())))
             .chain(tasks.iter().flatten().map(|task| Found::Task(task.id)))
             .collect();
         let selected = self.selected.min(order.len().saturating_sub(1));
         Results {
             projects,
+            agents,
             people,
             tasks,
             failed,
@@ -362,6 +378,36 @@ mod tests {
         let results = blank.results(Some(&lists), Some(people()));
         assert_eq!((results.projects.len(), results.people.len()), (0, 0));
         assert_eq!(results.tasks.unwrap().len(), LATEST_SHOWN);
+    }
+
+    /// An agent is found by its name or whom it works for and opens its room; the default
+    /// agent, whose room is Main, is not listed.
+    #[test]
+    fn agents_are_found_by_name_or_whom_they_work_for() {
+        let lists = state(json!({
+            "rooms": [crate::fixtures::room(1, json!({})), crate::fixtures::room(9, json!({}))],
+            "agents": [
+                {"id": "main", "name": "Main helper", "principal": "the owner", "room": 1,
+                 "enabled": true, "pendingApprovals": 0},
+                {"id": "client-a", "name": "Example helper", "principal": "Example Bakery",
+                 "room": 9, "enabled": false, "pendingApprovals": 0}
+            ]
+        }));
+        let found = |text: &str| {
+            typed(text)
+                .results(Some(&lists), Some(people()))
+                .agents
+                .iter()
+                .map(|agent| agent.room.get())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(found("helper"), [9], "the default agent isn't listed");
+        assert_eq!(found("bakery example"), [9], "whom it works for");
+        assert_eq!(found("garden"), Vec::<i64>::new());
+        let spotlight = typed("bakery");
+        let results = spotlight.results(Some(&lists), Some(people()));
+        assert_eq!(results.order[0], Found::Agent(RoomId::new(9)));
+        assert_eq!(results.order[1], Found::Person(FactId::from("people/a")));
     }
 
     #[test]

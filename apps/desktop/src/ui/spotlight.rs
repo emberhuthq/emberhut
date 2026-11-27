@@ -3,6 +3,7 @@
 //! tasks (the latest with nothing typed). ↑ and ↓ move the pick (kept in view), Return opens
 //! it, the ✕ clears the field; Esc or a click outside closes it.
 
+use emberhut_api::agents::AgentRow;
 use emberhut_api::facts::Fact;
 use emberhut_api::tasks::{Issue, TaskStatus};
 use gpui_kit::assets::IconName;
@@ -19,6 +20,8 @@ use super::palette::{Pal, pal, room_color};
 use super::tasks::marks::{deadline_chip, glyph, status_icon};
 use super::window::MainWindow;
 use crate::prose::direction::marked;
+use crate::store::approvals::shown::visible;
+use crate::store::approvals::words::agent_line;
 use crate::store::spotlight::{Found, Results};
 use crate::store::tasks::{counts, words};
 use crate::store::{Page, Store, lookup};
@@ -223,6 +226,20 @@ fn task_hit(p: &Pal, store: &Store, task: &Issue, today: jiff::civil::Date) -> V
     ]
 }
 
+/// An agent's result in `row`: its name, and whom it works for (Off while it is disabled).
+fn agent_hit(p: &Pal, row: Stateful<Div>, agent: &AgentRow) -> Stateful<Div> {
+    let name = visible(&agent.name).into_owned();
+    let line = agent_line(agent);
+    row.aria_label(a11y::line(&["Agent", &name, &line]))
+        .child(glyph(
+            IconName::Bot,
+            if agent.enabled { p.accent } else { p.faint },
+            15.,
+        ))
+        .child(div().flex_1().truncate().child(marked(&name)))
+        .child(div().text_size(px(11.5)).text_color(p.muted).child(line))
+}
+
 /// A person's result: their name, and what is known of them under it.
 fn person_lines(p: &Pal, person: &Fact) -> Div {
     div()
@@ -289,6 +306,15 @@ impl SpotlightView {
                         .child(div().flex_1().truncate().child(marked(&project.name)))
                         .child(div().text_size(px(11.5)).text_color(p.muted).child(note)),
                 );
+            }
+        }
+        if !results.agents.is_empty() {
+            list = list.child(section(p, "Agents", None));
+            children += 1;
+            for agent in &results.agents {
+                let (at, picked, found) = next(Found::Agent(agent.room), children);
+                children += 1;
+                list = list.child(agent_hit(p, row(p, at, picked, found, cx), agent));
             }
         }
         if !results.people.is_empty() {
@@ -484,6 +510,7 @@ impl MainWindow {
             SpotlightEvent::Open(Found::Project(project)) => {
                 self.open(Page::Project(*project), window, cx);
             }
+            SpotlightEvent::Open(Found::Agent(room)) => self.open(Page::Room(*room), window, cx),
             SpotlightEvent::Open(Found::Person(person)) => {
                 let key = self.store.update(cx, |store, _| store.person_key(person));
                 self.open(Page::Person(key), window, cx);
