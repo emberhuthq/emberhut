@@ -653,6 +653,21 @@ pub(crate) trait Backend: Send + Sync {
     fn stop(&self) -> Result<(), Error>;
 }
 
+/// Whether this process has a keychain to keep a session or tokens in. On macOS it has none
+/// when `HOME` points somewhere else (a harness's own folder): saving there makes macOS ask
+/// for a keychain it can't find, so the caller keeps them in memory instead.
+#[must_use]
+pub(crate) fn has_keychain() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        security_framework::os::macos::keychain::SecKeychain::default().is_ok()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 /// The backend for the server at `url`: its session kept in `files` (in memory without them),
 /// the device named `device_name` when it pairs.
 ///

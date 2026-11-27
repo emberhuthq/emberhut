@@ -16,11 +16,7 @@ use super::tokens::AccountTokens;
 /// Why the tokens couldn't be read or kept.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum VaultError {
-    /// This system has no place for them yet.
-    #[cfg_attr(
-        all(target_os = "macos", not(test)),
-        expect(dead_code, reason = "the Mac keeps them in a keychain item")
-    )]
+    /// This system, or this process, has no place for them.
     #[error("keeping the account's sign-in isn't supported on this system yet")]
     Unsupported,
     /// A newer app's tokens are in the item: neither read nor overwritten.
@@ -157,10 +153,14 @@ impl<I: SecretItem> Vault for ItemVault<I> {
 }
 
 /// The vault where this system keeps the account's tokens, for the account at `issuer`: the
-/// login Keychain on macOS.
+/// login Keychain on macOS, or none when this process has no keychain (`HOME` pointing at a
+/// harness's own folder), where saving would make macOS ask for one.
 #[cfg(target_os = "macos")]
 #[must_use]
 pub(crate) fn for_system(issuer: &str) -> Box<dyn Vault> {
+    if !crate::backend::has_keychain() {
+        return Box::new(Unsupported);
+    }
     Box::new(ItemVault::new(system::SystemItem::new(issuer)))
 }
 
@@ -171,13 +171,9 @@ pub(crate) fn for_system(_issuer: &str) -> Box<dyn Vault> {
     Box::new(Unsupported)
 }
 
-/// The vault of a system with no keychain support yet: it keeps nothing, and says so
-/// ([`VaultError::Unsupported`]) for every save.
+/// The vault of a system with no keychain (none yet off macOS, or no keychain for this
+/// process): it keeps nothing, and says so ([`VaultError::Unsupported`]) for every save.
 #[derive(Debug)]
-#[cfg_attr(
-    all(target_os = "macos", not(test)),
-    expect(dead_code, reason = "macOS keeps the tokens in the Keychain")
-)]
 struct Unsupported;
 
 impl Vault for Unsupported {

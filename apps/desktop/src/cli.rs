@@ -126,6 +126,27 @@ pub(crate) struct Cli {
 }
 
 impl Cli {
+    /// Whether the automation runs this window (`--bench` or `--drive`): its session stays in
+    /// memory, so it never reaches the Keychain.
+    #[must_use]
+    #[cfg_attr(
+        not(feature = "automation"),
+        expect(
+            clippy::unused_self,
+            reason = "a build without the automation has no such run"
+        )
+    )]
+    pub(crate) fn automated(&self) -> bool {
+        #[cfg(feature = "automation")]
+        {
+            self.bench.is_some() || self.drive.is_some()
+        }
+        #[cfg(not(feature = "automation"))]
+        {
+            false
+        }
+    }
+
     /// The look asked for: `--opaque`, or the material where it is allowed.
     #[must_use]
     pub(crate) fn look(&self) -> Look {

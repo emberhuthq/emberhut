@@ -65,10 +65,13 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     let startup = Startup {
         kept,
         view,
-        // The self-check keeps its session in memory: nothing in the Keychain.
+        // The self-check, the automation's runs and a HOME with no keychain (a harness's own)
+        // keep the session in memory: nothing in the Keychain, and no keychain prompt.
         backend: backend::connect(
             url,
-            files.as_ref().filter(|_| self_check.is_none()),
+            files
+                .as_ref()
+                .filter(|_| self_check.is_none() && !cli.automated() && backend::has_keychain()),
             &device::name(),
         )
         .context("couldn't start the server's client")?,
