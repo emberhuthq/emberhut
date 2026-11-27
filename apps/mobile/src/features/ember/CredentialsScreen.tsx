@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useReducer, useState, type Dispatch } from "react";
+import { useEffect, useReducer, useRef, useState, type Dispatch } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import type { AgentProvider, ProviderModel, ProviderRequest } from "@/api";
 import { inBackground } from "@/log";
@@ -8,16 +8,22 @@ import { api } from "@/services";
 import { useAgentProvider } from "@/state/queries";
 import { queryKeys } from "@/state/query";
 import { useTheme } from "@/theme";
-import { Button, Chip, ErrorState, Icon, ListRow, Loading, Screen, Section, Text, TextField } from "@/ui";
+import { Button, Chip, ErrorState, Icon, ListRow, Loading, Screen, Section, Segmented, Text, TextField } from "@/ui";
 import {
   FAILED_TITLE,
+  FOUND_ON,
+  LOOK_MS,
   MODELS_FINDABLE,
+  OLLAMA_LOOK,
   ROWS,
   canForget,
+  canPickRow,
   canRunOn,
   canSave,
   canTest,
+  comingNextFor,
   failureReason,
+  fieldsOf,
   initialPicker,
   keyPlaceholder,
   modelLabel,
@@ -25,9 +31,12 @@ import {
   passedLine,
   pickerReducer,
   request,
+  rowKinds,
+  rowOf,
   rowTag,
   savedLine,
   savedStatus,
+  speaksLabel,
   type PickerAction,
   type PickerState,
   type ProviderRow,
@@ -70,12 +79,34 @@ function Picker({ saved, onDone }: { saved: AgentProvider; onDone: () => void })
   const keep = (next: AgentProvider) => client.setQueryData(queryKeys.agentProvider, next);
   const save = useMutation({ mutationFn: (body: ProviderRequest) => api.agentProvider.save(body), gcTime: 0, onSuccess: keep });
   const forget = useMutation({ mutationFn: () => api.agentProvider.forget(), onSuccess: keep });
+  // The saved provider as it is when a late answer comes, for the model it starts on.
+  const savedNow = useRef(saved);
+  useEffect(() => {
+    savedNow.current = saved;
+  }, [saved]);
+
+  // Once per opening, quietly: does a local Ollama answer at the server's default address? No answer is no problem.
+  useEffect(() => {
+    let open = true;
+    dispatch({ type: "lookStarted" });
+    api.agentProvider.test(OLLAMA_LOOK, LOOK_MS).then(
+      (answer) => {
+        if (open) dispatch({ type: "lookFound", on: FOUND_ON, models: answer.models, saved: savedNow.current });
+      },
+      () => {
+        if (open) dispatch({ type: "lookMissed" });
+      },
+    );
+    return () => {
+      open = false;
+    };
+  }, []);
 
   const runTest = () => {
     const body = request(state, "test");
-    if (!body || !canTest(state)) return;
+    if (!body || !canTest(state, saved)) return;
     const { version } = state;
-    dispatch({ type: "testStarted" });
+    dispatch({ type: "testStarted", saved });
     test.mutate(body, {
       onSuccess: (answer) => dispatch({ type: "testPassed", version, models: answer.models, saved }),
       onError: (error) => dispatch({ type: "testFailed", version, reason: failureReason(error) }),
@@ -158,9 +189,9 @@ interface RowProps {
 /** A radio-like row: its mark, name and tag, one line; the fields open under it once it is selected. */
 function ProviderRowView({ row, saved, state, dispatch, onTest, onUse, onForget }: RowProps) {
   const { colors, spacing } = useTheme();
-  const runs = canRunOn(row.kind, saved);
-  const selected = state.selected === row.kind;
-  const tag = rowTag(row, saved);
+  const runs = canPickRow(row, saved);
+  const selected = rowOf(state.selected) === row;
+  const tag = rowTag(row, saved, state.ollama);
   return (
     <View style={{ backgroundColor: colors.surface }}>
       <Pressable
@@ -192,7 +223,7 @@ function ProviderRowView({ row, saved, state, dispatch, onTest, onUse, onForget 
         </View>
       </Pressable>
       {selected ? <RowFields row={row} saved={saved} state={state} dispatch={dispatch} onTest={onTest} onUse={onUse} /> : null}
-      {canForget(row.kind, saved) ? (
+      {rowKinds(row).some((kind) => canForget(kind, saved)) ? (
         <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, alignItems: "flex-start" }}>
           <Button
             label="Forget this key"
@@ -217,6 +248,7 @@ function ProviderRowView({ row, saved, state, dispatch, onTest, onUse, onForget 
 function RowFields({ row, saved, state, dispatch, onTest, onUse }: Omit<RowProps, "onForget">) {
   const { spacing } = useTheme();
   const { test } = state;
+  const kind = state.selected ?? row.kind;
   return (
     <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm }}>
       {row.hint ? (
@@ -224,13 +256,31 @@ function RowFields({ row, saved, state, dispatch, onTest, onUse }: Omit<RowProps
           {row.hint}
         </Text>
       ) : null}
-      {row.fields.map((field) =>
+      {row.also !== undefined ? (
+        <View style={{ gap: spacing.xs }}>
+          <Text variant="footnote" tone="secondary">
+            It speaks
+          </Text>
+          <Segmented
+            options={rowKinds(row).map((value) => ({ value, label: speaksLabel(value) }))}
+            value={kind}
+            onChange={(value) => dispatch({ type: "speak", kind: value })}
+            accessibilityLabel="It speaks"
+          />
+          {canRunOn(kind, saved) ? null : (
+            <Text variant="footnote" tone="tertiary">
+              {comingNextFor(kind)}
+            </Text>
+          )}
+        </View>
+      ) : null}
+      {fieldsOf(kind).map((field) =>
         field.name === "key" ? (
           <TextField
             key="key"
             value={state.key}
-            onChangeText={(value) => dispatch({ type: "edit", field: "key", value })}
-            placeholder={keyPlaceholder(row.kind, saved)}
+            onChangeText={(value) => dispatch({ type: "edit", field: "key", value, saved })}
+            placeholder={keyPlaceholder(kind, saved)}
             accessibilityLabel={`${row.name} API key`}
             secureTextEntry
             autoCapitalize="none"
@@ -243,7 +293,7 @@ function RowFields({ row, saved, state, dispatch, onTest, onUse }: Omit<RowProps
           <TextField
             key="baseUrl"
             value={state.baseUrl}
-            onChangeText={(value) => dispatch({ type: "edit", field: "baseUrl", value })}
+            onChangeText={(value) => dispatch({ type: "edit", field: "baseUrl", value, saved })}
             placeholder={field.placeholder}
             accessibilityLabel={`${row.name} address`}
             keyboardType="url"
@@ -258,7 +308,7 @@ function RowFields({ row, saved, state, dispatch, onTest, onUse }: Omit<RowProps
         variant="secondary"
         icon="pulse-outline"
         onPress={onTest}
-        disabled={!canTest(state)}
+        disabled={!canTest(state, saved)}
         loading={test.step === "testing"}
       />
       <TestResult test={test} />

@@ -18,9 +18,9 @@ export function agentProviderEndpoints(http: EmberhutHttp) {
     forget(): Promise<AgentProvider> {
       return http.delete<AgentProvider>("/api/agent/provider");
     },
-    /** POST /api/agent/provider/test: checked with the provider, nothing saved; answers the models it lists. */
-    test(request: ProviderRequest): Promise<ProviderTest> {
-      return http.post<ProviderTest>("/api/agent/provider/test", request, { timeoutMs: checkMs });
+    /** POST /api/agent/provider/test: checked with the provider, nothing saved; answers the models it lists within `timeoutMs`. */
+    test(request: ProviderRequest, timeoutMs = checkMs): Promise<ProviderTest> {
+      return http.post<ProviderTest>("/api/agent/provider/test", request, { timeoutMs });
     },
   };
 }
