@@ -10,6 +10,7 @@ use crate::assets::UI_FONT;
 use crate::color::{Rgb, mix, parse_hex};
 use crate::material::Material;
 use crate::material::alpha::Sidebar;
+use crate::store::calendar::words::Tone;
 use emberhut_api::theme::{Appearance, ThemePage, Tokens};
 
 /// The palette, kept as a GPUI global.
@@ -332,6 +333,63 @@ pub(crate) fn category_color(index: usize) -> Hsla {
     color(CATEGORIES[index % CATEGORIES.len()])
 }
 
+/// A calendar tone's colours, for the appearance on screen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CalendarColors {
+    /// Its colour: a chip's fill, a block's edge, a dot.
+    pub(crate) fill: Hsla,
+    /// Text and icons on the fill.
+    pub(crate) on_fill: Hsla,
+    /// A light wash of it over the page: a timed block, today's plan.
+    pub(crate) tint: Hsla,
+    /// Text and icons on the wash.
+    pub(crate) on_tint: Hsla,
+}
+
+/// How much of a tone's colour its wash takes, the page showing through the rest.
+const CALENDAR_TINT: f32 = 0.22;
+
+/// The share of the body text mixed into a tone's colour for text on its wash, in light: the
+/// colours themselves are made for white text on them, a shade too light to read on their
+/// own pale wash.
+const CALENDAR_INK_LIGHT: f32 = 0.45;
+
+/// A calendar tone's colours: blue for meetings, teal for events, green for focus, orange and
+/// red for deadlines, the accent for an ask's day and indigo for today's plan. In light they
+/// are deep enough for white text, in dark light enough for near-black; each reads 4.5:1 as
+/// text on its own wash too.
+#[must_use]
+pub(crate) fn calendar(tone: Tone, p: &Pal) -> CalendarColors {
+    // Each tone's colour in light, then in dark.
+    let (light, dark): (Rgb, Rgb) = match tone {
+        Tone::Meeting => (0x1F_62_C4, 0x6C_AE_FF),
+        Tone::Event => (0x0B_6E_7A, 0x4F_C6_D3),
+        Tone::Focus => (0x1C_7A_3E, 0x5F_D3_8E),
+        Tone::Deadline => (0xA9_50_08, 0xFF_AB_5C),
+        Tone::Hard => (0xC4_26_2E, 0xFF_7F_78),
+        Tone::Today => (0x4F_46_E5, 0xA9_A4_FF),
+        Tone::Decide => {
+            return CalendarColors {
+                fill: p.accent,
+                on_fill: p.on_accent,
+                tint: p.accent.opacity(CALENDAR_TINT),
+                on_tint: p.text,
+            };
+        }
+    };
+    let fill = color(if p.dark { dark } else { light });
+    CalendarColors {
+        fill,
+        on_fill: Pal::readable_on(fill),
+        tint: fill.opacity(CALENDAR_TINT),
+        on_tint: if p.dark {
+            fill
+        } else {
+            fill.blend(p.text.opacity(CALENDAR_INK_LIGHT))
+        },
+    }
+}
+
 /// A token's colour; a token that isn't one draws grey (and is logged).
 fn hex(token: &str) -> Rgb {
     parse_hex(token).unwrap_or_else(|| {
@@ -594,6 +652,31 @@ mod tests {
             assert_ne!(p.queued, p.mine, "{preset}: told apart from a sent one");
             let r = ratio(p.on_queued, p.queued);
             assert!(r >= AA, "{preset} dark={}: {r:.2}", p.dark);
+        }
+    }
+
+    #[test]
+    fn every_calendar_chip_reads_in_every_preset() {
+        for (preset, _, p) in every_palette() {
+            for tone in Tone::LEGEND {
+                let c = calendar(tone, &p);
+                let on_fill = ratio(c.on_fill, c.fill);
+                assert!(
+                    on_fill >= AA,
+                    "{preset} dark={} {tone:?}: {on_fill:.2}",
+                    p.dark
+                );
+                let wash = p.surface.blend(c.tint);
+                let on_tint = ratio(c.on_tint, wash);
+                assert!(
+                    on_tint >= AA,
+                    "{preset} dark={} {tone:?} wash: {on_tint:.2}",
+                    p.dark
+                );
+            }
+            // Now and today: the danger colour, its own text on it.
+            let today = ratio(Pal::readable_on(p.danger), p.danger);
+            assert!(today >= AA, "{preset} dark={}: {today:.2}", p.dark);
         }
     }
 }

@@ -1,31 +1,17 @@
-//! The calendar's colours and chips: a work item's chip (its colour, icon and words; a click
-//! opens its task), an all-day event's chip, and the colour of each kind of thing.
+//! The calendar's chips: a work item's chip (its colour, icon and words; a click opens its
+//! task) and an all-day event's chip. Each kind of thing's colours are the palette's
+//! ([`calendar`]).
 
 use emberhut_api::calendar::{CalendarEvent, CalendarItem};
 use gpui_kit::assets::IconName as AssetIcon;
 use gpui_kit::component::Icon;
 use gpui_kit::prelude::*;
-use gpui_kit::{ElementId, FontWeight, Hsla, Stateful, div, px, rgb, white};
+use gpui_kit::{ElementId, FontWeight, Stateful, div, px};
 
 use crate::prose::direction;
 use crate::store::calendar::words::{self, Tone};
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::palette::Pal;
-
-/// A tone's colour: the system's blue, teal and green for events; orange, red, the accent and
-/// indigo for work.
-#[must_use]
-pub(super) fn color(tone: Tone, p: &Pal) -> Hsla {
-    match tone {
-        Tone::Meeting => rgb(0x000A_84FF).into(),
-        Tone::Event => rgb(0x0030_B0C7).into(),
-        Tone::Focus => rgb(0x0034_C759).into(),
-        Tone::Deadline => rgb(0x00FF_9500).into(),
-        Tone::Hard => rgb(0x00FF_3B30).into(),
-        Tone::Decide => p.accent,
-        Tone::Today => rgb(0x0058_56D6).into(),
-    }
-}
+use crate::ui::palette::{Pal, calendar};
 
 /// A work item's icon: a hand for an ask's day, the sun for today's plan, a flag (filled when
 /// hard) for a deadline.
@@ -47,11 +33,11 @@ pub(super) fn item_chip(
     p: &Pal,
 ) -> Stateful<gpui_kit::Div> {
     let tone = Tone::of_item(item);
-    let fill = color(tone, p);
+    let colors = calendar(tone, p);
     let (background, text) = if tone == Tone::Today {
-        (fill.opacity(0.16), fill)
+        (colors.tint, colors.on_tint)
     } else {
-        (fill, white())
+        (colors.fill, colors.on_fill)
     };
     div()
         .id(id)
@@ -100,7 +86,7 @@ pub(super) fn all_day_chip(
     id: ElementId,
     p: &Pal,
 ) -> Stateful<gpui_kit::Div> {
-    let fill = color(Tone::of_event(event), p);
+    let colors = calendar(Tone::of_event(event), p);
     div()
         .id(id)
         .button_named(a11y::line(&[
@@ -113,8 +99,8 @@ pub(super) fn all_day_chip(
         .px(px(4.))
         .py(px(if compact { 1. } else { 2. }))
         .rounded(px(4.))
-        .bg(fill.opacity(0.85))
-        .text_color(white())
+        .bg(colors.fill)
+        .text_color(colors.on_fill)
         .text_size(px(if compact { 10. } else { 11. }))
         .font_weight(FontWeight::MEDIUM)
         .truncate()
