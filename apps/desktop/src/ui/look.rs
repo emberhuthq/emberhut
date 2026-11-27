@@ -179,6 +179,38 @@ fn hold_appearance(appearance: &Appearance, cx: &mut App) {
     }
 }
 
+/// Holds `window` to the dark appearance whatever the theme's, for a window always drawn dark
+/// (the Dark room): what the system draws for it, on macOS its title bar, its fields' context
+/// menus and its alerts, is then dark too. A window's own appearance wins over the one the app
+/// is held to ([`hold_appearance`]). The other platforms draw none of these in a window's own
+/// appearance: nothing to do there.
+pub(crate) fn always_dark(window: &Window) {
+    #[cfg(target_os = "macos")]
+    mac::always_dark(window);
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
+}
+
+/// The window's own appearance on macOS.
+#[cfg(target_os = "macos")]
+mod mac {
+    use gpui_kit::Window;
+    use objc2_app_kit::{NSAppearance, NSAppearanceCustomization as _, NSAppearanceNameDarkAqua};
+
+    /// Gives `window`'s `NSWindow` the dark Aqua appearance.
+    #[expect(unsafe_code, reason = "AppKit's appearance names are extern statics")]
+    pub(super) fn always_dark(window: &Window) {
+        let Some(ns_window) = crate::ui::share::content_view(window).and_then(|view| view.window())
+        else {
+            log::debug!("no NSWindow to hold dark");
+            return;
+        };
+        // SAFETY: a constant AppKit defines, alive for the whole process.
+        let dark = NSAppearance::appearanceNamed(unsafe { NSAppearanceNameDarkAqua });
+        ns_window.setAppearance(dark.as_deref());
+    }
+}
+
 /// Keeps `window`'s look in step while it is open: applies `store`'s theme again when the
 /// window's appearance changes (the system's light or dark, which the palette follows while the
 /// theme does) and when the theme does (from the server or Settings). Every window the app

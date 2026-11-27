@@ -86,10 +86,11 @@ libc = { version = "0.2", optional = true }
 # NSView, whose pointer raw-window-handle gives; GPUI already builds on that crate), a HEIC
 # picture read through NSImage (src/heic.rs), the app that opens a kind of file
 # (src/ui/files/default_app.rs: NSWorkspace with a UTType), and a video's still frame made a
-# JPEG (src/store/stills/avfoundation.rs: NSBitmapImageRep over its CGImage).
+# JPEG (src/store/stills/avfoundation.rs: NSBitmapImageRep over its CGImage), and the Dark room's
+# window held to the dark appearance (src/ui/look.rs: NSWindow's NSAppearance).
 block2 = "0.6"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAccessibility", "NSApplication", "NSBitmapImageRep", "NSImage", "NSImageRep", "NSResponder", "NSRunningApplication", "NSSharingService", "NSView", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-uniform-type-identifiers"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAccessibility", "NSAppearance", "NSApplication", "NSBitmapImageRep", "NSImage", "NSImageRep", "NSResponder", "NSRunningApplication", "NSSharingService", "NSView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-uniform-type-identifiers"] }
 # How long the Mac has been without input, for installing an update while it is idle, and a
 # video's still frame as a CGImage.
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEventSource", "CGEventTypes", "CGImage"] }

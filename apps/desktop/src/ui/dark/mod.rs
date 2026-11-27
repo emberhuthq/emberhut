@@ -80,6 +80,8 @@ impl DarkView {
         )
         .detach();
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
+        // Drawn dark always: what the system draws for the window is dark too.
+        crate::ui::look::always_dark(window);
         store.update(cx, Store::load_dark);
         draft.update(cx, |input, cx| input.focus(window, cx));
         Self {
