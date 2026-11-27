@@ -880,6 +880,18 @@ async fn an_agent_sees_and_changes_only_its_own_check_ins_and_watches() {
         [own_watch]
     );
 
+    // Main still reaches every room's.
+    let main_checkins: Vec<Checkin> = serde_json::from_str(text(
+        &desk.call_in(RoomId::MAIN, "list_checkins", json!({})).await,
+    ))
+    .unwrap();
+    assert_eq!(main_checkins.len(), 2);
+    let main_watches: Vec<Watch> = serde_json::from_str(text(
+        &desk.call_in(RoomId::MAIN, "list_watches", json!({})).await,
+    ))
+    .unwrap();
+    assert_eq!(main_watches.len(), 2);
+
     // The owner's watch is no watch of the agent's: not noted, not stopped.
     let noted = desk
         .call(
@@ -908,10 +920,21 @@ async fn an_agent_sees_and_changes_only_its_own_check_ins_and_watches() {
     assert_eq!(all.iter().map(|w| w.id).collect::<Vec<_>>(), [owners_watch]);
     assert_eq!(all[0].note, "", "the owner's watch was not noted");
 
-    // Main still reaches every room's.
-    let main: Vec<Checkin> = serde_json::from_str(text(
-        &desk.call_in(RoomId::MAIN, "list_checkins", json!({})).await,
-    ))
-    .unwrap();
-    assert_eq!(main.len(), 1);
+    // Two rooms' check-ins at the same moment both come due, each in its own room.
+    desk.call(
+        "wake_me_at",
+        json!({ "minutes": 30, "why": "the deck again" }),
+    )
+    .await;
+    desk.app.advance_minutes(31);
+    wake.tick().await.unwrap();
+    desk.app.settle().await;
+    let turns = desk.app.assistant.turns();
+    let woke = |room: RoomId, why: &str| {
+        turns
+            .iter()
+            .any(|turn| turn.room == room && turn.prompt.contains(&format!("Your check-in: {why}")))
+    };
+    assert!(woke(desk.room, "the deck again"), "{turns:?}");
+    assert!(woke(RoomId::MAIN, "the owner's own look"), "{turns:?}");
 }
