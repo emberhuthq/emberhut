@@ -12,7 +12,7 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{Disableable as _, Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Div, ElementId, Entity, FontWeight, Hsla, Stateful, Task, Window, div, px, relative,
+    Action, Div, ElementId, Entity, FontWeight, Hsla, Stateful, Task, Window, div, px, relative,
 };
 
 use super::parts::{note, page_body, problem_line, section};
@@ -22,12 +22,21 @@ use crate::store::approvals::words::agent_line;
 use crate::store::settings::appearance::{NOT_A_HEX, contrast_line, preset_name, to_preview};
 use crate::store::{AgentsPlace, Store};
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::column::{self, Column};
+use crate::ui::controls::tab_stop;
 use crate::ui::palette::Pal;
 use crate::ui::widgets::dot;
 use emberhut_api::ids::RoomId;
 use emberhut_api::theme::{Appearance, DEFAULT_PRESET, ThemePage, Tokens};
 use gpui_kit::component::switch::Switch;
+
+/// Opens an agent's room in the window it is dispatched in, as the sidebar's row would (the
+/// chat comes back where the column stood in its place, and its composer takes the keyboard).
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = settings, no_json)]
+pub(crate) struct OpenAgentRoom {
+    /// The agent's room.
+    pub(crate) room: RoomId,
+}
 
 /// The Show agents switch, for tests to find.
 pub(crate) const SHOW_AGENTS: &str = "show-agents-switch";
@@ -439,21 +448,23 @@ impl AppearancePane {
                 .collect()
         };
         let switch_store = self.store.clone();
-        let show =
-            labelled(
-                p,
-                "Show agents",
-                if shown {
-                    "Each agent's room, in the sidebar"
-                } else {
-                    "Hidden from the sidebar"
-                },
-            )
-            .child(Switch::new(SHOW_AGENTS).checked(shown).on_click(
-                move |on, _, cx| {
+        let show = labelled(
+            p,
+            "Show agents",
+            if shown {
+                "Each agent's room, in the sidebar"
+            } else {
+                "Hidden from the sidebar"
+            },
+        )
+        .child(
+            Switch::new(SHOW_AGENTS)
+                .accessibility_label("Show agents")
+                .checked(shown)
+                .on_click(move |on, _, cx| {
                     switch_store.update(cx, |store, cx| store.show_agents(*on, cx));
-                },
-            ));
+                }),
+        );
         let mut places = div()
             .flex()
             .flex_none()
@@ -489,8 +500,7 @@ impl AppearancePane {
         .child(places);
         let mut rows = vec![show.into_any_element(), place_row.into_any_element()];
         for (room, name, line, enabled) in hidden {
-            let store = self.store.clone();
-            rows.push(hidden_agent(store, (room, name, line, enabled), p).into_any_element());
+            rows.push(hidden_agent((room, name, line, enabled), p).into_any_element());
         }
         let footer = if shown {
             "Your rooms come first; the agents' rooms follow, or sit above them."
@@ -515,14 +525,13 @@ fn labelled(p: &Pal, title: &'static str, line: &'static str) -> Div {
     )
 }
 
-/// A hidden agent's row: its name and whom it works for; a click opens its room and shows the
-/// chat.
+/// A hidden agent's row: its name and whom it works for; a click (or Return on it) opens its
+/// room as the sidebar's row would.
 fn hidden_agent(
-    store: Entity<Store>,
     (room, name, line, enabled): (RoomId, String, String, bool),
     p: &Pal,
 ) -> impl IntoElement {
-    div()
+    let row = div()
         .id(ElementId::Name(format!("{HIDDEN_AGENT}-{room}").into()))
         .button_named(format!("Open {name}'s room, {line}"))
         .flex()
@@ -559,13 +568,10 @@ fn hidden_agent(
                 .text_color(p.faint),
         )
         .on_click(move |_, window, cx| {
-            store.update(cx, |store, cx| store.switch_room(room, cx));
-            if let Some(column) = column::of(window, cx) {
-                column.update(cx, Column::close);
-            }
-        })
-        // Seen by the headless tests (a no-op outside them).
-        .test_support()
+            window.dispatch_action(Box::new(OpenAgentRoom { room }), cx);
+        });
+    // Seen by the headless tests (a no-op outside them).
+    tab_stop(row, p).test_support()
 }
 
 /// One of the Mode switch's segments.

@@ -17,7 +17,7 @@ use super::files::status_line;
 use super::pairing::PairingForm;
 use super::palette::{Pal, pal};
 use super::pause::PauseSheet;
-use super::settings::SettingsView;
+use super::settings::{OpenAgentRoom, SettingsView};
 use super::spotlight::{OpenSpotlight, SpotlightView};
 use super::task_page::{self, TaskView};
 use super::tasks::TasksView;
@@ -726,6 +726,9 @@ impl MainWindow {
         }))
         .on_action(cx.listener(|this, _: &OpenSpotlight, window, cx| {
             this.open_spotlight(window, cx);
+        }))
+        .on_action(cx.listener(|this, action: &OpenAgentRoom, window, cx| {
+            this.open(Page::Room(action.room), window, cx);
         }))
         .on_action(cx.listener(|this, action: &OpenInViewer, window, cx| {
             this.view_file(action.file.clone(), window, cx);
