@@ -19,6 +19,8 @@ import { PartiesScreen } from "@/features/party/PartiesScreen";
 import { PartyScreen } from "@/features/party/PartyScreen";
 import { NewSessionScreen } from "@/features/sessions/NewSessionScreen";
 import { SessionScreen } from "@/features/sessions/SessionScreen";
+import { groupName } from "@/features/settings/entries";
+import { SettingsGroupScreen } from "@/features/settings/SettingsGroupScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { AreaScreen } from "@/features/tasks/AreaScreen";
 import { ProjectScreen } from "@/features/tasks/ProjectScreen";
@@ -128,6 +130,11 @@ export function RootStack() {
           <Stack.Screen name="Fact" component={FactScreen} options={{ title: "Fix a fact", presentation: "modal" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
           <Stack.Screen name="AddServer" component={AddServerScreen} options={{ title: "Pair with a server", presentation: "modal" }} />
+          <Stack.Screen
+            name="SettingsGroup"
+            component={SettingsGroupScreen}
+            options={({ route }) => ({ title: groupName[route.params.group] })}
+          />
           <Stack.Screen name="Credentials" component={CredentialsScreen} options={{ title: "What your ember thinks with" }} />
           <Stack.Screen name="Machines" component={MachinesScreen} options={{ title: "Machines" }} />
           <Stack.Screen name="Parties" component={PartiesScreen} options={{ title: "Party" }} />

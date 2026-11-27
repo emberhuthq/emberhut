@@ -78,7 +78,7 @@ export function MoreScreen({ navigation }: TabScreenProps<"More">) {
           key="settings"
           icon="settings-outline"
           title="Settings"
-          subtitle="Look, notifications, devices, Emberhut's servers and skills"
+          subtitle="Search them, or pick a group: your ember, devices, connections…"
           onPress={() => navigation.navigate("Settings")}
         />
         {accountConfig ? (

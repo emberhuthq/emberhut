@@ -26,8 +26,8 @@ each written once, in `src/api/wire.ts`, and read from there. Moving the API to 
 
 1. A server, and a way for the phone to reach it (the same network, or the VPN it sits behind).
 2. `pnpm run ios` (Simulator) or `pnpm run android` (a phone on USB or an emulator): a debug build and Metro.
-3. Pair: scan the pairing QR code (or paste the pairing link) that a device already signed in shows (Settings, Pair
-   another device) or the server's pairing command prints; or type the server's address (`https://my-server:18990`;
+3. Pair: scan the pairing QR code (or paste the pairing link) that a device already signed in shows (Settings › Devices,
+   Add a phone or computer) or the server's pairing command prints; or type the server's address (`https://my-server:18990`;
    `https://` is assumed) and the one-time code. A code works once, for 10 minutes. The phone keeps the address, its
    refresh token and the machine's key in secure storage (the iOS Keychain, the Android Keystore).
 
@@ -57,8 +57,8 @@ Play's upload limit. `src/connect/` reads the link, the machine id and the encod
 - **The kept address** changes only when a pairing is accepted, and before its tokens are held: a wrong code or another
   machine's answer leaves the server the phone had.
 - **Typed** pairing trusts the first key it sees and keeps it with the address. Pairing at that address again expects
-  the same machine, and an answer without a key no longer passes. Settings shows the id, to compare with the one the
-  server prints. A server older than machine keys pairs as before, only on a first, typed pairing.
+  the same machine, and an answer without a key no longer passes. Settings › Advanced › Diagnostics shows the id, to compare
+  with the one the server prints. A server older than machine keys pairs as before, only on a first, typed pairing.
 
 ## The fallback server
 
