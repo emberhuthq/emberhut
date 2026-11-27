@@ -667,6 +667,15 @@ pub(crate) trait Backend: Send + Sync {
     fn stop(&self) -> Result<(), Error>;
 }
 
+/// Whether this launch keeps its secrets (the device sessions, the account's tokens) in the
+/// login Keychain: not in a test run ([`crate::config::is_test_run`]), and only when this user
+/// has a default keychain, so the Keychain never asks for one in a dialog.
+#[cfg(target_os = "macos")]
+#[must_use]
+pub(crate) fn has_keychain() -> bool {
+    !crate::config::is_test_run() && keychain::system::has_default_keychain()
+}
+
 /// The backend for the server at `url`: its session kept in `files` (in memory without them),
 /// the device named `device_name` when it pairs. With a fallback server in `url`, a
 /// [`failover::Failover`] over both, each with its own session, watching the server's health.

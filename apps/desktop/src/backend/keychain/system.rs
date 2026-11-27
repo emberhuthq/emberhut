@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use emberhut_client::{FileSessionStore, StoreError};
 use security_framework::base::Error as KeychainError;
+use security_framework::os::macos::keychain::SecKeychain;
 use security_framework::passwords::{
     PasswordOptions, delete_generic_password_options, generic_password,
     set_generic_password_options,
@@ -15,6 +16,14 @@ use crate::brand::APP_ID;
 
 /// The Keychain's "no such item" (`errSecItemNotFound`).
 const NOT_FOUND: i32 = -25_300;
+
+/// Whether this user has a default keychain to keep items in. `SecItem`'s generic passwords go to
+/// it, and without one (a `HOME` of its own, a context with no login keychain) the Security
+/// framework asks, in a "Keychain Not Found" dialog, to reset the keychains to their defaults.
+/// Asking which is the default shows nothing.
+pub(crate) fn has_default_keychain() -> bool {
+    SecKeychain::default().is_ok()
+}
 
 /// This app's item for one server.
 #[derive(Debug)]

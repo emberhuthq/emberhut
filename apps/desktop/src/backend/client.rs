@@ -129,14 +129,29 @@ impl EmberhutBackend {
 }
 
 /// Where this device's session is kept: the Keychain on macOS (moving in a session file an
-/// earlier launch kept), the private session file elsewhere.
+/// earlier launch kept). Without it ([`super::has_keychain`]) the session is kept in a private
+/// file: a test run's own (`test-session.json`), so a later launch never moves a test's session
+/// into the Keychain, else the session file.
 #[cfg(target_os = "macos")]
-fn session_store(
-    server: &ServerUrl,
-    files: &AppFiles,
-) -> super::keychain::KeychainSessionStore<super::keychain::system::SystemItem> {
-    super::keychain::KeychainSessionStore::system(server.as_str(), files.session())
+fn session_store(server: &ServerUrl, files: &AppFiles) -> Arc<dyn SessionStore> {
+    if super::has_keychain() {
+        Arc::new(super::keychain::KeychainSessionStore::system(
+            server.as_str(),
+            files.session(),
+        ))
+    } else if crate::config::is_test_run() {
+        Arc::new(emberhut_client::FileSessionStore::new(
+            files.dir().join(TEST_SESSION),
+        ))
+    } else {
+        log::warn!("this user has no default keychain: the session is kept in its private file");
+        Arc::new(emberhut_client::FileSessionStore::new(files.session()))
+    }
 }
+
+/// The file a test run keeps its session in, in the app's folder, on macOS.
+#[cfg(target_os = "macos")]
+const TEST_SESSION: &str = "test-session.json";
 
 /// Where this device's session is kept: the Keychain on macOS, the private session file
 /// elsewhere (readable by the user only).
@@ -956,6 +971,29 @@ mod tests {
         assert!(!files.session().exists());
         let next = EmberhutBackend::open(url, Some(&files), "Emberhut").unwrap();
         assert_ne!(next.client.install(), install, "a new install");
+    }
+
+    /// A test run keeps its session in a private file of its own, not in the Keychain.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_test_run_keeps_its_session_in_a_private_file_of_its_own() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = AppFiles::in_dir(dir.path());
+        let url = ServerUrl::parse("http://127.0.0.1:9").unwrap();
+        let backend = EmberhutBackend::open(url.clone(), Some(&files), "Emberhut").unwrap();
+        let path = dir.path().join("test-session.json");
+        let kept = emberhut_client::FileSessionStore::new(&path)
+            .load()
+            .unwrap()
+            .expect("the new install is kept");
+        assert_eq!(kept.install, backend.client.install(), "the same install");
+        assert_eq!(crate::private_files::mode(&path), 0o600);
+        assert!(
+            !files.session().exists(),
+            "not the session file a later launch moves in"
+        );
+        EmberhutBackend::forget(&Server::at(url), &files).unwrap();
+        assert!(!path.exists(), "forgetting removes it");
     }
 
     #[test]

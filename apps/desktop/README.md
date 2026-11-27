@@ -76,6 +76,13 @@ server from where the app keeps it (on macOS, its Keychain item).
   per server, never synced); a `session.json` from an earlier launch moves into it once. As
   with the file, a newer app's session is neither read nor overwritten, and an item that isn't
   a session is removed once, after which this device signs in again.
+  A test run never touches the Keychain: the session is kept in `test-session.json` (readable
+  by you only) and the account is signed in for that launch only. A test run is one with
+  `EMBERHUT_TEST` set to anything but `0`; unset, a debug or automation build is one (set
+  `EMBERHUT_TEST=0` to use the Keychain from one) and a release build isn't. Test harnesses and
+  screenshot runs set `EMBERHUT_TEST=1`. A user with no default keychain (a `HOME` of its own,
+  say) keeps the session in `session.json` instead, as macOS would otherwise ask, in a dialog,
+  to make one.
 - `theme.json`: the last theme the server sent, so the app starts in your colours offline.
 - `fallback.json`: that the app is on the fallback server, and for which server (see above).
 - `layout.json`: the report panel's width, as a share of the window, so it opens as you left it.
