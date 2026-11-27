@@ -46,6 +46,7 @@ tokio = { workspace = true, features = [
     "sync",
     "time",
 ] }
+tokio-rustls = { workspace = true }
 tokio-tungstenite = { workspace = true, features = ["connect"] }
 tokio-util = { workspace = true, features = ["io", "rt"] }
 tower = { workspace = true }

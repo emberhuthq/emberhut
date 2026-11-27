@@ -48,7 +48,8 @@ guard rails' area. The asks, notes and answers live on tasks, which are the task
   `WhatsAppWeb`. The HTTPS client is rustls with ring and the Mozilla roots, as the push
   services'. Tests use fakes and never reach the network.
 - **Tokens are files in the secrets directory**, read at every use, so one saved later through
-  a one-time secret page is used from then on: `slack-<workspace>-user`, `gmail-client-id`,
+  a one-time secret page is used from then on: `slack-<workspace>-user`, `slack-<workspace>-app`
+  (the app-level token for live events), `gmail-client-id`,
   `gmail-client-secret`, `gmail-<account>-refresh` (written by the Gmail callback, never shown),
   `openai-api-key`, and `whatsapp-token` (the bearer the WhatsApp daemon and the server send each
   other). The configuration holds addresses only: `EMBERHUT_SLACK_API`, `EMBERHUT_GMAIL_API` (one
@@ -117,10 +118,19 @@ guard rails' area. The asks, notes and answers live on tasks, which are the task
 - **Words.** The owner's own messages are labelled `Owner` and the assistant's `Assistant`
   (`emberhut_core::messaging::OWNER`, `ASSISTANT`), never a person's name. The tools'
   descriptions say "the user".
-- **Not in this change**: Slack's live events over Socket Mode. They need a WebSocket
-  client, and without them nothing is lost but immediacy: the owner's own messages are searched
-  every 2 minutes, a conversation is read fresh from Slack whenever it is read, and the Mac's
-  notifications cover everyone else's. They can follow behind the same `SlackApi` trait.
+- **Slack's live events over Socket Mode** (`services::messaging::slack`'s `live` module, added
+  after this decision): a connected workspace whose app-level token is saved
+  (`slack-<workspace>-app`, read fresh at every connect) gets a websocket from
+  `apps.connections.open`, through the same `SlackApi`. It is tokio-tungstenite over the same
+  rustls configuration as the HTTPS client (`http::tls_config`). Every envelope is acknowledged
+  before its event is looked at (Slack's limit is 3 seconds), and each message event is kept on
+  its own task in the same mirror as the Web API's messages. A `disconnect` envelope (Slack
+  rotating the socket) opens a new one after the first pause (3 s). A drop, a failed open, or a
+  socket quiet for 90 s despite pings is tried again after a pause that doubles with each failure
+  in a row, up to 5 minutes. Once messages flow live for a workspace, its notifications from the
+  Mac are skipped. The sockets close when the server stops. Without an app-level token nothing
+  changes: the owner's own messages are searched every 2 minutes, a conversation is read fresh
+  whenever it is read, and the Mac's notifications cover everyone else's.
 
 ## Consequences
 
