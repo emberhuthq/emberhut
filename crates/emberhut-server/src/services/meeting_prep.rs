@@ -3,9 +3,9 @@
 //! get out of it, questions to ask), which a worker picks up like any assistant task with a
 //! brief.
 //!
-//! Every [`TICK`] the server looks at the events starting between [`FROM`] and [`TO`] from now
+//! Every [`TICK`] the server looks at the events starting between `FROM` and `TO` from now
 //! ([`CalendarService::starting`]); each gets its task once (the `prepped` setting keeps the
-//! last [`KEPT`] events prepared, by title and start). Focus time is left out. The
+//! last `KEPT` events prepared, by title and start). Focus time is left out. The
 //! `meetingPrep` setting (on unless set to `false`) turns it off.
 
 use std::sync::Arc;
