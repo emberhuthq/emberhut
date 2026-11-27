@@ -2,6 +2,8 @@
 //! ([`Now`]), what needs the user first. Each opens a setting of [`super::entries`] (its page,
 //! or its row); none changes anything by itself, and none offers what is already done.
 
+use gpui_kit::assets::IconName;
+
 use super::entries::{Entry, entry};
 use super::now::{Now, computer};
 
@@ -17,6 +19,8 @@ pub(crate) struct Suggestion {
     pub(crate) title: String,
     /// Its one line.
     pub(crate) line: String,
+    /// Its icon: its setting's, or one for what it does (a sun for Switch to light).
+    pub(crate) icon: IconName,
 }
 
 /// `count` of `one`, said as people do: `1 lesson`, `3 lessons`.
@@ -25,6 +29,16 @@ fn counted(count: usize, one: &str) -> String {
         format!("1 {one}")
     } else {
         format!("{count} {one}s")
+    }
+}
+
+/// A suggestion's icon: its setting's, but the sun for Switch to light (the setting's is a
+/// moon).
+fn icon(title: &str, entry: &Entry) -> IconName {
+    if title == "Switch to light" {
+        IconName::Sun
+    } else {
+        entry.icon
     }
 }
 
@@ -119,10 +133,13 @@ pub(crate) fn suggestions(now: &Now) -> Vec<Suggestion> {
     rows.into_iter()
         .take(MOST)
         .filter_map(|(id, title, line)| {
+            let entry = entry(id)?;
+            let icon = icon(&title, entry);
             Some(Suggestion {
-                entry: entry(id)?,
+                entry,
                 title,
                 line,
+                icon,
             })
         })
         .collect()
@@ -202,6 +219,11 @@ mod tests {
         };
         let shown = titles(&dark);
         assert!(shown.contains(&"Switch to light".to_owned()));
+        let light = suggestions(&dark)
+            .into_iter()
+            .find(|row| row.title == "Switch to light")
+            .unwrap();
+        assert_eq!(light.icon, IconName::Sun, "the sun for light, not the moon");
         assert!(shown.contains(&"Go off duty".to_owned()));
         let light = titles(&Now::default());
         assert!(light.contains(&"Switch to dark".to_owned()));
