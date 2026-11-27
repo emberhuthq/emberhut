@@ -986,22 +986,23 @@ fn appearance_hides_the_agents_moves_them_and_still_opens_their_rooms(cx: &mut T
     use super::appearance::{AGENTS_ABOVE, AGENTS_BELOW, HIDDEN_AGENT, SHOW_AGENTS};
     use crate::store::AgentsPlace;
 
-    let pane = SettingsPane::Appearance;
-    let (_backend, store, _, mut cx) = open_settings_view(cx, Some(pane));
+    let (_backend, store, main, _, mut cx) = open_front_door(cx);
     store.update(&mut cx, |store, cx| {
         store.take_state_for_tests(
             crate::fixtures::state(json!({
-            "rooms": [crate::fixtures::room(1, json!({})), crate::fixtures::room(9, json!({}))],
-            "agents": [
-                {"id": "main", "name": "Main", "principal": "the owner", "room": 1,
-                 "enabled": true, "pendingApprovals": 0},
-                {"id": "helper", "name": "Example helper", "principal": "Example Ltd",
-                 "room": 9, "enabled": true, "pendingApprovals": 0}
-            ]
+                "rooms": [crate::fixtures::room(1, json!({})), crate::fixtures::room(9, json!({}))],
+                "agents": [
+                    {"id": "main", "name": "Main", "principal": "the owner", "room": 1,
+                     "enabled": true, "pendingApprovals": 0},
+                    {"id": "helper", "name": "Example helper", "principal": "Example Ltd",
+                     "room": 9, "enabled": true, "pendingApprovals": 0}
+                ]
             })),
             cx,
         );
-        store.show_in_test_column(Some(Page::SettingsPane(pane)), cx);
+    });
+    cx.update(|window, cx| {
+        crate::ui::routes::open_settings(Some(SettingsPane::Appearance), window, cx);
     });
     cx.run_until_parked();
     // The row of the agent whose room is 9.
@@ -1050,4 +1051,9 @@ fn appearance_hides_the_agents_moves_them_and_still_opens_their_rooms(cx: &mut T
     cx.run_until_parked();
     let room = store.read_with(&cx, |store, _| store.room());
     assert_eq!(room, emberhut_api::ids::RoomId::new(9), "its room opens");
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Appearance)),
+        "a wide window keeps Settings open beside the chat, as the sidebar's row does"
+    );
 }

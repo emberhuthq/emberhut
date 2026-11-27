@@ -33,6 +33,7 @@ use gpui_kit::{AnyElement, App, Entity, FocusHandle, ScrollHandle, Window, div};
 
 use self::about::AboutPane;
 use self::appearance::AppearancePane;
+pub(crate) use self::appearance::OpenAgentRoom;
 use self::chrome::ChromePane;
 use self::front_door::{Listing, PLACEHOLDER};
 use self::group::FLASH;

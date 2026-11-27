@@ -34,17 +34,18 @@ pub(crate) struct ViewFile {
     pub(crate) agents_place: AgentsPlace,
 }
 
-/// Where the sidebar lists the agents. A file written before the choice existed reads as
-/// [`AgentsPlace::Below`]: the rooms are what the sidebar is for, and the agents are reached
-/// less often.
+/// Where the sidebar lists the agents. A file written before the choice existed, or naming a
+/// place this build doesn't know, reads as [`AgentsPlace::Below`]: the rooms are what the
+/// sidebar is for, and the agents are reached less often.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum AgentsPlace {
-    /// After the rooms, the projects, the sessions and the goals, just above More.
-    #[default]
-    Below,
     /// Right under Needs you, Tasks and Scheduled, above the rooms.
     Above,
+    /// After the rooms, the projects, the sessions and the goals, just above More.
+    #[default]
+    #[serde(other)]
+    Below,
 }
 
 impl Default for ViewFile {
@@ -270,11 +271,19 @@ mod tests {
             },
             "a file from before the agents' choice lists them, below the rooms"
         );
-        std::fs::write(files.view(), r#"{"agentsPlace": "sideways"}"#).unwrap();
+        std::fs::write(
+            files.view(),
+            r#"{"room": 3, "agentsShown": false, "agentsPlace": "sideways"}"#,
+        )
+        .unwrap();
         assert_eq!(
             ViewFile::read(Some(&files)),
-            ViewFile::default(),
-            "a place this build doesn't know reads as the default"
+            ViewFile {
+                room: Some(RoomId::new(3)),
+                agents_shown: false,
+                ..ViewFile::default()
+            },
+            "a place this build doesn't know reads as below, and the rest is kept"
         );
     }
 
