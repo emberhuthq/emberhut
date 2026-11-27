@@ -103,6 +103,14 @@ impl EmberhutBackend {
         Ok(Self { server, client })
     }
 
+    /// Removes what is kept for `server` in `files`, install id and all (on macOS, its Keychain
+    /// item), so the next client starts a new install.
+    pub(super) fn forget(server: &Server, files: &AppFiles) -> Result<(), Error> {
+        session_store(&server.url, files)
+            .clear()
+            .map_err(|error| Error::Local(Box::new(error)))
+    }
+
     /// Whether the server takes this device's session as a signed-in device's.
     pub(super) fn signed_in_on_server(&self) -> Result<bool, Error> {
         Ok(self.client.auth_status().map_err(error)?.signed_in)
@@ -931,6 +939,23 @@ mod tests {
     fn backend_over(store: impl SessionStore + 'static) -> EmberhutBackend {
         let url = ServerUrl::parse("http://127.0.0.1:9").unwrap();
         EmberhutBackend::with_store(url, Some(store), "Emberhut").unwrap()
+    }
+
+    /// Forgetting removes the kept session, install id and all (the file store's; on macOS the
+    /// Keychain's, which the tests never touch).
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn forgetting_removes_the_kept_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = AppFiles::in_dir(dir.path());
+        let url = ServerUrl::parse("http://127.0.0.1:9").unwrap();
+        let first = EmberhutBackend::open(url.clone(), Some(&files), "Emberhut").unwrap();
+        assert!(files.session().exists(), "a new install is kept");
+        let install = first.client.install();
+        EmberhutBackend::forget(&Server::at(url.clone()), &files).unwrap();
+        assert!(!files.session().exists());
+        let next = EmberhutBackend::open(url, Some(&files), "Emberhut").unwrap();
+        assert_ne!(next.client.install(), install, "a new install");
     }
 
     #[test]

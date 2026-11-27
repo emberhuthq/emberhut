@@ -132,9 +132,9 @@ pub(crate) struct Cli {
     #[arg(long, value_name = "CODE", conflicts_with = "forget_session")]
     pub(crate) pair: Option<String>,
 
-    /// Forget this device's session with the server (as `--pair` names it) here, without
-    /// opening a window, and exit. The server keeps the device's row until it is signed out
-    /// there.
+    /// Remove this device's session with the server (as `--pair` names it) from where the app
+    /// keeps it (on macOS, its Keychain item), install id and all, without opening a window,
+    /// and exit. The server keeps the device's row until it is signed out there.
     #[arg(long)]
     pub(crate) forget_session: bool,
 }
