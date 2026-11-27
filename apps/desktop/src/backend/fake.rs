@@ -6,6 +6,7 @@ use std::io::Write;
 use std::ops::ControlFlow;
 use std::sync::{Mutex, PoisonError};
 
+use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::approvals::{
     ApprovalReply, ApprovalsPage, ApprovalsQuery, Decision, DecisionRequest, WithdrawRequest,
 };
@@ -50,6 +51,7 @@ pub(crate) mod approvals;
 pub(crate) mod browser;
 pub(crate) mod days;
 pub(crate) mod party;
+pub(crate) mod provider;
 pub(crate) mod releases;
 pub(crate) mod sessions;
 pub(crate) mod settings;
@@ -60,6 +62,7 @@ use self::approvals::ApprovalReplies;
 use self::browser::BrowserReplies;
 use self::days::DaysReplies;
 use self::party::PartyReplies;
+use self::provider::ProviderReplies;
 use self::releases::ReleaseReplies;
 use self::sessions::SessionReplies;
 use self::settings::SettingsReplies;
@@ -130,6 +133,14 @@ pub(crate) enum Call {
     Facts,
     /// A Chrome change.
     Chrome(ChromeAction),
+    /// The agent's provider read.
+    AgentProvider,
+    /// A provider checked, as sent.
+    TestAgentProvider(ProviderRequest),
+    /// A provider saved, as sent.
+    SaveAgentProvider(ProviderRequest),
+    /// The saved provider removed.
+    ForgetAgentProvider,
     /// A task's page, by its id.
     Task(TaskId),
     /// A task search, by its query string.
@@ -269,6 +280,8 @@ pub(crate) struct FakeBackend {
     pub(crate) approvals: ApprovalReplies,
     /// Which server it stands for, and whether the server answers a Try again.
     failover: Mutex<(Serving, bool)>,
+    /// The agent's provider: what is saved, checks and saves.
+    pub(crate) provider: ProviderReplies,
 }
 
 impl FakeBackend {
@@ -305,6 +318,7 @@ impl FakeBackend {
             account: AccountReplies::default(),
             approvals: ApprovalReplies::default(),
             failover: Mutex::new((Serving::Primary, false)),
+            provider: ProviderReplies::default(),
         }
     }
 
@@ -840,6 +854,26 @@ impl Backend for FakeBackend {
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error> {
         self.record(Call::Chrome(action.clone()));
         self.replies.chrome()
+    }
+
+    fn agent_provider(&self) -> Result<AgentProvider, Error> {
+        self.record(Call::AgentProvider);
+        self.provider.status()
+    }
+
+    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
+        self.record(Call::TestAgentProvider(request.clone()));
+        self.provider.test()
+    }
+
+    fn save_agent_provider(&self, request: &ProviderRequest) -> Result<AgentProvider, Error> {
+        self.record(Call::SaveAgentProvider(request.clone()));
+        self.provider.save(request)
+    }
+
+    fn forget_agent_provider(&self) -> Result<AgentProvider, Error> {
+        self.record(Call::ForgetAgentProvider);
+        self.provider.forget()
     }
 
     fn session_transcript(&self, id: &SessionId, query: &StepsQuery) -> Result<Transcript, Error> {

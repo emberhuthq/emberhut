@@ -102,7 +102,7 @@ impl Store {
                 // Their loop sleeps off their page: it fetches them now (if the window is in
                 // front).
                 Some(Page::Machines) => self.machines.kick(),
-                Some(Page::Settings) => self.settings_opened(),
+                Some(Page::Settings) => self.settings_opened(cx),
                 Some(page @ (Page::Project(_) | Page::Person(_))) => self.place_shown(page, cx),
                 Some(Page::Scheduled) => self.reload_scheduled(),
                 Some(Page::SettingsPane(pane)) => self.settings_pane_shown(pane, cx),

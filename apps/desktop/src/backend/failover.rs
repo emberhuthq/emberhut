@@ -20,6 +20,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError, Weak};
 use std::time::Duration;
 
+use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::approvals::{
     ApprovalReply, ApprovalsPage, ApprovalsQuery, DecisionRequest, WithdrawRequest,
 };
@@ -514,6 +515,22 @@ impl Backend for Failover {
 
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error> {
         self.active().chrome(action)
+    }
+
+    fn agent_provider(&self) -> Result<AgentProvider, Error> {
+        self.active().agent_provider()
+    }
+
+    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
+        self.active().test_agent_provider(request)
+    }
+
+    fn save_agent_provider(&self, request: &ProviderRequest) -> Result<AgentProvider, Error> {
+        self.active().save_agent_provider(request)
+    }
+
+    fn forget_agent_provider(&self) -> Result<AgentProvider, Error> {
+        self.active().forget_agent_provider()
     }
 
     fn interrupt(&self, room: RoomId) -> Result<(), Error> {
