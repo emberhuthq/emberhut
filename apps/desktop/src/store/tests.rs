@@ -324,7 +324,7 @@ fn the_window_going_to_the_background_sends_the_answer_at_once(cx: &mut TestAppC
     let cx = cx.add_empty_window();
     cx.update(|window, cx| {
         Store::send_held_when_inactive(&store, window, cx);
-        window.activate_window();
+        crate::shell::unseen::bring_forward(window, cx);
     });
     cx.run_until_parked();
     assert_eq!(backend.calls(), [], "coming to the front sends nothing");

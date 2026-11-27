@@ -1,7 +1,8 @@
 //! `--drive FILE`: the app driven from outside without taking the keyboard or mouse. Each line
 //! appended to the file is one step, replayed into this window only as GPUI's own events: keys go
 //! through the window's bindings and the focused field, clicks through its hit-testing, as a
-//! real key or click would. With `--background` the app never comes to the front.
+//! real key or click would. The run is unseen (`crate::shell::unseen`): its windows open out of
+//! sight and the app never comes to the front.
 //!
 //! ```text
 //! page needs|tasks|machines|settings   room ID    open a page or a room (prints the time to the chat's paint)

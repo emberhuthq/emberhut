@@ -86,15 +86,16 @@ libc = { version = "0.2", optional = true }
 # NSView, whose pointer raw-window-handle gives; GPUI already builds on that crate), a HEIC
 # picture read through NSImage (src/heic.rs), the app that opens a kind of file
 # (src/ui/files/default_app.rs: NSWorkspace with a UTType), and a video's still frame made a
-# JPEG (src/store/stills/avfoundation.rs: NSBitmapImageRep over its CGImage), and the Dark room's
-# window held to the dark appearance (src/ui/look.rs: NSWindow's NSAppearance).
+# JPEG (src/store/stills/avfoundation.rs: NSBitmapImageRep over its CGImage), the Dark room's
+# window held to the dark appearance (src/ui/look.rs: NSWindow's NSAppearance), and an unseen
+# run's windows kept below the desktop and its App Nap activity (src/shell/unseen.rs).
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAccessibility", "NSAppearance", "NSApplication", "NSBitmapImageRep", "NSImage", "NSImageRep", "NSResponder", "NSRunningApplication", "NSSharingService", "NSView", "NSWindow", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-uniform-type-identifiers"] }
-# How long the Mac has been without input, for installing an update while it is idle, and a
-# video's still frame as a CGImage.
-objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEventSource", "CGEventTypes", "CGImage"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSArray", "NSBundle", "NSData", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSOperation", "NSString", "NSURL", "NSValue"] }
+# How long the Mac has been without input, for installing an update while it is idle, a video's
+# still frame as a CGImage, and the desktop's window level (an unseen run's windows go below it).
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEventSource", "CGEventTypes", "CGImage", "CGWindowLevel"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSArray", "NSBundle", "NSData", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSOperation", "NSProcessInfo", "NSString", "NSURL", "NSValue"] }
 # The file viewer's pages, videos and documents (docs: apps/desktop/README.md, Files): a PDF's
 # pages drawn by PDFKit (src/pdf/pdfkit.rs), a video in AVKit's player and a deck, document or
 # sheet in Quick Look's preview (src/ui/viewer/native.rs). The system's frameworks, so nothing is

@@ -131,6 +131,10 @@ fn install_windows(store: &Entity<Store>, report_size: ReportSize, cx: &mut App)
 }
 
 fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> anyhow::Result<()> {
+    // First, so no window opens before an unseen run says where windows go.
+    if let Some(unseen) = cli.unseen() {
+        shell::unseen::install(unseen, cx).context("this system can't run unseen")?;
+    }
     gpui_kit::init(cx);
     assets::register_fonts(cx);
     window::bind_keys(cx);
@@ -197,7 +201,8 @@ fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> any
     install_windows(&store, report_size, cx);
     look::start(cli.look(), cx);
     motion::follow(cx);
-    notifications::ask(cli.no_prompt, cx);
+    // An unseen run asks nothing: the system's question would show on the person's display.
+    notifications::ask(cli.no_prompt || cli.unseen().is_some(), cx);
 
     let opening = first_window(cli, cx);
     // The windows of their own open at the last quit, behind the main window once the gate
@@ -234,13 +239,14 @@ fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> any
     }
     shell::follow_links(links, cx);
     if !cli.background && !cli.self_check {
-        cx.activate(true);
+        shell::unseen::activate_app(cx);
     }
     Ok(())
 }
 
 /// Where and how the first window opens: on the display and at the size the command line
-/// names, else where it was left; in the background for `--background` and the self-check.
+/// names, else where it was left; in the background for `--background` and an unseen run
+/// (which places it beside the displays besides).
 fn first_window(cli: &Cli, cx: &App) -> shell::windows::Opening {
     let display = cli
         .display
@@ -255,7 +261,7 @@ fn first_window(cli: &Cli, cx: &App) -> shell::windows::Opening {
     shell::windows::Opening {
         bounds: bounds.or_else(|| display.map(|display| first_bounds(display, cx))),
         display,
-        background: cli.background || cli.self_check,
+        background: cli.background || cli.unseen().is_some(),
     }
 }
 

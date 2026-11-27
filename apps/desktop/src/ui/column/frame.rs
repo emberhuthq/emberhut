@@ -285,6 +285,10 @@ mod tests {
     }
 
     #[gpui_kit::test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a second main window opened bare, for its typed handle; no unseen run here"
+    )]
     fn each_window_has_its_own_column_over_the_one_room(cx: &mut TestAppContext) {
         let (first, mut cx) = open_window(cx);
         let store = first.read_with(&cx, |main, _| main.store.clone());
@@ -315,6 +319,10 @@ mod tests {
     }
 
     #[gpui_kit::test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a second main window opened bare, for its typed handle; no unseen run here"
+    )]
     fn settings_pages_go_on_each_windows_own_column_and_back_returns_to_settings(
         cx: &mut TestAppContext,
     ) {
