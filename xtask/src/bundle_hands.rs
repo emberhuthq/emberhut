@@ -47,7 +47,7 @@ pub(crate) fn run(args: &HandsArgs) -> anyhow::Result<()> {
         args.jobs
     ));
     let build = CargoBuild {
-        package: PACKAGE,
+        packages: &[PACKAGE],
         profile,
         jobs: args.jobs,
         feature: None,

@@ -19,8 +19,9 @@ pub(crate) struct Cli {
 pub(crate) enum Task {
     /// Build the desktop app and package it as a signed Emberhut.app for macOS.
     ///
-    /// Builds `emberhut-desktop` at low priority, assembles `target/bundle/Emberhut.app` (Info.plist,
-    /// icon, binary), signs it, optionally notarizes it, zips it to
+    /// Builds `emberhut-desktop` and the hut's `emberhut-server` at low priority, assembles
+    /// `target/bundle/Emberhut.app` (Info.plist, icon, both binaries; `--no-hut` leaves the
+    /// server out), signs it, optionally notarizes it, zips it to
     /// `target/bundle/Emberhut-<version>-macos-<arch>.zip` and optionally installs it to
     /// /Applications/Emberhut.app. Runs on macOS only; it needs the Xcode command line tools.
     BundleMacos(BundleArgs),

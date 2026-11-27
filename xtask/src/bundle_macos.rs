@@ -1,4 +1,6 @@
 //! `cargo xtask bundle-macos`: build, bundle, sign, notarize, zip and install, in that order.
+//! The bundle holds the hut's server, `Contents/MacOS/emberhut-server`, unless `--no-hut`
+//! (ADR 0030).
 //!
 //! Everything specific to the macOS bundle lives in this module's children; the command runner,
 //! the workspace paths and the progress output it uses are shared with the other tasks.
@@ -51,11 +53,16 @@ pub(crate) fn run(args: &BundleArgs) -> anyhow::Result<()> {
         install::preflight()?;
     }
 
-    let binary = build::build(&plan, &layout)?;
+    let built = build::build(&plan, &layout)?;
     let out_dir = layout.out_dir();
     fs::create_dir_all(&out_dir).with_context(|| format!("creating {}", out_dir.display()))?;
-    assemble::assemble(&layout, &binary)?;
+    assemble::assemble(&layout, &built)?;
     let app = layout.app_bundle();
+    // Nested code is signed before the bundle that seals it, with the same identity and the
+    // hardened runtime, as notarization asks.
+    if built.server.is_some() {
+        sign::sign(&plan.signing, &layout.bundled_server(), None)?;
+    }
     sign::sign(&plan.signing, &app, None)?;
     if let Some(notarization) = &plan.notarization {
         sign::notarize(notarization, &layout)?;

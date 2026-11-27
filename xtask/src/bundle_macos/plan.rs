@@ -64,6 +64,8 @@ pub(crate) struct BundlePlan {
     pub(crate) automation: bool,
     /// How many compile jobs cargo may run at once.
     pub(crate) jobs: u16,
+    /// Whether the hut's server is built and bundled with the app.
+    pub(crate) hut: bool,
     /// How to sign the bundle.
     pub(crate) signing: Signing,
     /// Whether, and how, to notarize the signed bundle.

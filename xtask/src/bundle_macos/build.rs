@@ -6,7 +6,9 @@ use std::process::Command;
 
 use anyhow::Context as _;
 
-use crate::bundle_macos::app::{AUTOMATION_FEATURE, EXECUTABLE, Layout, PACKAGE};
+use crate::bundle_macos::app::{
+    AUTOMATION_FEATURE, EXECUTABLE, Layout, PACKAGE, SERVER_EXECUTABLE, SERVER_PACKAGE,
+};
 use crate::bundle_macos::plan::{BuildProfile, BundlePlan};
 use crate::bundle_macos::tool;
 use crate::{cmd, say, workspace};
@@ -15,15 +17,24 @@ use crate::{cmd, say, workspace};
 const NICENESS: &str = "10";
 
 /// The `nice … cargo build …` command for `plan`, run in the workspace root and building into
-/// the layout's target directory. Diagnostics go to the terminal; stdout carries cargo's JSON
-/// messages, which name the binary it built.
+/// the layout's target directory: the app, and the hut's server with it unless `--no-hut` (one
+/// cargo run, so the crates they share build once). Diagnostics go to the terminal; stdout
+/// carries cargo's JSON messages, which name the binaries it built.
 #[must_use]
 pub(crate) fn build_command(cargo: OsString, plan: &BundlePlan, layout: &Layout) -> Command {
-    let feature = plan.automation.then_some(AUTOMATION_FEATURE);
+    // Named with its package: with the server in the same build, a bare name would be asked
+    // of both packages.
+    let feature = format!("{PACKAGE}/{AUTOMATION_FEATURE}");
+    let feature = plan.automation.then_some(feature.as_str());
+    let packages: &[&str] = if plan.hut {
+        &[PACKAGE, SERVER_PACKAGE]
+    } else {
+        &[PACKAGE]
+    };
     cargo_build(
         cargo,
         &CargoBuild {
-            package: PACKAGE,
+            packages,
             profile: plan.profile,
             jobs: plan.jobs,
             feature,
@@ -36,8 +47,8 @@ pub(crate) fn build_command(cargo: OsString, plan: &BundlePlan, layout: &Layout)
 /// What a `cargo build` for a bundle builds.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct CargoBuild<'a> {
-    /// The package.
-    pub(crate) package: &'a str,
+    /// The packages.
+    pub(crate) packages: &'a [&'a str],
     /// The profile.
     pub(crate) profile: BuildProfile,
     /// How many compile jobs at once.
@@ -57,13 +68,12 @@ pub(crate) fn cargo_build(
     target: &Path,
 ) -> Command {
     let mut command = Command::new(tool::NICE);
+    command.args(["-n", NICENESS]).arg(cargo).arg("build");
+    for package in build.packages {
+        command.args(["--package", package]);
+    }
     command
-        .args(["-n", NICENESS])
-        .arg(cargo)
         .args([
-            "build",
-            "--package",
-            build.package,
             "--profile",
             build.profile.name(),
             "--message-format=json-render-diagnostics",
@@ -79,24 +89,47 @@ pub(crate) fn cargo_build(
     command
 }
 
-/// Builds the app as `plan` says and returns the binary's path.
+/// The binaries a bundle is made of.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Built {
+    /// The app's binary.
+    pub(crate) app: PathBuf,
+    /// The hut's server, unless `--no-hut`.
+    pub(crate) server: Option<PathBuf>,
+}
+
+/// Builds the app (and the hut's server with it) as `plan` says and returns the binaries'
+/// paths.
 ///
 /// # Errors
 ///
-/// Fails when cargo fails or doesn't report the binary.
-pub(crate) fn build(plan: &BundlePlan, layout: &Layout) -> anyhow::Result<PathBuf> {
+/// Fails when cargo fails or doesn't report a binary.
+pub(crate) fn build(plan: &BundlePlan, layout: &Layout) -> anyhow::Result<Built> {
     let features = if plan.automation {
         " with automation"
     } else {
         ""
     };
+    let hut = if plan.hut {
+        format!(" and {SERVER_PACKAGE}")
+    } else {
+        String::new()
+    };
     say(&format!(
-        "Building {PACKAGE} ({}{features}, {} jobs, low priority)",
+        "Building {PACKAGE}{hut} ({}{features}, {} jobs, low priority)",
         plan.profile, plan.jobs
     ));
     let messages = cmd::stdout(&mut build_command(workspace::cargo(), plan, layout))?;
-    executable(&messages, EXECUTABLE)
-        .with_context(|| format!("cargo built {PACKAGE} but named no `{EXECUTABLE}` binary"))
+    let app = executable(&messages, EXECUTABLE)
+        .with_context(|| format!("cargo built {PACKAGE} but named no `{EXECUTABLE}` binary"))?;
+    let server = if plan.hut {
+        Some(executable(&messages, SERVER_EXECUTABLE).with_context(|| {
+            format!("cargo built {SERVER_PACKAGE} but named no `{SERVER_EXECUTABLE}` binary")
+        })?)
+    } else {
+        None
+    };
+    Ok(Built { app, server })
 }
 
 /// The path of the binary target `name` in cargo's `--message-format=json` output: wherever
@@ -132,6 +165,7 @@ mod tests {
             dist,
             automation,
             jobs: 3,
+            no_hut: dist,
             ..BundleArgs::bare()
         }
         .plan()
@@ -161,17 +195,35 @@ mod tests {
     fn a_release_build() {
         assert_eq!(
             args(&plan(false, false)).join(" "),
-            "-n 10 cargo build --package emberhut-desktop --profile release \
-             --message-format=json-render-diagnostics --jobs 3 --locked"
+            "-n 10 cargo build --package emberhut-desktop --package emberhut-server \
+             --profile release --message-format=json-render-diagnostics --jobs 3 --locked"
         );
     }
 
     #[test]
-    fn a_dist_automation_build() {
+    fn a_dist_automation_build_without_the_hut() {
         assert_eq!(
             args(&plan(true, true)).join(" "),
             "-n 10 cargo build --package emberhut-desktop --profile dist \
-             --message-format=json-render-diagnostics --jobs 3 --features automation --locked"
+             --message-format=json-render-diagnostics --jobs 3 \
+             --features emberhut-desktop/automation --locked"
+        );
+    }
+
+    #[test]
+    fn an_automation_build_with_the_hut_names_the_apps_feature() {
+        let plan = BundleArgs {
+            automation: true,
+            jobs: 3,
+            ..BundleArgs::bare()
+        }
+        .plan()
+        .unwrap();
+        assert_eq!(
+            args(&plan).join(" "),
+            "-n 10 cargo build --package emberhut-desktop --package emberhut-server \
+             --profile release --message-format=json-render-diagnostics --jobs 3 \
+             --features emberhut-desktop/automation --locked"
         );
     }
 

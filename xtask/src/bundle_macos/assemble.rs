@@ -8,6 +8,7 @@ use std::process::{Command, Stdio};
 use anyhow::Context as _;
 
 use crate::bundle_macos::app::{EXECUTABLE, ICON_NAME, Layout, VERSION};
+use crate::bundle_macos::build::Built;
 use crate::bundle_macos::plist;
 use crate::bundle_macos::tool;
 use crate::cmd;
@@ -31,12 +32,13 @@ pub(crate) fn iconset_images() -> Vec<(String, u32)> {
         .collect()
 }
 
-/// Builds a fresh `Emberhut.app` at the layout's bundle path around `binary`.
+/// Builds a fresh `Emberhut.app` at the layout's bundle path around `built`: the app's binary,
+/// and the hut's server beside it in `Contents/MacOS` when it was built.
 ///
 /// # Errors
 ///
 /// Fails when a file can't be written or `sips`/`iconutil` fail.
-pub(crate) fn assemble(layout: &Layout, binary: &Path) -> anyhow::Result<()> {
+pub(crate) fn assemble(layout: &Layout, built: &Built) -> anyhow::Result<()> {
     let bundle = layout.app_bundle();
     say(&format!("Assembling {}", bundle.display()));
     remove_dir_if_present(&bundle)?;
@@ -47,12 +49,21 @@ pub(crate) fn assemble(layout: &Layout, binary: &Path) -> anyhow::Result<()> {
         fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
     }
     let executable = macos.join(EXECUTABLE);
-    fs::copy(binary, &executable)
-        .with_context(|| format!("copying {} to {}", binary.display(), executable.display()))?;
+    copy(&built.app, &executable)?;
+    if let Some(server) = &built.server {
+        copy(server, &layout.bundled_server())?;
+    }
     let info = contents.join("Info.plist");
     fs::write(&info, plist::info_plist(VERSION))
         .with_context(|| format!("writing {}", info.display()))?;
     make_icon(layout, &resources.join(format!("{ICON_NAME}.icns")))
+}
+
+/// Copies the binary `from` to `to`.
+fn copy(from: &Path, to: &Path) -> anyhow::Result<()> {
+    fs::copy(from, to)
+        .map(drop)
+        .with_context(|| format!("copying {} to {}", from.display(), to.display()))
 }
 
 /// Renders the 1024 px source icon into every iconset size and packs them into `icns`.
