@@ -402,7 +402,8 @@ impl Render for ChatView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         self.now = ZonedDateTime::now();
         super::update_bar::note_writing(&self.store, cx.entity_id(), self.has_text, cx);
-        self.text_width = row::text_width(f32::from(self.list.viewport_bounds().size.width));
+        let laid_out = self.list.viewport_bounds().size.width;
+        self.text_width = row::text_width(f32::from(laid_out));
         let p = pal(cx);
         let store = self.store.read(cx);
         let count = store.chats().messages(store.room()).len();
@@ -437,6 +438,7 @@ impl Render for ChatView {
             .child(self.header(&p, window, cx))
             .children(super::update_bar::bar(&self.store, &p, cx))
             .child(body)
+            .children((count > 0).then(|| row::follow_width(self.list.clone(), laid_out)))
             .children(self.new_below.shows().then(|| {
                 div().relative().child(
                     div()
@@ -473,6 +475,8 @@ fn runs(rows: &[usize]) -> Vec<Range<usize>> {
 
 #[cfg(test)]
 mod picture_layout;
+#[cfg(test)]
+mod reflow;
 
 #[cfg(test)]
 mod tests {

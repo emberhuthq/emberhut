@@ -10,7 +10,7 @@ use std::rc::Rc;
 use emberhut_api::chat::ChatMessage;
 use emberhut_api::ids::MessageId;
 use gpui_kit::prelude::*;
-use gpui_kit::{App, WeakEntity};
+use gpui_kit::{App, ListState, Pixels, WeakEntity, canvas};
 
 use super::ChatView;
 use crate::prose::parsed::Parsed;
@@ -27,6 +27,24 @@ pub(super) fn text_width(list: f32) -> f32 {
         return TEXT_WIDTH_AT_FIRST;
     }
     (list.min(880.) - 56.).max(200.) * 0.82 - 28.
+}
+
+/// Asks for the next frame when the list was laid out at another width than `drawn_for`, the
+/// width its rows were drawn for: a row's text width is the list's from its last layout (the
+/// list can't be asked while it lays its rows out), so after the chat's width changes (the
+/// column beside it opened or closed, the window resized) the rows are drawn again at once at
+/// the width the list has now, not whenever something else redraws the chat.
+pub(super) fn follow_width(list: ListState, drawn_for: Pixels) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |_, (), window, _| {
+            if list.viewport_bounds().size.width != drawn_for {
+                window.request_animation_frame();
+            }
+        },
+    )
+    .absolute()
+    .size_0()
 }
 
 /// Runs `act` on the chat view, if it is still there.
