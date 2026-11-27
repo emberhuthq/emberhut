@@ -97,6 +97,7 @@ fn correction(minutes: i64, lesson: Option<&str>) -> NewCorrection {
         said: "you didn't check".to_owned(),
         wrong: "I guessed".to_owned(),
         lesson: lesson.map(str::to_owned),
+        lesson_to_owner: lesson.map(|_| "I check first now.".to_owned()),
         source: CorrectionSource::Assistant,
         at: at(minutes),
     }
@@ -126,8 +127,20 @@ async fn corrections_and_their_trials() {
         .map(|c| c.id)
         .collect();
     assert_eq!(open, vec![with_lesson, kept]);
+    assert_eq!(
+        corrections.since(at(0)).await.unwrap()[0]
+            .lesson_to_owner
+            .as_deref(),
+        Some("I check first now."),
+        "the owner's line is kept with the lesson"
+    );
 
-    assert!(corrections.keep_trial(kept, 4, at(40)).await.unwrap());
+    assert!(
+        corrections
+            .keep_trial(kept, 4, TrialJudge::Owner, at(40))
+            .await
+            .unwrap()
+    );
     assert_eq!(
         corrections.trial_end(kept).await.unwrap(),
         Some(TrialEnd::Kept(Some(4)))

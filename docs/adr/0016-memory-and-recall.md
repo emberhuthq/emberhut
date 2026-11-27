@@ -19,8 +19,8 @@ The assistant's memory has five parts, and the apps speak their contract:
   next wakes the main room's assistant.
 - **Learning.** Corrections are logged (`correction_log`, and by the server for a message that
   sounds like one); each lesson is a trial rule for 14 days, kept by the weekly review as a
-  standing rule (`lesson_set`) or dropped (`trial_drop`, or `trialDrop` from the app). The
-  review reads `corrections` and the chat (`chat_log`).
+  standing rule (`lesson_set`, or `trialKeep` from the app) or dropped (`trial_drop`, or
+  `trialDrop` from the app). The review reads `corrections` and the chat (`chat_log`).
 - **Awareness.** The `context` tool shows the assistant's open loops, notes, routines and quiet
   hours; the state's `contextAt` says when its picture of the owner's chats was last brought up
   to date. Other areas write these (the loops, the scout, the routines).

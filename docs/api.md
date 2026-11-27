@@ -444,15 +444,16 @@ a time (`emberhut_api::settings::SettingsAction`, written as the wire's `Setting
 | `{ "projectSet": { "id": 2, ... } }` | change a project: `priority` (0 to 4), `deadline`, `hard`, `status`, `pausedUntil` |
 | `{ "factSet": { "id", "category", "title", "text" } }` | correct a fact; its source becomes `you corrected it, <day>` and the assistant hears of it |
 | `{ "personSet": { "id": "people/…", "important": true } }` | whether that person's messages wake the assistant at once |
-| `{ "factDrop": "work/…" }`, `{ "trialDrop": 252 }` | forget a fact, drop a rule on trial |
+| `{ "factDrop": "work/…" }`, `{ "trialDrop": 252 }`, `{ "trialKeep": 252 }` | forget a fact, drop a rule on trial, keep one now as a standing rule (before the weekly review) |
 | `{ "xPosted": 40, "option": 0 }` | one of a post's drafted replies was posted (its task is done) |
 | `{ "authRevoke": 3 }` | sign a device out |
 | `{ "ui": { "hideGoals": false } }`, `{ "build": { "platform": "ios", "number": 12 } }` | what the app hides, a build a store has ready (below) |
 
 200 is `{ "ok": true, ...the whole state of body.room (Main by default) }`; a change that can't be
 made (no such task, project or fact) is 400 `{ "ok": false, "error": "…" }`. Pausing or
-resuming, stopping a turn, a check-in, a watch or a job, and dropping a rule that isn't there
-answer 200 whatever came of them. An answer to an ask:
+resuming, stopping a turn, a check-in, a watch or a job, and keeping or dropping a rule that
+isn't on trial answer 200 whatever came of them; a server older than `trialKeep` answers 200 to
+it too and leaves the rule on trial, so a client reads `GET /api/facts` after to tell. An answer to an ask:
 `choice` is one of the decision's `options` (or `Done` for an action). `Leave it`, `Not now` and
 `No` (any case) cancel the task; other answers carry it on, and the work resumes at once. It
 can't be taken back, so a client holds an answer a few seconds for an Undo before sending it.
@@ -533,8 +534,9 @@ without these routes answers 404.
 What the assistant knows about the user (`FactsPage`): `facts` (each `{ id, category, title,
 text, source, updated }`, a person's with `now`, `nowAt`, `chats`, `important`, some with
 `project`), the standing rules `lessons` (`{ id, text, at }`), and the rules on trial `trials`
-(`{ id, text, at, ends, said }`: a correction's lesson, followed for 14 days until a weekly
-review keeps or drops it). Categories: `people`, `work`, `money`, `preferences`, `health`,
+(`{ id, text, at, ends, said, lesson? }`: a correction's lesson, followed for 14 days until a
+weekly review keeps or drops it; `lesson` is the same lesson as one short line to the user, in
+the second person, when the assistant gave one). Categories: `people`, `work`, `money`, `preferences`, `health`,
 `home`, `projects`, `proof`. Fixes go through `POST /api/settings`.
 
 ### POST /api/chrome

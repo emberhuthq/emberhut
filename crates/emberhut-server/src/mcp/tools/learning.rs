@@ -27,6 +27,11 @@ pub(crate) struct CorrectionLogArgs {
     /// The rule that would have avoided it.
     #[garde(length(max = 5000))]
     lesson: Option<String>,
+    /// The same lesson as one short line to the user, in the second person, e.g. "Story reels
+    /// run at least 60 seconds; I check each cut's length before showing you." The app shows
+    /// it under their own words.
+    #[garde(length(max = 1000))]
+    lesson_to_user: Option<String>,
     /// When it happened (ISO); default now.
     #[garde(length(max = 64))]
     at: Option<String>,
@@ -43,8 +48,11 @@ impl Tool for CorrectionLog {
         "Log it whenever the user corrects you or doesn't understand you (\"you didn't \
          check\", \"I already told them\", \"what does that mean\"): said: what they said; \
          wrong: what you did wrong, honestly, in one or two sentences; lesson: the rule that \
-         would have avoided it. The lesson is a trial rule in front of you at once, in every \
-         room, for 14 days; the weekly learning review keeps or drops it."
+         would have avoided it; lesson_to_user: the same lesson as one short line to the \
+         owner, in the second person, e.g. 'Story reels run at least 60 seconds; I check each \
+         cut's length before showing you.' (the app shows it to them under their own words). \
+         The lesson is a trial rule in front of you at once, in every room, for 14 days; the \
+         weekly learning review (or the user, in the app) keeps or drops it."
     }
 
     async fn call(
@@ -63,6 +71,7 @@ impl Tool for CorrectionLog {
                 said: args.said,
                 wrong: args.wrong,
                 lesson: args.lesson,
+                lesson_to_owner: args.lesson_to_user,
                 at: args.at,
             })
             .await
@@ -150,6 +159,7 @@ impl Tool for Corrections {
                 "at": iso(t.at),
                 "ends": iso(t.ends),
                 "said": t.said,
+                "lesson_to_user": t.lesson_to_owner,
             })).collect::<Vec<_>>(),
         }))
     }

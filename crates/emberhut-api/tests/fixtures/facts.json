@@ -14,7 +14,8 @@
   "trials": [
     {
       "id": 252, "text": "Say which file a change is in.", "at": "2026-11-20T10:00:00.000Z",
-      "ends": "2026-12-04T10:00:00.000Z", "said": "Which file was that in?"
+      "ends": "2026-12-04T10:00:00.000Z", "said": "Which file was that in?",
+      "lesson": "I say which file a change is in."
     }
   ]
 }

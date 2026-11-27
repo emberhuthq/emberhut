@@ -19008,6 +19008,17 @@
               }
             ]
           },
+          "trialKeep": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TrialId",
+                "description": "The rule on trial to keep now, as a standing rule."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "xPosted": {
             "oneOf": [
               {
@@ -21000,6 +21011,13 @@
           "said": {
             "type": "string",
             "description": "What the person said (its first 300 characters)."
+          },
+          "lesson": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The lesson in one short line addressed to the person, in the second person (\"Story\nreels run at least 60 seconds; I check each cut's length before showing you.\"). None\nwhen the assistant gave none, or from a server that doesn't keep one: a client shows\n`text` then."
           }
         }
       },

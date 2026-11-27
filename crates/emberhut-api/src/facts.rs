@@ -4,7 +4,8 @@
 //! each one.
 //!
 //! Facts are corrected, forgotten or marked (a person whose messages wake the assistant), and
-//! rules on trial dropped, through `POST /api/settings` ([`crate::settings::SettingsAction`]).
+//! rules on trial kept early or dropped, through `POST /api/settings`
+//! ([`crate::settings::SettingsAction`]).
 
 use serde::{Deserialize, Serialize};
 
@@ -103,6 +104,12 @@ pub struct Trial {
     pub ends: Timestamp,
     /// What the person said (its first 300 characters).
     pub said: String,
+    /// The lesson in one short line addressed to the person, in the second person ("Story
+    /// reels run at least 60 seconds; I check each cut's length before showing you."). None
+    /// when the assistant gave none, or from a server that doesn't keep one: a client shows
+    /// `text` then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lesson: Option<String>,
 }
 
 /// `GET /api/facts`'s answer.

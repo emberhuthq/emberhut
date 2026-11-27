@@ -175,6 +175,7 @@ fn trial_to_api(trial: Trial) -> TrialRule {
         at: timestamp_to_api(trial.at),
         ends: timestamp_to_api(trial.ends),
         said: trial.said,
+        lesson: trial.lesson_to_owner,
     }
 }
 

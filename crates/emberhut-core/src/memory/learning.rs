@@ -72,6 +72,8 @@ pub struct NewCorrection {
     pub wrong: String,
     /// The rule that would have avoided it: a trial rule from now.
     pub lesson: Option<String>,
+    /// The same lesson as one short line to the owner, in the second person, for the app.
+    pub lesson_to_owner: Option<String>,
     /// Who logged it.
     pub source: CorrectionSource,
     /// When it happened (now, unless the assistant says otherwise).
@@ -91,6 +93,8 @@ pub struct Correction {
     pub wrong: String,
     /// Its lesson, if one was given.
     pub lesson: Option<String>,
+    /// Its lesson as one short line to the owner, in the second person, if one was given.
+    pub lesson_to_owner: Option<String>,
     /// Who logged it (the stored spelling).
     pub source: String,
 }
@@ -119,6 +123,9 @@ pub struct Trial {
     pub ends: Timestamp,
     /// What the owner said that it came from (300 characters at most).
     pub said: String,
+    /// The lesson as one short line to the owner, in the second person; none when it wasn't
+    /// given (or is blank).
+    pub lesson_to_owner: Option<String>,
 }
 
 /// The oldest a correction can be and still be on trial at `now`.
@@ -137,6 +144,12 @@ pub fn trial_of(correction: &Correction) -> Option<Trial> {
         at: correction.at,
         ends: correction.at + SignedDuration::from_hours(24 * TRIAL_DAYS),
         said: cut(&correction.said, 300).to_owned(),
+        lesson_to_owner: correction
+            .lesson_to_owner
+            .as_deref()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned),
     })
 }
 
@@ -171,6 +184,7 @@ pub fn noticed(said: &str, last_answer: Option<&str>, at: Timestamp) -> NewCorre
             cut(last_answer.unwrap_or_default(), 600)
         ),
         lesson: None,
+        lesson_to_owner: None,
         source: CorrectionSource::Auto,
         at,
     }
@@ -315,12 +329,19 @@ mod tests {
             said: "you didn't check".to_owned(),
             wrong: "I guessed".to_owned(),
             lesson: Some("  Check first. ".to_owned()),
+            lesson_to_owner: Some(" I check first now. ".to_owned()),
             source: wire::ASSISTANT.to_owned(),
         };
         let trial = trial_of(&correction).unwrap();
         assert_eq!(trial.text, "Check first.");
+        assert_eq!(trial.lesson_to_owner.as_deref(), Some("I check first now."));
         assert_eq!(trial.ends, at("2026-11-24T10:00:00Z"));
         assert_eq!(trial_line(&trial), "T7 (10 Nov). Check first.");
+        let unworded = Correction {
+            lesson_to_owner: Some(" ".to_owned()),
+            ..correction.clone()
+        };
+        assert_eq!(trial_of(&unworded).unwrap().lesson_to_owner, None);
         let blank = Correction {
             lesson: Some(" ".to_owned()),
             ..correction

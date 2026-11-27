@@ -311,9 +311,20 @@ async fn corrections_lessons_and_trials_through_the_tools() {
     assert_eq!(text(&plain), "Logged correction #1.");
     app.call_tool(
         "correction_log",
-        json!({ "said": "wrong again", "wrong": "Guessed", "lesson": "Check the date." }),
+        json!({
+            "said": "wrong again",
+            "wrong": "Guessed",
+            "lesson": "Check the date.",
+            "lesson_to_user": "I check the date before I answer you."
+        }),
     )
     .await;
+    let log = app.call_tool("corrections", json!({ "days": 7 })).await;
+    let log: Value = serde_json::from_str(text(&log)).unwrap();
+    assert_eq!(
+        log["trials"][0]["lesson_to_user"],
+        "I check the date before I answer you."
+    );
     app.call_tool(
         "correction_log",
         json!({ "said": "I already told you", "wrong": "Forgot", "lesson": "Read the notes first." }),

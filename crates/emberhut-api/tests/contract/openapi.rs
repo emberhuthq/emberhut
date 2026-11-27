@@ -75,6 +75,8 @@ fn schemas_use_the_wire_names() {
     assert!(properties(&document, "LoopLag").contains_key("p95_1m"));
     assert!(properties(&document, "SlowWork").contains_key("max"));
     assert!(properties(&document, "SettingsRequest").contains_key("factSet"));
+    assert!(properties(&document, "SettingsRequest").contains_key("trialKeep"));
+    assert!(properties(&document, "Trial").contains_key("lesson"));
     assert!(properties(&document, "ChromeProfile").contains_key("oldCopy"));
     assert!(properties(&document, "Fact").contains_key("nowAt"));
     assert!(properties(&document, "Release").contains_key("minimumOs"));

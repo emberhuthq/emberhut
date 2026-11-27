@@ -1,7 +1,8 @@
 //! What the owner changes on the app's "About you" page: `factSet` (a corrected fact),
-//! `personSet` (whether a person's messages wake the assistant), `factDrop` (forget a fact) and
-//! `trialDrop` (drop a rule on trial). The assistant hears of each fact change as a `fact`
-//! event in Main; a dropped trial rule is gone from its rules the next time it reads them.
+//! `personSet` (whether a person's messages wake the assistant), `factDrop` (forget a fact),
+//! `trialDrop` (drop a rule on trial) and `trialKeep` (keep one now). The assistant hears of
+//! each fact change as a `fact` event in Main; a dropped trial rule is gone from its rules, and
+//! a kept one is among its standing rules, the next time it reads them.
 
 use emberhut_core::memory::learning::TrialJudge;
 use serde_json::Value;
@@ -148,6 +149,30 @@ impl Action for TrialDrop {
             .drop_trial(id, TrialJudge::Owner)
             .await
             .map(|_dropped| ())
+            .map_err(ActionError::failed)
+    }
+}
+
+/// `{ trialKeep: <correction id> }`: the owner keeps a rule on trial now, as a standing rule,
+/// instead of leaving it to the weekly review. A value that is not a whole number asks for
+/// nothing; one that isn't on trial changes nothing.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct TrialKeep;
+
+impl Action for TrialKeep {
+    fn key(&self) -> &'static str {
+        "trialKeep"
+    }
+
+    async fn apply(&self, ctx: &ActionContext, body: &Body) -> Result<(), ActionError> {
+        let Some(id) = body.get("trialKeep").and_then(Value::as_i64) else {
+            return Ok(());
+        };
+        ctx.app
+            .learning()
+            .keep_trial(id, TrialJudge::Owner)
+            .await
+            .map(|_kept| ())
             .map_err(ActionError::failed)
     }
 }

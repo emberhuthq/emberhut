@@ -57,6 +57,10 @@ fn every_action_writes_the_keys_the_server_reads() {
             json!({ "trialDrop": 252 }),
         ),
         (
+            SettingsAction::TrialKeep(TrialId::new(252)),
+            json!({ "trialKeep": 252 }),
+        ),
+        (
             SettingsAction::FactDrop(FactId::new("work/example")),
             json!({ "factDrop": "work/example" }),
         ),
@@ -123,9 +127,35 @@ fn the_facts_page_writes_the_servers_shape() {
     assert_eq!(page.facts[1].category, FactCategory::Preferences);
     assert_eq!(page.facts[1].now, None);
     assert_eq!(page.trials[0].id, TrialId::new(252));
+    assert_eq!(
+        page.trials[0].lesson.as_deref(),
+        Some("I say which file a change is in.")
+    );
     assert_eq!(page.lessons.len(), 1);
     let older: FactsPage = from_value(json!({ "facts": [] }));
     assert!(older.trials.is_empty(), "a server without trials");
+    let unworded: FactsPage = from_value(json!({ "facts": [], "trials": [{
+        "id": 7, "text": "Say which file a change is in.", "at": "2026-11-20T10:00:00.000Z",
+        "ends": "2026-12-04T10:00:00.000Z", "said": "Which file was that in?"
+    }] }));
+    assert_eq!(
+        unworded.trials[0].lesson, None,
+        "a server without the person's line"
+    );
+    assert!(
+        to_value(&unworded.trials[0]).get("lesson").is_none(),
+        "none is left out"
+    );
+}
+
+#[test]
+fn a_request_reads_trial_keep() {
+    let request: SettingsRequest = from_value(json!({ "trialKeep": 252 }));
+    assert_eq!(request.trial_keep, Some(TrialId::new(252)));
+    assert_eq!(
+        request,
+        SettingsRequest::from(SettingsAction::TrialKeep(TrialId::new(252)))
+    );
 }
 
 #[test]
