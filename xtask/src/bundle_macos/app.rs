@@ -14,6 +14,10 @@ pub(crate) const BUNDLE_DIR: &str = "Emberhut.app";
 pub(crate) const PACKAGE: &str = "emberhut-desktop";
 /// The app's binary, in `Contents/MacOS` (`CFBundleExecutable`).
 pub(crate) const EXECUTABLE: &str = "emberhut-desktop";
+/// The cargo package of the hut, the server the app runs on this Mac (ADR 0030).
+pub(crate) const SERVER_PACKAGE: &str = "emberhut-server";
+/// The hut's binary, in `Contents/MacOS` beside the app's own, where the app looks for it.
+pub(crate) const SERVER_EXECUTABLE: &str = "emberhut-server";
 /// The cargo feature for the automation build.
 pub(crate) const AUTOMATION_FEATURE: &str = "automation";
 /// The app's own link scheme (`emberhut://…`), registered in `CFBundleURLTypes`.
@@ -66,6 +70,15 @@ impl Layout {
     #[must_use]
     pub(crate) fn app_bundle(&self) -> PathBuf {
         self.out_dir().join(BUNDLE_DIR)
+    }
+
+    /// The hut's binary inside the bundle, `Emberhut.app/Contents/MacOS/emberhut-server`.
+    #[must_use]
+    pub(crate) fn bundled_server(&self) -> PathBuf {
+        self.app_bundle()
+            .join("Contents")
+            .join("MacOS")
+            .join(SERVER_EXECUTABLE)
     }
 
     /// Scratch directory for the icon's sizes.
@@ -156,6 +169,10 @@ mod tests {
         assert_eq!(
             layout.iconset(),
             Path::new("/work/emberhut/target/bundle/AppIcon.iconset")
+        );
+        assert_eq!(
+            layout.bundled_server(),
+            Path::new("/work/emberhut/target/bundle/Emberhut.app/Contents/MacOS/emberhut-server")
         );
         assert_eq!(
             layout.notary_upload(),

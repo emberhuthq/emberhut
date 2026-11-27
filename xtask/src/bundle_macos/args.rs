@@ -51,6 +51,12 @@ pub(crate) struct BundleArgs {
     #[arg(long, value_name = "NAME", env = "EMBERHUT_NOTARY_PROFILE")]
     pub(crate) keychain_profile: Option<String>,
 
+    /// Leave the hut out: build and bundle the app alone, without the `emberhut-server` it
+    /// runs on this Mac (ADR 0030). Quicker for a build that talks to a server elsewhere; such
+    /// an app can't set up its own hut.
+    #[arg(long)]
+    pub(crate) no_hut: bool,
+
     /// Copy the app to /Applications/Emberhut.app. An existing /Applications/Emberhut.app is replaced
     /// only when it is this app (bundle id com.emberhut.desktop); anything else there is left alone
     /// and the task fails.
@@ -70,6 +76,7 @@ impl BundleArgs {
             sign: None,
             notarize: false,
             keychain_profile: None,
+            no_hut: false,
             install: false,
         }
     }
@@ -114,10 +121,11 @@ mod tests {
             "--notarize",
             "--keychain-profile",
             "example-profile",
+            "--no-hut",
             "--install",
         ])
         .unwrap();
-        assert!(args.dist && args.automation && args.notarize && args.install);
+        assert!(args.dist && args.automation && args.notarize && args.install && args.no_hut);
         assert_eq!(args.jobs, 2);
         assert_eq!(
             args.sign.as_deref(),

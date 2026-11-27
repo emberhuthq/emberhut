@@ -79,6 +79,7 @@ impl BundleArgs {
             },
             automation: self.automation,
             jobs: self.jobs,
+            hut: !self.no_hut,
             signing,
             notarization,
             install: self.install,
@@ -100,7 +101,15 @@ mod tests {
         assert_eq!(plan.signing.codesign_identity(), "-");
         assert_eq!(plan.notarization, None);
         assert!(!plan.automation && !plan.install);
+        assert!(plan.hut, "the hut is in the bundle unless --no-hut");
         assert_eq!(plan.jobs, 4);
+        let plan = BundleArgs {
+            no_hut: true,
+            ..BundleArgs::bare()
+        }
+        .plan()
+        .unwrap();
+        assert!(!plan.hut);
     }
 
     #[test]
