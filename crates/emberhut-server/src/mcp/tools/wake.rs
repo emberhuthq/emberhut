@@ -1,10 +1,23 @@
 //! The assistant's own appointments: check-ins (`wake_me_at`, `list_checkins`,
-//! `cancel_checkin`) and watches (`watch`, `watch_note`, `list_watches`, `stop_watch`).
+//! `cancel_checkin`) and watches (`watch`, `watch_note`, `list_watches`, `stop_watch`). The
+//! owner's rooms see and change every room's; a configured agent's room only its own
+//! ([`scope`]).
 
 use serde::Deserialize;
 
+use super::agent_set::calling_agent;
 use super::{NoArgs, Tool, ToolContext, ToolError, ToolOutput};
-use crate::services::wake::{NewWatch, WakeError};
+use crate::services::wake::{NewWatch, WakeError, WakeScope};
+
+/// Whose check-ins and watches the calling room reaches: every room's for the default agent's
+/// rooms, only its own for a configured agent's.
+async fn scope(ctx: &ToolContext) -> Result<WakeScope, ToolError> {
+    Ok(if calling_agent(ctx).await?.id.is_main() {
+        WakeScope::Every
+    } else {
+        WakeScope::Room(ctx.room)
+    })
+}
 
 /// Schedules a check-in.
 #[derive(Clone, Copy, Debug)]
@@ -62,7 +75,9 @@ impl Tool for ListCheckins {
     }
 
     async fn call(&self, ctx: &ToolContext, _args: NoArgs) -> Result<ToolOutput, ToolError> {
-        let checkins = ctx.app.wake().checkins().await.map_err(ToolError::failed)?;
+        let scope = scope(ctx).await?;
+        let mut checkins = ctx.app.wake().checkins().await.map_err(ToolError::failed)?;
+        checkins.retain(|checkin| scope.reaches(checkin.room));
         ToolOutput::json(&checkins)
     }
 }
@@ -98,7 +113,7 @@ impl Tool for CancelCheckin {
         let cancelled = ctx
             .app
             .wake()
-            .cancel_checkin(&args.at)
+            .cancel_checkin(&args.at, scope(ctx).await?)
             .await
             .map_err(ToolError::failed)?;
         Ok(ToolOutput::text(if cancelled {
@@ -211,7 +226,12 @@ impl Tool for WatchNote {
     }
 
     async fn call(&self, ctx: &ToolContext, args: WatchNoteArgs) -> Result<ToolOutput, ToolError> {
-        match ctx.app.wake().note_watch(args.id, &args.note).await {
+        match ctx
+            .app
+            .wake()
+            .note_watch(args.id, &args.note, scope(ctx).await?)
+            .await
+        {
             Ok(()) => Ok(ToolOutput::text("Noted.")),
             Err(error @ WakeError::NoWatch(_)) => Err(ToolError::refused(error.to_string())),
             Err(error) => Err(ToolError::failed(error)),
@@ -235,7 +255,9 @@ impl Tool for ListWatches {
     }
 
     async fn call(&self, ctx: &ToolContext, _args: NoArgs) -> Result<ToolOutput, ToolError> {
-        let watches = ctx.app.wake().watches().await.map_err(ToolError::failed)?;
+        let scope = scope(ctx).await?;
+        let mut watches = ctx.app.wake().watches().await.map_err(ToolError::failed)?;
+        watches.retain(|watch| scope.reaches(watch.room));
         ToolOutput::json(&watches)
     }
 }
@@ -264,11 +286,16 @@ impl Tool for StopWatch {
     }
 
     async fn call(&self, ctx: &ToolContext, args: StopWatchArgs) -> Result<ToolOutput, ToolError> {
-        ctx.app
+        let stopped = ctx
+            .app
             .wake()
-            .stop_watch(args.id)
+            .stop_watch(args.id, scope(ctx).await?)
             .await
             .map_err(ToolError::failed)?;
-        Ok(ToolOutput::text("Stopped."))
+        Ok(ToolOutput::text(if stopped.is_some() {
+            "Stopped."
+        } else {
+            "No such watch."
+        }))
     }
 }

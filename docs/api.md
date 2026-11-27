@@ -770,7 +770,8 @@ other method than `POST` is 405 `{ "error": "POST only" }`, token or not. Each t
   (`MCP error -32602: Input validation error: Invalid arguments for tool <name>: ...`) and a
   tool's own refusal are results with `isError: true`.
 - The tools a room's session has besides the areas' own: `wake_me_at`, `list_checkins`,
-  `cancel_checkin`, `watch`, `watch_note`, `list_watches`, `stop_watch` (its appointments),
+  `cancel_checkin`, `watch`, `watch_note`, `list_watches`, `stop_watch` (its appointments: every
+  room's from the owner's rooms, only its own from a configured agent's),
   `room_send`, `rooms` (the other rooms), `send_file` (a file with its reply), `set_routines`
   (routines and quiet hours) and `tell_owner` (an alert on the owner's phone).
   [ADR 0014](adr/0014-agent-runtime-and-wake-rule.md) has what each does.
