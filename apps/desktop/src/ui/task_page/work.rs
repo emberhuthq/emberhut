@@ -383,12 +383,8 @@ fn run_row(
         .w(px(12.))
         .child(dot)
         .when(!last, |d| d.child(div().w(px(2.)).flex_1().bg(p.border)));
-    div()
-        .debug_selector(move || run_selector(run_id))
-        .flex()
-        .gap(px(12.))
-        .child(rail)
-        .child(text)
+    let row = div().flex().gap(px(12.)).child(rail).child(text);
+    row.debug_selector(move || run_selector(run_id))
 }
 
 /// The name a test finds run `run`'s row by.
