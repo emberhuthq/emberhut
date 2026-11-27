@@ -306,8 +306,9 @@ struct Single(AnyView);
 
 impl Single {
     /// The root over `content`, a window of `kind`. The window counts for where the app is, as
-    /// a main window does ([`super::presence::follow`]), and its frame is kept for the next
-    /// time it opens.
+    /// a main window does ([`super::presence::follow`]), keeps its look in step with the theme
+    /// and the system's appearance ([`look::keep`]), and its frame is kept for the next time it
+    /// opens.
     fn new(
         kind: WindowKind,
         content: AnyView,
@@ -316,6 +317,7 @@ impl Single {
         cx: &mut Context<'_, Self>,
     ) -> Self {
         super::presence::follow(window, store, cx);
+        look::keep(store, window, cx);
         cx.observe_window_bounds(window, move |_, window, cx| {
             super::restore::note_frame(kind, window.window_bounds(), cx);
         })

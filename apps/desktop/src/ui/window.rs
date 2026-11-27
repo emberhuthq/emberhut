@@ -219,7 +219,6 @@ pub(crate) struct MainWindow {
     /// What the window last showed besides the report (an expanded report comes back when it
     /// changes).
     report_beside: expansion::Beside,
-    theme_revision: u64,
     /// The window's own focus, so the shortcuts and the menu bar reach these handlers on a page
     /// with no field focused (GPUI sends them down the focused element's path).
     focus: FocusHandle,
@@ -309,24 +308,9 @@ impl MainWindow {
             .detach();
         // While the answer toast offers Undo, its shortcut presses it.
         toast::undo_on_shortcut(&store, cx).detach();
-        // Follow the system's light or dark while the theme does.
-        cx.observe_window_appearance(window, |this, window, cx| {
-            let page = this.store.read(cx).theme().page().clone();
-            super::look::apply(&page, window, cx);
-            cx.notify();
-        })
-        .detach();
-        // A new theme from the server or Settings: into the palette and gpui-kit's theme.
-        cx.observe_in(&store, window, |this, store, window, cx| {
-            let theme = store.read(cx).theme();
-            if theme.revision() != this.theme_revision {
-                this.theme_revision = theme.revision();
-                let page = theme.page().clone();
-                super::look::apply(&page, window, cx);
-                window.refresh();
-            }
-        })
-        .detach();
+        // Follow the system's light or dark while the theme does, and a new theme from the
+        // server or Settings: into the palette and gpui-kit's theme.
+        super::look::keep(&store, window, cx);
         let report_beside = expansion::Beside::of(store.read(cx), None);
         let kept = Kept::get(cx).sidebar;
         Self {
@@ -344,7 +328,6 @@ impl MainWindow {
             report_body: report::ReportBody::default(),
             report_beside,
             report_size,
-            theme_revision: 0,
             focus,
             pause,
             sidebar_focus: cx.focus_handle(),

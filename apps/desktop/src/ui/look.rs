@@ -179,6 +179,37 @@ fn hold_appearance(appearance: &Appearance, cx: &mut App) {
     }
 }
 
+/// Keeps `window`'s look in step while it is open: applies `store`'s theme again when the
+/// window's appearance changes (the system's light or dark, which the palette follows while the
+/// theme does) and when the theme does (from the server or Settings). Every window the app
+/// opens does this, each for its own background and root fill.
+pub(crate) fn keep<V: 'static>(
+    store: &Entity<Store>,
+    window: &mut Window,
+    cx: &mut Context<'_, V>,
+) {
+    // Each redraws the whole window, not only this view: every view in it draws with the
+    // palette.
+    let observed = store.clone();
+    cx.observe_window_appearance(window, move |_, window, cx| {
+        let page = observed.read(cx).theme().page().clone();
+        apply(&page, window, cx);
+        window.refresh();
+    })
+    .detach();
+    let mut revision = store.read(cx).theme().revision();
+    cx.observe_in(store, window, move |_, store, window, cx| {
+        let theme = store.read(cx).theme();
+        if theme.revision() != revision {
+            revision = theme.revision();
+            let page = theme.page().clone();
+            apply(&page, window, cx);
+            window.refresh();
+        }
+    })
+    .detach();
+}
+
 /// Chooses the material again from the system's setting; the new one if it changed.
 fn rechoose(cx: &mut App) -> Option<Material> {
     let before = cx.try_global::<State>().copied()?;
@@ -314,6 +345,33 @@ mod tests {
             assert_eq!(cx.global::<State>().chosen, expected);
             assert_eq!(start(Look::Opaque, cx), WindowBackgroundAppearance::Opaque);
             assert_eq!(cx.global::<State>().chosen, Material::Opaque);
+        });
+    }
+
+    #[gpui_kit::test]
+    fn a_window_that_keeps_its_look_takes_a_new_theme(cx: &mut TestAppContext) {
+        let store = store(Appearance::Light, cx);
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            let page = store.read(cx).theme().page().clone();
+            gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
+                apply(&page, window, cx);
+                cx.new(|cx| {
+                    keep(&store, window, cx);
+                    Blank
+                })
+            })
+            .unwrap();
+            assert!(!pal(cx).dark);
+        });
+        store.update(cx, |store, cx| {
+            store.pick_theme(None, Some(Appearance::Dark), cx);
+        });
+        cx.run_until_parked();
+        cx.update(|cx| {
+            assert!(pal(cx).dark, "the palette");
+            assert!(cx.theme().is_dark(), "gpui-kit's theme");
+            assert_eq!(cx.global::<Held>().0, Some(WindowAppearance::Dark));
         });
     }
 
