@@ -494,7 +494,6 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/working/environments.rs` | where the assistant works and what it reads through: fetched every 10 s while Settings' front door, Connections, Advanced or a row's page shows in front, one action at a time, what an action made kept for its page |
 | `store/working/usage.rs` | the Claude accounts' use as the usage card words it, the account the assistant runs on, the checks at launch and on coming to the front |
 | `store/working/jobs.rs` | the background jobs: fetched every 10 s while their pages show, a job's page kept once it ends, Stop and Clear asked first |
-| `store/working/settings_filter.rs` | Settings' filter (one part, one state), kept on this device |
 | `store/working/keys.rs` | the small keys a page carries for a row known by its text id |
 | `store/approvals/mod.rs` | agents' approval requests: the pending ones fetched every 10 s while their pages show in front and on the live stream's `approvals` event, each open request read on its own, Approve asked first, one answer at a time on the payload hash shown, a 409 read again and said |
 | `store/approvals/lists.rs` | who decides what: waiting on you or on an approver, Needs you's counts, the agents with rooms of their own |

@@ -17,14 +17,12 @@ use crate::store::settings::switches::{
     RowKind, StateTone, row_key, server_origin, server_status, server_tone, servers_footer,
     skills_footer,
 };
-use crate::store::working::settings_filter::{SettingsFilter, server_health, skill_health};
 use crate::ui::palette::Pal;
 use crate::ui::widgets::dot;
 use emberhut_api::switches::{McpServer, Skill, SkillSource, SwitchAction};
 
-/// The MCP servers' section: a line while they load (or why they don't), then a row each in
-/// the state `filter` keeps.
-pub(super) fn servers(store: &Entity<Store>, filter: SettingsFilter, p: &Pal, cx: &App) -> Div {
+/// The MCP servers' section: a line while they load (or why they don't), then a row each.
+pub(super) fn servers(store: &Entity<Store>, p: &Pal, cx: &App) -> Div {
     let feed = store.read(cx).switches();
     let Some(page) = feed.page() else {
         let waiting = feed.problem().map_or_else(
@@ -49,7 +47,6 @@ pub(super) fn servers(store: &Entity<Store>, filter: SettingsFilter, p: &Pal, cx
     let rows: Vec<AnyElement> = page
         .mcp
         .iter()
-        .filter(|server| filter.keeps(server_health(server)))
         .map(|server| server_row(store, server, p, cx).into_any_element())
         .collect();
     section(
@@ -61,18 +58,12 @@ pub(super) fn servers(store: &Entity<Store>, filter: SettingsFilter, p: &Pal, cx
     )
 }
 
-/// The skills' section, each in the state `filter` keeps (none while the page hasn't come).
-pub(super) fn skills(
-    store: &Entity<Store>,
-    filter: SettingsFilter,
-    p: &Pal,
-    cx: &App,
-) -> Option<Div> {
+/// The skills' section, a row each (none while the page hasn't come).
+pub(super) fn skills(store: &Entity<Store>, p: &Pal, cx: &App) -> Option<Div> {
     let page = store.read(cx).switches().page()?;
     let rows: Vec<AnyElement> = page
         .skills
         .iter()
-        .filter(|skill| filter.keeps(skill_health(skill)))
         .map(|skill| skill_row(store, skill, p, cx).into_any_element())
         .collect();
     let footer = (!rows.is_empty()).then(skills_footer);
