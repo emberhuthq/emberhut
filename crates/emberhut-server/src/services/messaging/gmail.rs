@@ -694,6 +694,43 @@ impl GmailService {
         Some(parts.join(", "))
     }
 
+    /// The correspondents with loud mail the server got after `since`, each with its source
+    /// (`Email Work, me@example.com`).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn changes(
+        &self,
+        since: Timestamp,
+    ) -> Result<Vec<(emberhut_core::messaging::mail::MailConversation, String)>, DbError> {
+        let mut changes = Vec::new();
+        for change in self.parts.store.changes(since).await? {
+            let state = self.state(&change.account).await;
+            let source = format!(
+                "{}, {}",
+                source_of(&change.account),
+                state.email.unwrap_or_else(|| change.account.clone())
+            );
+            changes.push((change, source));
+        }
+        Ok(changes)
+    }
+
+    /// `chat`'s newest `limit` messages the server got after `since`, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn new_since(
+        &self,
+        chat: &str,
+        since: Timestamp,
+        limit: u64,
+    ) -> Result<Vec<MailMessage>, DbError> {
+        self.parts.store.new_since(chat, since, limit).await
+    }
+
     /// A chat's newest `limit` messages, oldest first, each cut to `chars`.
     ///
     /// # Errors

@@ -152,6 +152,7 @@ struct Inner {
     rooms: RoomsService,
     routines: RoutineService,
     wake: WakeService,
+    meeting_prep: crate::services::meeting_prep::MeetingPrep,
     facts: FactService,
     notes: NoteService,
     learning: LearningService,
@@ -734,6 +735,7 @@ impl AppState {
                     push.clone(),
                     Arc::clone(&clock),
                 )),
+                facts: Some(facts.clone()),
             },
         );
         tasks.hand_answers_to(Arc::new(WhatsAppAnswers(messaging.whatsapp().clone())));
@@ -749,6 +751,12 @@ impl AppState {
                 family_directory,
                 room_reminders,
             },
+        );
+        let meeting_prep = crate::services::meeting_prep::MeetingPrep::new(
+            personal.calendar.clone(),
+            tasks.clone(),
+            db.settings(),
+            Arc::clone(&clock),
         );
         Self {
             inner: Arc::new(Inner {
@@ -781,6 +789,7 @@ impl AppState {
                 program_key,
                 rooms,
                 routines,
+                meeting_prep,
                 wake,
                 facts,
                 notes,
@@ -1068,6 +1077,12 @@ impl AppState {
     #[must_use]
     pub fn wake(&self) -> &WakeService {
         &self.inner.wake
+    }
+
+    /// Meeting prep: a task to prepare the owner before each meeting.
+    #[must_use]
+    pub fn meeting_prep(&self) -> &crate::services::meeting_prep::MeetingPrep {
+        &self.inner.meeting_prep
     }
 
     /// The runners' sessions.

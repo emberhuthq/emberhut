@@ -58,12 +58,25 @@ guard rails' area. The asks, notes and answers live on tasks, which are the task
   with dictation, ADR 0019), `EMBERHUT_VOICE_MAX_SECONDS` (600), `EMBERHUT_WHATSAPP_URL` (the daemon; left
   out, none), `EMBERHUT_WHATSAPP_NAME` (the name a group message starts with to address the
   assistant, default `emberhut`), `EMBERHUT_WHATSAPP_OWNER` (the owner's number, so the owner is named in
-  the chats) and `EMBERHUT_WHATSAPP_PHONE` (the number to link).
+  the chats), `EMBERHUT_WHATSAPP_PHONE` (the number to link) and `EMBERHUT_OWNER_NAME` (the owner's
+  name, so a group that mentions them wakes the assistant at once; left out, no mention does).
 - **Collecting** runs in the background from `serve`: every 2 minutes Slack's workspaces are
   connected (each `slack-<workspace>-user` secret; a failure is tried again in 10 minutes) and the
   owner's own messages searched, Slack's notifications and the Slack app's saved messages are read
   from the Mac, and each Gmail account's history is read; every minute the voice notes due a try
   are started (three at a time).
+- **News wakes the assistant** (`services::messaging::news`, rules in
+  `emberhut_core::messaging::news`): after each round of collecting, the chats with messages since
+  the last look (the Mac helper's `GET /changes?since=` for iMessage, SMS and WhatsApp, then
+  Slack, then email by when the server got it; 20 chats at most) go to Main as one event, each chat
+  with its new messages, the assistant's card on that person and the open loops it may answer
+  (the owner wrote there after the loop opened: `maybe`; any message there `touched`). They gather
+  for 14 minutes as a `messages` event, unless one can't wait: someone marked important wrote, a
+  message says it is urgent (English or Arabic words), or a group mentions the owner; then an
+  `important` event, which wakes Main at once. The wake rule's hourly ceiling still holds. Two
+  marks say how far the chats were read: `context.at` for the Mac's and Slack's (they wait while
+  the Mac doesn't answer) and `mailAt` for email; a mark moves only once its messages were
+  passed on. The `newsWakes` setting (`set_routines`' `news`) turns it off.
 - **The guard on sending as the owner is here, whole** (`services::messaging::guard`),
   for both `slack_send` and `whatsapp_send`: the waiting message per task and the last one sent
   are kept in the settings (`slackPending`, `slackSent`, `waPending`, `waSent`), and one call

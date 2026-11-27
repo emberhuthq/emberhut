@@ -942,6 +942,18 @@ impl SlackService {
             .collect())
     }
 
+    /// The conversations with messages sent after `since`, the newest first.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn changes(
+        &self,
+        since: Timestamp,
+    ) -> Result<Vec<emberhut_core::messaging::slack::SlackConversation>, DbError> {
+        self.parts.store.conversations(since).await
+    }
+
     /// A chat's newest `limit` messages, oldest first.
     ///
     /// # Errors

@@ -34,6 +34,7 @@ pub mod live;
 pub mod live_call;
 pub mod mac;
 pub mod machines;
+pub mod meeting_prep;
 pub mod messaging;
 pub mod notes;
 pub mod pairing;

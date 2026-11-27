@@ -23,6 +23,7 @@ pub mod guard;
 pub mod hooks;
 pub mod mac;
 pub mod messages;
+pub mod news;
 pub mod secrets;
 pub mod slack;
 pub mod voice_notes;
@@ -35,11 +36,13 @@ use self::gmail::{GmailParts, GmailService, GoogleApi, NoGoogleApi};
 use self::hooks::{CardOnly, SendOks, Tasks};
 use self::mac::{MacMessages, NoMacMessages};
 use self::messages::Messages;
+use self::news::{News, NewsParts};
 use self::secrets::Secrets;
 use self::slack::{NoSlackApi, SlackApi, SlackParts, SlackService};
 use self::voice_notes::{NoTranscriber, Transcriber, VoiceNotes, VoiceParts};
 use self::whatsapp::{NoWaDaemon, WaDaemon, WhatsAppOptions, WhatsAppParts, WhatsAppService};
 use self::whatsapp_web::{NoWhatsAppWeb, WhatsAppSend, WhatsAppWeb};
+use crate::services::facts::FactService;
 use crate::services::push::PushService;
 
 /// How often new messages are collected.
@@ -72,6 +75,9 @@ pub struct MessagingDeps {
     pub wake_name: String,
     /// The owner's own phone number, to name the owner in WhatsApp chats.
     pub owner_phone: Option<String>,
+    /// The owner's name, as a group chat mentions them: such a mention wakes the assistant at
+    /// once ([`news`]); none: no group mention does.
+    pub owner_name: Option<String>,
     /// The assistant's WhatsApp number, to link.
     pub assistant_phone: Option<String>,
     /// The longest voice note transcribed, in seconds.
@@ -98,6 +104,7 @@ impl Default for MessagingDeps {
             gmail_callback: None,
             wake_name: "emberhut".to_owned(),
             owner_phone: None,
+            owner_name: None,
             assistant_phone: None,
             voice_max_seconds: emberhut_core::messaging::voice::MAX_SECONDS,
             voice_retry_pause: Duration::from_secs(3),
@@ -125,6 +132,8 @@ pub struct MessagingParts {
     /// Sign-in is only reported: a message sent as the owner goes out on its own card's answer
     /// or the standing list only ([`ContextParts::card_oks_only`]).
     pub card_oks_only: bool,
+    /// The assistant's cards on people, which come with their new messages; none: no cards.
+    pub facts: Option<FactService>,
 }
 
 /// Every messaging service, wired once. Cheap to clone.
@@ -136,6 +145,7 @@ pub struct Messaging {
     whatsapp: WhatsAppService,
     whatsapp_send: WhatsAppSend,
     messages: Messages,
+    news: News,
 }
 
 impl Messaging {
@@ -208,7 +218,16 @@ impl Messaging {
                 },
             },
         );
-        let whatsapp_send = WhatsAppSend::new(ctx, Arc::clone(&deps.mac), deps.wa_web);
+        let whatsapp_send = WhatsAppSend::new(ctx.clone(), Arc::clone(&deps.mac), deps.wa_web);
+        let news = News::new(NewsParts {
+            ctx,
+            mac: Arc::clone(&deps.mac),
+            slack: slack.clone(),
+            gmail: gmail.clone(),
+            voice: voice.clone(),
+            facts: parts.facts,
+            owner: deps.owner_name,
+        });
         let messages = Messages::new(
             deps.mac,
             slack.clone(),
@@ -223,6 +242,7 @@ impl Messaging {
             whatsapp,
             whatsapp_send,
             messages,
+            news,
         }
     }
 
@@ -262,6 +282,12 @@ impl Messaging {
         &self.messages
     }
 
+    /// The look for news in the owner's chats.
+    #[must_use]
+    pub fn news(&self) -> &News {
+        &self.news
+    }
+
     /// One round of collecting: Slack's workspaces connected and the owner's own messages
     /// read, Slack's notifications and the Slack app's saved messages from the Mac, and new
     /// mail. Each source's failure is logged, never thrown.
@@ -280,8 +306,8 @@ impl Messaging {
         self.gmail.collect().await;
     }
 
-    /// Collects every 2 minutes and starts the voice notes due a try every minute, until
-    /// `stop`.
+    /// Collects every 2 minutes, each round followed by the look for news ([`News::tick`]),
+    /// and starts the voice notes due a try every minute, until `stop`.
     pub async fn keep_collecting(self, stop: CancellationToken) {
         let mut collect = tokio::time::interval(COLLECT_EVERY);
         let mut voice = tokio::time::interval(VOICE_EVERY);
@@ -293,7 +319,10 @@ impl Messaging {
                     self.slack.stop_live();
                     return;
                 }
-                _ = collect.tick() => self.collect().await,
+                _ = collect.tick() => {
+                    self.collect().await;
+                    self.news.tick().await;
+                }
                 _ = voice.tick() => {
                     if let Err(error) = self.voice.tick().await {
                         tracing::warn!(%error, "voice notes due weren't started");
