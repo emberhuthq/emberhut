@@ -1,3 +1,4 @@
+export type * from "./agentProvider";
 export type * from "./agents";
 export type * from "./approvals";
 export type * from "./areas";

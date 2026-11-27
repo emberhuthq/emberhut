@@ -39,6 +39,8 @@ export type RootStackParamList = {
   /** One fact Emberhut keeps about you, to fix or forget ("people/x"). */
   Fact: { id: string };
   Settings: undefined;
+  /** What your ember thinks with: the model provider, its key and model, checked with the provider before it's saved. */
+  Credentials: undefined;
   /** Each runner machine's live capacity, as the server lists them. */
   Machines: undefined;
   /** Your parties: AI personas talking to each other. */

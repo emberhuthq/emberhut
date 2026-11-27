@@ -11,6 +11,7 @@ import { aboutYouTitle } from "@/features/aboutYou/facts";
 import { AddServerScreen, SignInScreen } from "@/features/auth/SignInScreen";
 import { BrowserScreen } from "@/features/browser/BrowserScreen";
 import { RoomsScreen } from "@/features/chat/RoomsScreen";
+import { CredentialsScreen } from "@/features/ember/CredentialsScreen";
 import { FileScreen } from "@/features/files/FileScreen";
 import { MachinesScreen } from "@/features/machines/MachinesScreen";
 import { NewPartyScreen } from "@/features/party/NewPartyScreen";
@@ -127,6 +128,7 @@ export function RootStack() {
           <Stack.Screen name="Fact" component={FactScreen} options={{ title: "Fix a fact", presentation: "modal" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
           <Stack.Screen name="AddServer" component={AddServerScreen} options={{ title: "Pair with a server", presentation: "modal" }} />
+          <Stack.Screen name="Credentials" component={CredentialsScreen} options={{ title: "What your ember thinks with" }} />
           <Stack.Screen name="Machines" component={MachinesScreen} options={{ title: "Machines" }} />
           <Stack.Screen name="Parties" component={PartiesScreen} options={{ title: "Party" }} />
           <Stack.Screen name="Party" component={PartyScreen} options={({ route }) => ({ title: route.params.title ?? "Party" })} />

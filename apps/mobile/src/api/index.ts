@@ -1,3 +1,4 @@
+import { agentProviderEndpoints } from "./endpoints/agentProvider";
 import { agentEndpoints } from "./endpoints/agents";
 import { approvalEndpoints } from "./endpoints/approvals";
 import { authEndpoints } from "./endpoints/auth";
@@ -31,6 +32,7 @@ export function createApi(http: EmberhutHttp) {
     parties: partyEndpoints(http),
     theme: themeEndpoints(http),
     agents: agentEndpoints(http),
+    agentProvider: agentProviderEndpoints(http),
     approvals: approvalEndpoints(http),
   };
 }

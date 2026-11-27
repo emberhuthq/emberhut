@@ -23,6 +23,8 @@ export const queryKeys = {
   /** The emberhut.com account's machines, from its directory. */
   accountMachines: ["account", "machines"] as const,
   agents: ["agents"] as const,
+  /** What the agent thinks with: the saved model provider, never its key. */
+  agentProvider: ["agentProvider"] as const,
   /** Every approvals list and request: what an `approvals` event or a decision refreshes. */
   allApprovals: ["approvals"] as const,
   approvals: (query: ApprovalsQuery) => ["approvals", "list", query] as const,

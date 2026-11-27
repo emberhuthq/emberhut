@@ -63,6 +63,11 @@ export function useSwitches() {
   return useQuery({ queryKey: queryKeys.switches, queryFn: () => api.settings.switches() });
 }
 
+/** The model provider saved for the agent; `enabled` false asks nothing (not signed in). */
+export function useAgentProvider(enabled = true) {
+  return useQuery({ queryKey: queryKeys.agentProvider, queryFn: ({ signal }) => api.agentProvider.provider(signal), enabled });
+}
+
 export function useEnvironments() {
   return useQuery({ queryKey: queryKeys.environments, queryFn: () => api.settings.environments(), refetchInterval: 10_000 });
 }
