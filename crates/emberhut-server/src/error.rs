@@ -53,6 +53,9 @@ pub enum ApiError {
     /// The request took longer than the server allows (503).
     #[error("request timed out")]
     Timeout,
+    /// The server is shutting down, and takes no new work (503).
+    #[error("the server is shutting down")]
+    ShuttingDown,
     /// Something unexpected went wrong in the server, such as a panicking handler (500). The
     /// cause is logged where it happens.
     #[error("unexpected server fault")]
@@ -115,6 +118,7 @@ impl ApiError {
             Self::Talk(TalkError::Busy) => StatusCode::TOO_MANY_REQUESTS,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Timeout
+            | Self::ShuttingDown
             | Self::Talk(TalkError::ShuttingDown)
             | Self::Backup(BackupError::Busy) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Pairing(PairingError::Refused(refusal)) => match refusal {
@@ -160,7 +164,7 @@ impl ApiError {
             Self::Talk(TalkError::Busy) => {
                 "Too many messages are waiting for an answer in this room. Try again in a moment."
             }
-            Self::Talk(TalkError::ShuttingDown) => {
+            Self::ShuttingDown | Self::Talk(TalkError::ShuttingDown) => {
                 "The server is restarting. Try again in a moment."
             }
             Self::NotFound => "not found",
@@ -362,6 +366,16 @@ mod tests {
             assert!(body["error"].as_str().is_some_and(|e| !e.is_empty()));
             assert_eq!(body.as_object().unwrap().len(), 1, "only `error`");
         }
+    }
+
+    #[tokio::test]
+    async fn shutting_down_is_503_with_its_sentence() {
+        let (status, _, body) = answer(ApiError::ShuttingDown).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            body,
+            json!({ "error": "The server is restarting. Try again in a moment." })
+        );
     }
 
     #[tokio::test]

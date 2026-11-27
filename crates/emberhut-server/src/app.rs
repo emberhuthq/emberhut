@@ -14,6 +14,7 @@ use emberhut_api::paths;
 use emberhut_core::lag::masked_path;
 use emberhut_core::{Clock, OsRandom, RandomSource, SystemClock};
 use emberhut_db::Database;
+use emberhut_identity::Scheme;
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tower_http::catch_panic::CatchPanicLayer;
@@ -180,6 +181,7 @@ struct Inner {
     family: FamilyService,
     machine: Option<Arc<Machine>>,
     pairing_routes: Vec<String>,
+    direct_scheme: Scheme,
     agents: AgentService,
     approvals: ApprovalService,
     agent_conversations: AgentConversations,
@@ -435,6 +437,7 @@ impl AppState {
         let worker_tokens = crate::mcp::worker_tokens::WorkerTokens::new(Arc::clone(&random));
         let (secrets_dir_for_messaging, public_url_for_messaging) =
             (secrets_dir.clone(), public_url.clone());
+        let direct_scheme = direct_scheme(&public_url);
         private_files.extend(crate::services::transfer::beside_database(db.path()));
         let private_dir = secrets_dir.clone();
         let home_for_guard = home.clone();
@@ -818,6 +821,7 @@ impl AppState {
                 family,
                 machine,
                 pairing_routes,
+                direct_scheme,
                 agents,
                 approvals,
                 agent_conversations,
@@ -835,6 +839,14 @@ impl AppState {
     #[must_use]
     pub fn pairing_routes(&self) -> &[String] {
         &self.inner.pairing_routes
+    }
+
+    /// The scheme a direct listener's requests come in with, which a probe's host is
+    /// normalized against: the public URL's when it is `https` (the listener sits behind a TLS
+    /// proxy), and `http` otherwise.
+    #[must_use]
+    pub fn direct_scheme(&self) -> Scheme {
+        self.inner.direct_scheme
     }
 
     /// Agents, approvers and trusted requesters, as the owner configures them.
@@ -1435,6 +1447,14 @@ fn side_apps(
 /// is noted for `GET /api/loop`.
 pub fn router(state: AppState, request_timeout: Duration) -> Router {
     with_middleware(routes::router(), state, request_timeout)
+}
+
+/// The scheme of a direct listener whose links point at `public_url` ([`AppState::direct_scheme`]).
+fn direct_scheme(public_url: &str) -> Scheme {
+    match url::Url::parse(public_url) {
+        Ok(url) if url.scheme() == "https" => Scheme::Https,
+        _ => Scheme::Http,
+    }
 }
 
 fn with_middleware(routes: Router<AppState>, state: AppState, request_timeout: Duration) -> Router {

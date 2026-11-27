@@ -886,12 +886,14 @@ pub async fn run(
     let stopping = state.stopping().clone();
     let talk = state.talk().clone();
     drop(tokio::spawn(state.lag().clone().probe(stopping.clone())));
-    // The requests of this TCP listener, and only they, are marked as direct TCP.
-    let app = router(state, request_timeout).layer(axum::Extension(peer::DirectTcp));
+    // The requests of this TCP listener, and only they, are marked as direct TCP, with the
+    // local address that accepted each connection.
+    let app =
+        router(state, request_timeout).layer(axum::middleware::map_request(peer::mark_direct));
     let mut server = pin!(
         axum::serve(
             listener,
-            app.into_make_service_with_connect_info::<SocketAddr>()
+            app.into_make_service_with_connect_info::<peer::Accepted>()
         )
         .with_graceful_shutdown(stopping.clone().cancelled_owned())
         .into_future()

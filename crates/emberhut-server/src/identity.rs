@@ -22,13 +22,13 @@ use std::fs::File;
 use std::io::{self, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
-use emberhut_api::connect::{MachineIdentity, SignedLink};
+use emberhut_api::connect::{MachineIdentity, ProbeAnswer, SignedLink};
 use emberhut_api::directory::UnlinkRequest;
 pub use emberhut_db::MACHINE_ID;
 use emberhut_db::{DbError, SettingStore};
 use emberhut_identity::{
-    AccountId, MachineId, MachineName, PairingLink, PairingLinkError, RandomError, RelayDomain,
-    SECRET_KEY_LEN, SecretKey, UnixMillis,
+    AccountId, Host, MachineId, MachineName, Nonce, PairingLink, PairingLinkError, ProbeKind,
+    RandomError, Reached, RelayDomain, SECRET_KEY_LEN, SecretKey, UnixMillis,
 };
 use zeroize::Zeroizing;
 
@@ -483,6 +483,19 @@ impl Machine {
         time: UnixMillis,
     ) -> SignedLink {
         SignedLink::sign(&self.key, self.name.clone(), account, relay_domain, time)
+    }
+
+    /// The machine's answer to a probe with `nonce` and `kind` that reached it as `reached`,
+    /// asking for `host`: the `emberhut probe v1` statement, signed.
+    #[must_use]
+    pub fn sign_probe(
+        &self,
+        nonce: Nonce,
+        kind: &ProbeKind,
+        reached: Reached,
+        host: Host,
+    ) -> ProbeAnswer {
+        ProbeAnswer::sign(&self.key, nonce, kind, reached, host)
     }
 
     /// The machine's own request to leave its account at `relay_domain`, signed at `time`.

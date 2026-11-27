@@ -3,13 +3,13 @@
 - Status: Accepted; amended by [ADR 0008](0008-end-to-end-encryption.md)
 - Built so far: `emberhut-identity` and the contract (part 1); the client's transport trait (3); of
   part 2, the machine's key and id, the pairing answer's `machine`, the pairing link and its QR
-  code, `emberhut-server id` and the `report` guard; the account directory with its Clerk checks (6);
-  of part 7, the link statement over loopback and `emberhut-server link` and `unlink`; account
-  sign-in and QR pairing in the desktop (8) and the phone (the account and pairing-link parts of
-  11), each off unless the build turns it on. Linking a machine ships before the relay: with no
+  code, the probe, `emberhut-server id` and the `report` guard; the account directory with its
+  Clerk checks (6); of part 7, the link statement over loopback and `emberhut-server link` and
+  `unlink`; account sign-in and QR pairing in the desktop (8) and the phone (the account and
+  pairing-link parts of 11), each off unless the build turns it on. Linking a machine ships before the relay: with no
   relay, a link only lists the machine in the account (section 9).
-- Still to build: the rest of part 2 (the probe, the advertisement, the names a listener answers
-  to, the device key and its proof, the uncounted wrong code, `Listener`, CORS and
+- Still to build: the rest of part 2 (the advertisement, the names a listener answers to, the
+  device key and its proof, the uncounted wrong code, `Listener`, CORS and
   `EMBERHUT_WEB_ORIGINS`); the client's routes and hosts (4); the relay's gateway (5); the uplink
   (the rest of 7); Connections (9); the TypeScript routes (10); setup on the providers' consoles
   for release (12); sealed sessions (13, 14); the browser's sealed fetch (15); and the rest of the
