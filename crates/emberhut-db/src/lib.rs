@@ -179,6 +179,16 @@ pub enum DbError {
     /// An import's target is there already: an import builds a new file only.
     #[error("{} is there already; an import makes a new database only", .0.display())]
     TargetExists(PathBuf),
+    /// An archived row to replace is not in the archive.
+    #[error("no row of {database}.{table} is archived at {ordinal}")]
+    NotArchived {
+        /// The source database.
+        database: String,
+        /// The source table.
+        table: String,
+        /// The row's place.
+        ordinal: i64,
+    },
     /// The database is in use already (it has devices or browser profiles), where an unused one
     /// was expected.
     #[error("{} is in use already (it has devices or browser profiles)", .0.display())]
