@@ -7,9 +7,10 @@ use emberhut_api::task_page::Run;
 use emberhut_api::tasks::TaskStatus;
 use gpui_kit::assets::IconName;
 use gpui_kit::prelude::*;
-use gpui_kit::{Div, ElementId, FontWeight, ImageSource, div, img, px};
+use gpui_kit::{Div, ElementId, FontWeight, div, px};
 
 use super::text::{Long, collapsible, link_button};
+use super::thumb::thumb;
 use super::{Part, TaskView, fold, fold_row, section};
 use crate::store::Page;
 use crate::store::files::RemoteFile;
@@ -367,6 +368,7 @@ fn run_row(
         );
     }
     text = text.children(run_media(part, run, artifacts));
+    let run_id = run.id.get();
     let dot = div()
         .size(px(12.))
         .mt(px(3.))
@@ -381,7 +383,23 @@ fn run_row(
         .w(px(12.))
         .child(dot)
         .when(!last, |d| d.child(div().w(px(2.)).flex_1().bg(p.border)));
-    div().flex().gap(px(12.)).child(rail).child(text)
+    let row = div().flex().gap(px(12.)).child(rail).child(text);
+    row.debug_selector(move || run_selector(run_id))
+}
+
+/// The name a test finds run `run`'s row by.
+pub(super) fn run_selector(run: i64) -> String {
+    format!("run-row-{run}")
+}
+
+/// The name a test finds the thumbnail of `artifact`, shown with run `run`, by.
+pub(super) fn media_selector(run: i64, artifact: i64) -> String {
+    format!("run-media-{run}-{artifact}")
+}
+
+/// The name a test finds the picture inside that thumbnail by.
+pub(super) fn picture_selector(run: i64, artifact: i64) -> String {
+    format!("run-picture-{run}-{artifact}")
 }
 
 /// A run's pictures and videos as thumbnails, each opening in the viewer.
@@ -402,22 +420,20 @@ fn run_media(
             .as_deref()
             .and_then(|thumb| part.read.picture(thumb));
         let (url, name) = (artifact.url.clone(), artifact.name.clone());
+        let (run_id, artifact_id) = (run.id.get(), artifact.id.get());
         thumbs = thumbs.child(
             div()
                 .id(ElementId::Name(
                     format!("run-media-{}-{}", run.id, artifact.id).into(),
                 ))
+                .debug_selector(move || media_selector(run_id, artifact_id))
                 .relative()
+                .flex_none()
                 .w(px(120.))
                 .h(px(84.))
-                .rounded(px(8.))
-                .bg(p.card)
                 .cursor_pointer()
-                .children(picture.map(|image| {
-                    img(ImageSource::Render(image))
-                        .w(px(120.))
-                        .h(px(84.))
-                        .rounded(px(8.))
+                .child(thumb(picture, (120., 84.), 8., p.card, move || {
+                    picture_selector(run_id, artifact_id)
                 }))
                 .when(artifact.kind == "video", |d| {
                     d.child(
