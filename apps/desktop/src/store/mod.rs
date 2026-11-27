@@ -19,6 +19,7 @@ mod column;
 pub(crate) mod composer;
 #[cfg(test)]
 mod composer_tests;
+pub(crate) mod credentials;
 pub(crate) mod dark;
 pub(crate) mod decision;
 pub(crate) mod devices;
@@ -286,6 +287,8 @@ pub(crate) struct Store {
     approvals: approvals::ApprovalsFeed,
     /// The user's last Try again of the server, while on the fallback server.
     primary_retry: fallback::Retry,
+    /// What the ember thinks with, and the picker that chooses it.
+    credentials: credentials::Credentials,
 }
 
 impl Store {
@@ -394,6 +397,7 @@ impl Store {
             updates: updates::Updates::default(),
             approvals: approvals::ApprovalsFeed::default(),
             primary_retry: fallback::Retry::default(),
+            credentials: credentials::Credentials::default(),
         }
     }
 

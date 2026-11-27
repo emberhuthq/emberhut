@@ -23,6 +23,7 @@ use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::approvals::{
     ApprovalReply, ApprovalsEvent, ApprovalsPage, ApprovalsQuery, DecisionRequest, WithdrawRequest,
 };
@@ -261,6 +262,35 @@ pub(crate) trait Backend: Send + Sync {
     ///
     /// As [`Backend::state`]; [`Error::Refused`] with the server's words.
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error>;
+
+    /// What the server's agent thinks with: the provider saved, without its key.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`]; [`Error::Refused`] 404 from a server without the route.
+    fn agent_provider(&self) -> Result<AgentProvider, Error>;
+
+    /// Checks a provider with what `request` gives it and lists its models, saving nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::agent_provider`]; [`Error::Refused`] with the server's sentence when the
+    /// provider doesn't take what was sent (400), refused the key (422) or didn't answer (502).
+    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error>;
+
+    /// Checks a provider and saves it in place of whatever was saved; what is saved now.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::test_agent_provider`] (nothing is saved then).
+    fn save_agent_provider(&self, request: &ProviderRequest) -> Result<AgentProvider, Error>;
+
+    /// Removes the saved provider and its key; what is saved now (nothing).
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::agent_provider`].
+    fn forget_agent_provider(&self) -> Result<AgentProvider, Error>;
 
     /// Stops the answer the assistant is writing in `room` now (its background work goes on).
     ///

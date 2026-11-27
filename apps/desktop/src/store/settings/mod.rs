@@ -56,9 +56,11 @@ impl Store {
         self.show_chrome_sheet(Some(ChromeSheet::Profile(id)), cx);
     }
 
-    /// Settings' main page shows afresh in a column: its switches are fetched at once.
-    pub(super) fn settings_opened(&mut self) {
+    /// Settings' main page shows afresh in a column: its switches are fetched at once, and
+    /// what the ember thinks with is read for its row.
+    pub(super) fn settings_opened(&mut self, cx: &mut Context<'_, Self>) {
         self.settings.switches.kick();
+        self.load_credentials(cx);
     }
 
     /// The window came to the front: the switches are fetched at once if Settings shows them.

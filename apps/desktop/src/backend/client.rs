@@ -4,6 +4,7 @@ use std::io::Write;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 
+use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::answers::AnswerRequest;
 use emberhut_api::approvals::{
     ApprovalReply, ApprovalsPage, ApprovalsQuery, DecisionRequest, WithdrawRequest,
@@ -352,6 +353,22 @@ impl Backend for EmberhutBackend {
 
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error> {
         self.client.chrome(action).map_err(error)
+    }
+
+    fn agent_provider(&self) -> Result<AgentProvider, Error> {
+        self.client.agent_provider().map_err(error)
+    }
+
+    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
+        self.client.test_agent_provider(request).map_err(error)
+    }
+
+    fn save_agent_provider(&self, request: &ProviderRequest) -> Result<AgentProvider, Error> {
+        self.client.save_agent_provider(request).map_err(error)
+    }
+
+    fn forget_agent_provider(&self) -> Result<AgentProvider, Error> {
+        self.client.forget_agent_provider().map_err(error)
     }
 
     fn task(&self, id: TaskId) -> Result<TaskPage, Error> {
