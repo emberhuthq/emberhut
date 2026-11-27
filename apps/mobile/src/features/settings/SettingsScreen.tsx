@@ -1,10 +1,12 @@
 import Constants from "expo-constants";
 import { Alert } from "react-native";
+import { savedLine } from "@/features/ember/credentials";
+import type { RootScreenProps } from "@/navigation/types";
 import { inBackground } from "@/log";
 import { sessionStore } from "@/services";
 import { offlineReason } from "@/state/connection";
 import { useConnection, useSession } from "@/state/hooks";
-import { useEmberhutState } from "@/state/queries";
+import { useAgentProvider, useEmberhutState } from "@/state/queries";
 import { Button, ListRow, Screen, Section, usePullRefresh } from "@/ui";
 import { Appearance } from "./Appearance";
 import { Devices, PairAnother } from "./Devices";
@@ -17,8 +19,9 @@ import { Switches } from "./Switches";
  * Settings: Emberhut's look (kept on the server), notifications and Emberhut's server; your signed-in devices and pairing another one; then, as on
  * the reference client's page, Emberhut's MCP servers and skills with your switches and the sources and machines it depends on.
  */
-export function SettingsScreen() {
+export function SettingsScreen({ navigation }: RootScreenProps<"Settings">) {
   const signedIn = useSession((s) => s.status === "signedIn");
+  const provider = useAgentProvider(signedIn);
   const serverUrl = useSession((s) => s.serverUrl);
   const machineId = useSession((s) => s.machineId);
   const state = useEmberhutState();
@@ -34,6 +37,17 @@ export function SettingsScreen() {
   return (
     <Screen scroll {...pull}>
       <Appearance />
+      {signedIn ? (
+        <Section title="Your ember">
+          <ListRow
+            key="thinksWith"
+            icon="flame-outline"
+            title="What your ember thinks with"
+            subtitle={provider.isError ? provider.error.message : provider.data ? savedLine(provider.data) : "Looking…"}
+            onPress={() => navigation.navigate("Credentials")}
+          />
+        </Section>
+      ) : null}
       <Section title="This phone">
         {signedIn ? <PushRow key="push" /> : null}
         <ListRow key="server" icon="server-outline" title="Server" subtitle={serverUrl ?? "None yet: it's set when this phone pairs"} />

@@ -4,7 +4,8 @@ import { ApiError, reasonOf } from "./errors";
 import { buildUrl, readJson, timeoutSignal, type Fetch, type Query, type UploadFile } from "./fetch";
 
 export interface RequestOptions {
-  method?: "GET" | "POST";
+  /** GET without a body, POST with one, unless given. */
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   query?: Query;
   /** A JSON body; makes the request a POST. */
   json?: unknown;
@@ -136,5 +137,13 @@ export class EmberhutHttp {
 
   post<T>(path: string, json: unknown = {}, options: Omit<RequestOptions, "json"> = {}): Promise<T> {
     return this.json<T>(path, { ...options, json });
+  }
+
+  put<T>(path: string, json: unknown, options: Omit<RequestOptions, "json" | "method"> = {}): Promise<T> {
+    return this.json<T>(path, { ...options, json, method: "PUT" });
+  }
+
+  delete<T>(path: string, options: Omit<RequestOptions, "method"> = {}): Promise<T> {
+    return this.json<T>(path, { ...options, method: "DELETE" });
   }
 }
