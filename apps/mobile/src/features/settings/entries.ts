@@ -40,6 +40,10 @@ export const groupIcon: Record<GroupId, IconName> = {
 /** How the things Settings speaks of stand now: what the live lines, the suggestions and the status lines read. */
 export interface Now {
   onDuty: boolean;
+  /** Whether it is at work on something now. */
+  working: boolean;
+  /** How many background jobs it is running. */
+  jobs: number;
   /** What the agent thinks with (`DeepSeek · key ending 0000`), once read. */
   provider?: string;
   /** How many facts it keeps about you, once read. */
@@ -68,6 +72,8 @@ export interface Now {
 /** Nothing known yet. */
 export const nothingKnown: Now = {
   onDuty: false,
+  working: false,
+  jobs: 0,
   lessons: 0,
   dark: false,
   appearance: "system",
@@ -308,7 +314,7 @@ export const entries: readonly Entry[] = [
     group: "privacy",
     synonyms: ["off the record", "clear history", "delete", "incognito"],
     to: { group: "privacy" },
-    icon: "moon-outline",
+    icon: "lock-closed-outline",
   },
   {
     id: "data-flow",
@@ -379,6 +385,16 @@ export const entries: readonly Entry[] = [
   },
 ];
 
+/**
+ * What the agent is doing, as Your ember's screen says it under its title: `Ready`, `Working on 2 things`, `Off duty`. The On
+ * duty switch says whether it is on duty; this doesn't repeat it.
+ */
+export function doingWord(now: Now): string {
+  if (!now.onDuty) return "Off duty";
+  const count = Math.max(now.jobs, now.working ? 1 : 0);
+  return count === 0 ? "Ready" : `Working on ${counted(count, "thing")}`;
+}
+
 /** Whether a group shows now: Account only in builds with the account. */
 export function groupShown(group: GroupId, now: Now): boolean {
   return group !== "account" || now.hasAccount;
@@ -388,7 +404,7 @@ export function groupShown(group: GroupId, now: Now): boolean {
 export function groupStatus(group: GroupId, now: Now): string {
   switch (group) {
     case "ember":
-      return now.onDuty ? "On duty" : "Off duty";
+      return doingWord(now);
     case "appearance":
       return appearanceWord(now);
     case "devices":

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { entries, groupName, groups, nothingKnown, pathOf } from "./entries";
+import { entries, groupName, groups, groupStatus, nothingKnown, pathOf } from "./entries";
 import { search, suggestions } from "./find";
 
 /** The list both apps check theirs against. */
@@ -25,6 +25,16 @@ describe("the settings' list", () => {
   });
 });
 
+describe("Your ember's status line", () => {
+  it("says what it is doing, not that it is on duty", () => {
+    const on = { ...nothingKnown, onDuty: true };
+    expect(groupStatus("ember", on)).toBe("Ready");
+    expect(groupStatus("ember", { ...on, working: true })).toBe("Working on 1 thing");
+    expect(groupStatus("ember", { ...on, jobs: 2 })).toBe("Working on 2 things");
+    expect(groupStatus("ember", nothingKnown)).toBe("Off duty");
+  });
+});
+
 describe("search", () => {
   it("finds a setting by its other names", () => {
     for (const [query, id] of [
@@ -45,6 +55,7 @@ describe("search", () => {
     const { rows } = search("dar", nothingKnown);
     expect(rows.slice(0, 2).map((r) => r.entry.id)).toEqual(["appearance-mode", "dark-room"]);
     expect(rows[0]?.marks).toEqual([[0, 3]]);
+    expect(rows[1]?.icon).not.toBe(rows[0]?.icon);
     expect(first("ROOMS archived")).toBe("archived-rooms");
   });
 
@@ -81,6 +92,12 @@ describe("suggestions", () => {
     expect(titles(nothingKnown)).toEqual(expect.arrayContaining(["Switch to dark", "Go on duty"]));
     expect(titles({ ...nothingKnown, signedIn: true })).toContain("Pair a computer");
     expect(titles({ ...nothingKnown, signedIn: true, otherDevices: true })).toContain("Add a phone or computer");
+  });
+
+  it("show the sun for Switch to light, the moon for Switch to dark", () => {
+    const icon = (now: typeof nothingKnown, title: string) => suggestions(now).find((row) => row.title === title)?.icon;
+    expect(icon({ ...nothingKnown, dark: true }, "Switch to light")).toBe("sunny-outline");
+    expect(icon(nothingKnown, "Switch to dark")).toBe("moon-outline");
   });
 
   it("are never more than seven", () => {

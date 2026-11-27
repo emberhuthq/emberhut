@@ -128,7 +128,7 @@ function ResultRow({ row, onPress }: { row: Row; onPress: () => void }) {
         { gap: spacing.md, padding: spacing.md, backgroundColor: pressed ? colors.surfaceRaised : colors.surface },
       ]}
     >
-      <Icon name={row.entry.icon} color={colors.textSecondary} />
+      <Icon name={row.icon} color={colors.textSecondary} />
       <View style={styles.text}>
         <Text numberOfLines={2}>{marked(row, colors.accent)}</Text>
         <Text variant="footnote" tone="secondary" numberOfLines={2}>

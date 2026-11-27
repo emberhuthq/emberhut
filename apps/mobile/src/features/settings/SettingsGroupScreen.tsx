@@ -83,7 +83,13 @@ function EmberRows({ now }: { now: Now }) {
           key="duty"
           icon="flame-outline"
           title={now.onDuty ? "On duty" : "Off duty"}
-          subtitle={offline ? "Can't reach your ember" : now.onDuty ? "On duty · ready" : "Still answers when you message it"}
+          subtitle={
+            offline
+              ? "Can't reach your ember"
+              : now.onDuty
+                ? "Works on its own, and answers when you message it"
+                : "Still answers when you message it"
+          }
           trailing={
             <Toggle
               value={now.onDuty}
