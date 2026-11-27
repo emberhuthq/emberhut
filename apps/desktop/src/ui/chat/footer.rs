@@ -97,8 +97,8 @@ fn pending_bubble(
                     .px(px(13.))
                     .py(px(8.))
                     .rounded(px(17.))
-                    .bg(p.mine.opacity(0.6))
-                    .text_color(p.on_mine)
+                    .bg(p.queued)
+                    .text_color(p.on_queued)
                     .text_size(px(14.))
                     .child(pending.text.clone()),
             )

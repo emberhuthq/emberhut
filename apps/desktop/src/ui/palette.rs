@@ -55,6 +55,12 @@ pub(crate) struct Pal {
     pub(crate) mine: Hsla,
     /// Its text.
     pub(crate) on_mine: Hsla,
+    /// A message of the user's still waiting to be sent: their bubble paled into the surface,
+    /// opaque, so its text is chosen for what is drawn rather than read through a translucent
+    /// fill.
+    pub(crate) queued: Hsla,
+    /// Its text.
+    pub(crate) on_queued: Hsla,
     /// A card on the page.
     pub(crate) card: Hsla,
     /// The sidebar's fill: the background, a little translucent over the window's material
@@ -95,6 +101,9 @@ const HOVER_DARK: f32 = 0.07;
 const PRESSED_LIGHT: f32 = 0.10;
 const PRESSED_DARK: f32 = 0.13;
 
+/// The share of the user's bubble left in a waiting message's fill, the rest the surface.
+const QUEUED: f32 = 0.6;
+
 impl Global for Pal {}
 
 impl Pal {
@@ -122,6 +131,12 @@ impl Pal {
     fn of(tokens: &Tokens, dark: bool) -> Self {
         let c = |token: &str| color(hex(token));
         let hover = if dark { HOVER_DARK } else { HOVER_LIGHT };
+        let mine = if dark {
+            mix(hex(&tokens.accent), hex(&tokens.surface), 0.35)
+        } else {
+            hex(&tokens.accent)
+        };
+        let queued = mix(mine, hex(&tokens.surface), QUEUED);
         // Every colour the sidebar draws text and icons in.
         let inks = [
             &tokens.text,
@@ -160,16 +175,14 @@ impl Pal {
             info: c(&tokens.info),
             hover: c(&tokens.text).opacity(hover),
             pressed: c(&tokens.text).opacity(if dark { PRESSED_DARK } else { PRESSED_LIGHT }),
-            mine: if dark {
-                color(mix(hex(&tokens.accent), hex(&tokens.surface), 0.35))
-            } else {
-                c(&tokens.accent)
-            },
+            mine: color(mine),
             on_mine: if dark {
                 c(&tokens.text)
             } else {
                 c(&tokens.on_accent)
             },
+            queued: color(queued),
+            on_queued: color(crate::color::readable_on(queued)),
             card: if dark {
                 c(&tokens.surface_raised)
             } else {
@@ -571,6 +584,16 @@ mod tests {
                 let r = ratio(ink, toast.surface);
                 assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
             }
+        }
+    }
+
+    #[test]
+    fn a_waiting_message_reads_on_its_paler_bubble() {
+        for (preset, _, p) in every_palette() {
+            assert!((p.queued.a - 1.0).abs() < f32::EPSILON, "{preset}: opaque");
+            assert_ne!(p.queued, p.mine, "{preset}: told apart from a sent one");
+            let r = ratio(p.on_queued, p.queued);
+            assert!(r >= AA, "{preset} dark={}: {r:.2}", p.dark);
         }
     }
 }
