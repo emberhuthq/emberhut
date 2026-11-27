@@ -315,6 +315,18 @@ impl Client {
         Ok(answer)
     }
 
+    /// A `PUT` of a JSON body, given `within` for the whole answer in place of the request
+    /// timeout.
+    pub(crate) fn put_within<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+        within: Duration,
+    ) -> Result<Answer, Error> {
+        let body = exchange::encode(body)?;
+        self.send(|bearer| self.http.put_json_within(path, &body, within, bearer))
+    }
+
     pub(crate) fn delete(&self, path: &str) -> Result<Answer, Error> {
         self.send(|bearer| self.http.delete(path, bearer))
     }

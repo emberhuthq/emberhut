@@ -175,6 +175,21 @@ impl Http {
 }
 
 impl Http {
+    /// A `PUT` of a JSON body (see [`encode`]) to a route, signed when there is a token, given
+    /// `within` for the whole answer.
+    pub(crate) fn put_json_within(
+        &self,
+        path: &str,
+        body: &[u8],
+        within: Duration,
+        bearer: Option<&AccessToken>,
+    ) -> Result<Answer, Error> {
+        let request = request(Method::PUT, path, "", bearer)?
+            .with_header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .with_body(Body::Bytes(Cow::Borrowed(body)));
+        self.send(request, self.request.with_total(within))
+    }
+
     /// A `DELETE` of a route, signed when there is a token.
     pub(crate) fn delete(&self, path: &str, bearer: Option<&AccessToken>) -> Result<Answer, Error> {
         self.send(request(Method::DELETE, path, "", bearer)?, self.request)

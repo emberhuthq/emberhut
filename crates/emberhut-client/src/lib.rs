@@ -64,6 +64,7 @@
 //! words, sign-in required, an answer that doesn't decode, or the session store failing.
 
 mod actions;
+mod agent_provider;
 mod approvals;
 mod browser;
 mod client;
