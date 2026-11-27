@@ -67,7 +67,7 @@ use emberhut_api::threads::{ActivityQuery, ThreadActivity};
 use emberhut_api::usage::{UseAccountReply, UseAccountRequest};
 use emberhut_identity::MachineId;
 
-use crate::config::{AppFiles, ServerUrl, Servers};
+use crate::config::{AppFiles, Server, ServerUrl, Servers};
 
 /// What the app asks of the server. Every method blocks: call them on a background thread.
 pub(crate) trait Backend: Send + Sync {
@@ -703,6 +703,49 @@ pub(crate) fn connect(
         files.map(AppFiles::fallback_mark),
         failover::Timing::DEFAULT,
     ))
+}
+
+/// Trades `code` for this device's session with `server`, kept in `files` as the app keeps it
+/// (the Keychain on macOS), without the app's window: what the server says after.
+///
+/// # Errors
+///
+/// As [`Backend::pair`]; then as [`Backend::state`] when the server can't be asked whether it
+/// takes the session.
+pub(crate) fn pair_here(
+    server: Server,
+    files: &AppFiles,
+    device_name: &str,
+    code: &str,
+) -> Result<PairedHere, Error> {
+    let backend = client::EmberhutBackend::open(server, Some(files), device_name)?;
+    backend.pair(code)?;
+    Ok(PairedHere {
+        device: backend.device(),
+        signed_in: backend.signed_in_on_server()?,
+    })
+}
+
+/// What [`pair_here`] found once the code was traded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PairedHere {
+    /// This device's row on the server.
+    pub(crate) device: Option<DeviceId>,
+    /// Whether the server takes the session as a signed-in device's.
+    pub(crate) signed_in: bool,
+}
+
+/// Forgets this device's session with `server`, kept in `files`, without the app's window.
+///
+/// # Errors
+///
+/// [`Error::Local`]: the session store couldn't be read or written.
+pub(crate) fn forget_here(
+    server: Server,
+    files: &AppFiles,
+    device_name: &str,
+) -> Result<(), Error> {
+    client::EmberhutBackend::open(server, Some(files), device_name)?.sign_out_here()
 }
 
 /// Bytes an upload can read from memory, shared rather than copied.

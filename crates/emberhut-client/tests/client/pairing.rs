@@ -17,6 +17,10 @@ fn a_right_code_signs_the_device_in() {
             accepted["expires"] = json!("2099-01-01T00:00:00.000Z"); // no renewal before the next call
             Reply::Json(200, accepted)
         }
+        "/api/auth/status" => Reply::Json(
+            200,
+            json!({"mode": "enforce", "bound": true, "devices": [], "signedIn": true}),
+        ),
         _ => Reply::Json(200, fixture("ok.json")),
     });
     let store = Arc::new(MemorySessionStore::with_session(signed_out()));
@@ -39,6 +43,15 @@ fn a_right_code_signs_the_device_in() {
     );
     let tokens = store.load().unwrap().unwrap().tokens.unwrap();
     assert_eq!(tokens.refresh.expose_secret(), "refresh-token-for-tests");
+
+    assert!(
+        client.auth_status().unwrap().signed_in,
+        "the server says so"
+    );
+    assert_eq!(
+        server.requests_to("/api/auth/status")[0].header("authorization"),
+        Some("Bearer access-token-for-tests")
+    );
 
     client.seen(emberhut_api::ids::RoomId::MAIN).unwrap();
     assert_eq!(
