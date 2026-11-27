@@ -220,19 +220,19 @@ impl AgentConversations {
         channel: &str,
     ) -> Result<(String, Option<String>), ConversationError> {
         let channels = self.inner.agents.channels(agent).await?;
-        if channels
+        let slack: Vec<&Channel> = channels
             .iter()
-            .any(|known| known.kind.answered_by_its_bridge() && known.address == channel)
-        {
+            .filter(|known| known.kind == ChannelKind::Slack)
+            .collect();
+        let answered_by_its_bridge = channels
+            .iter()
+            .any(|known| known.kind.answered_by_its_bridge() && known.address == channel);
+        if answered_by_its_bridge && !slack.iter().any(|known| known.address == channel) {
             return Err(refused(
                 "agent_reply posts in Slack only: a WhatsApp chat or an app's chat is answered \
                  through its bridge's own tools.",
             ));
         }
-        let slack: Vec<&Channel> = channels
-            .iter()
-            .filter(|known| known.kind == ChannelKind::Slack)
-            .collect();
         let chosen = if let Some(known) = slack.iter().find(|known| known.address == channel) {
             *known
         } else {

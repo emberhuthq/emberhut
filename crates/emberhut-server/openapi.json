@@ -10743,11 +10743,11 @@
               "string",
               "null"
             ],
-            "description": "The Slack team's id; none for WhatsApp."
+            "description": "The Slack team's id; none for the other kinds."
           },
           "address": {
             "type": "string",
-            "description": "The channel's id, or the WhatsApp chat's."
+            "description": "The channel's id, the WhatsApp chat's, or the name an app's bridge gives its chat."
           },
           "tokenSecret": {
             "type": [
@@ -13799,11 +13799,11 @@
               "string",
               "null"
             ],
-            "description": "The Slack team's id; none for WhatsApp."
+            "description": "The Slack team's id; none for the other kinds."
           },
           "channel": {
             "type": "string",
-            "description": "The channel's id, or the WhatsApp chat's."
+            "description": "The channel's id, the WhatsApp chat's, or the name an app's bridge gives its chat."
           },
           "thread": {
             "type": [
@@ -13832,7 +13832,7 @@
               "string",
               "null"
             ],
-            "description": "The channel's id for who said it (a Slack user id), if it has one."
+            "description": "The channel's id for who said it (a Slack user id, an app's email for them), if it has\none: the bridge's word, which proves nobody's identity."
           },
           "channelName": {
             "type": [
@@ -13854,7 +13854,7 @@
           },
           "direct": {
             "type": "boolean",
-            "description": "It is a direct message to the agent."
+            "description": "It is a direct message to the agent (a message in an app's chat always counts as one)."
           }
         }
       },

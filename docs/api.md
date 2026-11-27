@@ -863,11 +863,13 @@ signed-in device in either auth mode; a refusal is `{ "error" }` with 400 (a rul
   channel message with the words quoted), 403 for a channel that isn't the agent's, 404 for no
   such agent (and for the default agent, which takes no bridge). The bearer is checked before
   the body is read; the header fields are one line each. `kind` is `slack`, `whatsapp` or `app`
-  (a chat in another program, answered through its bridge's own tools). Never an approval.
-- `POST /api/agents/{id}/notes` `InboundNote` `{ "text" }` (up to 2,000 characters) with the same
+  (a chat in another program, answered through its bridge's own tools; its messages are always
+  direct). Never an approval.
+- `POST /api/agents/{id}/notes` `InboundNote` `{ "text" }` (up to 2,000 bytes) with the same
   bearer: the bridge's own note about itself (its connection was back after a gap, a button on
   one of the agent's messages was tapped), 200 `{ "turn", "skipped" }`, a turn framed as the
-  bridge's with its words quoted; 401 and 404 as above. Never anyone's request, never an approval.
+  bridge's (its own word) with its words quoted; 401 and 404 as above. Never anyone's request,
+  never an approval.
 
 The state has `agents` (when there is one besides the default) and `approvals` (the pending
 ones); the live stream sends `event: approvals` with `{ id, state, pending }` when a request
