@@ -53,7 +53,7 @@ use emberhut_identity::MachineId;
 use super::{
     Backend, Error, FreshState, RoomEvent, SharedBytes, StateReply, TooLarge, UploadSource,
 };
-use crate::config::{AppFiles, ServerUrl};
+use crate::config::{AppFiles, Server, ServerUrl};
 
 /// `emberhut-client`, as the app's backend.
 #[derive(Debug)]
@@ -66,11 +66,12 @@ impl EmberhutBackend {
     /// The client for `server`, its session kept in `files` (in memory without them): the
     /// Keychain on macOS, the private session file elsewhere ([`session_store`]).
     pub(super) fn open(
-        server: ServerUrl,
+        server: impl Into<Server>,
         files: Option<&AppFiles>,
         device_name: &str,
     ) -> Result<Self, Error> {
-        let store = files.map(|files| session_store(&server, files));
+        let server = server.into();
+        let store = files.map(|files| session_store(&server.url, files));
         Self::with_store(server, store, device_name)
     }
 
@@ -79,13 +80,18 @@ impl EmberhutBackend {
     /// otherwise (written by a newer app, or not readable at all) is left as it is, and this
     /// launch keeps its session in memory.
     fn with_store(
-        server: ServerUrl,
+        server: impl Into<Server>,
         store: Option<impl SessionStore + 'static>,
         device_name: &str,
     ) -> Result<Self, Error> {
+        let Server {
+            url: server,
+            dialect,
+        } = server.into();
         let config = ClientConfig::new(server.as_str())
             .map_err(|error| Error::Local(Box::new(error)))?
-            .with_device(device_name, std::env::consts::OS);
+            .with_device(device_name, std::env::consts::OS)
+            .with_built_dialect(dialect);
         let client = match store {
             None => Client::new(&config, MemorySessionStore::new()),
             Some(store) => Client::new(&config, store).or_else(|error| {
@@ -95,6 +101,17 @@ impl EmberhutBackend {
         }
         .map_err(error)?;
         Ok(Self { server, client })
+    }
+
+    /// Whether the server answers its health check within `within`.
+    pub(super) fn answers(&self, within: std::time::Duration) -> bool {
+        match self.client.health(within) {
+            Ok(_) => true,
+            Err(error) => {
+                log::info!("{} doesn't answer its health check: {error}", self.server);
+                false
+            }
+        }
     }
 }
 

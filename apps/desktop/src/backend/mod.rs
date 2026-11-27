@@ -4,9 +4,11 @@
 //! contract's (`emberhut_api`), used as it is.
 //!
 //! [`EmberhutBackend`](client::EmberhutBackend) adapts the shared `emberhut-client`; the tests use
-//! `fake::FakeBackend`.
+//! `fake::FakeBackend`. With a fallback server, [`failover::Failover`] stands over two of them
+//! and turns to the fallback when the server stops answering.
 
 mod client;
+pub(crate) mod failover;
 #[cfg(any(target_os = "macos", test))]
 mod keychain;
 
@@ -65,7 +67,7 @@ use emberhut_api::threads::{ActivityQuery, ThreadActivity};
 use emberhut_api::usage::{UseAccountReply, UseAccountRequest};
 use emberhut_identity::MachineId;
 
-use crate::config::{AppFiles, ServerUrl};
+use crate::config::{AppFiles, ServerUrl, Servers};
 
 /// What the app asks of the server. Every method blocks: call them on a background thread.
 pub(crate) trait Backend: Send + Sync {
@@ -74,6 +76,18 @@ pub(crate) trait Backend: Send + Sync {
 
     /// Whether this device has a session of its own.
     fn is_signed_in(&self) -> bool;
+
+    /// Which server answers: the server, or the fallback the app turned to when the server
+    /// stopped answering. A backend without a fallback is always on the server.
+    fn serving(&self) -> Serving {
+        Serving::Primary
+    }
+
+    /// Asks whether the server answers again and, only when it does, turns back to it from the
+    /// fallback; whether the app is on the server after. It blocks while it asks.
+    fn try_primary(&self) -> bool {
+        true
+    }
 
     /// The state for `room`, or [`StateReply::Unchanged`] if it still matches `etag`;
     /// `looking` says the room is in front of the user (so the server holds its pushes).
@@ -654,21 +668,41 @@ pub(crate) trait Backend: Send + Sync {
 }
 
 /// The backend for the server at `url`: its session kept in `files` (in memory without them),
-/// the device named `device_name` when it pairs.
+/// the device named `device_name` when it pairs. With a fallback server in `url`, a
+/// [`failover::Failover`] over both, each with its own session, watching the server's health.
 ///
 /// # Errors
 ///
-/// The client couldn't be made: [`Error::Local`] (no randomness for a new install id).
+/// A client couldn't be made: [`Error::Local`] (no randomness for a new install id).
 pub(crate) fn connect(
-    url: ServerUrl,
+    url: Servers,
     files: Option<&AppFiles>,
     device_name: &str,
 ) -> Result<Arc<dyn Backend>, Error> {
-    Ok(Arc::new(client::EmberhutBackend::open(
-        url,
+    let primary = Arc::new(client::EmberhutBackend::open(
+        url.primary,
         files,
         device_name,
-    )?))
+    )?);
+    let Some(fallback) = url.fallback else {
+        return Ok(primary);
+    };
+    // The fallback's session is its own: on macOS its server's Keychain item, else a file in
+    // a folder of its own.
+    let fallback_files = files.map(AppFiles::fallback);
+    let fallback = Arc::new(client::EmberhutBackend::open(
+        fallback,
+        fallback_files.as_ref(),
+        device_name,
+    )?);
+    let probe = Arc::clone(&primary);
+    Ok(failover::Failover::start(
+        primary,
+        fallback,
+        Box::new(move || probe.answers(failover::Timing::DEFAULT.probe_within)),
+        files.map(AppFiles::fallback_mark),
+        failover::Timing::DEFAULT,
+    ))
 }
 
 /// Bytes an upload can read from memory, shared rather than copied.
@@ -691,6 +725,20 @@ impl fmt::Debug for UploadSource {
             Self::Bytes(bytes) => write!(f, "Bytes({} bytes)", (**bytes).as_ref().len()),
         }
     }
+}
+
+/// Which server the app talks to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Serving {
+    /// The server.
+    Primary,
+    /// The fallback server, since the server stopped answering.
+    Fallback {
+        /// The server that stopped answering.
+        primary: ServerUrl,
+        /// The fallback server, which answers now.
+        fallback: ServerUrl,
+    },
 }
 
 /// One event of a room's live stream.

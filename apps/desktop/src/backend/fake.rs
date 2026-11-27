@@ -26,7 +26,7 @@ use emberhut_api::tasks::Issue;
 use emberhut_api::theme::{ThemeChange, ThemePage};
 use emberhut_api::time::Timestamp;
 
-use super::{Backend, Error, RoomEvent, StateReply, UploadSource};
+use super::{Backend, Error, RoomEvent, Serving, StateReply, UploadSource};
 use crate::config::ServerUrl;
 use emberhut_api::browser::{BrowserInfo, BrowserInput, BrowserSession};
 use emberhut_api::calendar::{CalendarPage, CalendarQuery};
@@ -212,6 +212,8 @@ pub(crate) enum Call {
     WithdrawApproval(ApprovalId),
     /// Stopped for another copy of the app.
     Stop,
+    /// The user's Try again of the server, from the fallback server.
+    TryPrimary,
 }
 
 /// The fake.
@@ -265,6 +267,8 @@ pub(crate) struct FakeBackend {
     pub(crate) account: AccountReplies,
     /// The approval requests and the answers on them.
     pub(crate) approvals: ApprovalReplies,
+    /// Which server it stands for, and whether the server answers a Try again.
+    failover: Mutex<(Serving, bool)>,
 }
 
 impl FakeBackend {
@@ -300,7 +304,26 @@ impl FakeBackend {
             releases: ReleaseReplies::default(),
             account: AccountReplies::default(),
             approvals: ApprovalReplies::default(),
+            failover: Mutex::new((Serving::Primary, false)),
         }
+    }
+
+    /// The same fake, on the fallback server `fallback` since `primary` stopped answering.
+    pub(crate) fn on_fallback(self, primary: &str, fallback: &str) -> Self {
+        let serving = Serving::Fallback {
+            primary: ServerUrl::parse(primary).expect("an address"),
+            fallback: ServerUrl::parse(fallback).expect("an address"),
+        };
+        *self.failover.lock().unwrap_or_else(PoisonError::into_inner) = (serving, false);
+        self
+    }
+
+    /// Whether the server answers the next Try again.
+    pub(crate) fn primary_answers(&self, answers: bool) {
+        self.failover
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .1 = answers;
     }
 
     /// The same fake, as the server at `address`.
@@ -1058,5 +1081,22 @@ impl Backend for FakeBackend {
     fn stop(&self) -> Result<(), Error> {
         self.record(Call::Stop);
         Ok(())
+    }
+
+    fn serving(&self) -> Serving {
+        self.failover
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .0
+            .clone()
+    }
+
+    fn try_primary(&self) -> bool {
+        self.record(Call::TryPrimary);
+        let mut failover = self.failover.lock().unwrap_or_else(PoisonError::into_inner);
+        if failover.1 {
+            failover.0 = Serving::Primary;
+        }
+        failover.0 == Serving::Primary
     }
 }
