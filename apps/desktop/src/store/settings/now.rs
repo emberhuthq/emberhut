@@ -35,6 +35,10 @@ pub(crate) struct Now {
     pub(crate) on_duty: bool,
     /// What it is doing, as the sidebar says it.
     pub(crate) doing: String,
+    /// Whether it is at work on something now.
+    pub(crate) working: bool,
+    /// How many background jobs it is running.
+    pub(crate) jobs: usize,
     /// What it thinks with (`DeepSeek · key ending 0000`), once read.
     pub(crate) provider: Option<String>,
     /// The models it runs on, once read.
@@ -82,6 +86,20 @@ impl Now {
     #[must_use]
     pub(crate) fn needs_look(&self) -> usize {
         self.chrome_offline.len() + self.failing_tools.len() + self.sources_to_fix.len()
+    }
+
+    /// What the agent is doing, in the words of Your ember's head: `Ready`, `Working on 2
+    /// things`, `Off duty`. The On duty switch says whether it is on duty; this doesn't repeat it.
+    #[must_use]
+    pub(crate) fn doing_word(&self) -> String {
+        if !self.on_duty {
+            return "Off duty".to_owned();
+        }
+        match self.jobs.max(usize::from(self.working)) {
+            0 => "Ready".to_owned(),
+            1 => "Working on 1 thing".to_owned(),
+            count => format!("Working on {count} things"),
+        }
     }
 
     /// The appearance chosen, in a word: `Light`, `Dark`, `As your Mac is`.
@@ -143,6 +161,10 @@ impl Store {
         Now {
             on_duty: self.is_on_duty(),
             doing: self.status().text,
+            working: self.is_working(),
+            jobs: state.map_or(0, |state| {
+                state.tasks.iter().filter(|task| task.is_running()).count()
+            }),
             provider: saved.map(saved_line),
             models: saved.and_then(|saved| {
                 let model = saved.model.as_deref()?;
@@ -194,6 +216,30 @@ mod tests {
         assert!(is_phone("iPhone 16 Pro"));
         assert!(is_phone("Pixel 8"));
         assert!(!is_phone("MacBookPro18,1"));
+    }
+
+    #[test]
+    fn your_embers_head_says_what_it_is_doing() {
+        let ready = Now {
+            on_duty: true,
+            ..Now::default()
+        };
+        assert_eq!(ready.doing_word(), "Ready");
+        let busy = Now {
+            working: true,
+            ..ready.clone()
+        };
+        assert_eq!(busy.doing_word(), "Working on 1 thing");
+        let jobs = Now { jobs: 3, ..busy };
+        assert_eq!(jobs.doing_word(), "Working on 3 things");
+        assert_eq!(
+            Now {
+                on_duty: false,
+                ..jobs
+            }
+            .doing_word(),
+            "Off duty"
+        );
     }
 
     #[test]
