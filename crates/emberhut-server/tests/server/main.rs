@@ -87,6 +87,7 @@ mod settings_stop_task;
 mod settings_tasks;
 mod settings_workers;
 mod slack;
+mod slack_live;
 mod state_route;
 mod talk_routes;
 mod task_tools;
