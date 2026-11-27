@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { ApnsEnv, PushAddress } from "@/api";
 import { inBackground } from "@/log";
 import type { SessionState } from "@/state/session";
 
@@ -6,24 +7,40 @@ export type PushPermission = "granted" | "denied" | "undetermined";
 
 export interface PermissionState {
   status: PushPermission;
-  /** Android still shows its prompt (false once you blocked it, or after your second no). */
+  /** The system still shows its prompt (false once you answered on an iPhone, or blocked it or said no twice on Android). */
   canAskAgain: boolean;
 }
 
 /** The phone's side of push: expo-notifications in the app (push/native.ts), a stand-in in the tests. */
 export interface PushPlatform {
-  /** Why this build can't have push at all (nothing is asked or sent then); unset where it can. */
-  unsupported?: string;
-  /** Makes Emberhut's notification channel, which has to exist before Android 13 asks for the permission. */
+  /** Makes Emberhut's notification channel, which has to exist before Android 13 asks for the permission (nothing on iOS). */
   prepare(): Promise<void>;
   permission(): Promise<PermissionState>;
-  /** Shows Android's prompt; true when granted. */
+  /** Shows the system's prompt (on iOS for alerts, badges and sounds); true when granted. */
   requestPermission(): Promise<boolean>;
-  /** This install's FCM token; throws when the build has no Firebase config. */
+  /**
+   * This install's push token: FCM's on Android, throwing when the build has no Firebase config; the APNs device token
+   * on an iPhone, throwing when the build has no push entitlement.
+   */
   token(): Promise<string>;
+  /** What Emberhut is given for a token: on Android the FCM token as such, on an iPhone the token and its APNs service. */
+  address(token: string): Promise<PushAddress>;
   onTokenChange(listener: (token: string) => void): () => void;
-  /** Voids this install's FCM token, so a push to it fails and Emberhut drops it; the next token() is a new one. */
+  /**
+   * After a sign-out: on Android voids this install's FCM token, so a push to it fails and Emberhut drops it, and the next
+   * token() is a new one. On an iPhone the server forgets the token when the phone signs out.
+   */
   forget(): Promise<void>;
+}
+
+/**
+ * The APNs service an iPhone's token belongs to, from the aps-environment of the provisioning profile the app was signed
+ * with (`null` when there is none). A development build's profile says `development`: the sandbox. TestFlight and App Store
+ * builds carry no profile, and ad hoc builds say `production`: production. The Simulator registers with the sandbox.
+ */
+export function apnsEnv(apsEnvironment: string | null | undefined, onDevice: boolean): ApnsEnv {
+  if (!onDevice) return "sandbox";
+  return apsEnvironment === "development" ? "sandbox" : "production";
 }
 
 export interface PushState {
@@ -32,22 +49,21 @@ export interface PushState {
   /** Emberhut has this phone's current token. */
   registered: boolean;
   error: string | null;
-  /** The platform's reason there's no push on this phone at all, or null. */
-  unsupported: string | null;
   /** Registers this phone's token with Emberhut when signed in and allowed; safe to call again (on launch, from Settings). */
   sync: () => Promise<void>;
 }
 
 export interface PushDeps {
   platform: PushPlatform;
-  /** POST /api/devices { token, platform: "android" }. */
-  register: (token: string) => Promise<unknown>;
+  /** POST /api/devices with the token's address. */
+  register: (address: PushAddress) => Promise<unknown>;
   session: StoreApi<SessionState>;
 }
 
 /**
- * Push for this phone: after sign-in it asks for the permission (Android 13 and later), then gives Emberhut its FCM token,
- * and the new one whenever FCM turns it over. Nothing is sent while signed out or without the permission.
+ * Push for this phone: after sign-in it asks for the permission (iOS, and Android 13 and later), then gives Emberhut its
+ * push token (FCM's or APNs'), and the new one whenever the service turns it over. Nothing is sent while signed out or
+ * without the permission.
  */
 export function createPushStore({ platform, register, session }: PushDeps) {
   let sent: string | null = null;
@@ -58,13 +74,13 @@ export function createPushStore({ platform, register, session }: PushDeps) {
   let forgetting: Promise<void> = Promise.resolve();
   const signedIn = () => session.getState().status === "signedIn";
 
-  // FCM's listener hands over the same token the sync just asked for: one of the two sends it.
+  // The token listener hands over the same token the sync just asked for: one of the two sends it.
   let giving: string | null = null;
   async function give(token: string): Promise<void> {
     if (token === sent || token === giving) return;
     giving = token;
     try {
-      await register(token);
+      await register(await platform.address(token));
       sent = token;
       store.setState({ registered: true, error: null });
     } catch (cause) {
@@ -86,7 +102,7 @@ export function createPushStore({ platform, register, session }: PushDeps) {
   }
 
   async function run(): Promise<void> {
-    if (!signedIn() || platform.unsupported) return;
+    if (!signedIn()) return;
     await forgetting;
     let permission: PushPermission;
     try {
@@ -112,7 +128,6 @@ export function createPushStore({ platform, register, session }: PushDeps) {
     permission: null,
     registered: false,
     error: null,
-    unsupported: platform.unsupported ?? null,
     sync() {
       running ??= run().finally(() => {
         running = null;
@@ -121,8 +136,6 @@ export function createPushStore({ platform, register, session }: PushDeps) {
     },
   }));
 
-  // A phone without push never asks, listens or sends.
-  if (platform.unsupported) return store;
   session.subscribe((now, before) => {
     if (now.status === "signedIn" && before.status !== "signedIn") inBackground(store.getState().sync(), "registration: sync");
     if (now.status === "signedOut" && before.status === "signedIn") {

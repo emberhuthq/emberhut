@@ -33,6 +33,15 @@ export interface PairingCode {
   link?: string;
 }
 
+/** Which of Apple's push services an iPhone's token belongs to: a development build's sandbox, or production. */
+export type ApnsEnv = "sandbox" | "production";
+
+/**
+ * POST /api/devices: where Emberhut pushes this phone's alerts. An Android phone sends its FCM registration token with
+ * `platform: "android"`; an iPhone sends its APNs device token (hex) and its service, and no platform.
+ */
+export type PushAddress = { token: string; platform: "android" } | { token: string; env: ApnsEnv };
+
 export interface SignedInDevice {
   id: number;
   name?: string | null;
