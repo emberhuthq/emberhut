@@ -1,16 +1,16 @@
 import { View } from "react-native";
 import type { PartyPersona, PartyStatus } from "@/api";
-import { useTheme } from "@/theme";
+import { readableOn, useTheme } from "@/theme";
 import { Text } from "@/ui";
 import { initial, personaColor, statusTone } from "./party";
 
-/** A persona's initial in a circle of their colour. */
+/** A persona's initial in a circle of their colour, in white or near-black, whichever reads on it. */
 export function Initial({ name, color, size = 28 }: { name: string; color: string; size?: number }) {
   return (
     <View
       style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: "center", justifyContent: "center" }}
     >
-      <Text weight="700" style={{ color: "#FFFFFF", fontSize: size * 0.48, lineHeight: size * 0.6 }}>
+      <Text weight="700" style={{ color: readableOn(color), fontSize: size * 0.48, lineHeight: size * 0.6 }}>
         {initial(name)}
       </Text>
     </View>

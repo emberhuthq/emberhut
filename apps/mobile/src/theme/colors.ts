@@ -67,6 +67,25 @@ export function paletteFrom(t: ThemeTokens, scheme: "light" | "dark"): Palette {
   };
 }
 
+/** WCAG 2's contrast ratio of two "#RRGGBB" colours: 1 (the same) to 21 (black on white). */
+export function contrast(a: string, b: string): number {
+  const luminance = (hex: string) =>
+    [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i]!, 0);
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** The near-black text and icons take on a light fill, as on the desktop. */
+export const ink = "#0B0D10";
+
+/** White or near-black, whichever reads better on `fill`: for text on a coloured fill that isn't the accent (which has its own). */
+export function readableOn(fill: string): string {
+  return contrast("#FFFFFF", fill) >= contrast(ink, fill) ? "#FFFFFF" : ink;
+}
+
 /** `share` of colour `a` into `b`, both "#RRGGBB". */
 export function mix(a: string, b: string, share: number): string {
   const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);

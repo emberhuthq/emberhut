@@ -205,13 +205,15 @@ function Speaking({ speaking, party }: { speaking: PartySpeaking; party: Party }
   );
 }
 
+// The name is in the body text: a persona's colour as caption text reads about 2:1 on paper, and the initial and the bubble's
+// tint already carry it.
 function Turn({ name, color, children }: { name: string; color: string; children: ReactNode }) {
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   return (
     <View style={[styles.top, { gap: 9, paddingRight: spacing.xl }]}>
       <Initial name={name} color={color} />
       <View style={[styles.fill, { gap: 3, alignItems: "flex-start" }]}>
-        <Text variant="caption" weight="600" style={{ color }}>
+        <Text variant="caption" weight="600" style={{ color: colors.text }}>
           {name}
         </Text>
         <View style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 15, backgroundColor: `${color}1A` }}>
