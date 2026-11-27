@@ -13,7 +13,7 @@ use crate::backend::Error;
 use crate::brand::APP_NAME;
 use crate::store::poll::{self, Kicked, Kicker};
 use crate::store::presence::Presence;
-use crate::store::{Page, Store, update_or_log};
+use crate::store::{Store, update_or_log};
 use emberhut_api::switches::{McpServer, McpState, SwitchAction, SwitchPage};
 
 /// How often the switches are asked for while Settings is open.
@@ -224,7 +224,8 @@ pub(crate) fn skills_footer() -> String {
     )
 }
 
-/// Whether the switches are wanted now: while Settings' main page is open in the front window.
+/// Whether the switches are wanted now: while Settings' front door or Connections is open in
+/// the front window.
 #[must_use]
 fn wanted(on_page: bool, presence: Presence) -> bool {
     on_page && presence == Presence::Front
@@ -233,7 +234,8 @@ fn wanted(on_page: bool, presence: Presence) -> bool {
 impl Store {
     /// Whether the switches are [`wanted`] now.
     fn switches_wanted(&self) -> bool {
-        wanted(self.shows_page(Page::Settings), self.presence())
+        let on_page = self.shows_settings(&[super::SettingsPane::Connections]);
+        wanted(on_page, self.presence())
     }
 
     /// The switches.

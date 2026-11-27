@@ -14,7 +14,6 @@ use super::super::edge;
 use super::super::palette::pal;
 use super::super::window::{CHAT, COLUMN, MainWindow};
 use super::Column;
-use crate::store::settings::SettingsPane;
 use crate::store::{Page, Store};
 
 actions!(
@@ -61,10 +60,7 @@ pub(crate) fn name(page: Page) -> &'static str {
         Page::Jobs => "Background jobs",
         Page::Job(_) => "Background job",
         Page::Scheduled => "Scheduled",
-        Page::SettingsPane(SettingsPane::Appearance) => "Appearance",
-        Page::SettingsPane(SettingsPane::ChromeProfiles) => "Chrome profiles",
-        Page::SettingsPane(SettingsPane::AboutYou) => crate::store::settings::about::TITLE,
-        Page::SettingsPane(SettingsPane::Credentials) => "What your ember thinks with",
+        Page::SettingsPane(settings) => settings.title(),
         Page::Approvals(_) => "Approvals",
         Page::Approval(_) => "Approval request",
     }
@@ -225,6 +221,7 @@ mod tests {
     use crate::backend::Backend;
     use crate::backend::fake::FakeBackend;
     use crate::store::OpenReport;
+    use crate::store::settings::SettingsPane;
     use crate::ui::palette::Pal;
     use crate::ui::report::ReportSize;
     use crate::ui::window::{CloseReport, ToggleSidebar};

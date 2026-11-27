@@ -19,6 +19,7 @@ use crate::backend::Error;
 use crate::brand::APP_NAME;
 use crate::store::poll::{self, Kicked, Kicker};
 use crate::store::presence::Presence;
+use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::Health;
 use crate::store::{Page, Store, update_or_log};
 
@@ -214,8 +215,8 @@ pub(crate) fn actions_footer(env: &Environment) -> String {
     }
 }
 
-/// Whether to ask for the environments now: while Settings or one of their pages shows, in
-/// the front window.
+/// Whether to ask for the environments now: while Settings' front door, Connections, Advanced
+/// or one of their pages shows, in the front window.
 #[must_use]
 fn wanted(on_page: bool, presence: Presence) -> bool {
     on_page && presence == Presence::Front
@@ -224,7 +225,8 @@ fn wanted(on_page: bool, presence: Presence) -> bool {
 impl Store {
     /// Whether the environments are [`wanted`] now.
     fn environments_wanted(&self) -> bool {
-        let on_page = self.shows_page(Page::Settings)
+        let panes = [SettingsPane::Connections, SettingsPane::Advanced];
+        let on_page = self.shows_settings(&panes)
             || self
                 .columns
                 .shows_any(|page| matches!(page, Page::Environment(_)));

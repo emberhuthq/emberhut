@@ -17,9 +17,7 @@ use crate::store::settings::switches::{
     RowKind, StateTone, row_key, server_origin, server_status, server_tone, servers_footer,
     skills_footer,
 };
-use crate::store::working::settings_filter::{
-    SettingsFilter, SettingsPart, server_health, skill_health,
-};
+use crate::store::working::settings_filter::{SettingsFilter, server_health, skill_health};
 use crate::ui::palette::Pal;
 use crate::ui::widgets::dot;
 use emberhut_api::switches::{McpServer, Skill, SkillSource, SwitchAction};
@@ -308,21 +306,4 @@ fn skill_row(store: &Entity<Store>, skill: &Skill, p: &Pal, cx: &App) -> Div {
             busy,
             |name, on| SwitchAction::Skill { name, on },
         ))
-}
-
-/// The sections, as one list for the main page.
-pub(super) fn sections(
-    store: &Entity<Store>,
-    filter: SettingsFilter,
-    p: &Pal,
-    cx: &App,
-) -> Vec<AnyElement> {
-    let mut parts = Vec::new();
-    if filter.shows(SettingsPart::Mcp) {
-        parts.push(servers(store, filter, p, cx).into_any_element());
-    }
-    if filter.shows(SettingsPart::Skills) {
-        parts.extend(skills(store, filter, p, cx).map(IntoElement::into_any_element));
-    }
-    parts
 }

@@ -258,7 +258,7 @@ GPUI and gpui-kit animation (a job's pulse, a room's working dot, the kit's spin
 | `--opaque` | draw every surface opaque, without the sidebar's material (the "before" look) |
 | `--flaky` | debug builds only: the state poll fails as if the connection dropped, 6 s of every 20, to see what reconnects do |
 | `--task ID` | open that task's page, as a link to it in a message does |
-| `--settings main\|appearance\|chrome-profiles\|about-you\|archived-rooms\|machines` | open Settings, with that page over it (archived rooms: unfolded on Settings) (screenshots) |
+| `--settings main\|ember\|appearance\|devices\|connections\|sharing\|privacy\|advanced\|account\|chrome-profiles\|about-you\|credentials\|archived-rooms\|machines` | open Settings' front door (`main`), with that page over it (archived rooms: Privacy, unfolded) (screenshots) |
 | `--chrome-profile ID` | open Settings on that Chrome profile's sheet (screenshots) |
 | `--environment ID` | open Settings with that environment's page over it (screenshots) |
 | `--session ID` | open a session's page beside the chat |
@@ -446,7 +446,7 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `json_file.rs` | the files kept as JSON (`theme.json`, `layout.json`): read, written whole through a rename, newest write first |
 | `store/theme.rs` | the theme as held: cached, picked, previewed, fixed, one save at a time |
 | `store/status.rs` | the assistant's status line and how errors are worded |
-| `store/settings/switches.rs` | the MCP servers' and skills' switches: fetched every 10 s while Settings is open in front, one switch at a time |
+| `store/settings/switches.rs` | the MCP servers' and skills' switches: fetched every 10 s while Settings' front door or Connections is open in front, one switch at a time |
 | `store/settings/about.rs` | what the assistant knows about you, by category, searched; a fix shows at once and is fetched again if refused |
 | `store/settings/chrome.rs` | the Chrome profiles' changes and the sheet open over them; a change's answer replaces the state's profiles |
 | `store/settings/on_duty.rs` | pausing and resuming the assistant, shown at once until the state agrees |
@@ -468,6 +468,8 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `account/session.rs` | the account's tokens and renewals, and what the directory's refusals do |
 | `account/directory.rs` | the directory's requests, and its refusals read by their `code` |
 | `account/model.rs`, `ui/settings/account.rs` | the account as Settings shows it, and its sign-in sheet |
+| `ui/settings/front_door.rs` | Settings' front door: the search (focused on open; ↑↓, Return, Esc), the group chips, Suggested or the results with their matches marked |
+| `ui/settings/group.rs`, `ui/settings/pages.rs` | a group page's frame (status line, anchored blocks scrolled to and washed, folded technical parts) and what each group's page holds |
 | `prose/blocks.rs` | a message cut into markdown, quotes, tables and pictures; walls of text split every two sentences |
 | `prose/links.rs` | task keys and bare addresses as links, the task a link opens, and where a link clicked in a message may lead |
 | `prose/tables.rs` | a table as a grid whose columns share the width, or a card per row when too narrow |
@@ -489,7 +491,7 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/sessions/turns.rs` | a transcript laid out: turns, said, tool calls with their results and helpers' steps, the fold of a finished turn |
 | `store/sessions/sheet.rs` | a new session's choices, its folders and branches, and the draft its first message opens |
 | `ui/sessions/` | the Sessions screen, a session's page, the new-session sheet, an external thread's page and the Sessions window |
-| `store/working/environments.rs` | where the assistant works and what it reads through: fetched every 10 s while Settings or a row's page shows in front, one action at a time, what an action made kept for its page |
+| `store/working/environments.rs` | where the assistant works and what it reads through: fetched every 10 s while Settings' front door, Connections, Advanced or a row's page shows in front, one action at a time, what an action made kept for its page |
 | `store/working/usage.rs` | the Claude accounts' use as the usage card words it, the account the assistant runs on, the checks at launch and on coming to the front |
 | `store/working/jobs.rs` | the background jobs: fetched every 10 s while their pages show, a job's page kept once it ends, Stop and Clear asked first |
 | `store/working/settings_filter.rs` | Settings' filter (one part, one state), kept on this device |

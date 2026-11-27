@@ -240,34 +240,56 @@ pub(crate) enum StartPage {
 /// One of Settings' pages to open on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub(crate) enum SettingsArg {
-    /// Settings' main page.
+    /// Settings' front door: the search, the groups, the suggestions.
     Main,
+    /// Your ember.
+    Ember,
     /// Appearance.
     Appearance,
+    /// Devices.
+    Devices,
+    /// Connections.
+    Connections,
+    /// Sharing.
+    Sharing,
+    /// Privacy.
+    Privacy,
+    /// Advanced.
+    Advanced,
+    /// The emberhut.com account.
+    Account,
     /// The Chrome profiles.
     ChromeProfiles,
     /// What the assistant knows about you.
     AboutYou,
     /// What your ember thinks with: the model provider it runs on.
     Credentials,
-    /// The archived rooms, unfolded on Settings' main page.
+    /// Privacy, with the archived rooms unfolded.
     ArchivedRooms,
     /// The machines, over Settings.
     Machines,
 }
 
 impl SettingsArg {
-    /// The page it opens over Settings; none for Settings' main page itself.
+    /// The page it opens over Settings; none for Settings' front door itself.
     #[must_use]
     pub(crate) fn page(self) -> Option<Page> {
-        match self {
-            Self::Main | Self::ArchivedRooms => None,
-            Self::Appearance => Some(Page::SettingsPane(SettingsPane::Appearance)),
-            Self::ChromeProfiles => Some(Page::SettingsPane(SettingsPane::ChromeProfiles)),
-            Self::AboutYou => Some(Page::SettingsPane(SettingsPane::AboutYou)),
-            Self::Credentials => Some(Page::SettingsPane(SettingsPane::Credentials)),
-            Self::Machines => Some(Page::Machines),
-        }
+        let pane = match self {
+            Self::Main => return None,
+            Self::Machines => return Some(Page::Machines),
+            Self::Ember => SettingsPane::Ember,
+            Self::Appearance => SettingsPane::Appearance,
+            Self::Devices => SettingsPane::Devices,
+            Self::Connections => SettingsPane::Connections,
+            Self::Sharing => SettingsPane::Sharing,
+            Self::Privacy | Self::ArchivedRooms => SettingsPane::Privacy,
+            Self::Advanced => SettingsPane::Advanced,
+            Self::Account => SettingsPane::Account,
+            Self::ChromeProfiles => SettingsPane::ChromeProfiles,
+            Self::AboutYou => SettingsPane::AboutYou,
+            Self::Credentials => SettingsPane::Credentials,
+        };
+        Some(Page::SettingsPane(pane))
     }
 }
 
@@ -519,14 +541,38 @@ mod tests {
         let cli = parse(&["--settings", "archived-rooms"]).unwrap();
         assert_eq!(
             (cli.start_page(None), cli.over_settings()),
-            (Page::Settings, None),
-            "unfolded on Settings itself"
+            (
+                Page::Settings,
+                Some(Page::SettingsPane(SettingsPane::Privacy))
+            ),
+            "unfolded on Privacy"
         );
         assert_eq!(
             parse(&["--settings", "main"]).unwrap().over_settings(),
             None
         );
         assert!(parse(&["--settings", "archive"]).is_err());
+    }
+
+    #[test]
+    fn each_settings_group_opens_its_page_over_the_front_door() {
+        for (arg, pane) in [
+            ("ember", SettingsPane::Ember),
+            ("appearance", SettingsPane::Appearance),
+            ("devices", SettingsPane::Devices),
+            ("connections", SettingsPane::Connections),
+            ("sharing", SettingsPane::Sharing),
+            ("privacy", SettingsPane::Privacy),
+            ("advanced", SettingsPane::Advanced),
+            ("account", SettingsPane::Account),
+        ] {
+            let cli = parse(&["--settings", arg]).unwrap();
+            assert_eq!(
+                (cli.start_page(None), cli.over_settings()),
+                (Page::Settings, Some(Page::SettingsPane(pane))),
+                "{arg}"
+            );
+        }
     }
 
     #[test]

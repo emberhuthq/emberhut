@@ -15,7 +15,6 @@ use jiff::Timestamp;
 use jiff::tz::TimeZone;
 
 use super::parts::{note, section, tag};
-use crate::brand::APP_NAME;
 use crate::store::Store;
 use crate::store::working::usage::{
     Fill, RowLine, checked, choices, details, fill, percent, picked, resets, row_line, runs_on,
@@ -109,7 +108,7 @@ fn runs_on_row(
                     div()
                         .flex_1()
                         .text_size(px(13.))
-                        .child(format!("{APP_NAME} runs on")),
+                        .child("Your ember runs on"),
                 )
                 .child(
                     Button::new("usage-runs-on")
@@ -167,7 +166,7 @@ fn account_row(
         )
         .when(row.best, |d| d.child(tag("most room", p.success)))
         .when(on == Some(row.id.as_str()), |d| {
-            d.child(tag(APP_NAME, category_color(0)))
+            d.child(tag("Your ember", category_color(0)))
         })
         .child(div().flex_1())
         .child(Icon::new(chevron).size(px(12.)).text_color(p.faint));
@@ -252,7 +251,7 @@ fn account_words(row: &UsageRow, on: Option<&str>, (now, zone): (Timestamp, &Tim
         ]),
     };
     let theirs = if on == Some(row.id.as_str()) {
-        format!("{APP_NAME} runs on it")
+        "Your ember runs on it".to_owned()
     } else {
         String::new()
     };

@@ -1,8 +1,8 @@
-//! Settings' groups about where the app stands: the Machines row's words, the Server (its
-//! address, phone push, how this device is let in), Devices (sign-in on the server, each
-//! signed-in device with Sign out, confirmed before it is sent, a pairing code for another
-//! device) and Archived rooms (their count, opening the list: a click opens the room's chat,
-//! right-click unarchives it).
+//! Settings' groups about where the app stands: the Machines row's words, the server (its
+//! address, phone push) and the diagnostics (sign-in on the server, how this device is let
+//! in), Devices (each signed-in device with Sign out, confirmed before it is sent), a pairing
+//! code for another device, and Archived rooms (their count, opening the list: a click opens
+//! the room's chat, right-click unarchives it).
 
 use emberhut_api::ids::DeviceId;
 use gpui_kit::component::Sizable as _;
@@ -34,28 +34,36 @@ pub(crate) fn machines_row(store: &Store) -> ((String, Health), String) {
     ((summary.status, health), summary.detail)
 }
 
-/// The Server group's facts: the address, phone push, and how this device is let in.
+/// The server's facts: its address and phone push.
 pub(crate) fn server_rows(store: &Store, p: &Pal) -> Vec<Div> {
     let push = if store.state().is_some_and(|state| state.push) {
         "On"
     } else {
         "Off until the push key is on the server"
     };
+    vec![
+        fact("Address", store.server().to_string(), p),
+        fact("Phone push", push.to_owned(), p),
+    ]
+}
+
+/// The diagnostics' facts: how sign-in stands on the server, and how this device is let in.
+pub(crate) fn sign_in_rows(store: &Store, p: &Pal) -> Vec<Div> {
     let let_in = if store.is_signed_in() {
         "This device's own session"
     } else {
         "This device's network (no session of its own)"
     };
-    vec![
-        fact("Address", store.server().to_string(), p),
-        fact("Phone push", push.to_owned(), p),
-        fact("Sign-in", let_in.to_owned(), p),
-    ]
+    let mut rows = Vec::new();
+    if let Some(auth) = store.state().and_then(|state| state.auth.as_ref()) {
+        rows.push(fact("Sign-in mode", sign_in_word(auth).to_owned(), p));
+    }
+    rows.push(fact("This device", let_in.to_owned(), p));
+    rows
 }
 
-/// The Devices group: sign-in on the server, each signed-in device, and a pairing code for
-/// another one.
-pub(crate) fn devices(store: &Entity<Store>, qr: Option<Qr>, p: &Pal, cx: &App) -> Div {
+/// The Devices group: each signed-in device, with Sign out.
+pub(crate) fn devices(store: &Entity<Store>, p: &Pal, cx: &App) -> Div {
     let read = store.read(cx);
     let mut group = group(p, "DEVICES");
     let Some(auth) = read.state().and_then(|state| state.auth.as_ref()) else {
@@ -66,7 +74,6 @@ pub(crate) fn devices(store: &Entity<Store>, qr: Option<Qr>, p: &Pal, cx: &App) 
                 .child("The server doesn't say which devices are signed in."),
         );
     };
-    group = group.child(fact("Sign-in", sign_in_word(auth).to_owned(), p));
     let (this_one, now, asked) = (read.this_device(), Timestamp::now(), read.sign_out_asked());
     for device in &auth.devices {
         let name = device_name(device, this_one);
@@ -85,6 +92,7 @@ pub(crate) fn devices(store: &Entity<Store>, qr: Option<Qr>, p: &Pal, cx: &App) 
                         .flex()
                         .flex_col()
                         .flex_1()
+                        .min_w_0()
                         .child(div().text_size(px(13.)).child(name))
                         .when_some(seen, |d, seen| {
                             d.child(div().text_size(px(11.5)).text_color(p.muted).child(seen))
@@ -99,10 +107,16 @@ pub(crate) fn devices(store: &Entity<Store>, qr: Option<Qr>, p: &Pal, cx: &App) 
                 )),
         );
     }
-    if read.is_signed_in() {
-        group = group.child(pair_another(store, read.new_code(), qr, p));
-    }
     group
+}
+
+/// "Add a phone or computer": a pairing code for another device, with its QR code; only for
+/// a device with a session of its own (none otherwise).
+pub(crate) fn pair_card(store: &Entity<Store>, qr: Option<Qr>, p: &Pal, cx: &App) -> Option<Div> {
+    let read = store.read(cx);
+    read.is_signed_in().then(|| {
+        group(p, "ADD A PHONE OR COMPUTER").child(pair_another(store, read.new_code(), qr, p))
+    })
 }
 
 /// A device's "Sign out", and once pressed its confirmation: signed out, a device has to pair
@@ -248,7 +262,13 @@ pub(crate) fn archived(store: &Entity<Store>, open: bool, p: &Pal, cx: &App) -> 
             .cursor_pointer()
             .rounded(px(6.))
             .hover(|d| d.bg(p.hover))
-            .child(div().flex_1().text_size(px(13.)).child("Archived rooms"))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_size(px(13.))
+                    .child("Archived rooms"),
+            )
             .child(div().text_size(px(12.5)).text_color(p.muted).child(count))
             .on_click({
                 let store = store.clone();

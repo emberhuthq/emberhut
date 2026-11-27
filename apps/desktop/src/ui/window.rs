@@ -399,17 +399,35 @@ impl MainWindow {
     /// keyboard if the page that had it went.
     fn column_moved(&mut self, _: Entity<Column>, window: &mut Window, cx: &mut Context<'_, Self>) {
         let shown = self.column.read(cx).current();
+        let mut searching = false;
         if shown != self.column_shown {
+            // Settings' front door shown: its search takes the keyboard, afresh unless the
+            // column came back to it from one of its pages.
+            let back = matches!(
+                self.column_shown,
+                Some(Page::SettingsPane(_) | Page::Machines)
+            );
             self.column_shown = shown;
             self.page_scroll.set_offset(point(px(0.), px(0.)));
+            if shown == Some(Page::Settings) {
+                self.settings
+                    .update(cx, |settings, cx| settings.opened(!back, window, cx));
+                searching = true;
+            }
         }
         // The composer may have just taken the keyboard (a room chosen as the column shut),
         // before the chat is drawn again: it keeps it.
-        if !self.chat.read(cx).composer_focused(window, cx) {
+        if !searching && !self.chat.read(cx).composer_focused(window, cx) {
             self.keep_focus(window, cx);
         }
         self.note_beside(window, cx);
         cx.notify();
+    }
+
+    /// The window's Settings, for the tests.
+    #[cfg(test)]
+    pub(crate) fn settings_view(&self) -> Entity<SettingsView> {
+        self.settings.clone()
     }
 
     /// Whether the viewer's sheet is over the window.
@@ -567,12 +585,13 @@ impl MainWindow {
         let Some(page) = self.column.read(cx).current() else {
             return chat_alone(chat);
         };
-        let body = self.page_view(page, cx);
+        let body = self.page_view(page, window.scale_factor(), cx);
         column::frame::beside(self, page, chat, body, width, cx).into_any_element()
     }
 
-    /// A page other than the chat, as the column shows it (a new page's view goes here).
-    fn page_view(&mut self, page: Page, cx: &mut Context<'_, Self>) -> AnyElement {
+    /// A page other than the chat, as the column shows it (a new page's view goes here), on a
+    /// display of `scale`.
+    fn page_view(&mut self, page: Page, scale: f32, cx: &mut Context<'_, Self>) -> AnyElement {
         let scroll = self.page_scroll.clone();
         match page {
             Page::Room(_) => self.chat.clone().into_any_element(),
@@ -604,11 +623,9 @@ impl MainWindow {
                 super::approvals::detail::page(&self.store, id, &scroll, &pal(cx), cx)
                     .into_any_element()
             }
-            Page::SettingsPane(part) => self
+            Page::SettingsPane(shown) => self
                 .settings
-                .read(cx)
-                .pane(part, &pal(cx))
-                .into_any_element(),
+                .update(cx, |settings, cx| settings.pane(shown, scale, cx)),
         }
     }
 

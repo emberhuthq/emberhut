@@ -12,7 +12,6 @@ use gpui_kit::Context;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Unit};
 
-use crate::brand::APP_NAME;
 use crate::store::devices::relative;
 use crate::store::poll::{self, Kicked, Kicker};
 use crate::store::{Store, update_or_log};
@@ -102,9 +101,7 @@ pub(crate) fn scope_words(row: &UsageRow) -> Option<String> {
         "" => None,
         SCOPE_ANY => Some("For any work".to_owned()),
         // The server's own word names the work; the app has no name of its own for it.
-        _ => Some(format!(
-            "Kept for other work; {APP_NAME} can't be pinned to it"
-        )),
+        _ => Some("Kept for other work; your ember can't be pinned to it".to_owned()),
     }
 }
 
@@ -200,7 +197,7 @@ pub(crate) fn runs_on(account: &AssistantAccount, rows: &[UsageRow]) -> (String,
         ),
         Some(pin) if account.pin_out => (
             format!(
-                "Now on {on}: {} is out, {APP_NAME} goes back when it's free",
+                "Now on {on}: {} is out, your ember goes back when it's free",
                 name(Some(pin))
             ),
             true,
@@ -483,7 +480,7 @@ mod tests {
         assert_eq!(
             runs_on(&account(Some("a-2"), true), &rows),
             (
-                "Now on Example: Second is out, Emberhut goes back when it's free".into(),
+                "Now on Example: Second is out, your ember goes back when it's free".into(),
                 true
             )
         );

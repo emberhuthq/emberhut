@@ -4,13 +4,13 @@
 //! why they don't. The filter narrows the rows by their state.
 
 use emberhut_api::environments::Environment;
+use gpui_kit::TestSupportExt as _;
 use gpui_kit::component::Sizable as _;
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::prelude::*;
 use gpui_kit::{AnyElement, App, Div, ElementId, Entity, div, px};
 
 use super::parts::{nav_row, note, section};
-use crate::brand::APP_NAME;
 use crate::store::settings::chrome::Health;
 use crate::store::working::environments::health;
 use crate::store::working::settings_filter::{SettingsFilter, SettingsPart};
@@ -19,8 +19,8 @@ use crate::ui::column;
 use crate::ui::palette::Pal;
 use crate::ui::working::look::badge;
 
-/// A row of Settings that isn't an environment (the Chrome profiles, the Machines), with its
-/// health for the filter.
+/// A row of Settings that isn't an environment (the Chrome profiles), with its health for the
+/// filter.
 pub(super) struct OtherRow {
     /// The row.
     pub(super) row: AnyElement,
@@ -49,33 +49,28 @@ pub(super) fn sources(
         "Data sources",
         Some(count),
         rows,
-        Some(format!(
+        Some(
             "Reconnect and Unlink are in each one's page. Unlink deletes only its sign-in, \
-             never what {APP_NAME} read."
-        )),
+             never what your ember read."
+                .to_owned(),
+        ),
     ))
 }
 
-/// Where the assistant works: the Machines row, then its runners, workers, browser and external threads.
+/// Where the assistant works: its runners, workers, browser and external threads.
 pub(super) fn workplaces(
     store: &Entity<Store>,
     filter: SettingsFilter,
-    machines: OtherRow,
     p: &Pal,
     cx: &App,
 ) -> Option<Div> {
     if !filter.shows(SettingsPart::Machines) {
         return None;
     }
-    let (places, count) = env_rows(store, filter, p, cx, |env| env.group.is_workplace());
-    let mut rows = Vec::new();
-    if filter.keeps(machines.health) {
-        rows.push(machines.row);
-    }
-    rows.extend(places);
+    let (rows, count) = env_rows(store, filter, p, cx, |env| env.group.is_workplace());
     Some(section(
         p,
-        format!("Where {APP_NAME} works"),
+        "Where your ember works",
         Some(count),
         rows,
         None,
@@ -132,4 +127,5 @@ fn env_row(store: &Entity<Store>, env: &Environment, p: &Pal) -> impl IntoElemen
         let key = store.update(cx, |store, _| store.environment_key(id.clone()));
         column::push(Page::Environment(key), window, cx);
     })
+    .test_support()
 }

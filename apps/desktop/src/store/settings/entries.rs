@@ -74,6 +74,27 @@ impl Group {
         }
     }
 
+    /// Its page.
+    #[must_use]
+    pub(crate) fn pane(self) -> SettingsPane {
+        match self {
+            Self::Ember => SettingsPane::Ember,
+            Self::Appearance => SettingsPane::Appearance,
+            Self::Devices => SettingsPane::Devices,
+            Self::Connections => SettingsPane::Connections,
+            Self::Sharing => SettingsPane::Sharing,
+            Self::Privacy => SettingsPane::Privacy,
+            Self::Advanced => SettingsPane::Advanced,
+            Self::Account => SettingsPane::Account,
+        }
+    }
+
+    /// The group whose page `pane` is, if it is one.
+    #[must_use]
+    pub(crate) fn of_pane(pane: SettingsPane) -> Option<Self> {
+        Self::ALL.into_iter().find(|group| group.pane() == pane)
+    }
+
     /// Whether it shows now: Account only in builds with the account.
     #[must_use]
     pub(crate) fn shown(self, now: &Now) -> bool {
@@ -844,6 +865,7 @@ mod tests {
                 ENTRIES.iter().any(|entry| entry.group == group),
                 "{group:?}"
             );
+            assert_eq!(Group::of_pane(group.pane()), Some(group));
         }
     }
 
