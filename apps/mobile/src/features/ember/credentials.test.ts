@@ -3,12 +3,17 @@ import { ApiError, type AgentProvider, type ProviderModel } from "@/api";
 import {
   COMING_NEXT,
   FAILED_TITLE,
+  FOUND_ON,
+  OLLAMA_LOOK,
   ROWS,
   canForget,
+  canPickRow,
   canRunOn,
   canSave,
   canTest,
+  comingNextFor,
   failureReason,
+  fieldsOf,
   initialPicker,
   keyPlaceholder,
   modelLabel,
@@ -18,6 +23,8 @@ import {
   preselectModel,
   providerName,
   request,
+  rowKinds,
+  rowOf,
   rowTag,
   savedLine,
   savedStatus,
@@ -54,7 +61,8 @@ describe("the provider rows", () => {
       ["ollama", "Ollama", null],
       ["openai-compatible", "Another service", null],
     ]);
-    const fields = Object.fromEntries(ROWS.map((r) => [r.kind, r.fields.map((f) => `${f.name}${f.needed ? "!" : "?"}`)]));
+    const kinds = ROWS.flatMap(rowKinds);
+    const fields = Object.fromEntries(kinds.map((kind) => [kind, fieldsOf(kind).map((f) => `${f.name}${f.needed ? "!" : "?"}`)]));
     expect(fields).toEqual({
       anthropic: ["key!"],
       openai: ["key!"],
@@ -62,8 +70,9 @@ describe("the provider rows", () => {
       openrouter: ["key!"],
       ollama: ["baseUrl?"],
       "openai-compatible": ["baseUrl!", "key?"],
+      "anthropic-compatible": ["baseUrl!", "key!"],
     });
-    expect(ROWS.find((r) => r.kind === "ollama")?.fields[0]?.placeholder).toBe("http://localhost:11434");
+    expect(fieldsOf("ollama")[0]?.placeholder).toBe("http://localhost:11434");
     expect(ROWS[0]?.hint).toContain("console.anthropic.com");
   });
 
@@ -235,9 +244,10 @@ describe("the picker", () => {
     expect(canTest(pickerReducer(anthropic, { type: "edit", field: "key", value: "   " }))).toBe(false);
     expect(canTest(pickerReducer(anthropic, { type: "edit", field: "key", value: exampleKey }))).toBe(true);
     expect(canTest(run([{ type: "select", kind: "ollama", saved: undefined }]))).toBe(true);
-    const other = run([{ type: "select", kind: "openai-compatible", saved: saved({ provider: "openai-compatible", usable: true }) }]);
-    expect(canTest(other)).toBe(false);
-    expect(canTest(pickerReducer(other, { type: "edit", field: "baseUrl", value: "https://example.test/v1" }))).toBe(true);
+    const bridged = saved({ provider: "openai-compatible", usable: true });
+    const other = run([{ type: "select", kind: "openai-compatible", saved: bridged }]);
+    expect(canTest(other, bridged)).toBe(false);
+    expect(canTest(pickerReducer(other, { type: "edit", field: "baseUrl", value: "https://example.test/v1" }), bridged)).toBe(true);
     const testing = run([{ type: "edit", field: "key", value: exampleKey }, { type: "testStarted" }], anthropic);
     expect(canTest(testing)).toBe(false);
     expect(pickerReducer(testing, { type: "testStarted" })).toBe(testing);
@@ -311,5 +321,95 @@ describe("what is sent", () => {
       baseUrl: "https://example.test/v1",
       apiKey: exampleKey,
     });
+  });
+});
+
+describe("another service", () => {
+  const another = ROWS.find((r) => r.kind === "openai-compatible")!;
+
+  it("is one row for either API, picked while Anthropic-style runs", () => {
+    expect(rowOf("anthropic-compatible")).toBe(another);
+    expect(rowKinds(another)).toEqual(["openai-compatible", "anthropic-compatible"]);
+    expect(canPickRow(another, undefined)).toBe(true);
+    expect(rowTag(another, undefined)).toBeUndefined();
+    expect(run([{ type: "select", kind: "openai-compatible", saved: undefined }]).selected).toBe("openai-compatible");
+  });
+
+  it("can't test OpenAI-style until the server says it runs", () => {
+    const openAiStyle = run([
+      { type: "select", kind: "openai-compatible", saved: undefined },
+      { type: "edit", field: "baseUrl", value: "https://example.test/v1" },
+    ]);
+    expect(canTest(openAiStyle, undefined)).toBe(false);
+    expect(pickerReducer(openAiStyle, { type: "testStarted" })).toBe(openAiStyle);
+    expect(comingNextFor("openai-compatible")).toBe("Coming next: your ember can't think with an OpenAI-style service yet.");
+    expect(canTest(openAiStyle, saved({ provider: "openai-compatible", usable: true }))).toBe(true);
+  });
+
+  it("speaks Anthropic-style with what was typed kept, and needs its key", () => {
+    const state = run([
+      { type: "select", kind: "openai-compatible", saved: undefined },
+      { type: "edit", field: "baseUrl", value: "https://example.test" },
+      { type: "speak", kind: "anthropic-compatible" },
+    ]);
+    expect(state.selected).toBe("anthropic-compatible");
+    expect(state.baseUrl).toBe("https://example.test");
+    expect(canTest(state, undefined)).toBe(false);
+    const keyed = pickerReducer(state, { type: "edit", field: "key", value: exampleKey });
+    expect(canTest(keyed, undefined)).toBe(true);
+    expect(request(keyed, "test")).toEqual({ provider: "anthropic-compatible", baseUrl: "https://example.test", apiKey: exampleKey });
+    expect(pickerReducer(keyed, { type: "select", kind: "openai-compatible", saved: undefined })).toBe(keyed);
+    expect(pickerReducer(keyed, { type: "speak", kind: "deepseek" })).toBe(keyed);
+  });
+
+  it("opens a saved Anthropic-style service on its choice", () => {
+    const on = saved({ provider: "anthropic-compatible", baseUrl: "https://example.test" });
+    const state = initialPicker(on);
+    expect([state.selected, state.baseUrl]).toEqual(["anthropic-compatible", "https://example.test"]);
+    expect(keyPlaceholder("anthropic-compatible", on)).toBe("Saved key ending in 0000");
+  });
+});
+
+describe("a local Ollama", () => {
+  const ollama = ROWS.find((r) => r.kind === "ollama")!;
+  const found = (from = initialPicker(undefined), listed = models) =>
+    run([{ type: "lookStarted" }, { type: "lookFound", on: FOUND_ON, models: listed, saved: undefined }], from);
+
+  it("is looked for with no key at the server's default address", () => {
+    expect(OLLAMA_LOOK).toEqual({ provider: "ollama" });
+    const looking = run([{ type: "lookStarted" }]);
+    expect(pickerReducer(looking, { type: "lookStarted" })).toBe(looking);
+  });
+
+  it("tags its row with where it was found", () => {
+    expect(rowTag(ollama, undefined, found().ollama)).toBe("Found on your ember's computer");
+    expect(rowTag(ollama, undefined, { step: "missing" })).toBeUndefined();
+    expect(rowTag(ROWS[0]!, undefined, found().ollama)).toBe("Recommended");
+  });
+
+  it("fills its models in as a passed test, ready to use", () => {
+    const state = pickerReducer(found(), { type: "select", kind: "ollama", saved: undefined });
+    expect(state.test).toMatchObject({ step: "passed", models });
+    expect(state.model).toBe("example-model-a");
+    expect(canSave(state)).toBe(true);
+    expect(request(state, "save")).toEqual({ provider: "ollama", model: "example-model-a" });
+    const on = saved({ provider: "ollama", keySet: false, keyHint: undefined, model: "example-model-b" });
+    const openOnSaved = run([{ type: "lookStarted" }, { type: "lookFound", on: FOUND_ON, models, saved: on }], initialPicker(on));
+    expect(openOnSaved.model).toBe("example-model-b");
+  });
+
+  it("checks another address anew, and fills in again back at the default", () => {
+    const state = pickerReducer(found(), { type: "select", kind: "ollama", saved: undefined });
+    const elsewhere = pickerReducer(state, { type: "edit", field: "baseUrl", value: "http://example.test:11434" });
+    expect(elsewhere.test.step).toBe("idle");
+    expect(pickerReducer(elsewhere, { type: "edit", field: "baseUrl", value: "" }).test.step).toBe("passed");
+  });
+
+  it("is no problem when none answers", () => {
+    const state = run([{ type: "lookStarted" }, { type: "lookMissed" }, { type: "select", kind: "ollama", saved: undefined }]);
+    expect(rowTag(ollama, undefined, state.ollama)).toBeUndefined();
+    expect(state.test.step).toBe("idle");
+    expect(state.saveError).toBeUndefined();
+    expect(pickerReducer(found(initialPicker(undefined), []), { type: "select", kind: "ollama", saved: undefined }).test.step).toBe("idle");
   });
 });

@@ -9,19 +9,46 @@ export interface ProviderField {
   placeholder?: string;
 }
 
-/** One provider the picker offers. */
+/** One row of the picker: a provider, or two chosen inside it by the API the service speaks. */
 export interface ProviderRow {
+  /** The provider, and the one selected when the row is. */
   kind: ProviderKind;
+  /** The other provider the row saves as, chosen inside it. */
+  also?: ProviderKind;
   name: string;
   /** One line on what it is. */
   line: string;
   /** More, shown once the row is open. */
   hint?: string;
   tag?: string;
-  fields: readonly ProviderField[];
 }
 
 const key: ProviderField = { name: "key", needed: true };
+
+/**
+ * The boxes `kind` takes, as the server reads its request: a provider's usual address is left to the server, so only
+ * Ollama's is offered (its placeholder the server's own default), and an endpoint of your own needs its address.
+ */
+export function fieldsOf(kind: ProviderKind | undefined): readonly ProviderField[] {
+  switch (kind) {
+    case "anthropic":
+    case "openai":
+    case "deepseek":
+    case "openrouter":
+      return [key];
+    case "ollama":
+      return [{ name: "baseUrl", needed: false, placeholder: "http://localhost:11434" }];
+    case "anthropic-compatible":
+      return [{ name: "baseUrl", needed: true, placeholder: "https://…" }, key];
+    case "openai-compatible":
+      return [
+        { name: "baseUrl", needed: true, placeholder: "https://…/v1" },
+        { name: "key", needed: false },
+      ];
+    default:
+      return [];
+  }
+}
 
 /** The providers offered, in this order. The model is never typed: a passed test lists the provider's models to pick from. */
 export const ROWS: readonly ProviderRow[] = [
@@ -31,27 +58,21 @@ export const ROWS: readonly ProviderRow[] = [
     tag: "Recommended",
     line: "Best with tools. Uses your Anthropic API key, pay as you go.",
     hint: "Get a key at console.anthropic.com · signing in with a Claude Pro or Max plan comes later",
-    fields: [key],
   },
-  { kind: "openai", name: "OpenAI", line: "GPT models, with your OpenAI key.", fields: [key] },
-  { kind: "deepseek", name: "DeepSeek", line: "Low cost and strong at code, with your DeepSeek key.", fields: [key] },
-  { kind: "openrouter", name: "OpenRouter", line: "One key, hundreds of models from many makers.", fields: [key] },
+  { kind: "openai", name: "OpenAI", line: "GPT models, with your OpenAI key." },
+  { kind: "deepseek", name: "DeepSeek", line: "Low cost and strong at code, with your DeepSeek key." },
+  { kind: "openrouter", name: "OpenRouter", line: "One key, hundreds of models from many makers." },
   {
     kind: "ollama",
     name: "Ollama",
     line: "Runs on the computer your ember lives on. Free and private, but slower.",
     hint: "Nothing leaves the computer your ember lives on. Smaller models handle tools less well.",
-    // The placeholder is the server's own default: a blank box is left out, so the server uses it.
-    fields: [{ name: "baseUrl", needed: false, placeholder: "http://localhost:11434" }],
   },
   {
     kind: "openai-compatible",
+    also: "anthropic-compatible",
     name: "Another service",
     line: "Any OpenAI-style service: its address, a key and a model.",
-    fields: [
-      { name: "baseUrl", needed: true, placeholder: "https://…/v1" },
-      { name: "key", needed: false },
-    ],
   },
 ];
 
@@ -71,11 +92,46 @@ export function canRunOn(kind: ProviderKind, saved: AgentProvider | undefined): 
   return runsToday.has(kind);
 }
 
-export const rowOf = (kind: ProviderKind | undefined): ProviderRow | undefined => ROWS.find((r) => r.kind === kind);
+/** The row a provider is saved from: its own, or the one it is chosen inside. */
+export const rowOf = (kind: ProviderKind | undefined): ProviderRow | undefined =>
+  kind === undefined ? undefined : ROWS.find((r) => r.kind === kind || r.also === kind);
 
-/** A row's tag: "Coming next" while the agent can't run on it, else its own. */
-export const rowTag = (row: ProviderRow, saved: AgentProvider | undefined): string | undefined =>
-  canRunOn(row.kind, saved) ? row.tag : COMING_NEXT;
+/** The providers a row saves as. */
+export const rowKinds = (row: ProviderRow): ProviderKind[] => (row.also === undefined ? [row.kind] : [row.kind, row.also]);
+
+/** A row can be selected while the agent runs on one of its providers. */
+export const canPickRow = (row: ProviderRow, saved: AgentProvider | undefined): boolean =>
+  rowKinds(row).some((kind) => canRunOn(kind, saved));
+
+/** The API a provider of a two-way row speaks, as its choice is named. */
+export const speaksLabel = (kind: ProviderKind): string => (kind === "anthropic-compatible" ? "Anthropic-style" : "OpenAI-style");
+
+/** The words under a two-way row's choice while the agent can't run on the one chosen. */
+export const comingNextFor = (kind: ProviderKind): string =>
+  `${COMING_NEXT}: your ember can't think with an ${speaksLabel(kind)} service yet.`;
+
+/**
+ * Where a local Ollama found was: the computer the ember lives on. A phone never is that computer, and the app doesn't
+ * know its name, so it is named by what it is.
+ */
+export const FOUND_ON = "your ember's computer";
+
+/** How long the look for a local Ollama waits as the picker opens: it only says whether one answers. */
+export const LOOK_MS = 3_000;
+
+/** A local Ollama, as looked for when the picker opened. */
+export type OllamaLook =
+  { step: "unknown" } | { step: "looking" } | { step: "found"; on: string; models: ProviderModel[] } | { step: "missing" };
+
+/** What a look for a local Ollama sends: no key and the server's default address. */
+export const OLLAMA_LOOK: ProviderRequest = { provider: "ollama" };
+
+/** A row's tag: "Coming next" while the agent can't run on it, that a local Ollama was found and where, else its own. */
+export function rowTag(row: ProviderRow, saved: AgentProvider | undefined, ollama?: OllamaLook): string | undefined {
+  if (!canPickRow(row, saved)) return COMING_NEXT;
+  if (row.kind === "ollama" && ollama?.step === "found") return `Found on ${ollama.on}`;
+  return row.tag;
+}
 
 /** The key box's placeholder: the saved key's last four when this kind's key is saved. */
 export function keyPlaceholder(kind: ProviderKind, saved: AgentProvider | undefined): string {
@@ -159,14 +215,16 @@ export interface PickerState {
   saveError?: string;
   forget: "idle" | "confirming" | "forgetting";
   forgetError?: string;
+  ollama: OllamaLook;
   /** Goes up with every change to what would be sent: a test's result counts only for the values it was of. */
   version: number;
 }
 
 export type PickerAction =
   | { type: "select"; kind: ProviderKind; saved: AgentProvider | undefined }
-  | { type: "edit"; field: ProviderField["name"]; value: string }
-  | { type: "testStarted" }
+  | { type: "speak"; kind: ProviderKind }
+  | { type: "edit"; field: ProviderField["name"]; value: string; saved?: AgentProvider }
+  | { type: "testStarted"; saved?: AgentProvider }
   | { type: "testPassed"; version: number; models: ProviderModel[]; saved: AgentProvider | undefined }
   | { type: "testFailed"; version: number; reason: string }
   | { type: "chooseModel"; id: string }
@@ -177,26 +235,42 @@ export type PickerAction =
   | { type: "cancelForget" }
   | { type: "forgetStarted" }
   | { type: "forgetFailed"; reason: string }
-  | { type: "forgotten" };
+  | { type: "forgotten" }
+  | { type: "lookStarted" }
+  | { type: "lookFound"; on: string; models: ProviderModel[]; saved: AgentProvider | undefined }
+  | { type: "lookMissed" };
 
 const idle: TestState = { step: "idle" };
 
 /** The picker as it opens: the saved provider's row open when it has one, its saved base URL in its box. */
 export function initialPicker(saved: AgentProvider | undefined): PickerState {
   const row = rowOf(saved?.provider);
-  const open = row && canRunOn(row.kind, saved) ? row : undefined;
+  const open = row && canPickRow(row, saved) ? saved?.provider : undefined;
   return {
-    selected: open?.kind,
+    selected: open,
     key: "",
-    baseUrl: open && hasField(open, "baseUrl") ? (saved?.baseUrl ?? "") : "",
+    baseUrl: hasField(open, "baseUrl") ? (saved?.baseUrl ?? "") : "",
     test: idle,
     saving: false,
     forget: "idle",
+    ollama: { step: "unknown" },
     version: 0,
   };
 }
 
-const hasField = (row: ProviderRow, name: ProviderField["name"]): boolean => row.fields.some((f) => f.name === name);
+const hasField = (kind: ProviderKind | undefined, name: ProviderField["name"]): boolean => fieldsOf(kind).some((f) => f.name === name);
+
+/** With Ollama open at its default address and nothing tested, the models of the one found there stand for a passed test. */
+function fillFound(state: PickerState, saved: AgentProvider | undefined): PickerState {
+  const { ollama } = state;
+  const atDefault = state.selected === "ollama" && state.baseUrl.trim() === "" && state.test.step === "idle";
+  if (!atDefault || ollama.step !== "found" || ollama.models.length === 0) return state;
+  return {
+    ...state,
+    test: { step: "passed", version: state.version, models: ollama.models },
+    model: preselectModel("ollama", ollama.models, saved),
+  };
+}
 
 /** The model to start on: the saved one when it is this provider's and listed, else the first listed. */
 export function preselectModel(kind: ProviderKind, models: readonly ProviderModel[], saved: AgentProvider | undefined): string | undefined {
@@ -207,29 +281,39 @@ export function preselectModel(kind: ProviderKind, models: readonly ProviderMode
 export function pickerReducer(state: PickerState, action: PickerAction): PickerState {
   switch (action.type) {
     case "select": {
-      if (action.kind === state.selected || !canRunOn(action.kind, action.saved)) return state;
       const row = rowOf(action.kind);
-      const savedUrl = action.saved?.provider === action.kind && row && hasField(row, "baseUrl") ? action.saved.baseUrl : undefined;
-      return {
-        ...state,
-        selected: action.kind,
-        key: "",
-        baseUrl: savedUrl ?? "",
-        test: idle,
-        model: undefined,
-        saveError: undefined,
-        forgetError: undefined,
-        version: state.version + 1,
-      };
+      if (!row || row === rowOf(state.selected) || !canPickRow(row, action.saved)) return state;
+      const savedUrl = action.saved?.provider === action.kind && hasField(action.kind, "baseUrl") ? action.saved.baseUrl : undefined;
+      return fillFound(
+        {
+          ...state,
+          selected: action.kind,
+          key: "",
+          baseUrl: savedUrl ?? "",
+          test: idle,
+          model: undefined,
+          saveError: undefined,
+          forgetError: undefined,
+          version: state.version + 1,
+        },
+        action.saved,
+      );
+    }
+    case "speak": {
+      const row = rowOf(state.selected);
+      if (state.saving || !row || !rowKinds(row).includes(action.kind) || action.kind === state.selected) return state;
+      // The same service, read another way: what is typed stays, untested.
+      return { ...state, selected: action.kind, test: idle, model: undefined, saveError: undefined, version: state.version + 1 };
     }
     case "edit": {
       if (state.saving) return state;
       const typed = action.field === "key" ? { key: action.value } : { baseUrl: action.value };
       // What was tested isn't what is typed any more.
-      return { ...state, ...typed, test: idle, model: undefined, saveError: undefined, version: state.version + 1 };
+      const edited = { ...state, ...typed, test: idle, model: undefined, saveError: undefined, version: state.version + 1 };
+      return fillFound(edited, action.saved);
     }
     case "testStarted":
-      return canTest(state)
+      return canTest(state, action.saved)
         ? { ...state, test: { step: "testing", version: state.version }, model: undefined, saveError: undefined }
         : state;
     case "testPassed":
@@ -262,6 +346,12 @@ export function pickerReducer(state: PickerState, action: PickerAction): PickerS
       return { ...state, forget: "idle", forgetError: action.reason };
     case "forgotten":
       return { ...state, forget: "idle", forgetError: undefined };
+    case "lookStarted":
+      return state.ollama.step === "looking" ? state : { ...state, ollama: { step: "looking" } };
+    case "lookFound":
+      return fillFound({ ...state, ollama: { step: "found", on: action.on, models: action.models } }, action.saved);
+    case "lookMissed":
+      return { ...state, ollama: { step: "missing" } };
   }
 }
 
@@ -273,26 +363,26 @@ const current = (state: PickerState, version: number): boolean => state.test.ste
  * one, and the model only on a save. Undefined while no row is open.
  */
 export function request(state: PickerState, purpose: "test" | "save"): ProviderRequest | undefined {
-  const row = rowOf(state.selected);
-  if (!row) return undefined;
-  const typed = (name: ProviderField["name"], value: string) => (hasField(row, name) && value.trim() !== "" ? value.trim() : undefined);
+  const kind = state.selected;
+  if (kind === undefined || !rowOf(kind)) return undefined;
+  const typed = (name: ProviderField["name"], value: string) => (hasField(kind, name) && value.trim() !== "" ? value.trim() : undefined);
   const apiKey = typed("key", state.key);
   const baseUrl = typed("baseUrl", state.baseUrl);
   const model = purpose === "save" ? state.model : undefined;
   return {
-    provider: row.kind,
+    provider: kind,
     ...(apiKey !== undefined && { apiKey }),
     ...(baseUrl !== undefined && { baseUrl }),
     ...(model !== undefined && { model }),
   };
 }
 
-/** "Test it" can go: every needed box is filled, and nothing is under way. */
-export function canTest(state: PickerState): boolean {
-  const row = rowOf(state.selected);
-  if (!row || state.saving || state.test.step === "testing") return false;
+/** "Test it" can go: the agent runs on the provider selected, every needed box is filled, and nothing is under way. */
+export function canTest(state: PickerState, saved?: AgentProvider): boolean {
+  const kind = state.selected;
+  if (kind === undefined || !rowOf(kind) || !canRunOn(kind, saved) || state.saving || state.test.step === "testing") return false;
   const filled = (name: ProviderField["name"]) => (name === "key" ? state.key : state.baseUrl).trim() !== "";
-  return row.fields.every((f) => !f.needed || filled(f.name));
+  return fieldsOf(kind).every((f) => !f.needed || filled(f.name));
 }
 
 /** "Use this" can go: the test passed for exactly what is typed, and a model is chosen unless the provider lists none. */

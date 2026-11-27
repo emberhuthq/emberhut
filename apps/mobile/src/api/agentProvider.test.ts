@@ -34,4 +34,16 @@ describe("the agent provider's endpoints", () => {
       message: "The provider refused the key.",
     });
   });
+
+  it("gives a quick look up once its time is out", async () => {
+    const { server, api } = fakeApi();
+    // An answer that never comes: only the request's own timeout ends it.
+    server.on(
+      "POST",
+      "/api/agent/provider/test",
+      ({ signal }) =>
+        new Promise<Response>((_, reject) => signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))),
+    );
+    await expect(api.agentProvider.test({ provider: "ollama" }, 20)).rejects.toMatchObject({ status: 0 });
+  });
 });
