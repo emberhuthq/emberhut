@@ -871,6 +871,12 @@ signed-in device in either auth mode; a refusal is `{ "error" }` with 400 (a rul
   one of the agent's messages was tapped), 200 `{ "turn", "skipped" }`, a turn framed as the
   bridge's (its own word) with its words quoted; 401 and 404 as above. Never anyone's request,
   never an approval.
+- `POST /api/agents/{id}/slack-actions` with the same bearer: a click on one of the agent's
+  approval buttons, Slack's `block_actions` payload as a Socket Mode connection receives it
+  (such an app's clicks reach only its connection, unsigned). It counts as a signed click on
+  `POST /api/approvals/slack` does: 200 decided; 400 not an approval's button; 401 as above; 403
+  not the approver's team and user, or not on the request's own message; 404 no such request of
+  this agent's (another agent's included); 409 another hash, or decided already.
 
 The state has `agents` (when there is one besides the default) and `approvals` (the pending
 ones); the live stream sends `event: approvals` with `{ id, state, pending }` when a request

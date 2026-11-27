@@ -19,8 +19,8 @@ use jiff::SignedDuration;
 use serde_json::{Value, json};
 
 use crate::approvals_common::{
-    BOT_TOKEN, Desk, SIGNING, TEAM, USER, WEBHOOK_SECRET, WEBHOOK_URL, slack_click, slack_click_on,
-    slack_signature,
+    BOT_TOKEN, Desk, FIRST_DM_TS, SIGNING, TEAM, USER, WEBHOOK_SECRET, WEBHOOK_URL, slack_click,
+    slack_click_on, slack_click_payload, slack_signature,
 };
 use crate::common::{Call, TestApp};
 
@@ -420,6 +420,145 @@ pub(crate) async fn a_slack_click_counts_only_from_the_approver() {
     );
 
     let replayed = send(slack_click(TEAM, USER, "reject", &value), SIGNING, now).await;
+    assert_eq!(replayed.status, 409, "a decision is made once");
+}
+
+/// A Slack app on Socket Mode gets its clicks over its bridge's connection, unsigned: the
+/// bridge passes one on with the agent's inbound token, for that agent's requests only, and it
+/// counts only as a signed click does (the approver's team and user, on the request's own
+/// message, on its hash, once).
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "every way a bridged click is refused, then the one that counts"
+)]
+pub(crate) async fn a_bridged_slack_click_counts_only_for_its_agent_from_the_approver() {
+    let desk = Desk::new().await;
+    let app = &desk.app;
+    let secrets = app.dir().join("secrets");
+    std::fs::write(secrets.join("agent-client-a-inbound"), "client-a-bridge").unwrap();
+    let other = app
+        .call(Call::post("/api/agents").token(&desk.session).json(&json!({
+            "id": "client-b", "name": "Another helper", "principal": "Another Ltd",
+        })))
+        .await;
+    assert_eq!(other.status, 200, "{}", other.text);
+    std::fs::write(secrets.join("agent-client-b-inbound"), "client-b-bridge").unwrap();
+    let request = ask(&desk, &post("Hello world", Vec::new())).await.request;
+    let value = format!("{}.{}", request.id, request.payload_hash);
+    let send = |agent: &str, bearer: Option<&str>, body: String| {
+        let mut call = Call::post(&format!("/api/agents/{agent}/slack-actions")).raw(&body);
+        if let Some(bearer) = bearer {
+            call = call.header("authorization", &format!("Bearer {bearer}"));
+        }
+        app.call(call)
+    };
+    let click = |user: &str, action: &str, value: &str| {
+        slack_click_payload(FIRST_DM_TS, TEAM, user, action, value).to_string()
+    };
+    let bridge = Some("client-a-bridge");
+
+    for bearer in [None, Some("wrong"), Some(SIGNING)] {
+        let refused = send("client-a", bearer, click(USER, "approve", &value)).await;
+        assert_eq!(
+            refused.status, 401,
+            "{bearer:?}: only the agent's bridge gets in"
+        );
+    }
+    let not_json = send("client-a", bridge, "payload=%7B%7D".to_owned()).await;
+    assert_eq!(not_json.status, 400);
+    let no_team = send(
+        "client-a",
+        bridge,
+        json!({ "type": "block_actions", "user": { "id": USER } }).to_string(),
+    )
+    .await;
+    assert_eq!(no_team.status, 400);
+    let not_a_button = send("client-a", bridge, click(USER, "delete", &value)).await;
+    assert_eq!(not_a_button.status, 400);
+    let another_agents = send(
+        "client-b",
+        Some("client-b-bridge"),
+        click(USER, "approve", &value),
+    )
+    .await;
+    assert_eq!(
+        another_agents.status, 404,
+        "one agent's bridge decides none of another agent's requests"
+    );
+    let stranger = send("client-a", bridge, click("U0STRANGER", "approve", &value)).await;
+    assert_eq!(
+        stranger.status, 403,
+        "another user of the team is not the approver"
+    );
+    let other_team = send(
+        "client-a",
+        bridge,
+        slack_click_payload(FIRST_DM_TS, "T0OTHER", USER, "approve", &value).to_string(),
+    )
+    .await;
+    assert_eq!(
+        other_team.status, 403,
+        "the same user id in another workspace is not the approver"
+    );
+    let other_message = send(
+        "client-a",
+        bridge,
+        slack_click_payload("1800000000.000099", TEAM, USER, "approve", &value).to_string(),
+    )
+    .await;
+    assert_eq!(
+        other_message.status, 403,
+        "a button on any message but the request's own decides nothing"
+    );
+    let swapped = send(
+        "client-a",
+        bridge,
+        click(
+            USER,
+            "approve",
+            &format!("{}.{}", request.id, "ab".repeat(32)),
+        ),
+    )
+    .await;
+    assert_eq!(
+        swapped.status, 409,
+        "a button for another payload decides nothing"
+    );
+    assert_eq!(
+        app.state
+            .approvals()
+            .status(&desk.agent, request.id)
+            .await
+            .unwrap()
+            .state,
+        RequestState::Pending
+    );
+
+    let clicked = send("client-a", bridge, click(USER, "approve", &value)).await;
+    assert_eq!(clicked.status, 200, "{}", clicked.text);
+    let decided = app
+        .state
+        .approvals()
+        .status(&desk.agent, request.id)
+        .await
+        .unwrap();
+    assert_eq!(decided.state, RequestState::Approved);
+    let record = decided.decided.unwrap();
+    assert_eq!(record.via, DecidedVia::Slack);
+    assert!(
+        record.by.contains(USER) && record.by.contains("bridge"),
+        "{}",
+        record.by
+    );
+    app.state.approvals().settled().await;
+    let updates = desk.slack.updates.lock().unwrap().clone();
+    assert!(
+        updates.last().unwrap().1.contains("Approved"),
+        "{updates:?}"
+    );
+
+    let replayed = send("client-a", bridge, click(USER, "reject", &value)).await;
     assert_eq!(replayed.status, 409, "a decision is made once");
 }
 

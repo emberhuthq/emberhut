@@ -7222,6 +7222,97 @@
         ]
       }
     },
+    "/api/agents/{id}/slack-actions": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "A click on one of the agent's approval buttons in Slack, passed on by its bridge: for a\nSlack app on Socket Mode, whose clicks reach only its connection and carry no signature to\ncheck. The body is Slack's `block_actions` payload as the connection received it. The click\ndecides only one of this agent's requests, and only as a signed one would: the approver's\nown team and user, on the request's own message, on its hash.",
+        "operationId": "slack_action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The agent's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Slack's `block_actions` payload, as a Socket Mode envelope's `payload` holds it",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Decided"
+          },
+          "400": {
+            "description": "Not an approval's button",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not the agent's inbound token (`agent-<id>-inbound`), or no such secret saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The click is not the approver's, or not on the request's own message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such request of this agent's, or no such configured agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The hash is not the request's, or it was decided already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/approvers": {
       "get": {
         "tags": [
