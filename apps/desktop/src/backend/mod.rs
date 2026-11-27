@@ -22,6 +22,7 @@ use std::io::Write;
 use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::approvals::{
@@ -270,13 +271,19 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`]; [`Error::Refused`] 404 from a server without the route.
     fn agent_provider(&self) -> Result<AgentProvider, Error>;
 
-    /// Checks a provider with what `request` gives it and lists its models, saving nothing.
+    /// Checks a provider with what `request` gives it and lists its models, saving nothing;
+    /// the answer has `within` to come.
     ///
     /// # Errors
     ///
     /// As [`Backend::agent_provider`]; [`Error::Refused`] with the server's sentence when the
-    /// provider doesn't take what was sent (400), refused the key (422) or didn't answer (502).
-    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error>;
+    /// provider doesn't take what was sent (400), refused the key (422) or didn't answer (502);
+    /// [`Error::Unreachable`] once `within` is out.
+    fn test_agent_provider(
+        &self,
+        request: &ProviderRequest,
+        within: Duration,
+    ) -> Result<ProviderTest, Error>;
 
     /// Checks a provider and saves it in place of whatever was saved; what is saved now.
     ///

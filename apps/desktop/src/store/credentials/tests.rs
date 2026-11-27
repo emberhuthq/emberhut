@@ -71,11 +71,91 @@ fn six_rows_and_the_ones_needing_the_bridge_cant_be_picked() {
     );
     let mut picker = Credentials::default();
     assert!(!picker.pick(&ProviderKind::OpenAi), "coming next");
-    assert!(!picker.pick(&ProviderKind::OpenAiCompatible));
+    assert_eq!(
+        picker
+            .row_tag(row(&ProviderKind::OpenAi).unwrap())
+            .as_deref(),
+        Some(COMING_NEXT)
+    );
     assert!(!picker.pick(&ProviderKind::from("unheard-of")));
     assert_eq!(picker.picked(), None);
     assert!(picker.pick(&ProviderKind::DeepSeek));
     assert_eq!(picker.picked(), Some(&ProviderKind::DeepSeek));
+}
+
+#[test]
+fn another_service_is_one_row_that_speaks_either_api() {
+    let mut picker = Credentials::default();
+    let another = row(&ProviderKind::OpenAiCompatible).unwrap();
+    assert_eq!(row(&ProviderKind::AnthropicCompatible), Some(another));
+    assert_eq!(picker.row_tag(another), None, "Anthropic-style runs today");
+    assert!(picker.pick(&ProviderKind::OpenAiCompatible));
+    assert_eq!(
+        picker.picked(),
+        Some(&ProviderKind::OpenAiCompatible),
+        "OpenAI-style first"
+    );
+    picker.set_base_url("https://example.test/v1");
+    assert!(!picker.can_test(), "coming next: not checked");
+    assert_eq!(
+        coming_next_for(&ProviderKind::OpenAiCompatible),
+        "Coming next: your ember can't think with an OpenAI-style service yet."
+    );
+
+    picker.speak(&ProviderKind::AnthropicCompatible);
+    assert_eq!(picker.picked(), Some(&ProviderKind::AnthropicCompatible));
+    assert!(!picker.can_test(), "an Anthropic-style service needs a key");
+    picker.set_key(KEY);
+    assert!(picker.can_test());
+    assert_eq!(
+        picker.request(false),
+        Some(ProviderRequest {
+            provider: ProviderKind::AnthropicCompatible,
+            api_key: Some(KEY.to_owned()),
+            base_url: Some("https://example.test/v1".to_owned()),
+            model: None,
+            fast_model: None,
+        }),
+        "what was typed stays across the choice"
+    );
+    assert!(picker.pick(&ProviderKind::OpenAiCompatible));
+    assert_eq!(
+        picker.picked(),
+        Some(&ProviderKind::AnthropicCompatible),
+        "the row picked stays as it is"
+    );
+    picker.speak(&ProviderKind::DeepSeek);
+    assert_eq!(
+        picker.picked(),
+        Some(&ProviderKind::AnthropicCompatible),
+        "not this row's"
+    );
+    let bridged = saved(ProviderKind::OpenAiCompatible, None, true);
+    picker.loaded(Ok(bridged));
+    picker.speak(&ProviderKind::OpenAiCompatible);
+    assert!(picker.can_test(), "lit once the server says it runs");
+}
+
+#[test]
+fn where_the_ember_lives_names_the_found_tag() {
+    let here = if cfg!(target_os = "macos") {
+        "this Mac"
+    } else {
+        "this computer"
+    };
+    assert_eq!(ember_place("http://127.0.0.1:8787"), here);
+    assert_eq!(ember_place("http://localhost:8787/"), here);
+    assert_eq!(ember_place("http://[::1]:8787"), here);
+    assert_eq!(
+        ember_place("https://ember.example.com"),
+        "your ember's computer"
+    );
+    let mut picker = Credentials::default();
+    let ollama = row(&ProviderKind::Ollama).unwrap();
+    assert_eq!(picker.row_tag(ollama), None);
+    picker.look_started();
+    picker.look_done("this Mac", Ok(models(&[])));
+    assert_eq!(picker.row_tag(ollama).as_deref(), Some("Found on this Mac"));
 }
 
 #[test]
@@ -411,6 +491,126 @@ fn a_refused_removal_keeps_what_is_saved_and_says_why(cx: &mut TestAppContext) {
                 .is_some_and(|why| why.starts_with("Can't reach")),
             "{:?}",
             picker.save_problem()
+        );
+    });
+}
+
+#[gpui_kit::test]
+fn opening_the_picker_finds_a_local_ollama_and_its_models(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]));
+    backend
+        .provider
+        .push_test(Ok(models(&["example-model-a", "example-model-b"])));
+    let store = store(cx, &backend);
+    store.update(cx, |store, cx| {
+        store.open_credentials(cx);
+        store.open_credentials(cx);
+    });
+    cx.run_until_parked();
+    let look = Call::TestAgentProvider(ProviderRequest {
+        provider: ProviderKind::Ollama,
+        api_key: None,
+        base_url: None,
+        model: None,
+        fast_model: None,
+    });
+    assert_eq!(
+        backend.calls().iter().filter(|call| **call == look).count(),
+        1,
+        "once per opening"
+    );
+    store.read_with(cx, |store, _| {
+        let tag = store
+            .credentials()
+            .row_tag(row(&ProviderKind::Ollama).unwrap());
+        assert_eq!(tag.as_deref(), Some("Found on your ember's computer"));
+    });
+    store.update(cx, |store, cx| {
+        store.pick_provider(&ProviderKind::Ollama, cx);
+    });
+    store.read_with(cx, |store, _| {
+        let picker = store.credentials();
+        assert!(matches!(picker.check(), Check::Passed { models, .. } if models.len() == 2));
+        assert_eq!(picker.model(), Some("example-model-a"));
+        assert!(picker.can_save(), "the look stood for a check");
+    });
+    store.update(cx, |store, cx| {
+        store.type_provider_url("http://192.0.2.7:11434", cx);
+    });
+    assert_eq!(
+        store.read_with(cx, |store, _| store.credentials().check().clone()),
+        Check::Idle,
+        "another address is checked anew"
+    );
+    store.update(cx, |store, cx| {
+        store.type_provider_url("", cx);
+        store.save_provider(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls().last(),
+        Some(&Call::SaveAgentProvider(ProviderRequest {
+            provider: ProviderKind::Ollama,
+            api_key: None,
+            base_url: None,
+            model: Some("example-model-a".to_owned()),
+            fast_model: None,
+        }))
+    );
+    store.update(cx, Store::open_credentials);
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls().iter().filter(|call| **call == look).count(),
+        2,
+        "and again at the next opening"
+    );
+}
+
+#[gpui_kit::test]
+fn no_local_ollama_is_no_problem(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]));
+    backend
+        .provider
+        .push_test(Err(Error::Unreachable("timed out".into())));
+    let store = store(cx, &backend);
+    store.update(cx, Store::open_credentials);
+    cx.run_until_parked();
+    store.update(cx, |store, cx| {
+        store.pick_provider(&ProviderKind::Ollama, cx);
+    });
+    store.read_with(cx, |store, _| {
+        let picker = store.credentials();
+        assert_eq!(picker.row_tag(row(&ProviderKind::Ollama).unwrap()), None);
+        assert_eq!(picker.check(), &Check::Idle);
+        assert_eq!(picker.read_problem(), None);
+        assert_eq!(picker.save_problem(), None);
+        assert!(store.action_problem().is_none());
+    });
+}
+
+#[gpui_kit::test]
+fn a_saved_anthropic_style_service_opens_on_its_choice(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]));
+    let mut kept = saved(
+        ProviderKind::AnthropicCompatible,
+        Some("example-model"),
+        true,
+    );
+    kept.base_url = Some("https://example.test".to_owned());
+    backend.provider.push_status(Ok(kept));
+    let store = store(cx, &backend);
+    store.update(cx, Store::load_credentials);
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        let picker = store.credentials();
+        assert_eq!(picker.picked(), Some(&ProviderKind::AnthropicCompatible));
+        assert_eq!(
+            picker.picked_row().map(|row| row.name),
+            Some("Another service")
+        );
+        assert_eq!(
+            picker.saved_key_hint(&ProviderKind::AnthropicCompatible),
+            Some("0000")
         );
     });
 }

@@ -1,10 +1,12 @@
 //! What your ember thinks with: one list of the model providers, the picked one's fields open
 //! under it. "Test it" checks them and lists the provider's models to choose from; "Use this"
 //! saves them, then the view's owner hears it is done (Settings goes back, the first-run setup
-//! goes on). The saved provider's key can be forgotten, once confirmed.
+//! goes on). The saved provider's key can be forgotten, once confirmed. "Another service" asks
+//! which API the service speaks; Ollama's row says when a local one answered as the picker
+//! opened, its models ready to choose from.
 //!
 //! Its data is the store's ([`crate::store::credentials`]); what is saved is read when a page
-//! showing it opens ([`Store::load_credentials`]).
+//! showing it opens ([`Store::open_credentials`]).
 
 use std::rc::Rc;
 
@@ -20,7 +22,8 @@ use gpui_kit::{AnyElement, App, Div, ElementId, Entity, FontWeight, Role, Window
 use crate::assets::CLAUDE_LOGO;
 use crate::store::Store;
 use crate::store::credentials::{
-    COMING_NEXT, Check, Credentials, FAILED, FOOTER, ROWS, Row, Takes, not_in_use, passed_line,
+    Check, Credentials, FAILED, FOOTER, ROWS, Row, Takes, coming_next_for, fields, not_in_use,
+    passed_line, speaks,
 };
 use crate::ui::a11y;
 use crate::ui::palette::{Pal, pal};
@@ -40,7 +43,9 @@ pub(crate) struct CredentialsView {
     on_done: OnDone,
     /// The saves the view has answered, to tell when a new one went through.
     saves_seen: u64,
-    /// The row the fields were last set up for.
+    /// The row the fields were last emptied for.
+    row_for: Option<ProviderKind>,
+    /// The provider the fields' placeholders were last set for.
     fields_for: Option<ProviderKind>,
 }
 
@@ -77,6 +82,7 @@ impl CredentialsView {
             base_url,
             on_done: Rc::new(on_done),
             saves_seen,
+            row_for: None,
             fields_for: None,
         };
         view.store_changed(window, cx);
@@ -108,30 +114,36 @@ impl CredentialsView {
         }
     }
 
-    /// The store changed: a save that went through empties the fields and tells the owner, and
-    /// another row picked gets blank fields of its own.
+    /// The store changed: a save that went through empties the fields and tells the owner,
+    /// another row picked gets blank fields of its own, and the provider chosen inside a row
+    /// gets its placeholders (what was typed stays).
     fn store_changed(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) {
         let picker = self.store.read(cx).credentials();
         let saves = picker.saves();
         let kind = picker.picked().cloned();
+        let row_kind = picker.picked_row().map(|row| row.kind.clone());
         let key_hint = kind
             .as_ref()
             .and_then(|kind| picker.saved_key_hint(kind))
             .map(|hint| format!("Saved key ending {hint}: paste a key to test it"));
         let went_through = saves > self.saves_seen;
+        if went_through || row_kind != self.row_for {
+            for input in [&self.key, &self.base_url] {
+                input.update(cx, |input, cx| input.set_value("", window, cx));
+            }
+            self.row_for = row_kind;
+        }
         if went_through || kind != self.fields_for {
-            let row = kind.as_ref().and_then(crate::store::credentials::row);
-            let key_words = key_hint.unwrap_or_else(|| match row.map(|row| row.key) {
+            let takes = kind.as_ref().map(fields);
+            let key_words = key_hint.unwrap_or_else(|| match takes.map(|takes| takes.key) {
                 Some(Takes::Optional) => "API key, if it needs one".to_owned(),
                 _ => "API key".to_owned(),
             });
-            let url_words = row.map_or("", |row| row.base_url.1);
+            let url_words = takes.map_or("", |takes| takes.url_hint);
             self.key.update(cx, |input, cx| {
-                input.set_value("", window, cx);
                 input.set_placeholder(key_words, window, cx);
             });
             self.base_url.update(cx, |input, cx| {
-                input.set_value("", window, cx);
                 input.set_placeholder(url_words, window, cx);
             });
             self.fields_for = kind;
@@ -146,10 +158,10 @@ impl CredentialsView {
     /// A row: its radio mark, its logo, its name with a tag and its line; the fields under it
     /// once it is picked. A row the agent can't run on yet is drawn faint and isn't picked.
     fn row(&self, row: &Row, picker: &Credentials, p: &Pal, cx: &Context<'_, Self>) -> Div {
-        let on = picker.picked() == Some(&row.kind);
-        let open = picker.can_pick(&row.kind);
-        let tag_words = if open { row.tag } else { Some(COMING_NEXT) };
-        let label = a11y::line(&[row.name, tag_words.unwrap_or_default(), row.line]);
+        let on = picker.picked_row() == Some(row);
+        let open = picker.can_pick(row);
+        let tag_words = picker.row_tag(row);
+        let label = a11y::line(&[row.name, tag_words.as_deref().unwrap_or_default(), row.line]);
         let head = div()
             .id(ElementId::Name(
                 format!("provider-{}", row.kind.as_str()).into(),
@@ -221,6 +233,8 @@ impl CredentialsView {
 
     /// The picked row's fields, its check and what it found, and its buttons.
     fn fields(&self, row: &Row, picker: &Credentials, p: &Pal, cx: &Context<'_, Self>) -> Div {
+        let kind = picker.picked().unwrap_or(&row.kind);
+        let takes = fields(kind);
         let testing = picker.check() == &Check::Testing;
         let passed = matches!(picker.check(), Check::Passed { .. });
         let test = Button::new("provider-test")
@@ -243,10 +257,15 @@ impl CredentialsView {
             .pl(px(54.))
             .pb(px(6.))
             .children(row.hint.map(|hint| note(p, hint)))
-            .when(row.base_url.0 != Takes::No, |d| {
+            .children(
+                row.also
+                    .is_some()
+                    .then(|| self.speaks_choice(row, kind, picker, p)),
+            )
+            .when(takes.base_url != Takes::No, |d| {
                 d.child(field(p, "Address", Input::new(&self.base_url)))
             })
-            .when(row.key != Takes::No, |d| {
+            .when(takes.key != Takes::No, |d| {
                 d.child(field(p, "API key", Input::new(&self.key).mask_toggle()))
             })
             .child(self.outcome(picker, p))
@@ -275,7 +294,57 @@ impl CredentialsView {
                     .save_problem()
                     .map(|why| problem_line(p, why.to_owned())),
             )
-            .children(Self::forget(&row.kind, picker, p, cx))
+            .children(Self::forget(kind, picker, p, cx))
+    }
+
+    /// A two-way row's choice of the API the service speaks, with Coming next under it while
+    /// the agent can't run on the one chosen.
+    fn speaks_choice(&self, row: &Row, kind: &ProviderKind, picker: &Credentials, p: &Pal) -> Div {
+        let choices = row.kinds().map(|choice| {
+            let chosen = choice == kind;
+            let (store, choice) = (self.store.clone(), choice.clone());
+            div()
+                .id(ElementId::Name(
+                    format!("provider-speaks-{}", choice.as_str()).into(),
+                ))
+                .role(Role::RadioButton)
+                .aria_label(speaks(&choice))
+                .aria_selected(chosen)
+                .px(px(10.))
+                .py(px(4.))
+                .rounded(px(7.))
+                .text_size(px(12.))
+                .cursor_pointer()
+                .when(chosen, |d| d.bg(p.surface).text_color(p.text))
+                .when(!chosen, |d| d.text_color(p.muted))
+                .child(speaks(&choice))
+                .on_click(move |_, _, cx| {
+                    store.update(cx, |store, cx| store.speak_provider(&choice, cx));
+                })
+                .test_support()
+        });
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .child(note(p, "It speaks"))
+            .child(
+                div()
+                    .id("provider-speaks")
+                    .role(Role::RadioGroup)
+                    .aria_label("It speaks")
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(2.))
+                    .p(px(2.))
+                    .rounded(px(9.))
+                    .bg(p.surface_raised)
+                    .max_w(px(420.))
+                    .children(choices),
+            )
+            .when(!picker.runs(kind), |d| {
+                d.child(note(p, coming_next_for(kind)))
+            })
     }
 
     /// What the check found: that it works, the ember's answer when one ran, and the models

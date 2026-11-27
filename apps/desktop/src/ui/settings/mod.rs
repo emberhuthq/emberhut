@@ -795,6 +795,10 @@ mod tests {
             id: id.to_owned(),
             name: name.map(str::to_owned),
         };
+        // No local Ollama answers the look as the pane opens.
+        backend
+            .provider
+            .push_test(Err(Error::Unreachable("connection refused".into())));
         backend.provider.push_test(Ok(ProviderTest {
             checked: true,
             models: vec![
@@ -806,7 +810,13 @@ mod tests {
             store.show_in_test_column(Some(Page::SettingsPane(pane)), cx);
         });
         cx.run_until_parked();
-        assert_eq!(backend.calls(), [Call::AgentProvider], "read as it opens");
+        let mut opened = backend.calls();
+        opened.sort_by_key(|call| matches!(call, Call::TestAgentProvider(_)));
+        assert_eq!(
+            opened,
+            [Call::AgentProvider, Call::TestAgentProvider(ollama_look())],
+            "read, and Ollama looked for, as it opens"
+        );
         cx.update(|window, cx| {
             window.render_frame(cx);
             window.click("provider-openai", cx);
@@ -844,9 +854,8 @@ mod tests {
             fast_model: None,
         };
         assert_eq!(
-            backend.calls(),
+            backend.calls()[2..],
             [
-                Call::AgentProvider,
                 Call::TestAgentProvider(sent(None)),
                 Call::SaveAgentProvider(sent(Some("example-model-b"))),
             ]
@@ -857,6 +866,66 @@ mod tests {
             assert_eq!(store.credentials().saves(), 1);
             assert!(!store.credentials().has_key());
         });
+    }
+
+    /// The look for a local Ollama as the picker opens.
+    fn ollama_look() -> ProviderRequest {
+        ProviderRequest {
+            provider: ProviderKind::Ollama,
+            api_key: None,
+            base_url: None,
+            model: None,
+            fast_model: None,
+        }
+    }
+
+    #[gpui_kit::test]
+    fn another_service_asks_which_api_it_speaks(cx: &mut TestAppContext) {
+        let pane = SettingsPane::Credentials;
+        let (backend, store, view, mut cx) = open_settings_view(cx, Some(pane));
+        store.update(&mut cx, |store, cx| {
+            store.show_in_test_column(Some(Page::SettingsPane(pane)), cx);
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.click("provider-openai-compatible", cx);
+            window.render_frame(cx);
+            assert!(
+                window
+                    .try_find("provider-speaks-openai-compatible")
+                    .is_some()
+            );
+        });
+        let picked = store.read_with(&cx, |store, _| store.credentials().picked().cloned());
+        assert_eq!(
+            picked,
+            Some(ProviderKind::OpenAiCompatible),
+            "OpenAI-style first"
+        );
+        cx.update(|window, cx| window.click("provider-speaks-anthropic-compatible", cx));
+        cx.run_until_parked();
+        let (url, key) = view.read_with(&cx, |view, cx| {
+            let pane = view.credentials.read(cx);
+            (pane.base_url.clone(), pane.key.clone())
+        });
+        type_in(&url, "https://example.test", &mut cx);
+        type_in(&key, "sk-example-key-0000", &mut cx);
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.click("provider-test", cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            backend.calls().last(),
+            Some(&Call::TestAgentProvider(ProviderRequest {
+                provider: ProviderKind::AnthropicCompatible,
+                api_key: Some("sk-example-key-0000".to_owned()),
+                base_url: Some("https://example.test".to_owned()),
+                model: None,
+                fast_model: None,
+            }))
+        );
     }
 
     /// What a server answers with a `DeepSeek` key saved.

@@ -3,6 +3,7 @@
 use std::io::Write;
 use std::ops::ControlFlow;
 use std::sync::Arc;
+use std::time::Duration;
 
 use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::answers::AnswerRequest;
@@ -126,7 +127,7 @@ impl EmberhutBackend {
     }
 
     /// Whether the server answers its health check within `within`.
-    pub(super) fn answers(&self, within: std::time::Duration) -> bool {
+    pub(super) fn answers(&self, within: Duration) -> bool {
         match self.client.health(within) {
             Ok(_) => true,
             Err(error) => {
@@ -359,8 +360,14 @@ impl Backend for EmberhutBackend {
         self.client.agent_provider().map_err(error)
     }
 
-    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
-        self.client.test_agent_provider(request).map_err(error)
+    fn test_agent_provider(
+        &self,
+        request: &ProviderRequest,
+        within: Duration,
+    ) -> Result<ProviderTest, Error> {
+        self.client
+            .test_agent_provider_within(request, within)
+            .map_err(error)
     }
 
     fn save_agent_provider(&self, request: &ProviderRequest) -> Result<AgentProvider, Error> {

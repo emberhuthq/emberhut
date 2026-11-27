@@ -5,6 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::ops::ControlFlow;
 use std::sync::{Mutex, PoisonError};
+use std::time::Duration;
 
 use emberhut_api::agent_provider::{AgentProvider, ProviderRequest, ProviderTest};
 use emberhut_api::approvals::{
@@ -705,7 +706,7 @@ impl Backend for FakeBackend {
             on(event.clone());
         }
         while !stop() {
-            std::thread::sleep(std::time::Duration::from_millis(5));
+            std::thread::sleep(Duration::from_millis(5));
         }
         Ok(())
     }
@@ -861,7 +862,11 @@ impl Backend for FakeBackend {
         self.provider.status()
     }
 
-    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
+    fn test_agent_provider(
+        &self,
+        request: &ProviderRequest,
+        _within: Duration,
+    ) -> Result<ProviderTest, Error> {
         self.record(Call::TestAgentProvider(request.clone()));
         self.provider.test()
     }
@@ -894,7 +899,7 @@ impl Backend for FakeBackend {
             on(event);
         }
         while !stop() {
-            std::thread::sleep(std::time::Duration::from_millis(5));
+            std::thread::sleep(Duration::from_millis(5));
         }
         Ok(())
     }
