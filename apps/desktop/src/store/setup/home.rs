@@ -2,9 +2,9 @@
 //! Emberhut here and to pair this app with it, and the implementations this build has.
 //!
 //! A home here is Emberhut running in the background on this computer, which the app starts
-//! and pairs with by itself. The app wires its implementation in at launch; until one can
-//! start Emberhut, [`DevHome`] uses one that already answers at the app's address and lets the
-//! user type its pairing code.
+//! and pairs with by itself. The app wires its implementation in at launch: [`HutHome`], the
+//! hut this app runs ([`crate::hut`]), when the app has its server binary; else [`DevHome`],
+//! one that already answers at the app's address, whose pairing code the user types.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,6 +14,7 @@ use gpui_kit::{App, AppContext as _, Task};
 use crate::account::switch::is_loopback_host;
 use crate::backend::Backend;
 use crate::config::ServerUrl;
+use crate::hut::{KeepLit, LocalHut};
 
 /// What the step says when Emberhut can't live on this computer through this build.
 pub(crate) const CANT_HERE: &str = "This build can't start Emberhut here yet.";
@@ -33,6 +34,10 @@ pub(crate) trait LocalHome {
     /// A one-time pairing code for this app from Emberhut here, read where only this user can
     /// read it; `None` when the user has to type one.
     fn pair_code(&self, cx: &mut App) -> Task<Result<Option<String>, String>>;
+
+    /// Keeps Emberhut here lit as `keep` says (while the app is closed, from login), or why it
+    /// couldn't; `None` when it isn't this app's to keep (it runs by other means).
+    fn keep_lit(&self, keep: KeepLit, cx: &mut App) -> Option<Task<Result<(), String>>>;
 }
 
 /// A build with no home on this computer: the step offers only another computer.
@@ -50,6 +55,10 @@ impl LocalHome for NoLocalHome {
 
     fn pair_code(&self, _: &mut App) -> Task<Result<Option<String>, String>> {
         Task::ready(Err(CANT_HERE.to_owned()))
+    }
+
+    fn keep_lit(&self, _: KeepLit, _: &mut App) -> Option<Task<Result<(), String>>> {
+        None
     }
 }
 
@@ -84,6 +93,52 @@ impl LocalHome for DevHome {
 
     fn pair_code(&self, _: &mut App) -> Task<Result<Option<String>, String>> {
         Task::ready(Ok(None))
+    }
+
+    fn keep_lit(&self, _: KeepLit, _: &mut App) -> Option<Task<Result<(), String>>> {
+        None
+    }
+}
+
+/// The hut: Emberhut run by this app on this computer ([`LocalHut`]), started on the loopback,
+/// kept lit as asked, and paired with through a code it makes for this app, so the user types
+/// nothing. What goes wrong is said in the hut's own words.
+pub(crate) struct HutHome {
+    hut: LocalHut,
+}
+
+impl HutHome {
+    /// The home that is `hut`.
+    #[must_use]
+    pub(crate) fn new(hut: LocalHut) -> Self {
+        Self { hut }
+    }
+}
+
+/// `task`'s outcome with its error in words.
+fn in_words<T: 'static>(
+    task: Task<Result<T, crate::hut::HutError>>,
+    cx: &App,
+) -> Task<Result<T, String>> {
+    cx.spawn(async move |_| task.await.map_err(|error| error.to_string()))
+}
+
+impl LocalHome for HutHome {
+    fn available(&self) -> bool {
+        self.hut.available()
+    }
+
+    fn start(&self, cx: &mut App) -> Task<Result<ServerUrl, String>> {
+        in_words(self.hut.start(cx), cx)
+    }
+
+    fn pair_code(&self, cx: &mut App) -> Task<Result<Option<String>, String>> {
+        let code = in_words(self.hut.pair_code(cx), cx);
+        cx.spawn(async move |_| code.await.map(Some))
+    }
+
+    fn keep_lit(&self, keep: KeepLit, cx: &mut App) -> Option<Task<Result<(), String>>> {
+        Some(in_words(self.hut.keep_lit(keep, cx), cx))
     }
 }
 
@@ -140,6 +195,65 @@ mod tests {
             run(cx, |cx| home.pair_code(cx)),
             Ok(None),
             "the user types it"
+        );
+        assert!(
+            cx.update(|cx| home.keep_lit(KeepLit::default(), cx))
+                .is_none(),
+            "it isn't the app's to keep lit"
+        );
+    }
+
+    #[gpui_kit::test]
+    fn the_hut_is_a_home_here_that_hands_over_its_own_code(cx: &mut gpui_kit::TestAppContext) {
+        use crate::hut::tests::{Os, Setup};
+        let computer = Setup::new(Os::Linux);
+        let home = HutHome::new(computer.hut());
+        assert!(home.available());
+        assert_eq!(
+            run(cx, |cx| home.start(cx)).map(|url| url.to_string()),
+            Ok("http://127.0.0.1:18990".to_owned())
+        );
+        assert_eq!(
+            run(cx, |cx| home.pair_code(cx)),
+            Ok(Some("ABCD-EFGH".to_owned())),
+            "the user types nothing"
+        );
+        let keep = KeepLit {
+            when_closed: true,
+            at_login: true,
+        };
+        let kept = run(cx, |cx| home.keep_lit(keep, cx).expect("the app's to keep"));
+        assert_eq!(kept, Ok(()));
+    }
+
+    #[gpui_kit::test]
+    fn the_huts_errors_come_in_its_own_words(cx: &mut gpui_kit::TestAppContext) {
+        use crate::hut::HutError;
+        use crate::hut::tests::{Os, Setup};
+        let computer = Setup::new(Os::Other);
+        let home = HutHome::new(computer.hut());
+        let keep = KeepLit {
+            when_closed: true,
+            at_login: false,
+        };
+        assert_eq!(
+            run(cx, |cx| home.keep_lit(keep, cx).expect("the app's to keep")),
+            Err(HutError::NoService.to_string())
+        );
+        computer.exits_at_start();
+        let Err(said) = run(cx, |cx| home.start(cx)) else {
+            panic!("a hut that exits doesn't start");
+        };
+        assert!(
+            said.starts_with("The hut stopped while it was starting"),
+            "{said}"
+        );
+        let Err(said) = run(cx, |cx| home.pair_code(cx)) else {
+            panic!("nor makes a code");
+        };
+        assert!(
+            said.starts_with("The hut stopped while it was starting"),
+            "{said}"
         );
     }
 }

@@ -146,6 +146,10 @@ impl SetupView {
                     )
                     .child(div().text_size(px(13.5)).text_color(line_color).child(line)),
             )
+            .when(
+                step == SetupStep::Home && done && self.store.read(cx).setup().keep().is_some(),
+                |d| d.child(super::keep::change_button(&self.store).flex_none()),
+            )
             .when(step.optional() && !done, |d| {
                 d.child(
                     div()

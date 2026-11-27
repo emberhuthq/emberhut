@@ -1,5 +1,6 @@
 //! The hut against a fake spawner and a scripted loopback, with its folders in a temporary
-//! home: what it runs, writes and answers.
+//! home: what it runs, writes and answers. [`Setup`] is the fake computer the setup's tests use
+//! too.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
@@ -12,7 +13,8 @@ use std::time::Duration;
 use emberhut_identity::{MachineId, SecretKey};
 use gpui_kit::TestAppContext;
 
-use super::paths::{HutPaths, Os, Place, database_url};
+pub(crate) use super::paths::Os;
+use super::paths::{HutPaths, Place, SERVICE_ENV, database_url};
 use super::process::{Ran, Run, Running, Spawner};
 use super::service::{KeepLit, Serve, launch_agent, systemd_unit};
 use super::state::HutState;
@@ -211,7 +213,7 @@ impl HutNet for FakeNet {
 
 /// A temporary computer: its home, the app with the server beside it, `claude` on the
 /// `PATH`, and the fake world.
-struct Setup {
+pub(crate) struct Setup {
     dir: tempfile::TempDir,
     os: Os,
     world: Shared,
@@ -225,7 +227,7 @@ fn executable(path: &Path, text: &str) {
 }
 
 impl Setup {
-    fn new(os: Os) -> Self {
+    pub(crate) fn new(os: Os) -> Self {
         let dir = tempfile::tempdir().unwrap();
         executable(&dir.path().join("app/emberhut-server"), "server");
         executable(&dir.path().join("bin/claude"), "agent");
@@ -294,7 +296,7 @@ impl Setup {
     }
 
     /// A run of the app: a new hut over the same computer.
-    fn hut(&self) -> LocalHut {
+    pub(crate) fn hut(&self) -> LocalHut {
         LocalHut::new(
             self.paths(),
             Arc::new(FakeSpawner(Arc::clone(&self.world))),
@@ -305,6 +307,11 @@ impl Setup {
 
     fn world(&self) -> std::sync::MutexGuard<'_, World> {
         self.world.lock().unwrap()
+    }
+
+    /// From now on a server started exits at once.
+    pub(crate) fn exits_at_start(&self) {
+        self.world().exits = true;
     }
 
     fn state(&self) -> HutState {
@@ -1015,4 +1022,51 @@ fn the_calls_are_tasks_on_the_background_executor(cx: &mut TestAppContext) {
     cx.run_until_parked();
     cx.foreground_executor().block_test(kept).unwrap();
     assert_eq!(setup.world().spawned.len(), 2);
+}
+
+#[test]
+fn a_test_run_names_the_first_port_and_leaves_the_service_out() {
+    let port = |value: Option<&str>| {
+        let value = value.map(OsString::from);
+        HutOptions::from_vars(&move |name: &str| {
+            (name == "EMBERHUT_HUT_PORT")
+                .then(|| value.clone())
+                .flatten()
+        })
+    };
+    assert_eq!(port(None), HutOptions::default());
+    assert_eq!(port(Some("18995")).port, 18995);
+    for bad in ["", "0", "port", "70000"] {
+        assert_eq!(port(Some(bad)).port, 18990, "{bad:?}");
+    }
+
+    let setup = Setup::new(Os::Linux);
+    let no_service = BTreeMap::from([(SERVICE_ENV, OsString::from("none"))]);
+    let paths = setup.paths_with(setup.dir.path().join("app/emberhut-desktop"), no_service);
+    assert_eq!(*paths.manager(), super::Manager::None);
+    assert!(matches!(
+        setup.paths().manager(),
+        super::Manager::Systemd { .. }
+    ));
+}
+
+#[test]
+fn a_quitting_app_asks_its_child_to_stop_without_waiting() {
+    let setup = Setup::new(Os::Linux);
+    let hut = setup.hut();
+    hut.start_now().unwrap();
+    hut.let_go();
+    assert_eq!(setup.world().terminated, [101]);
+    drop(hut);
+    assert_eq!(setup.world().terminated, [101], "let go once");
+
+    // A hut a service runs isn't the app's to stop.
+    let kept = setup.hut();
+    kept.keep_lit_now(KeepLit {
+        when_closed: true,
+        at_login: false,
+    })
+    .unwrap();
+    kept.let_go();
+    assert_eq!(setup.world().terminated, [101]);
 }

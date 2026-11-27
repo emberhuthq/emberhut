@@ -189,7 +189,7 @@ pub(crate) fn tag(text: impl Into<SharedString>, color: Hsla) -> Div {
 /// Return in one of the sheet's fields is that field's own (Rename, Save, Get link): a
 /// single-line field lets the key go on to this binding before it reports Return itself, so
 /// the button runs only when the sheet, not something in it, has the focus.
-pub(super) fn sheet(
+pub(crate) fn sheet(
     p: &Pal,
     focus: &FocusHandle,
     title: impl Into<SharedString>,

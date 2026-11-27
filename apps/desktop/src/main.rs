@@ -17,14 +17,6 @@ mod fixtures;
 mod format;
 mod headless;
 mod heic;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the onboarding's adapter is the hut's first caller; until it lands only the \
-                  tests call it"
-    )
-)]
 mod hut;
 mod json_file;
 mod links;

@@ -92,7 +92,9 @@ fn routes_reach(link: &PairingLink, server: &ServerUrl) -> Result<(), String> {
                 .to_owned(),
         );
     }
-    if link.routes().iter().any(|route| same_server(route, server)) {
+    let reaches =
+        |route: &String| ServerUrl::parse(route).is_ok_and(|route| same_server(&route, server));
+    if link.routes().iter().any(reaches) {
         return Ok(());
     }
     let first = link.routes().first().map_or("", String::as_str);
@@ -102,16 +104,14 @@ fn routes_reach(link: &PairingLink, server: &ServerUrl) -> Result<(), String> {
     ))
 }
 
-/// Whether `route` is the server at `server`: the same address, or both on this computer with
-/// the same scheme and port.
-fn same_server(route: &str, server: &ServerUrl) -> bool {
-    let Ok(route) = ServerUrl::parse(route) else {
-        return false;
-    };
-    if &route == server {
+/// Whether `one` and `other` are the same server: the same address, or both on this computer
+/// with the same scheme and port (`localhost` and `127.0.0.1` are one place).
+#[must_use]
+pub(crate) fn same_server(one: &ServerUrl, other: &ServerUrl) -> bool {
+    if one == other {
         return true;
     }
-    match (place(route.as_str()), place(server.as_str())) {
+    match (place(one.as_str()), place(other.as_str())) {
         (Some((scheme, authority, port)), Some((their_scheme, their_authority, their_port))) => {
             scheme == their_scheme
                 && port == their_port
@@ -159,6 +159,20 @@ mod tests {
 
     fn server(address: &str) -> ServerUrl {
         ServerUrl::parse(address).unwrap()
+    }
+
+    #[test]
+    fn one_server_on_this_computer_has_one_place_whatever_its_name() {
+        let same = |one: &str, other: &str| same_server(&server(one), &server(other));
+        assert!(same("http://localhost:18990", "http://127.0.0.1:18990"));
+        assert!(same("http://127.0.0.1:18990/", "http://[::1]:18990"));
+        assert!(same(
+            "https://ember.example.com",
+            "https://ember.example.com/"
+        ));
+        assert!(!same("http://localhost:18990", "http://127.0.0.1:18995"));
+        assert!(!same("http://localhost:18990", "https://127.0.0.1:18990"));
+        assert!(!same("http://192.0.2.5:18990", "http://127.0.0.1:18990"));
     }
 
     #[test]

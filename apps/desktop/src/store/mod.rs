@@ -53,6 +53,7 @@ pub(crate) mod projects;
 pub(crate) mod put_away;
 mod read_marks;
 pub(crate) mod reading;
+mod reconnect;
 pub(crate) mod replying;
 mod reports;
 mod retention;
@@ -83,7 +84,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::AppContext as _;
-use gpui_kit::{AsyncApp, Context, WeakEntity};
+use gpui_kit::{AsyncApp, Context, Task, WeakEntity};
 
 pub(crate) use self::disk::Kept;
 pub(crate) use self::fetched::Fetched;
@@ -91,6 +92,7 @@ pub(crate) use self::files::Opening;
 pub(crate) use self::machines::MachinesFeed;
 pub(crate) use self::metrics::Metrics;
 pub(crate) use self::on_disk::DiskCache;
+pub(crate) use self::reconnect::{Connected, Connector, Reconnect};
 pub(crate) use self::reports::ReportPage;
 pub(crate) use self::room_line::RoomLine;
 pub(crate) use self::talk::PendingMessage;
@@ -211,6 +213,10 @@ pub(crate) struct Store {
     /// Wakes the poll; the poll's end of it waits here until the poll starts.
     kicker: Kicker,
     kicked: Option<Kicked>,
+    /// The state poll, once started: dropping it stops it.
+    poll: Option<Task<()>>,
+    /// How the store moves to another server while it runs.
+    reconnect: Reconnect,
     live_feed: LiveFeed,
     /// What the platform says of the window: whether it is the active one (so a room on screen
     /// is being read) and whether it is shown (out of sight, nothing is polled).
@@ -297,17 +303,20 @@ pub(crate) struct Store {
 
 impl Store {
     /// The store for `backend`, opening in `room`, with its loops started: the poll, the live
-    /// stream and the machines. `home` is Emberhut on this computer, for the setup.
+    /// stream and the machines. `home` is Emberhut on this computer, for the setup, and
+    /// `reconnect` how the store moves to another server ([`Store::switch_server`]).
     pub(crate) fn new(
         backend: Arc<dyn Backend>,
         files: Option<AppFiles>,
         theme: ThemeState,
         room: RoomId,
         home: Rc<dyn setup::LocalHome>,
+        reconnect: Reconnect,
         cx: &mut Context<'_, Self>,
     ) -> Self {
         let mut store = Self::idle(backend, files, theme, room);
         store.setup.set_home(home);
+        store.reconnect = reconnect;
         store.start_poll(cx);
         store.start_live(cx);
         store.start_machines(cx);
@@ -365,6 +374,8 @@ impl Store {
             theme,
             kicker,
             kicked: Some(waiting),
+            poll: None,
+            reconnect: Reconnect::none(),
             live_feed,
             window: WindowState::default(),
             last_input: LastInput::default(),
@@ -415,16 +426,18 @@ impl Store {
         Self::idle(backend, None, ThemeState::load(None), RoomId::MAIN)
     }
 
-    /// A store over `backend` with nothing running, its files in `files` and `home` as
-    /// Emberhut on this computer, for the setup's tests.
+    /// A store over `backend` with nothing running, its files in `files`, `home` as Emberhut
+    /// on this computer and `reconnect` its moves to another server, for the setup's tests.
     #[cfg(test)]
     pub(crate) fn for_setup_tests(
         backend: Arc<dyn Backend>,
         files: Option<AppFiles>,
         home: Rc<dyn setup::LocalHome>,
+        reconnect: Reconnect,
     ) -> Self {
         let mut store = Self::idle(backend, files, ThemeState::load(None), RoomId::MAIN);
         store.setup.set_home(home);
+        store.reconnect = reconnect;
         store
     }
 
@@ -455,7 +468,7 @@ impl Store {
     /// Starts the state poll (once).
     fn start_poll(&mut self, cx: &mut Context<'_, Self>) {
         if let Some(kicked) = self.kicked.take() {
-            poll::start(kicked, cx);
+            self.poll = Some(poll::start(kicked, cx));
         }
     }
 

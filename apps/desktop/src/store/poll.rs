@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::AppContext as _;
-use gpui_kit::{AsyncApp, Context, WeakEntity};
+use gpui_kit::{AsyncApp, Context, Task, WeakEntity};
 
 use super::presence::Presence;
 use super::{RoomId, Store, status, update_or_log};
@@ -83,8 +83,9 @@ pub(crate) fn kicker() -> (Kicker, Kicked) {
     (Kicker(kick), Kicked(kicked))
 }
 
-/// Starts the poll for the store in `cx`.
-pub(crate) fn start(kicked: Kicked, cx: &mut Context<'_, Store>) {
+/// Starts the poll for the store in `cx`: it runs until the task is dropped (or the store
+/// goes), a reply on its way then dropped with it.
+pub(crate) fn start(kicked: Kicked, cx: &mut Context<'_, Store>) -> Task<()> {
     cx.spawn(async move |this, cx| {
         loop {
             let Some((backend, room, etag, looking, flaky)) =
@@ -122,7 +123,6 @@ pub(crate) fn start(kicked: Kicked, cx: &mut Context<'_, Store>) {
             }
         }
     })
-    .detach();
 }
 
 /// Waits for the poll's next turn: its time ([`next_poll`]) or a kick. A window that goes out
