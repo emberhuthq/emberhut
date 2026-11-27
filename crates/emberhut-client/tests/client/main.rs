@@ -12,6 +12,8 @@ mod composer;
 #[cfg(test)]
 mod endpoints;
 #[cfg(test)]
+mod health;
+#[cfg(test)]
 mod live;
 #[cfg(test)]
 mod pairing;

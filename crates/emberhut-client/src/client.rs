@@ -14,6 +14,7 @@ use emberhut_api::chat::{ChatFile, ChatPage, HistoryQuery};
 use emberhut_api::connect::{LINK_STATEMENT, LinkStatementRequest, MachineIdentity, SignedLink};
 use emberhut_api::error::OkReply;
 use emberhut_api::headers::{self, ETag};
+use emberhut_api::health::Health;
 use emberhut_api::ids::{DeviceId, InstallId, RoomId, TaskId};
 use emberhut_api::interrupt::InterruptRequest;
 use emberhut_api::live::{LiveEvent, RoomQuery};
@@ -35,6 +36,7 @@ use http::StatusCode;
 use http::uri::PathAndQuery;
 use serde::Serialize;
 
+use crate::dialect::Dialect;
 use crate::exchange::{self, Http};
 use crate::live::{self, LiveEnd, RoomEvent};
 use crate::renewal::{Renewal, Sessions};
@@ -168,6 +170,33 @@ impl Client {
     #[must_use]
     pub fn base_url(&self) -> Cow<'_, str> {
         self.http.base_url()
+    }
+
+    /// The dialect this client speaks to its server in (see [`crate::dialect`]): what a link or
+    /// a value passed to or taken from the server outside a request goes through.
+    #[must_use]
+    pub fn dialect(&self) -> Dialect {
+        self.http.dialect()
+    }
+
+    /// Whether the server answers (`GET /health`, unsigned), within `within`: a check to make
+    /// before trusting the server with the user's work, which a server that is down, or not a
+    /// server at all, fails.
+    ///
+    /// # Errors
+    ///
+    /// The transport's errors (no answer within `within` among them); [`Error::Status`] for an
+    /// answer that isn't a success; [`Error::Decode`] for one that isn't the health's.
+    pub fn health(&self, within: Duration) -> Result<Health, Error> {
+        let health: Health = exchange::json(self.http.get_within(paths::HEALTH, within)?)?;
+        if health.ok {
+            Ok(health)
+        } else {
+            Err(Error::Status {
+                status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+                message: Some("the server says it isn't well".to_owned()),
+            })
+        }
     }
 
     /// Whether this device holds a session.
