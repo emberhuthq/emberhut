@@ -4,13 +4,27 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
-# The stylesheet and images aren't fingerprinted, so they're cached for a day, not forever.
-/styles.css
+# CSS and JS are linked with ?v=<content hash>, so a change is a new URL. Art, icons and the ember's
+# layers keep their names, so they're cached for a day. Fonts are renamed when they change.
+/shared/*.css
+  Cache-Control: public, max-age=31536000, immutable
+/shared/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/shared/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+/art/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
-/*.svg
+/shared/ember/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
-/*.png
+/shared/brand/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/pair/*
+  X-Robots-Tag: noindex
+  Referrer-Policy: no-referrer
