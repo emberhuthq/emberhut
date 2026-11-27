@@ -70,13 +70,12 @@ pub(crate) struct Pal {
 
 /// The most of the window's material the sidebar lets through in the light appearance: its
 /// fill is never more translucent than this. The theme's colours may hold it more opaque (see
-/// `material::alpha`): with the server's presets it ends at 0.98 or 0.99 (1 with paper), where
+/// `material::alpha`): with the server's presets it ends at 1 in light mode, where
 /// the accent and "running" keep 4.5:1 over a black backdrop, which is above
 /// [`SIDEBAR_ALPHA_MOST`]: light mode stays opaque unless a theme allows real glass.
 const SIDEBAR_ALPHA_FLOOR_LIGHT: f32 = 0.90;
 
-/// The same in the dark appearance (0.93 with the server's presets, 0.94 with paper, for the
-/// faint text).
+/// The same in the dark appearance (0.94 with the server's presets, for their faint text).
 const SIDEBAR_ALPHA_FLOOR_DARK: f32 = 0.84;
 
 /// The most opaque the sidebar may be and still count as having material. Above it the glass
@@ -407,17 +406,17 @@ mod tests {
     #[test]
     fn with_material_the_sidebar_takes_the_themes_alpha() {
         let [light, dark] = both(&preset_page("blue")).map(|p| p.with_material(Material::Sidebar));
-        // The values the README and the floors' docs quote for the graphite presets. Light's
-        // 0.98 is too faint to count: no material there.
+        // The values the README and the floors' docs quote for the graphite presets: light's
+        // faint text is a hair above AA, so its sidebar stays opaque.
         assert!(
-            (light.sidebar_alpha - 0.98).abs() < f32::EPSILON,
+            (light.sidebar_alpha - 1.0).abs() < f32::EPSILON,
             "{}",
             light.sidebar_alpha
         );
         assert_eq!(light.material, Material::Opaque);
         assert_eq!(light.sidebar, light.background);
         assert!(
-            (dark.sidebar.a - 0.93).abs() < f32::EPSILON,
+            (dark.sidebar.a - 0.94).abs() < f32::EPSILON,
             "{}",
             dark.sidebar.a
         );
@@ -456,14 +455,9 @@ mod tests {
             let page = preset_page(preset);
             for p in both(&page) {
                 let p = p.with_material(Material::Sidebar);
-                // The range the README quotes: paper's near-AA ember and green leave its
-                // light sidebar no room at all.
-                let (low, high) = match (preset, p.dark) {
-                    ("paper", false) => (1.0, 1.0),
-                    ("paper", true) => (0.94, 0.94),
-                    (_, false) => (0.98, 0.99),
-                    (_, true) => (0.93, 0.93),
-                };
+                // The values the README quotes: near-AA inks (paper's ember and green, every
+                // preset's faint) leave a light sidebar no room at all and a dark one 0.94.
+                let (low, high) = if p.dark { (0.94, 0.94) } else { (1.0, 1.0) };
                 assert!(
                     (low - 1e-6..=high + 1e-6).contains(&p.sidebar_alpha),
                     "{} dark={}: {}",
@@ -488,6 +482,7 @@ mod tests {
         let mut page = preset_page("blue");
         page.tokens.light.accent = "#1D4ED8".into();
         page.tokens.light.info = "#155E75".into();
+        page.tokens.light.faint = "#4B5563".into();
         let p = Pal::new(&page, false).with_material(Material::Sidebar);
         assert!(p.sidebar_alpha <= SIDEBAR_ALPHA_MOST, "{}", p.sidebar_alpha);
         assert_eq!(p.material, Material::Sidebar);
