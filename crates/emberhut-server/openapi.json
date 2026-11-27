@@ -191,6 +191,85 @@
         }
       }
     },
+    "/api/connect/probe": {
+      "get": {
+        "tags": [
+          "connect"
+        ],
+        "summary": "The machine's signature over the probe's nonce and kind, and over how (`via`), where\n(`local`) and as what (`host`) it was reached. No session is needed. Every answer carries\n`Access-Control-Allow-Origin: *`, so a page on any origin can check a route.",
+        "operationId": "probe",
+        "parameters": [
+          {
+            "name": "nonce",
+            "in": "query",
+            "description": "32 fresh random bytes, base64url without padding.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "The kind of route the client is checking: 1 to 32 characters from `a-z`, `0-9` and `-`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed answer",
+            "headers": {
+              "access-control-allow-origin": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`*`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A nonce that isn't 32 bytes, a kind that isn't 1 to 32 of `a-z`, `0-9` and `-`, or a request host that isn't one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A server without an identity of its own (a legacy host)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is shutting down",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/connect/link-statement": {
       "post": {
         "tags": [
@@ -16586,6 +16665,44 @@
           "dark": {
             "$ref": "#/components/schemas/Tokens",
             "description": "Its colours in dark mode."
+          }
+        }
+      },
+      "ProbeAnswer": {
+        "type": "object",
+        "description": "`GET /api/connect/probe`'s answer: the machine's signature over the device's nonce and kind,\nand over how, where and as what it was reached.",
+        "required": [
+          "id",
+          "publicKey",
+          "via",
+          "local",
+          "host",
+          "signature"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The machine's id: 32 characters of lowercase base32."
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The machine's Ed25519 public key, base64url without padding; it must have that id."
+          },
+          "via": {
+            "type": "string",
+            "description": "`direct` or `relayed`."
+          },
+          "local": {
+            "type": "string",
+            "description": "The local socket address that accepted a direct connection, in its normal form; empty\nwhen relayed, and only then."
+          },
+          "host": {
+            "type": "string",
+            "description": "The request's host (or, relayed, the `host` of the relay's `Forwarded`), in its normal\nform."
+          },
+          "signature": {
+            "type": "string",
+            "description": "The machine's signature over the `emberhut probe v1` statement, base64url without padding."
           }
         }
       },

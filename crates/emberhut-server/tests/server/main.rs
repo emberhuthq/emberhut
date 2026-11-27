@@ -68,6 +68,7 @@ mod openapi;
 mod outward;
 mod pairing;
 mod parties;
+mod probe;
 mod push_apns;
 mod push_fcm;
 mod push_looking;

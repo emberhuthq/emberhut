@@ -168,6 +168,7 @@ fn the_document_lists_the_slice_s_routes() {
         ("GET", "/api/dark"),
         ("POST", "/api/dark"),
         ("DELETE", "/api/dark"),
+        ("GET", emberhut_api::connect::PROBE),
         ("POST", emberhut_api::connect::LINK_STATEMENT),
         ("GET", "/api/agents"),
         ("POST", "/api/agents"),
@@ -277,6 +278,7 @@ fn protected_routes_name_the_bearer_scheme() {
             paths::APPROVALS_SLACK,
             paths::APPROVAL_WEBHOOK,
             paths::APPROVE_PAGE,
+            emberhut_api::connect::PROBE,
         ]
         .contains(&path.as_str());
         assert_eq!(operation["security"].is_array(), !public, "{method} {path}");
@@ -319,6 +321,34 @@ struct Covered {
 }
 
 const COVERED: &[Covered] = &[
+    Covered {
+        method: "GET",
+        path: emberhut_api::connect::PROBE,
+        status: 200,
+        name: "the_machine_signs_each_direct_answer_as_the_vectors_have_it",
+        test: crate::probe::the_machine_signs_each_direct_answer_as_the_vectors_have_it,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::connect::PROBE,
+        status: 400,
+        name: "a_probe_that_does_not_read_is_400",
+        test: crate::probe::a_probe_that_does_not_read_is_400,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::connect::PROBE,
+        status: 404,
+        name: "a_legacy_host_and_a_stopping_server_sign_no_probe",
+        test: crate::probe::a_legacy_host_and_a_stopping_server_sign_no_probe,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::connect::PROBE,
+        status: 503,
+        name: "a_legacy_host_and_a_stopping_server_sign_no_probe",
+        test: crate::probe::a_legacy_host_and_a_stopping_server_sign_no_probe,
+    },
     Covered {
         method: "POST",
         path: emberhut_api::connect::LINK_STATEMENT,

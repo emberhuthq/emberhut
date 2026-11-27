@@ -1067,8 +1067,9 @@ race sends no probe there. In a sealed session of a paired device the probe stil
 
 - `nonce` is 32 random bytes, `kind` the route kind the client is checking. A probe whose
   `kind` isn't 1 to 32 characters from `a-z`, `0-9` and `-`, or whose `nonce` isn't 32 bytes,
-  is answered 400.
-- The probe is answered with `Access-Control-Allow-Origin: *`.
+  is answered 400, and so is one whose `Host` (or `:authority`) isn't a host in the encodings
+  above.
+- The probe is answered with `Access-Control-Allow-Origin: *`, whatever its status.
 - While the server shuts down it answers 503.
 
 The answer is `ProbeAnswer`:

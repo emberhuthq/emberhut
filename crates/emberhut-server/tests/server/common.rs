@@ -442,6 +442,7 @@ pub(crate) struct Call {
     body: Option<String>,
     peer: Option<std::net::SocketAddr>,
     direct: bool,
+    local: Option<std::net::SocketAddr>,
 }
 
 impl Call {
@@ -479,6 +480,7 @@ impl Call {
             body: None,
             peer: None,
             direct: false,
+            local: None,
         }
     }
 
@@ -486,6 +488,17 @@ impl Call {
     /// connection info and the direct-TCP mark). Without it: a transport that names no peer.
     pub(crate) fn peer(mut self, peer: &str) -> Self {
         self.peer = Some(peer.parse().unwrap());
+        self.direct = true;
+        self
+    }
+
+    /// Over a connection the server's own TCP listener accepted on this local address (the
+    /// direct-TCP mark's), from [`Self::peer`]'s peer, or `192.0.2.20:50000` when none is set.
+    pub(crate) fn local(mut self, local: &str) -> Self {
+        self.local = Some(local.parse().unwrap());
+        self.peer = self
+            .peer
+            .or_else(|| Some("192.0.2.20:50000".parse().unwrap()));
         self.direct = true;
         self
     }
@@ -546,7 +559,7 @@ impl Call {
             request = request.extension(axum::extract::ConnectInfo(peer));
         }
         if self.direct {
-            request = request.extension(emberhut_server::peer::DirectTcp);
+            request = request.extension(emberhut_server::peer::DirectTcp { local: self.local });
         }
         request
             .body(self.body.map_or_else(Body::empty, Body::from))

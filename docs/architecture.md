@@ -162,4 +162,5 @@ area's logic lives in its service (`services/<area>.rs`), tested on its own; the
 | Releases: CHANGELOG, `cargo xtask release`, the tag job, the desktop updater (ADR 0005) | planned |
 | Connectivity (ADR 0007): `crates/emberhut-identity`, the connect, relay and directory types in `emberhut-api`, and the shared vectors | yes |
 | Connectivity (ADR 0007): the account directory (`crates/emberhut-relay`, `emberhut-relay serve --role directory`, docs/directory.md) | yes: plain HTTP behind a TLS proxy until the gateway brings TLS |
-| Connectivity (ADR 0007): the server's routes and probe, routes and their race in `emberhut-client` and `packages/connect`, the relay's gateway (`crates/emberhut-relay`, `deploy/relay/`), the machine's uplink, account sign-in | planned |
+| Connectivity (ADR 0007): the server's probe (`GET /api/connect/probe`) | yes: direct listeners; relayed probes come with sealed sessions |
+| Connectivity (ADR 0007): the server's route list, routes and their race in `emberhut-client` and `packages/connect`, the relay's gateway (`crates/emberhut-relay`, `deploy/relay/`), the machine's uplink, account sign-in | planned |

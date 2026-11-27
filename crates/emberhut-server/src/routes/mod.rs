@@ -25,6 +25,7 @@ mod backup;
 mod browser;
 mod calendar;
 mod calls;
+mod connect;
 mod dark;
 mod document;
 mod events;
@@ -123,6 +124,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(auth::pair_new))
         .routes(routes!(auth::pair))
         .routes(routes!(auth::refresh))
+        .routes(routes!(connect::probe))
         .routes(routes!(link::link_statement))
         .routes(routes!(state::state))
         .routes(routes!(live::live))
