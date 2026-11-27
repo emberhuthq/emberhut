@@ -30,6 +30,7 @@ pub struct ClientConfig {
     download_limit: u64,
     device_name: String,
     device_model: String,
+    built_dialect: bool,
 }
 
 impl ClientConfig {
@@ -62,7 +63,18 @@ impl ClientConfig {
             download_limit: crate::MAX_DOWNLOAD,
             device_name: "Emberhut".to_owned(),
             device_model: std::env::consts::OS.to_owned(),
+            built_dialect: true,
         })
+    }
+
+    /// Whether the server speaks the dialect this crate was built with (see
+    /// [`crate::dialect`]): on by default, so every request and answer is rewritten as the
+    /// build says; off for a server that speaks the contract's own words. A build without a
+    /// dialect rewrites nothing either way.
+    #[must_use]
+    pub fn with_built_dialect(mut self, speaks_it: bool) -> Self {
+        self.built_dialect = speaks_it;
+        self
     }
 
     /// The name and kind this device gives when it pairs (the device list shows them). The
@@ -159,6 +171,13 @@ impl ClientConfig {
     #[must_use]
     pub fn device_model(&self) -> &str {
         &self.device_model
+    }
+
+    /// The dialect the server is spoken to in: the built one, unless
+    /// [`ClientConfig::with_built_dialect`] said the server doesn't speak it.
+    #[must_use]
+    pub fn dialect(&self) -> crate::dialect::Dialect {
+        crate::dialect::Dialect::for_server(self.built_dialect)
     }
 
     /// The waits of a request: a connection, then the whole answer.

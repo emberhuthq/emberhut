@@ -123,6 +123,20 @@ pub(crate) struct Cli {
     /// first frame (1 after a minute): a release's smoke run.
     #[arg(long)]
     pub(crate) self_check: bool,
+
+    /// Pair this device with the server (`EMBERHUT_URL`, else `config.json`'s `server`; never
+    /// the fallback) with a one-time pairing code, without opening a window: the session is kept
+    /// where the app keeps it, the server is asked whether it takes it, and the app exits, 0
+    /// when it does. `-` reads the code from the standard input, so it isn't in the process
+    /// list.
+    #[arg(long, value_name = "CODE", conflicts_with = "forget_session")]
+    pub(crate) pair: Option<String>,
+
+    /// Remove this device's session with the server (as `--pair` names it) from where the app
+    /// keeps it (on macOS, its Keychain item), install id and all, without opening a window,
+    /// and exit. The server keeps the device's row until it is signed out there.
+    #[arg(long)]
+    pub(crate) forget_session: bool,
 }
 
 impl Cli {

@@ -42,6 +42,9 @@ struct Startup {
 
 /// Runs the app until it quits.
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
+    if crate::headless::wanted(&cli) {
+        return crate::headless::run(&cli);
+    }
     let self_check = cli
         .self_check
         .then(SelfCheck::start)
@@ -55,13 +58,17 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     }
     let from_env = std::env::var(SERVER_ENV).ok();
     let file = files.as_ref().map_or_default(AppFiles::read_config);
+    // The server, and the fallback server the app turns to when it stops answering.
     let url = match &self_check {
-        Some(_) => SelfCheck::server()?,
-        None => config::server_url(from_env.as_deref(), &file),
+        Some(_) => config::Servers::only(SelfCheck::server()?),
+        None => config::servers(from_env.as_deref(), &file),
     };
     log::info!("talking to {url}");
     let view = ViewFile::read(files.as_ref());
-    let kept = Kept::read(DiskCache::locate(&url), cli.start_room(view.room));
+    let kept = Kept::read(
+        DiskCache::locate(&url.primary.url),
+        cli.start_room(view.room),
+    );
     let startup = Startup {
         kept,
         view,

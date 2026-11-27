@@ -15,6 +15,7 @@ mod dictation;
 #[cfg(test)]
 mod fixtures;
 mod format;
+mod headless;
 mod heic;
 mod json_file;
 mod links;

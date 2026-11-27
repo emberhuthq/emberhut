@@ -42,13 +42,20 @@
 //!
 //! An answer's body is rewritten when it is JSON, and an event stream's `data:` lines when each
 //! is JSON; a request's JSON body, its query string's names and values and its header names are
-//! rewritten the other way before it is sent. [`to_server`] and [`from_server`] do the same to
-//! one text, such as a link the app passes to or takes from the server some other way, and
-//! [`json_to_server`] and [`json_from_server`] to a whole JSON document, as the transport does
-//! to a body.
+//! rewritten the other way before it is sent. [`Dialect::to_server`] and
+//! [`Dialect::from_server`] do the same to one text, such as a link the app passes to or takes
+//! from the server some other way, and [`Dialect::json_to_server`] and
+//! [`Dialect::json_from_server`] to a whole JSON document, as the transport does to a body.
+//!
+//! The built dialect is a server's, not the app's: a client applies it only to a server marked
+//! as speaking it ([`ClientConfig::with_built_dialect`](crate::ClientConfig::with_built_dialect),
+//! on by default), so one app can talk to a server that speaks the dialect and to one that
+//! speaks the contract's own words. [`Client::dialect`](crate::Client::dialect) is the one a
+//! client applies; the free functions here ([`to_server`] and the rest) apply the built dialect,
+//! for a server that speaks it.
 //!
 //! Without the variable the dialect is empty: nothing is rewritten, and nothing is read or
-//! copied to find that out.
+//! copied to find that out, whatever a server is marked as.
 
 use std::borrow::Cow;
 use std::io::{self, BufRead, BufReader, Cursor, Read};
@@ -62,6 +69,14 @@ use crate::transport::{Answer, Body, Request};
 
 /// The dialect this crate was built with (empty unless `EMBERHUT_WIRE_DIALECT` named a file).
 pub(crate) static BUILT: Table = include!(concat!(env!("OUT_DIR"), "/dialect.rs"));
+
+/// No dialect: the contract's own words, for a server that speaks them.
+static NONE: Table = Table {
+    words: &[],
+    keys: &[],
+    headers: &[],
+    prefixes: &[],
+};
 
 /// The largest JSON answer rewritten; a longer one passes unchanged (the client refuses one
 /// longer than 64 MiB anyway).
@@ -103,36 +118,105 @@ impl Way {
     }
 }
 
-/// `text` as the server built into this crate spells it: a link or a value the app hands the
-/// server outside a request body (unchanged with no dialect).
+/// The dialect one server is spoken to in: the one this crate was built with, for a server
+/// that speaks it, or none, for a server that speaks the contract's own words.
+#[derive(Clone, Copy, Debug)]
+pub struct Dialect {
+    table: &'static Table,
+}
+
+impl Dialect {
+    /// The dialect this crate was built with (none, in a build without one).
+    #[must_use]
+    pub fn built() -> Self {
+        Self { table: &BUILT }
+    }
+
+    /// No dialect: every word goes as the contract spells it.
+    #[must_use]
+    pub fn none() -> Self {
+        Self { table: &NONE }
+    }
+
+    /// The built dialect when `speaks_built` (the server spells the wire words its way), else
+    /// none.
+    #[must_use]
+    pub fn for_server(speaks_built: bool) -> Self {
+        if speaks_built {
+            Self::built()
+        } else {
+            Self::none()
+        }
+    }
+
+    /// Whether it rewrites nothing.
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.table.is_empty()
+    }
+
+    /// Its tables.
+    pub(crate) fn table(self) -> &'static Table {
+        self.table
+    }
+
+    /// `text` as this dialect's server spells it: a link or a value the app hands the server
+    /// outside a request body (unchanged with no dialect).
+    #[must_use]
+    pub fn to_server(self, text: &str) -> Cow<'_, str> {
+        self.table
+            .text(text, Way::Out)
+            .map_or(Cow::Borrowed(text), Cow::Owned)
+    }
+
+    /// `text` from this dialect's server in the contract's spelling: a link or a value the app
+    /// takes from the server outside an answer's body (unchanged with no dialect).
+    #[must_use]
+    pub fn from_server(self, text: &str) -> Cow<'_, str> {
+        self.table
+            .text(text, Way::In)
+            .map_or(Cow::Borrowed(text), Cow::Owned)
+    }
+
+    /// `value`, a JSON document taken from this dialect's server some way other than an
+    /// answer's body, rewritten in place into the contract's spelling, as the transport does to
+    /// a body; whether anything in it changed (never, with no dialect).
+    pub fn json_from_server(self, value: &mut Value) -> bool {
+        self.table.document(value, Way::In)
+    }
+
+    /// `value`, a JSON document for this dialect's server, rewritten in place into its
+    /// spelling, as the transport does to a request's body; whether anything in it changed
+    /// (never, with no dialect).
+    pub fn json_to_server(self, value: &mut Value) -> bool {
+        self.table.document(value, Way::Out)
+    }
+}
+
+/// `text` as a server that speaks the built dialect spells it ([`Dialect::to_server`]; a
+/// client's own is [`Client::dialect`](crate::Client::dialect)).
 #[must_use]
 pub fn to_server(text: &str) -> Cow<'_, str> {
-    BUILT
-        .text(text, Way::Out)
-        .map_or(Cow::Borrowed(text), Cow::Owned)
+    Dialect::built().to_server(text)
 }
 
-/// `text` from the server built into this crate in the contract's spelling: a link or a value
-/// the app takes from the server outside an answer's body (unchanged with no dialect).
+/// `text` from a server that speaks the built dialect, in the contract's spelling
+/// ([`Dialect::from_server`]).
 #[must_use]
 pub fn from_server(text: &str) -> Cow<'_, str> {
-    BUILT
-        .text(text, Way::In)
-        .map_or(Cow::Borrowed(text), Cow::Owned)
+    Dialect::built().from_server(text)
 }
 
-/// `value`, a JSON document taken from the server built into this crate some way other than
-/// an answer's body, rewritten in place into the contract's spelling, as the transport does to
-/// a body; whether anything in it changed (never, with no dialect).
+/// `value`, from a server that speaks the built dialect, in the contract's spelling
+/// ([`Dialect::json_from_server`]).
 pub fn json_from_server(value: &mut Value) -> bool {
-    BUILT.document(value, Way::In)
+    Dialect::built().json_from_server(value)
 }
 
-/// `value`, a JSON document for the server built into this crate, rewritten in place into its
-/// spelling, as the transport does to a request's body; whether anything in it changed (never,
-/// with no dialect).
+/// `value`, for a server that speaks the built dialect, in its spelling
+/// ([`Dialect::json_to_server`]).
 pub fn json_to_server(value: &mut Value) -> bool {
-    BUILT.document(value, Way::Out)
+    Dialect::built().json_to_server(value)
 }
 
 impl Table {
@@ -593,6 +677,28 @@ mod tests {
             assert!(!json_to_server(&mut value));
             assert_eq!(value, json!({"person": "K-1"}));
         }
+    }
+
+    #[test]
+    fn a_server_that_speaks_the_contract_gets_no_dialect() {
+        let none = Dialect::for_server(false);
+        assert!(none.is_empty());
+        assert!(std::ptr::eq(none.table(), &raw const NONE));
+        assert!(std::ptr::eq(
+            Dialect::for_server(true).table(),
+            &raw const BUILT
+        ));
+        let other = Dialect { table: &OTHER };
+        assert_eq!(other.to_server("T-1 owner"), "K-1 owner");
+        assert_eq!(none.to_server("T-1"), "T-1");
+        assert_eq!(other.from_server("person"), "owner");
+        assert_eq!(none.from_server("person"), "person");
+        let mut value = json!({"botAccount": "person"});
+        assert!(!none.json_from_server(&mut value));
+        assert!(other.json_from_server(&mut value));
+        assert_eq!(value, json!({"assistantAccount": "owner"}));
+        assert!(other.json_to_server(&mut value));
+        assert_eq!(value, json!({"botAccount": "person"}));
     }
 
     /// The dialect in a shared case file, for the life of the tests.

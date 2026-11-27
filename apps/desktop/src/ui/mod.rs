@@ -10,6 +10,7 @@ mod controls;
 pub(crate) mod dark;
 pub(crate) mod diary;
 mod edge;
+mod fallback_bar;
 mod files;
 mod gate;
 pub(crate) mod inline_video;
