@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "product": "emberhut-desktop",
+  "platform": "macos",
+  "published": "2026-12-08T10:00:00.000Z",
+  "releases": [
+    {
+      "version": "0.3.0",
+      "build": 15,
+      "date": "2026-12-08",
+      "notes": "- Rooms open faster.\n- …",
+      "minimumOs": "13.0",
+      "assets": [
+        {
+          "arch": "arm64",
+          "url": "/api/releases/files/Emberhut_0.3.0_15_macos_arm64.dmg",
+          "size": 41234567,
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+          "signature": "untrusted comment: signature from minisign secret key\nRUQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\ntrusted comment: emberhut-desktop macos arm64 0.3.0 build 15 sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08 notes:0000000000000000000000000000000000000000000000000000000000000000\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\n"
+        }
+      ]
+    },
+    {
+      "version": "0.2.0",
+      "build": 12,
+      "date": "2026-12-01",
+      "notes": "- Settings shows the version.",
+      "minimumOs": "13.0",
+      "assets": []
+    }
+  ]
+}

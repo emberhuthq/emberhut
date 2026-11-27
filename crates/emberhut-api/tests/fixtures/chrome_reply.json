@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "chrome": [
+    {
+      "id": 2,
+      "name": "work",
+      "label": "Work",
+      "email": "person@example.com",
+      "machine": "example-laptop",
+      "os": "mac",
+      "version": "0.4.1",
+      "browser": "Chrome/131.0.0.0",
+      "outdated": true,
+      "connected": true,
+      "seen": "2026-11-24T21:50:00.000Z",
+      "created": "2026-11-01T09:00:00.000Z",
+      "ext": "abcdefghijklmnop",
+      "oldCopy": false,
+      "grant": {
+        "until": null,
+        "task": null,
+        "by": "paired"
+      },
+      "paused": null,
+      "control": "agent",
+      "handoff": null,
+      "url": "https://example.com/",
+      "title": "Example",
+      "driver": null,
+      "task": null,
+      "tasks": [
+        12
+      ]
+    },
+    {
+      "id": 3,
+      "name": "personal",
+      "label": "Personal",
+      "email": null,
+      "machine": null,
+      "os": null,
+      "version": null,
+      "browser": null,
+      "outdated": false,
+      "connected": false,
+      "seen": null,
+      "created": "2026-11-02T09:00:00.000Z",
+      "ext": null,
+      "oldCopy": false,
+      "grant": null,
+      "paused": {
+        "why": "you paused it from the app",
+        "until": 1795600000000
+      },
+      "control": "owner",
+      "handoff": "Sign in to the example site",
+      "url": "",
+      "title": "",
+      "driver": null,
+      "task": 13,
+      "tasks": []
+    }
+  ],
+  "chromePairing": [
+    {
+      "code": "ABCD-1234",
+      "link": "https://emberhut.example.com/chrome/pair#ABCD-1234",
+      "label": "Side project",
+      "name": "side-project",
+      "device": null,
+      "until": "2026-11-24T22:30:00.000Z",
+      "paired": false
+    }
+  ],
+  "chromeLatest": "1.0.0",
+  "pairing": {
+    "code": "ABCD-1234",
+    "link": "https://emberhut.example.com/chrome/pair#ABCD-1234",
+    "label": "Side project",
+    "name": "side-project",
+    "device": null,
+    "until": "2026-11-24T22:30:00.000Z",
+    "paired": false
+  }
+}

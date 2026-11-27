@@ -1,0 +1,28 @@
+[package]
+name = "emberhut-api"
+description = "The emberhut HTTP/SSE contract: request and response types shared by clients and the server."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+# OpenAPI schemas (utoipa) for every request and response type, for the server's published spec.
+openapi = ["dep:utoipa"]
+# Validation rules (garde) on the request types, for the server to check what it is sent.
+validate = ["dep:garde"]
+
+[dependencies]
+garde = { workspace = true, optional = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+utoipa = { workspace = true, optional = true, features = ["macros"] }
+emberhut-identity = { workspace = true, features = ["serde"] }
+
+[lints]
+workspace = true

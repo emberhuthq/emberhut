@@ -1,0 +1,45 @@
+{
+  "description": "Test-vector keys from fixed seeds (never use them for anything else). The seed is the RFC 8032 secret key; the machine id is the first 20 bytes of machineIdHash = SHA-256(machineIdInput), in lowercase base32 without padding.",
+  "keys": [
+    {
+      "name": "rfc8032-test-1",
+      "seed": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+      "seedFrom": "RFC 8032, section 7.1, test 1",
+      "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "machineIdInput": "656d626572687574206d616368696e652069642076310000000020d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "machineIdHash": "3f5b72052534e0547e4fa3bd697ad6dcec575b0690aa222fab8d0895b007a1f6",
+      "machineId": "h5nxebjfgtqfi7spuo6ws6ww3twfowyg"
+    },
+    {
+      "name": "machine",
+      "seed": "aecee87cc5c0cb66e965cb11e732b01a11b8a488e50b14ca4469e6f0376cb7e8",
+      "seedFrom": "SHA-256 of the ASCII text \"emberhut test vector key: machine\"",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "publicKeyHex": "889e95ad4b23b07e6da69d8def90e3a894d25ace669b797defd52c1069273378",
+      "machineIdInput": "656d626572687574206d616368696e652069642076310000000020889e95ad4b23b07e6da69d8def90e3a894d25ace669b797defd52c1069273378",
+      "machineIdHash": "da7d10242188f588c6a353a1a63a99e8217b1fa251bae97f00738ab70036b33f",
+      "machineId": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c"
+    },
+    {
+      "name": "other-machine",
+      "seed": "39419eaa571971ad4007ac9c359f55396b3ce447748c8f0082fb7626c3054992",
+      "seedFrom": "SHA-256 of the ASCII text \"emberhut test vector key: other machine\"",
+      "publicKey": "2cHeyDHvhA9M_VrS73JVkCm-NoudiJz4GiVevuJ32qc",
+      "publicKeyHex": "d9c1dec831ef840f4cfd5ad2ef72559029be368b9d889cf81a255ebee277daa7",
+      "machineIdInput": "656d626572687574206d616368696e652069642076310000000020d9c1dec831ef840f4cfd5ad2ef72559029be368b9d889cf81a255ebee277daa7",
+      "machineIdHash": "838124b8cef7607d0b1ed5d989980d3e33fe15604e5bd5cdce0283f2022a51c8",
+      "machineId": "qoasjogo65qh2cy62xmytganhyz74fla"
+    },
+    {
+      "name": "device",
+      "seed": "576dd49e449f6e5d135562ca9b9e664588ede467d1e56ef337ba61bfc8861e6b",
+      "seedFrom": "SHA-256 of the ASCII text \"emberhut test vector key: device\"",
+      "publicKey": "I2BLx0tvo15VQRZ08PBvN7j-fKjOWCkSJqaBZ8GcuYA",
+      "publicKeyHex": "23604bc74b6fa35e55411674f0f06f37b8fe7ca8ce58291226a68167c19cb980",
+      "machineIdInput": "656d626572687574206d616368696e65206964207631000000002023604bc74b6fa35e55411674f0f06f37b8fe7ca8ce58291226a68167c19cb980",
+      "machineIdHash": "12bc2750fcf9745f28cb047b35ba517ebc324d82e46640b20c56726daeea3aeb",
+      "machineId": "ck6couh47f2f6kglar5tlosrp26detmc"
+    }
+  ]
+}

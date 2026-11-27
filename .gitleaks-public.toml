@@ -1,0 +1,74 @@
+# gitleaks: the part of CONTRIBUTING.md's "Writing for a public repository" that a pattern can
+# check: no home-directory paths, and no record of who asked for or decided something. It
+# extends .gitleaks.toml (the credential and personal-data rules), and CI checks the files of
+# the commit under test with it.
+#
+# Run gitleaks from the repository root: gitleaks reads the `[extend]` path below relative to
+# the working directory, not to this file.
+title = "emberhut (public repository)"
+
+[extend]
+path = ".gitleaks.toml"
+
+# `gitleaks dir` scans every file under the directory and doesn't read .gitignore, so a local
+# run would scan the build outputs and installed dependencies too. These are the paths
+# .gitignore lists as generated, and CI fails if any of them is tracked. The list is here, not
+# in .gitleaks.toml, so the history scan, which only that file configures, still reads every
+# committed file.
+[[allowlists]]
+description = "Build outputs and installed dependencies, generated and ignored by git"
+paths = [
+  '''(^|/)target/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)\.expo/''',
+  # The native projects `expo prebuild` writes from app.config.ts, their Pods and builds included.
+  '''(^|/)apps/mobile/(?:ios|android)/''',
+  '''\.tsbuildinfo$''',
+  '''\.profraw$''',
+  '''(^|/)lcov\.info$''',
+]
+
+# The extended file's allow list for the extension's manifest key isn't carried through `[extend]`
+# for a rule it names, so the tree scan repeats it.
+[[allowlists]]
+description = "The browser extension's manifest key: an RSA public key (base64 DER), which fixes the extension's id (ADR 0023); that value only"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)apps/extension/manifest\.json$''']
+regexTarget = "line"
+regexes = ['''"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlnkkmIg4Ea6LywckTIQsEnAOA5QPPZ3s8k/CTmzi55BSS7lP9C\+gwH3OKqK0PW4L3f11ehIXHOVxtxIAmmWY/53E1FPwTVLy6OFnWWOk94cfkDJ2p3drOjJMWOwxDeqnDBVEgjyDM7rd6dw/Xo9sud3Bz3QY\+XCa01n3Zz6nui\+rjs2HxVm7OEeonSp/hHqXYh2CwsQeZrqoZY1tESLIEMEwrMFwywTpwzuOzFkxkOAMAY6IoCOPHKpkMNM/WUwLCMt5/d3mUPH1rU6BcvJH1Fd2gSrgH7O\+06/gZsC\+b6gg41meXniZp\+WN4UnuipT6Edtr/IrfGDtyQ5JqJ6JewwIDAQAB"''']
+
+# The rules below describe the project in its own terms. This file has to spell out what they
+# look for, so none of them applies to it.
+
+[[rules]]
+id = "home-path"
+description = "A path in someone's home directory (use a relative path or $HOME)"
+regex = '''/(home|Users)/[A-Za-z][A-Za-z0-9._-]*'''
+# The default config's global allow list skips a secret that looks like a whole path
+# (`^/(?:bin|etc|home|...)/...$`); the secret is just the directory's name, so that list,
+# which is right for the credential rules, doesn't hide these.
+secretGroup = 1
+keywords = ["/home/", "/users/"]
+[[rules.allowlists]]
+paths = ['''(^|/)\.gitleaks-public\.toml$''']
+[[rules.allowlists]]
+description = "Made-up home directories in tests"
+regexTarget = "match"
+regexes = ['''^/(?:home|Users)/(?i:example|someone|user|ada)$''']
+
+[[rules]]
+id = "who-decided"
+description = "Who asked for or decided something (state the technical reason instead)"
+# A capitalised name, then a verb of deciding. Case-sensitive: a lowercase word before the verb
+# is no name. "The owner" and "the user" are roles the product itself talks about ("what the
+# owner chose on a task"), so they are not names here.
+regex = '''\b[A-Z][a-z]+ (?:asked for|said to|wants|wanted|decided|chose|picked)\b'''
+keywords = ["asked for", "said to", "wants", "wanted", "decided", "chose", "picked"]
+[[rules.allowlists]]
+paths = ['''(^|/)\.gitleaks-public\.toml$''']
+[[rules.allowlists]]
+description = "A pronoun, a question word, a common noun or a product's name, not a person's"
+regexTarget = "match"
+regexes = ['''^(?:Who|What|It|They|He|She|We|You|Nothing|Something|Someone|Everyone|None|Ranges|Emberhut|Android|Video|Chrome)\b''']

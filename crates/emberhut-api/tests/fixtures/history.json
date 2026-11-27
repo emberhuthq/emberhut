@@ -1,0 +1,10 @@
+{
+  "chat": [
+    { "id": 38, "mine": true, "text": "An older message", "time": "2h", "at": "2026-11-24T19:50:00.000Z", "files": [] },
+    {
+      "id": 39, "mine": false, "text": "Here is the example report.", "time": "2h", "at": "2026-11-24T19:51:00.000Z",
+      "files": [{ "name": "report.html", "url": "/uploads/report.html", "kind": "file", "path": "/data/uploads/report.html" }],
+      "refs": [{ "kind": "report", "label": "Report", "title": "report.html", "url": "/api/artifacts/8", "name": "report.html", "task": 12 }]
+    }
+  ]
+}

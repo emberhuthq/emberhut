@@ -1,0 +1,25 @@
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-print-in-tests = true
+# Product names that are not code: ".." keeps clippy's own list.
+doc-valid-idents = ["WhatsApp", "iMessage", ".."]
+
+# The API describes itself: every route goes through utoipa-axum's router, so the OpenAPI
+# document cannot miss one (ADR 0002). Only emberhut-server depends on utoipa-axum; the Mac helper
+# (apps/hands) serves a private API with axum and says so where it registers its routes.
+[[disallowed-methods]]
+path = "axum::Router::route"
+reason = "add routes with utoipa-axum's OpenApiRouter and routes!, so the document lists them"
+
+[[disallowed-methods]]
+path = "axum::Router::route_service"
+reason = "add routes with utoipa-axum's OpenApiRouter and routes!, so the document lists them"
+
+[[disallowed-methods]]
+path = "utoipa_axum::router::OpenApiRouter::route"
+reason = "use OpenApiRouter::routes with routes!, which puts the route in the document"
+
+[[disallowed-methods]]
+path = "utoipa_axum::router::OpenApiRouter::route_service"
+reason = "use OpenApiRouter::routes with routes!, which puts the route in the document"

@@ -1,0 +1,102 @@
+{
+  "about": "The wire dialect's shared cases: emberhut-client (src/dialect.rs), apps/mobile (src/api/dialect.ts) and apps/extension (src/dialect.ts) each read this file and must give exactly these answers. The dialect is made up. Each case is [given, expected]; reading goes from the server's spelling to the contract's, writing the other way.",
+  "dialect": {
+    "words": [
+      ["person", "owner"],
+      ["helper", "assistant"],
+      ["Waiting on the person", "Waiting on the owner"]
+    ],
+    "keys": [
+      ["helperAccount", "assistantAccount"],
+      ["person", "chief"]
+    ],
+    "headers": [["x-other-looking", "x-emberhut-looking"]],
+    "prefixes": [
+      ["K-", "T-"],
+      ["other://", "emberhut://"],
+      ["other://task/", "emberhut://work/"],
+      ["other.", "emberhut."],
+      ["Bot · ", "Ember · "]
+    ]
+  },
+  "texts": {
+    "read": [
+      ["person", "owner"],
+      ["helper", "assistant"],
+      ["Waiting on the person", "Waiting on the owner"],
+      ["persons", "persons"],
+      ["the person", "the person"],
+      ["K-1", "T-1"],
+      ["(K-1,K-2)", "(T-1,T-2)"],
+      ["See K-12 and [it](other://task/12); OK-1 and XK-2 stay", "See T-12 and [it](emberhut://work/12); OK-1 and XK-2 stay"],
+      ["One yes on K-12, then K-13 (not SK-14)", "One yes on T-12, then T-13 (not SK-14)"],
+      ["a1-K-2:K-3_K-4.K-5/K-6=K-7+K-8", "a1-K-2:K-3_K-4.K-5/K-6=K-7+K-8"],
+      ["ünK-1 9K-1 _K-2", "ünK-1 9K-1 _K-2"],
+      ["\"K-1\" 'K-2' <K-3> {K-4} #K-5 @K-6 *K-7*", "\"T-1\" 'T-2' <T-3> {T-4} #T-5 @T-6 *T-7*"],
+      ["K-shirt, K-, K-x1 and K- 2", "K-shirt, K-, K-x1 and K- 2"],
+      ["K-1K-2", "T-1K-2"],
+      ["other://chat?room=4", "emberhut://chat?room=4"],
+      ["other://task/7", "emberhut://work/7"],
+      ["go to other://task/3 or <other://chat>", "go to emberhut://work/3 or <emberhut://chat>"],
+      ["https://example.test/?next=other://chat", "https://example.test/?next=other://chat"],
+      ["xother://chat a.other://chat", "xother://chat a.other://chat"],
+      ["other.start", "emberhut.start"],
+      ["another.start x.other.start", "another.start x.other.start"],
+      ["Bot · K-3 is done", "Ember · T-3 is done"],
+      ["Bot · other://task/1", "Ember · emberhut://work/1"],
+      ["no words here", "no words here"],
+      ["", ""]
+    ],
+    "write": [
+      ["owner", "person"],
+      ["assistant", "helper"],
+      ["Waiting on the owner", "Waiting on the person"],
+      ["owners", "owners"],
+      ["T-4", "K-4"],
+      ["about T-4, a T-shirt, and T-", "about K-4, a T-shirt, and T-"],
+      ["(T-1,T-2) XT-3 id=T-4", "(K-1,K-2) XT-3 id=T-4"],
+      ["emberhut://chat?room=4", "other://chat?room=4"],
+      ["emberhut://work/7", "other://task/7"],
+      ["emberhut://task/7", "other://task/7"],
+      ["emberhut.stopped", "other.stopped"],
+      ["Ember · T-9", "Bot · K-9"],
+      ["person", "person"]
+    ]
+  },
+  "documents": {
+    "read": [
+      [
+        {
+          "by": "person",
+          "person": 1,
+          "helper": 2,
+          "helperAccount": { "on": "a-1" },
+          "history": [{ "who": "person", "text": "Waiting on the person" }],
+          "list": ["person", "personal", 3, null, true, 1.5],
+          "note": "K-3 and other://task/3",
+          "token": "a1-K-2"
+        },
+        {
+          "by": "owner",
+          "chief": 1,
+          "assistant": 2,
+          "assistantAccount": { "on": "a-1" },
+          "history": [{ "who": "owner", "text": "Waiting on the owner" }],
+          "list": ["owner", "personal", 3, null, true, 1.5],
+          "note": "T-3 and emberhut://work/3",
+          "token": "a1-K-2"
+        }
+      ],
+      ["person", "owner"],
+      [[1, "K-2", { "person": "helper" }], [1, "T-2", { "chief": "assistant" }]],
+      [null, null]
+    ],
+    "write": [
+      [
+        { "owner": "owner", "chief": 1, "assistantAccount": "a-1", "text": "about T-4, a T-shirt", "list": ["assistant", 2] },
+        { "owner": "person", "person": 1, "helperAccount": "a-1", "text": "about K-4, a T-shirt", "list": ["helper", 2] }
+      ],
+      ["emberhut://work/1", "other://task/1"]
+    ]
+  }
+}

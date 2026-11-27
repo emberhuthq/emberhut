@@ -1,0 +1,156 @@
+[workspace]
+resolver = "3"
+members = ["apps/desktop", "apps/hands", "crates/*", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/emberhuthq/emberhut"
+homepage = "https://emberhut.com"
+authors = ["Symploc, LLC"]
+publish = false
+
+# Dependencies used by more than one crate are declared once here, with no features; each crate
+# turns on the features it needs. Add an entry when a crate starts using it.
+[workspace.dependencies]
+emberhut-api = { path = "crates/emberhut-api" }
+emberhut-client = { path = "crates/emberhut-client" }
+emberhut-core = { path = "crates/emberhut-core" }
+emberhut-db = { path = "crates/emberhut-db" }
+emberhut-identity = { path = "crates/emberhut-identity" }
+
+anyhow = "1.0.100"
+axum = { version = "0.8.9", default-features = false }
+base64 = "0.23.1"
+clap = "4.6.10"
+data-encoding = "2.11.1"
+ed25519-dalek = { version = "3.0.0", default-features = false }
+flate2 = { version = "1.1.11", default-features = false }
+form_urlencoded = "1.2.3"
+futures-util = { version = "0.3.34", default-features = false }
+garde = { version = "0.23", default-features = false }
+# 0.2: the version ring (under rustls) already brings, so the tree has one copy.
+getrandom = "0.2"
+hmac = "0.13.0"
+http = "1.5.0"
+http-body-util = "0.1.5"
+idna = "1.1.0"
+jiff = { version = "1.0.3", default-features = false }
+jsonschema = { version = "0.63.1", default-features = false }
+# The account directory checks Clerk's tokens (ADR 0007), with the rust_crypto backend.
+jsonwebtoken = { version = "12.0.0", default-features = false }
+log = "0.4.28"
+# Release payloads: signed with minisign (xtask, and the updater's tests), checked with
+# minisign-verify in the app (ADR 0005).
+minisign = "0.10.0"
+minisign-verify = "0.3.0"
+proptest = "1.12.0"
+qrcode = { version = "0.14", default-features = false }
+regex = { version = "1.13.2", default-features = false }
+reqwest = { version = "0.13.5", default-features = false }
+ring = "0.17.14"
+# Test-only RSA keys for the directory's token tests (the same rsa jsonwebtoken brings).
+rsa = { version = "0.10.0", default-features = false }
+rustix = "1.1.6"
+rustls = { version = "0.23.46", default-features = false }
+sea-orm = { version = "2.0.4", default-features = false }
+sea-orm-migration = { version = "2.0.4", default-features = false }
+serde = "1"
+serde_json = "1"
+sha2 = "0.11.1"
+subtle = "2.6.1"
+tar = { version = "0.4.44", default-features = false }
+tempfile = "3.27.0"
+thiserror = "2"
+time = { version = "0.3", default-features = false }
+tiny_http = "0.12"
+tokio = { version = "1.54.1", default-features = false }
+tokio-tungstenite = { version = "0.29", default-features = false }
+tokio-util = { version = "0.7.20", default-features = false }
+tower = { version = "0.5.3", default-features = false }
+tower-http = { version = "0.7.1", default-features = false }
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3.23", default-features = false }
+unicode-normalization = "0.1.26"
+ureq = { version = "3", default-features = false }
+url = "2.5.9"
+utoipa = { version = "6", default-features = false }
+utoipa-axum = "0.3.0"
+webpki-roots = "1.0.12"
+zeroize = "1.9.2"
+# The Mac helper (apps/hands, ADR 0024): the extension's zip, read with deflate only.
+zip = { version = "9.8.2", default-features = false }
+# macOS system frameworks through objc2's bindings (apps/hands; ADR 0024).
+block2 = "0.6"
+dispatch2 = { version = "0.3", default-features = false }
+libc = "0.2"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false }
+objc2-application-services = { version = "0.3", default-features = false }
+objc2-av-foundation = { version = "0.3", default-features = false }
+objc2-core-foundation = { version = "0.3", default-features = false }
+objc2-core-graphics = { version = "0.3", default-features = false }
+objc2-core-media = { version = "0.3", default-features = false }
+objc2-foundation = { version = "0.3", default-features = false }
+objc2-screen-capture-kit = { version = "0.3", default-features = false }
+
+# The product's build number (ADR 0005): one counter for the desktop and the phones, raised by
+# one every release, compiled into a published build as EMBERHUT_BUILD. 5 is the floor the ADR sets;
+# the first release raises it past the highest build either store has accepted.
+[workspace.metadata.release]
+build = 5
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Panics belong in tests and truly unreachable cases only; clippy.toml lets tests use them.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+unreachable = "warn"
+let_underscore_must_use = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+# Every exception is an `#[expect(..., reason = "...")]`, never a bare allow.
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+
+[workspace.lints.rustdoc]
+unescaped_backticks = "warn"
+
+[workspace.lints.cargo]
+unused_workspace_dependencies = "deny"
+
+[profile.release]
+lto = "thin"
+# Keep symbols so release backtraces name their functions; `dist` strips everything.
+strip = "debuginfo"
+
+[profile.dev]
+debug = "line-tables-only"
+
+# Dependencies carry no debug info in dev builds: our own crates keep line
+# tables for backtraces, and each GPUI test binary shrinks by a lot.
+[profile.dev.package."*"]
+debug = false
+
+# Size-first build for shipping the desktop app.
+[profile.dist]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

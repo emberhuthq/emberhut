@@ -1,0 +1,217 @@
+{
+  "description": "Machine names: 1 to 60 Unicode scalar values with no control character (Cc) or bidirectional control (U+061C, U+200E, U+200F, U+202A-U+202E, U+2066-U+2069) and no Unicode White_Space at either end (U+0009-U+000D, U+0020, U+0085, U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000; not U+FEFF, which JavaScript's trim() removes, and including U+0085, which it keeps). A sender cuts (trims, keeps the first 60, trims the end again) before signing; a receiver parses and refuses rather than cut. Probe kinds are 1 to 32 characters from a-z, 0-9 and -. Account ids are 1 to 255 bytes of visible ASCII. Errors: empty, tooLong, notTrimmed, control; kind; length, character.",
+  "machineNames": {
+    "cut": [
+      {
+        "input": "  Main computer \n",
+        "name": "Main computer",
+        "why": "a name with white space around it"
+      },
+      {
+        "input": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "why": "61 characters"
+      },
+      {
+        "input": "🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥",
+        "name": "🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥",
+        "why": "61 astral characters: 60 kept, 120 UTF-16 units"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "why": "white space where the cut falls is trimmed too"
+      },
+      {
+        "input": "﻿Main﻿",
+        "name": "﻿Main﻿",
+        "why": "U+FEFF is not white space"
+      },
+      {
+        "input": "Main",
+        "name": "Main",
+        "why": "U+0085 is white space"
+      },
+      {
+        "input": "​Main",
+        "name": "​Main",
+        "why": "U+200B is not white space"
+      },
+      {
+        "input": "Main computer 🖥",
+        "name": "Main computer 🖥",
+        "why": "an emoji kept"
+      },
+      {
+        "input": "\tMain\n",
+        "name": "Main",
+        "why": "controls at the ends are white space, trimmed"
+      },
+      {
+        "input": "Main\tbox",
+        "error": "control"
+      },
+      {
+        "input": "Main\u0007",
+        "error": "control"
+      },
+      {
+        "input": "‮Main",
+        "error": "control"
+      },
+      {
+        "input": "a⁦b",
+        "error": "control"
+      },
+      {
+        "input": "a؜b",
+        "error": "control"
+      },
+      {
+        "input": "a‎b",
+        "error": "control"
+      },
+      {
+        "input": "a‏b",
+        "error": "control"
+      },
+      {
+        "input": "ab",
+        "error": "control"
+      },
+      {
+        "input": "a\u0000b",
+        "error": "control"
+      },
+      {
+        "input": " 　 ",
+        "error": "empty"
+      },
+      {
+        "input": "",
+        "error": "empty"
+      }
+    ],
+    "parse": [
+      {
+        "text": "Main computer",
+        "name": "Main computer"
+      },
+      {
+        "text": "🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥",
+        "name": "🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥",
+        "why": "60 astral characters"
+      },
+      {
+        "text": "﻿Main﻿",
+        "name": "﻿Main﻿"
+      },
+      {
+        "text": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "error": "tooLong"
+      },
+      {
+        "text": "🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥🖥",
+        "error": "tooLong"
+      },
+      {
+        "text": " Main",
+        "error": "notTrimmed"
+      },
+      {
+        "text": "Main",
+        "error": "notTrimmed"
+      },
+      {
+        "text": "Main　",
+        "error": "notTrimmed"
+      },
+      {
+        "text": "",
+        "error": "empty"
+      },
+      {
+        "text": "Main\tbox",
+        "error": "control"
+      },
+      {
+        "text": "Main\u0007",
+        "error": "control"
+      },
+      {
+        "text": "‮Main",
+        "error": "control"
+      },
+      {
+        "text": "a⁦b",
+        "error": "control"
+      },
+      {
+        "text": "a؜b",
+        "error": "control"
+      },
+      {
+        "text": "a‎b",
+        "error": "control"
+      },
+      {
+        "text": "a‏b",
+        "error": "control"
+      },
+      {
+        "text": "ab",
+        "error": "control"
+      },
+      {
+        "text": "a\u0000b",
+        "error": "control"
+      }
+    ]
+  },
+  "probeKinds": {
+    "valid": [
+      "loopback",
+      "lan",
+      "vpn",
+      "public",
+      "ssh",
+      "relay",
+      "a-later-kind",
+      "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+    ],
+    "invalid": [
+      "",
+      "Lan",
+      "a b",
+      "lan\n",
+      "ü",
+      "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+      "a_b"
+    ]
+  },
+  "accountIds": {
+    "valid": [
+      "user_2example0account",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "!~"
+    ],
+    "invalid": [
+      {
+        "text": "",
+        "error": "length"
+      },
+      {
+        "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "error": "length"
+      },
+      {
+        "text": "user x",
+        "error": "character"
+      },
+      {
+        "text": "user_é",
+        "error": "character"
+      }
+    ]
+  }
+}

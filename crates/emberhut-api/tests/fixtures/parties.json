@@ -1,0 +1,58 @@
+{
+  "parties": [
+    {
+      "id": 2,
+      "title": "Should a small team build its own server?",
+      "topic": "Should a small team build its own server?",
+      "status": "running",
+      "why": null,
+      "personas": [
+        { "id": "p1", "name": "Nora", "role": "An optimist.", "model": "claude-opus-5-5", "color": "blue" },
+        { "id": "p2", "name": "Victor", "role": "A skeptic.", "model": "claude-sonnet-5-5", "color": "orange" }
+      ],
+      "turns": 3,
+      "maxTurns": 12,
+      "tokens": 23400,
+      "maxTokens": 150000,
+      "cost": 0.1234,
+      "created": "2026-11-25T10:00:00.000Z",
+      "updated": "2026-11-25T10:02:00.000Z",
+      "speaking": { "who": "p2", "name": "Victor", "text": "Only if" },
+      "last": "Nora: It pays for itself within a year."
+    },
+    {
+      "id": 1,
+      "title": "Tea or coffee",
+      "topic": "Tea or coffee",
+      "status": "done",
+      "why": "Reached its 12 turns",
+      "personas": [
+        { "id": "p1", "name": "Sam", "role": "A practical engineer.", "model": "claude-haiku-5-5", "color": "blue" },
+        { "id": "p2", "name": "Jules", "role": "A comedian.", "model": "claude-haiku-5-5", "color": "orange" }
+      ],
+      "turns": 12,
+      "maxTurns": 12,
+      "tokens": 9000,
+      "maxTokens": 50000,
+      "cost": 0.004,
+      "created": "2026-11-24T09:00:00.000Z",
+      "updated": "2026-11-24T09:05:00.000Z",
+      "speaking": null,
+      "last": null
+    }
+  ],
+  "presets": [
+    { "id": "optimist", "name": "Nora", "role": "An optimist. You see what could go right.", "model": "claude-opus-5-5", "color": "" },
+    { "id": "skeptic", "name": "Victor", "role": "A skeptic. You poke holes.", "model": "claude-opus-5-5", "color": "" },
+    { "id": "engineer", "name": "Sam", "role": "A practical engineer. You ask how it would be built.", "model": "claude-opus-5-5", "color": "" }
+  ],
+  "recent": [
+    { "id": "recent1", "name": "Ada", "role": "A careful reviewer.", "model": "claude-sonnet-5-5", "color": "" }
+  ],
+  "models": [
+    { "id": "claude-opus-5-5", "name": "Opus 5.5", "in": 4, "out": 20, "note": "Best talker · $4/$20 per M tokens" },
+    { "id": "claude-sonnet-5-5", "name": "Sonnet 5.5", "in": 2, "out": 10, "note": "Half the price · $2/$10" },
+    { "id": "claude-haiku-5-5", "name": "Haiku 5.5", "in": 0.1, "out": 0.5, "note": "Fast and cheap · $0.10/$0.50" }
+  ],
+  "defaults": { "maxTurns": 12, "maxTokens": 150000, "model": "claude-opus-5-5" }
+}

@@ -1,0 +1,65 @@
+# gitleaks: the default credential rules, plus the repository's no-personal-data rule:
+# no private or CGNAT (100.64/10) IP addresses and no email addresses outside an allow-list.
+# CI checks the whole history against these rules. The wording rules of CONTRIBUTING.md's
+# "Writing for a public repository" are in .gitleaks-public.toml, which extends this file and
+# is checked against the tree.
+title = "emberhut"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "private-ipv4"
+description = "A private or CGNAT IPv4 address (keep real addresses out of the repo)"
+regex = '''\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01])|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7]))\.\d{1,3}\.\d{1,3}\b'''
+keywords = ["10.", "192.168.", "172.", "100."]
+[[rules.allowlists]]
+# The tests' made-up LAN addresses, one in each private range and a second one on the same LAN,
+# only these and only in TypeScript tests and Rust files (where tests sit beside the code): code
+# that tells a LAN address from a public one needs private addresses to test with. Any other
+# private address, or one of these in any other file, is still flagged.
+condition = "AND"
+regexes = ['''^(?:10\.0\.0\.5|172\.16\.0\.5|192\.168\.1\.1[01])$''']
+paths = ['''\.test\.tsx?$''', '''\.rs$''']
+
+[[rules]]
+id = "email-address"
+description = "An email address (use example.com in docs and tests)"
+regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'''
+keywords = ["@"]
+[[rules.allowlists]]
+regexes = [
+  # RFC 2606 reserves example.com, .org and .net with every name under them.
+  '''@(?:(?:[a-z0-9-]+\.)*example\.(?:com|org|net)|users\.noreply\.github\.com|emberhut\.com)$''',
+  '''^git@github\.com$''',
+  # A file at a scale, like an icon's `icon_16x16@2x.png`, isn't an address.
+  '''@[0-9]+x\.png$''',
+  # The tests' made-up WhatsApp ids: a person's number in the 555-0100 fiction range
+  # (`1555010xxxx@s.whatsapp.net`) and a group (`120363...@g.us`). Any other WhatsApp id
+  # still reads as an address and is flagged.
+  '''^1555010[0-9]{4}@s\.whatsapp\.net$''',
+  '''^120363[0-9]*@g\.us$''',
+]
+[[rules]]
+id = "tailnet-hostname"
+description = "A tailnet (MagicDNS) hostname"
+regex = '''(?i)\b[a-z0-9-]+\.[a-z0-9-]+\.ts\.net\b'''
+keywords = [".ts.net"]
+
+[[rules]]
+id = "tailnet-ipv6"
+description = "A tailnet IPv6 address"
+regex = '''(?i)\bfd7a:115c:a1e0:[0-9a-f:]*'''
+keywords = ["fd7a:115c:a1e0"]
+
+[[allowlists]]
+description = "Lock files carry crate versions, not addresses"
+paths = ['''(^|/)Cargo\.lock$''']
+
+[[allowlists]]
+description = "The browser extension's manifest key: an RSA public key (base64 DER), which fixes the extension's id (ADR 0023); that value only"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)apps/extension/manifest\.json$''']
+regexTarget = "line"
+regexes = ['''"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlnkkmIg4Ea6LywckTIQsEnAOA5QPPZ3s8k/CTmzi55BSS7lP9C\+gwH3OKqK0PW4L3f11ehIXHOVxtxIAmmWY/53E1FPwTVLy6OFnWWOk94cfkDJ2p3drOjJMWOwxDeqnDBVEgjyDM7rd6dw/Xo9sud3Bz3QY\+XCa01n3Zz6nui\+rjs2HxVm7OEeonSp/hHqXYh2CwsQeZrqoZY1tESLIEMEwrMFwywTpwzuOzFkxkOAMAY6IoCOPHKpkMNM/WUwLCMt5/d3mUPH1rU6BcvJH1Fd2gSrgH7O\+06/gZsC\+b6gg41meXniZp\+WN4UnuipT6Edtr/IrfGDtyQ5JqJ6JewwIDAQAB"''']

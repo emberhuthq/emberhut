@@ -1,0 +1,49 @@
+# cargo-deny: licenses, advisories, bans and sources for every crate we ship.
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# Every ignored advisory needs an id and a reason, e.g.
+# { id = "RUSTSEC-0000-0000", reason = "not reachable: ..." }
+# RUSTSEC-2023-0071 (the `rsa` crate's timing leak in private-key operations, which ADR 0007
+# expected to ignore for the account directory) needs no entry: it is fixed in rsa 0.10, the
+# version jsonwebtoken 12 brings, and the directory only verifies with public keys anyway.
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    # libfuzzer-sys (LLVM's libFuzzer), under rav1e, under `image`'s AVIF encoding, which only
+    # gpui-kit's `test-support` turns on: a dev-dependency of emberhut-desktop, not in the shipped app.
+    "NCSA",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

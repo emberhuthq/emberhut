@@ -1,0 +1,358 @@
+{
+ "id": 12,
+ "key": "T-12",
+ "title": "Name the example report",
+ "body": "A made-up task.",
+ "owner": "assistant",
+ "status": "waiting",
+ "goal": null,
+ "project": "Example project",
+ "pid": 2,
+ "hard": false,
+ "size": "S",
+ "priority": 2,
+ "due": null,
+ "today": true,
+ "parkedUntil": null,
+ "decideBy": "2026-11-26",
+ "decision": {
+  "question": "Which name should the example report have?",
+  "options": [
+   "Report A",
+   "Report B",
+   "Leave it"
+  ],
+  "kind": "choose",
+  "brief": [
+   "Both names are made up."
+  ],
+  "recommend": 0,
+  "asked": "2026-11-24T20:00:00.000Z",
+  "checked": "2026-11-24T21:00:00.000Z"
+ },
+ "action": "Pick a name for the example report",
+ "created": "2026-11-20T10:00:00.000Z",
+ "updated": "2026-11-24T21:00:00.000Z",
+ "doneAt": null,
+ "last": "Asked which name",
+ "parent": null,
+ "progress": null,
+ "total": null,
+ "unit": null,
+ "sub": {
+  "done": 1,
+  "total": 2,
+  "waiting": [
+   13
+  ],
+  "progress": 3,
+  "of": 6,
+  "left": null,
+  "unit": "parts"
+ },
+ "tracked": true,
+ "eta": null,
+ "requested": null,
+ "requestedBy": null,
+ "ultra": true,
+ "agents": {
+  "done": 1,
+  "total": 3,
+  "running": 1
+ },
+ "artifacts": [
+  {
+   "id": 7,
+   "kind": "image",
+   "caption": "A made-up chart",
+   "at": "2026-11-24T19:00:00.000Z",
+   "name": "chart.png",
+   "url": "/api/artifacts/7",
+   "thumb": "/api/artifacts/7/thumb"
+  }
+ ],
+ "send": null,
+ "live": {
+  "state": "running",
+  "since": "2026-11-24T21:00:00.000Z",
+  "alarm": false,
+  "run": {
+   "machine": "runner",
+   "place": "the example machine",
+   "thread": "w-12",
+   "title": null,
+   "worker": true,
+   "requested": "2026-11-24T20:59:00.000Z",
+   "started": "2026-11-24T21:00:00.000Z"
+  },
+  "last": {
+   "ended": "2026-11-24T19:00:00.000Z",
+   "line": "Drafted both names"
+  }
+ },
+ "history": [
+  {
+   "at": "2026-11-20T10:00:00.000Z",
+   "who": "assistant",
+   "text": "Created"
+  },
+  {
+   "at": "2026-11-24T20:00:00.000Z",
+   "who": "assistant",
+   "text": "Which name should the example report have?"
+  },
+  {
+   "at": "2026-11-24T20:30:00.000Z",
+   "who": "owner",
+   "text": "Can it be shorter?"
+  },
+  {
+   "at": "2026-11-24T20:40:00.000Z",
+   "who": "worker",
+   "text": "Shortened both names"
+  }
+ ],
+ "subtasks": [
+  {
+   "id": 13,
+   "key": "T-13",
+   "title": "A subtask of the example",
+   "body": null,
+   "owner": "assistant",
+   "status": "working",
+   "goal": null,
+   "project": "Example project",
+   "pid": 2,
+   "hard": false,
+   "size": null,
+   "priority": 0,
+   "due": null,
+   "today": false,
+   "parkedUntil": null,
+   "decideBy": null,
+   "decision": null,
+   "action": null,
+   "created": "2026-11-21T10:00:00.000Z",
+   "updated": "2026-11-24T18:00:00.000Z",
+   "doneAt": null,
+   "last": null,
+   "parent": 12,
+   "progress": 1,
+   "total": 3,
+   "unit": "parts",
+   "sub": null,
+   "tracked": false,
+   "eta": "about an hour",
+   "requested": null,
+   "requestedBy": null,
+   "ultra": false,
+   "agents": null,
+   "artifacts": [],
+   "send": null,
+   "live": {
+    "state": "running",
+    "since": null,
+    "alarm": false
+   },
+   "area": 9
+  }
+ ],
+ "findings": [
+  {
+   "id": 14,
+   "key": "T-14",
+   "title": "An example finding",
+   "body": null,
+   "owner": "assistant",
+   "status": "done",
+   "goal": null,
+   "project": "Example project",
+   "pid": 2,
+   "hard": false,
+   "size": null,
+   "priority": 0,
+   "due": null,
+   "today": false,
+   "parkedUntil": null,
+   "decideBy": null,
+   "decision": null,
+   "action": null,
+   "created": "2026-11-21T10:00:00.000Z",
+   "updated": "2026-11-24T18:00:00.000Z",
+   "doneAt": null,
+   "last": null,
+   "parent": 12,
+   "progress": 1,
+   "total": 3,
+   "unit": "parts",
+   "sub": null,
+   "tracked": false,
+   "eta": "about an hour",
+   "requested": null,
+   "requestedBy": null,
+   "ultra": false,
+   "agents": null,
+   "artifacts": [],
+   "send": null,
+   "live": {
+    "state": "done",
+    "since": null,
+    "alarm": false
+   },
+   "kind": "finding",
+   "landed": "partly",
+   "fixedBy": 13
+  }
+ ],
+ "links": [
+  {
+   "kind": "thread",
+   "ref": "t-1",
+   "machine": "runner",
+   "title": "Example thread",
+   "status": "completed",
+   "at": "2026-11-24T19:00:00.000Z",
+   "line": "Both names drafted"
+  },
+  {
+   "kind": "ticket",
+   "ref": "EX-1",
+   "machine": null,
+   "title": "Example ticket",
+   "status": null,
+   "at": null,
+   "line": null
+  }
+ ],
+ "runs": [
+  {
+   "id": 31,
+   "kind": "worker",
+   "machine": "runner",
+   "thread": "w-12",
+   "title": null,
+   "asked": "Name the example report",
+   "answer": null,
+   "status": null,
+   "requested": "2026-11-24T20:59:00.000Z",
+   "started": "2026-11-24T21:00:00.000Z",
+   "ended": null,
+   "outcome": null
+  },
+  {
+   "id": 30,
+   "kind": "thread",
+   "machine": "runner",
+   "thread": "t-1",
+   "title": "Example thread",
+   "asked": "Draft two names",
+   "answer": "Drafted Report A and Report B.",
+   "status": "STATUS: needs emberhut: pick a name",
+   "requested": "2026-11-24T18:00:00.000Z",
+   "started": "2026-11-24T18:01:00.000Z",
+   "ended": "2026-11-24T19:00:00.000Z",
+   "outcome": "completed"
+  }
+ ],
+ "sessions": [
+  {
+   "id": "s-1",
+   "machine": "runner",
+   "title": "An example session",
+   "project": "Example project",
+   "status": "running",
+   "updatedAt": "2026-11-24T21:56:00.000Z",
+   "place": "Example machine",
+   "doing": "Running the example checks",
+   "account": "a-1",
+   "accountName": "Example account",
+   "cwd": "/work/example",
+   "branch": "example",
+   "ask": null,
+   "last": null,
+   "statusLine": null,
+   "since": "2026-11-24T21:00:00.000Z",
+   "direct": true,
+   "model": "example-model",
+   "effort": null,
+   "question": null,
+   "tasks": [
+    13
+   ],
+   "room": 2
+  }
+ ],
+ "ultraRun": {
+  "on": true,
+  "state": "running",
+  "parallel": 4,
+  "budget": 2000000,
+  "spent": 350000,
+  "cost": 1.25,
+  "leadTokens": 120000,
+  "account": "a-1",
+  "plan": {
+   "agents": 3,
+   "tokens": 900000
+  },
+  "done": 1,
+  "total": 3,
+  "running": 1,
+  "agents": [
+   {
+    "id": 1,
+    "name": "Part 1",
+    "kind": "part",
+    "part": 1,
+    "state": "done",
+    "last": "Wrote the first part",
+    "tokens": 100000,
+    "tools": 12,
+    "account": "a-1",
+    "accountName": "Example account",
+    "machine": "runner",
+    "run": "w-12",
+    "started": "2026-11-24T21:01:00.000Z",
+    "ended": "2026-11-24T21:20:00.000Z",
+    "workflow": false,
+    "viewer": "w-12",
+    "parent": "toolu_1"
+   },
+   {
+    "id": 2,
+    "name": "Check part 1",
+    "kind": "verify",
+    "part": 1,
+    "state": "running",
+    "last": "Reading the part",
+    "tokens": 20000,
+    "tools": 3,
+    "account": null,
+    "accountName": null,
+    "machine": "runner",
+    "run": "w-12",
+    "started": "2026-11-24T21:21:00.000Z",
+    "ended": null,
+    "workflow": false,
+    "viewer": "w-12",
+    "parent": "toolu_2"
+   }
+  ],
+  "lead": {
+   "viewer": "w-12",
+   "name": "The worker",
+   "place": "the example machine",
+   "state": "running",
+   "running": true,
+   "doing": "Planning part 2",
+   "started": "2026-11-24T21:00:00.000Z",
+   "ended": null,
+   "tokens": 120000,
+   "cost": 0.4,
+   "machine": "runner",
+   "account": "a-1",
+   "accountName": "Example account",
+   "direct": null
+  }
+ }
+}

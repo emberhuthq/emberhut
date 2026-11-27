@@ -1,0 +1,175 @@
+{
+  "description": "The one verification rule both implementations follow (docs/api.md): s < L; A and R canonical encodings of points in the prime-order subgroup, neither of small order; then [s]B = R + [k]A without the cofactor, k = SHA-512(R || A || M) mod L. A public key that breaks the rule for A doesn't read (keyError). `cases` sign the unlink statement of `statement`; `crossKind` presents another statement's signature for it; `speccheck` are the twelve cases of \"Taming the many EdDSAs\" (Chalkias, Garillot and Nikolaenko, 2020; github.com/novifinancial/ed25519-speccheck, Apache-2.0), over raw messages in hex.",
+  "statement": {
+    "prefix": "emberhut unlink v1",
+    "inputs": {
+      "machineId": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "relayDomain": "relay.example",
+      "time": 1795561073000
+    },
+    "bytes": "656d62657268757420756e6c696e6b2076310000000020336a3672616a626272643279727276646b6f71326d6f757a35617178776835630000000d72656c61792e6578616d706c6500000008000001a20fc7a968"
+  },
+  "cases": [
+    {
+      "name": "valid",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "signature": "_XPXQ3qzk4PelCQc18j96-ZVXxEh44EYnlJShyO1NAUn28RLOJYHKaL15n3Z1MnouIgpXVw5xFGk16T8ThLHAw",
+      "accept": true,
+      "why": "the baseline"
+    },
+    {
+      "name": "s + L",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "signature": "_XPXQ3qzk4PelCQc18j96-ZVXxEh44EYnlJShyO1NAUUr7qoUvkZgXiS3iC4zqj9uIgpXVw5xFGk16T8ThLHEw",
+      "accept": false,
+      "why": "s is not below L; the same signature with s reduced verifies"
+    },
+    {
+      "name": "small-order R",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwjX-6MFWm6EwCtiX6T_6mJX3WZ2IIX1KHejxvJuJpCA",
+      "accept": false,
+      "why": "R has order 4; a cofactored check accepts it"
+    },
+    {
+      "name": "non-canonical R",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "signature": "7v_______________________________________3_rSaaJUSFj8_KCEfiVqrCHT1cfeQFty1v_SOgY064-Cg",
+      "accept": false,
+      "why": "R is the identity spelled y = p + 1; a check that reduces y accepts it"
+    },
+    {
+      "name": "R with a small-order component",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "signature": "Q9LQl0-4tnu-6nEbsnbgLRyGBluq9UvxaJxL5j_ee0f4q51_4EOTu8Uh2JvPLDHssF5zREBIK7qc7opJCBd2CQ",
+      "accept": false,
+      "why": "R = [r]B + T, T of order 8; a cofactored check accepts it"
+    },
+    {
+      "name": "mixed-order A",
+      "publicKey": "GxkrYsLJnbEDs_Uh1rSTRulP7zllQIRIRXl1A7igb7o",
+      "signature": "CAklsgnLyOgFfQc68zsjSdmZrnGCrZYmcRDmMgWW6FgdAysKPxUgHv4pEXfXlkupRYL3AxukKs6dx-b0onJ-AA",
+      "accept": false,
+      "why": "A = the machine's key + T, T of order 8, and k a multiple of 8, so the cofactorless equation holds; only the subgroup check refuses it",
+      "keyError": "notTorsionFree"
+    },
+    {
+      "name": "non-canonical A",
+      "publicKey": "7v_______________________________________38",
+      "signature": "vew-rUqRdzUkh0dlaAmXSycCyuYDYir6uonlj7-biIMwCF03ZjvHv5nPpFjaQ8uo9MJxnuYz0iChmSspPa1JDA",
+      "accept": false,
+      "why": "A is the identity spelled y = p + 1; any statement would verify",
+      "keyError": "notAPoint"
+    },
+    {
+      "name": "small-order A",
+      "publicKey": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "signature": "vew-rUqRdzUkh0dlaAmXSycCyuYDYir6uonlj7-biIMwCF03ZjvHv5nPpFjaQ8uo9MJxnuYz0iChmSspPa1JDA",
+      "accept": false,
+      "why": "A is the identity; any statement would verify",
+      "keyError": "weak"
+    },
+    {
+      "name": "order-8 A",
+      "publicKey": "xxdqcD1N2E-6PAt2DRBnDyogU_osOczGTsf9d5KsA3o",
+      "signature": "79h_1691Uco9Kw3eZOdKLeyIAbm3SSjxvoNxxZH_-dnfLKYKUXhOD5N6ldslChBybraf5AFQ2XKQ08g0rMoTBg",
+      "accept": false,
+      "why": "A has order 8 and k is a multiple of 8, so the cofactorless equation holds",
+      "keyError": "weak"
+    }
+  ],
+  "crossKind": [
+    {
+      "name": "a link signature presented as an unlink",
+      "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "accept": false
+    }
+  ],
+  "speccheck": [
+    {
+      "case": 0,
+      "message": "8c93255d71dcab10e8f379c26200f3c7bd5f09d9bc3068d3ef4edeb4853022b6",
+      "publicKey": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+      "signature": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a0000000000000000000000000000000000000000000000000000000000000000",
+      "accept": false
+    },
+    {
+      "case": 1,
+      "message": "9bd9f44f4dcc75bd531b56b2cd280b0bb38fc1cd6d1230e14861d861de092e79",
+      "publicKey": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+      "signature": "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43a5bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
+      "accept": false
+    },
+    {
+      "case": 2,
+      "message": "aebf3f2601a0c8c5d39cc7d8911642f740b78168218da8471772b35f9d35b9ab",
+      "publicKey": "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43",
+      "signature": "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa8c4bd45aecaca5b24fb97bc10ac27ac8751a7dfe1baff8b953ec9f5833ca260e",
+      "accept": false
+    },
+    {
+      "case": 3,
+      "message": "9bd9f44f4dcc75bd531b56b2cd280b0bb38fc1cd6d1230e14861d861de092e79",
+      "publicKey": "cdb267ce40c5cd45306fa5d2f29731459387dbf9eb933b7bd5aed9a765b88d4d",
+      "signature": "9046a64750444938de19f227bb80485e92b83fdb4b6506c160484c016cc1852f87909e14428a7a1d62e9f22f3d3ad7802db02eb2e688b6c52fcd6648a98bd009",
+      "accept": false
+    },
+    {
+      "case": 4,
+      "message": "e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec4011eaccd55b53f56c",
+      "publicKey": "cdb267ce40c5cd45306fa5d2f29731459387dbf9eb933b7bd5aed9a765b88d4d",
+      "signature": "160a1cb0dc9c0258cd0a7d23e94d8fa878bcb1925f2c64246b2dee1796bed5125ec6bc982a269b723e0668e540911a9a6a58921d6925e434ab10aa7940551a09",
+      "accept": false
+    },
+    {
+      "case": 5,
+      "message": "e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec4011eaccd55b53f56c",
+      "publicKey": "cdb267ce40c5cd45306fa5d2f29731459387dbf9eb933b7bd5aed9a765b88d4d",
+      "signature": "21122a84e0b5fca4052f5b1235c80a537878b38f3142356b2c2384ebad4668b7e40bc836dac0f71076f9abe3a53f9c03c1ceeeddb658d0030494ace586687405",
+      "accept": false
+    },
+    {
+      "case": 6,
+      "message": "85e241a07d148b41e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec40",
+      "publicKey": "442aad9f089ad9e14647b1ef9099a1ff4798d78589e66f28eca69c11f582a623",
+      "signature": "e96f66be976d82e60150baecff9906684aebb1ef181f67a7189ac78ea23b6c0e547f7690a0e2ddcd04d87dbc3490dc19b3b3052f7ff0538cb68afb369ba3a514",
+      "accept": false
+    },
+    {
+      "case": 7,
+      "message": "85e241a07d148b41e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec40",
+      "publicKey": "442aad9f089ad9e14647b1ef9099a1ff4798d78589e66f28eca69c11f582a623",
+      "signature": "8ce5b96c8f26d0ab6c47958c9e68b937104cd36e13c33566acd2fe8d38aa19427e71f98a473474f2f13f06f97c20d58cc3f54b8bd0d272f42b695dd7e89a8c22",
+      "accept": false
+    },
+    {
+      "case": 8,
+      "message": "9bedc267423725d473888631ebf45988bad3db83851ee85c85e241a07d148b41",
+      "publicKey": "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43",
+      "signature": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff03be9678ac102edcd92b0210bb34d7428d12ffc5df5f37e359941266a4e35f0f",
+      "accept": false
+    },
+    {
+      "case": 9,
+      "message": "9bedc267423725d473888631ebf45988bad3db83851ee85c85e241a07d148b41",
+      "publicKey": "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43",
+      "signature": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffca8c5b64cd208982aa38d4936621a4775aa233aa0505711d8fdcfdaa943d4908",
+      "accept": false
+    },
+    {
+      "case": 10,
+      "message": "e96b7021eb39c1a163b6da4e3093dcd3f21387da4cc4572be588fafae23c155b",
+      "publicKey": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature": "a9d55260f765261eb9b84e106f665e00b867287a761990d7135963ee0a7d59dca5bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
+      "accept": false
+    },
+    {
+      "case": 11,
+      "message": "39a591f5321bbe07fd5a23dc2f39d025d74526615746727ceefd6e82ae65c06f",
+      "publicKey": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature": "a9d55260f765261eb9b84e106f665e00b867287a761990d7135963ee0a7d59dca5bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
+      "accept": false
+    }
+  ]
+}

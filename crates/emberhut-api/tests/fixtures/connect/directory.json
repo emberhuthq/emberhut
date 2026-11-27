@@ -1,0 +1,162 @@
+{
+  "description": "Wire JSON of docs/directory.md, version 1. The link body is connect.json's signedLink. `unlinkChecks` are the directory's checks of the unlink posted to /v1/machines/<path>/unlink at its own relay domain; `expect` is ok or the directory's error code.",
+  "messages": {
+    "machines": {
+      "machines": [
+        {
+          "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+          "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+          "name": "Main computer",
+          "relayUrl": "wss://relay.example/v1/sealed/3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+          "connected": true,
+          "lastSeen": 1795561073000,
+          "linkedAt": 1795000000000
+        },
+        {
+          "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+          "publicKey": "2cHeyDHvhA9M_VrS73JVkCm-NoudiJz4GiVevuJ32qc",
+          "name": "Room 2",
+          "relayUrl": "wss://relay.example/v1/sealed/qoasjogo65qh2cy62xmytganhyz74fla",
+          "connected": false,
+          "lastSeen": null,
+          "linkedAt": 1795000000000
+        }
+      ]
+    },
+    "unlink": {
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "relayDomain": "relay.example",
+      "time": 1795561073000,
+      "signature": "_XPXQ3qzk4PelCQc18j96-ZVXxEh44EYnlJShyO1NAUn28RLOJYHKaL15n3Z1MnouIgpXVw5xFGk16T8ThLHAw"
+    },
+    "error": {
+      "error": "Sign in to your account again.",
+      "code": "sign-in",
+      "signIn": true
+    }
+  },
+  "withUnknownFields": {
+    "machines": {
+      "machines": [
+        {
+          "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+          "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+          "name": "Main computer",
+          "relayUrl": "wss://relay.example/v1/sealed/3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+          "connected": true,
+          "lastSeen": 1795561073000,
+          "linkedAt": 1795000000000,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        },
+        {
+          "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+          "publicKey": "2cHeyDHvhA9M_VrS73JVkCm-NoudiJz4GiVevuJ32qc",
+          "name": "Room 2",
+          "relayUrl": "wss://relay.example/v1/sealed/qoasjogo65qh2cy62xmytganhyz74fla",
+          "connected": false,
+          "lastSeen": null,
+          "linkedAt": 1795000000000,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        }
+      ],
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "unlink": {
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "relayDomain": "relay.example",
+      "time": 1795561073000,
+      "signature": "_XPXQ3qzk4PelCQc18j96-ZVXxEh44EYnlJShyO1NAUn28RLOJYHKaL15n3Z1MnouIgpXVw5xFGk16T8ThLHAw",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "error": {
+      "error": "Sign in to your account again.",
+      "code": "sign-in",
+      "signIn": true,
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    }
+  },
+  "unreadable": {
+    "machinesWrongKey": {
+      "message": {
+        "machines": [
+          {
+            "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+            "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+            "name": "Main computer",
+            "relayUrl": "wss://relay.example/v1/sealed/3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+            "connected": true,
+            "lastSeen": 1795561073000,
+            "linkedAt": 1795000000000
+          }
+        ]
+      },
+      "refusedBy": "wrongKey"
+    }
+  },
+  "unlinkChecks": [
+    {
+      "path": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "relayDomain": "relay.example",
+      "expect": "ok"
+    },
+    {
+      "path": "qoasjogo65qh2cy62xmytganhyz74fla",
+      "relayDomain": "relay.example",
+      "expect": "bad-request"
+    },
+    {
+      "path": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "relayDomain": "other.example",
+      "expect": "bad-request"
+    }
+  ],
+  "errors": [
+    {
+      "error": "Sign in to your account again.",
+      "code": "sign-in",
+      "signIn": true
+    },
+    {
+      "error": "This machine is linked to another account. Unlink it there first.",
+      "code": "linked-elsewhere"
+    },
+    {
+      "error": "This account has all the machines it can hold. Unlink one first.",
+      "code": "account-full"
+    },
+    {
+      "error": "Something new.",
+      "code": "a-later-code"
+    }
+  ]
+}

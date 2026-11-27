@@ -1,0 +1,40 @@
+{
+  "session": {
+    "id": "r-1a", "title": "An example session", "cwd": "/work/example", "project": "Example project", "status": "running",
+    "account": "a-1", "claude": "c-1", "worktree": null, "branch": null, "meta": { "direct": true },
+    "created": "2026-11-24T20:00:00.000Z", "updated": "2026-11-24T21:56:00.000Z", "model": "example-model", "effort": "high",
+    "running": true, "place": "Linux PC", "accountName": "Example account", "tasks": [12], "doing": "Running: cargo test"
+  },
+  "events": [
+    {
+      "seq": 7, "turn": "r-1a:3", "at": "2026-11-24T21:50:00.000Z", "kind": "user", "text": "Run the example checks", "by": "owner",
+      "files": [{ "name": "notes.txt", "url": "/uploads/notes.txt", "kind": "file" }]
+    },
+    { "seq": 8, "turn": "r-1a:3", "at": "2026-11-24T21:50:02.000Z", "kind": "thinking", "text": "", "ms": 6200 },
+    { "seq": 9, "turn": "r-1a:3", "at": "2026-11-24T21:50:03.000Z", "kind": "text", "text": "I'll run them." },
+    {
+      "seq": 10, "turn": "r-1a:3", "at": "2026-11-24T21:50:04.000Z", "kind": "tool", "name": "Bash", "summary": "cargo test",
+      "doing": "Running: cargo test", "input": "cargo test", "id": "call-1"
+    },
+    {
+      "seq": 11, "turn": "r-1a:3", "at": "2026-11-24T21:50:09.000Z", "kind": "result", "text": "1 failed", "error": true, "lines": 40,
+      "id": "call-1"
+    },
+    {
+      "seq": 12, "turn": "r-1a:3", "at": "2026-11-24T21:50:10.000Z", "kind": "tool", "name": "Edit", "doing": "Editing main.rs",
+      "diff": "- old\n+ new", "id": "call-2", "parent": "call-0"
+    },
+    {
+      "seq": 13, "turn": "r-1a:3", "at": "2026-11-24T21:50:11.000Z", "kind": "todos",
+      "todos": [{ "content": "Run the checks", "status": "in_progress", "activeForm": "Running the checks" }]
+    },
+    {
+      "seq": 14, "turn": "r-1a:3", "at": "2026-11-24T21:50:12.000Z", "kind": "question",
+      "questions": [{ "question": "Which one?", "header": "Pick", "multiSelect": false,
+        "options": [{ "label": "The first", "description": "The older one" }, { "label": "The second" }] }]
+    },
+    { "seq": 15, "turn": "r-1a:3", "at": "2026-11-24T21:50:13.000Z", "kind": "end", "n": 3, "outcome": "completed" },
+    { "seq": 16, "turn": null, "at": "2026-11-24T21:51:00.000Z", "kind": "system", "text": "Moved from Example account to Another: asked for" }
+  ],
+  "earlier": true
+}

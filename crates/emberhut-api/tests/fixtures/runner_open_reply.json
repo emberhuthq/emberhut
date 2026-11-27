@@ -1,0 +1,2 @@
+{ "ok": true, "id": "r-3c", "turn": "r-3c:1", "session": { "id": "r-3c", "turn": "r-3c:1", "account": "a-2",
+  "cwd": "/work/wt/example-fix", "branch": "example-fix", "worktree": "/work/wt/example-fix", "model": "example-model" } }

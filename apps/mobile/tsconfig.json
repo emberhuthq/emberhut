@@ -1,0 +1,23 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    // app.config.ts imports dependency-free modules of src/ by their .ts name: Expo loads it on Node, whose type
+    // stripping (Node 22.18 and later) runs them as they are, while Node's require never guesses a .ts extension.
+    "allowImportingTsExtensions": true,
+    // The config plugins are CommonJS for Expo's require, type-checked through their JSDoc.
+    "checkJs": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "plugins/**/*.js"],
+  "exclude": ["node_modules", "android", "ios", "dist"]
+}

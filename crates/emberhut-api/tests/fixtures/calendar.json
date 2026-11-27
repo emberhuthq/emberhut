@@ -1,0 +1,77 @@
+{
+ "from": "2026-11-23",
+ "to": "2026-11-29",
+ "events": [
+  {
+   "title": "Example review",
+   "start": "2026-11-24T09:00:00.000Z",
+   "end": "2026-11-24T10:00:00.000Z",
+   "allDay": false,
+   "calendar": "Work",
+   "location": "Room 2",
+   "notes": "Bring the drafts.",
+   "people": 3,
+   "id": "a1b2c3d4e5f60718",
+   "day": "2026-11-24",
+   "kind": "meeting"
+  },
+  {
+   "title": "A day off",
+   "start": "2026-11-27T00:00:00.000Z",
+   "end": "2026-11-28T00:00:00.000Z",
+   "allDay": true,
+   "calendar": "Home",
+   "people": 0,
+   "id": "0f1e2d3c4b5a6978",
+   "day": "2026-11-27",
+   "kind": "event"
+  }
+ ],
+ "items": [
+  {
+   "kind": "decide",
+   "day": "2026-11-25",
+   "task": 12,
+   "key": "T-12",
+   "project": 3,
+   "title": "Name the example report",
+   "hard": false,
+   "status": "waiting",
+   "action": null,
+   "later": false
+  },
+  {
+   "kind": "deadline",
+   "day": "2026-11-26",
+   "task": 14,
+   "key": "T-14",
+   "project": null,
+   "title": "Pay for the example part",
+   "hard": true,
+   "status": "todo"
+  },
+  {
+   "kind": "deadline",
+   "day": "2026-11-28",
+   "task": null,
+   "key": null,
+   "project": 3,
+   "title": "Example launch",
+   "hard": false,
+   "status": null,
+   "count": 2
+  },
+  {
+   "kind": "today",
+   "day": "2026-11-24",
+   "task": 15,
+   "key": "T-15",
+   "project": null,
+   "title": "Write the example brief",
+   "hard": false,
+   "status": "working"
+  }
+ ],
+ "note": null,
+ "at": "2026-11-24T08:00:00.000Z"
+}

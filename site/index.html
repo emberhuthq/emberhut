@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fbf7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14100d" media="(prefers-color-scheme: dark)" />
+    <title>Emberhut by Symploc: a warm home for your personal agent</title>
+    <meta
+      name="description"
+      content="Emberhut by Symploc is an open-source personal agent that lives on your own machine. Quiet while you're away, ready the moment you need it. Desktop, phone, browser and Mac."
+    />
+    <link rel="canonical" href="https://emberhut.com/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Emberhut by Symploc" />
+    <meta property="og:title" content="Emberhut by Symploc: a warm home for your personal agent" />
+    <meta
+      property="og:description"
+      content="An open-source personal agent that lives on your own machine. Quiet while you're away, ready the moment you need it."
+    />
+    <meta property="og:url" content="https://emberhut.com/" />
+    <meta property="og:image" content="https://emberhut.com/og.png?v=2" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Emberhut by Symploc: a warm home for your personal agent" />
+    <meta name="author" content="Symploc" />
+    <link rel="stylesheet" href="/styles.css?v=7" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="/" aria-label="Emberhut by Symploc, home">
+          <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <radialGradient id="coal-nav" cx="50%" cy="45%" r="55%">
+                <stop offset="0" stop-color="#ffd27a" />
+                <stop offset="0.55" stop-color="#ff7a2e" />
+                <stop offset="1" stop-color="#d6361a" />
+              </radialGradient>
+            </defs>
+            <path
+              d="M9 29.5 32 11l23 18.5V51a5 5 0 0 1-5 5H14a5 5 0 0 1-5-5z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="4.5"
+              stroke-linejoin="round"
+            />
+            <circle class="coal" cx="32" cy="41" r="7.5" fill="url(#coal-nav)" />
+          </svg>
+          <span class="wordmark">Emberhut <span class="by">by <svg class="symploc-mark" viewBox="0 0 40 24" fill="none" aria-hidden="true" shape-rendering="geometricPrecision">
+            <path d="M2,14.572 C2.25,14.861 3,15.778 3.5,16.308 C4,16.837 4.5,17.334 5,17.75 C5.5,18.165 6,18.527 6.5,18.8 C7,19.073 7.5,19.276 8,19.387 C8.5,19.499 9,19.528 9.5,19.471 C10,19.414 10.5,19.267 11,19.045 C11.5,18.823 12,18.511 12.5,18.14 C13,17.768 13.5,17.312 14,16.816 C14.5,16.319 15,15.75 15.5,15.163 C16,14.577 16.5,13.933 17,13.295 C17.5,12.658 18,11.984 18.5,11.339 C19,10.695 19.5,10.036 20,9.428 C20.5,8.82 21,8.222 21.5,7.692 C22,7.163 22.5,6.666 23,6.25 C23.5,5.835 24,5.473 24.5,5.2 C25,4.927 25.5,4.724 26,4.613 C26.5,4.501 27,4.472 27.5,4.529 C28,4.586 28.5,4.733 29,4.955 C29.5,5.177 30,5.489 30.5,5.86 C31,6.232 31.5,6.688 32,7.184 C32.5,7.681 33,8.25 33.5,8.837 C34,9.423 34.5,10.067 35,10.705 C35.5,11.342 36,12.016 36.5,12.661 C37,13.305 37.75,14.253 38,14.572" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="0.35" />
+            <path d="M2,16.816 C2.25,16.54 3,15.75 3.5,15.163 C4,14.577 4.5,13.933 5,13.295 C5.5,12.658 6,11.984 6.5,11.339 C7,10.695 7.5,10.036 8,9.428 C8.5,8.82 9,8.222 9.5,7.692 C10,7.163 10.5,6.666 11,6.25 C11.5,5.835 12,5.473 12.5,5.2 C13,4.927 13.5,4.724 14,4.613 C14.5,4.501 15,4.472 15.5,4.529 C16,4.586 16.5,4.733 17,4.955 C17.5,5.177 18,5.489 18.5,5.86 C19,6.232 19.5,6.688 20,7.184 C20.5,7.681 21,8.25 21.5,8.837 C22,9.423 22.5,10.067 23,10.705 C23.5,11.342 24,12.016 24.5,12.661 C25,13.305 25.5,13.964 26,14.572 C26.5,15.18 27,15.778 27.5,16.308 C28,16.837 28.5,17.334 29,17.75 C29.5,18.165 30,18.527 30.5,18.8 C31,19.073 31.5,19.276 32,19.387 C32.5,19.499 33,19.528 33.5,19.471 C34,19.414 34.5,19.267 35,19.045 C35.5,18.823 36,18.511 36.5,18.14 C37,17.768 37.75,17.036 38,16.816" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="0.65" />
+            <path d="M2,4.613 C2.25,4.599 3,4.472 3.5,4.529 C4,4.586 4.5,4.733 5,4.955 C5.5,5.177 6,5.489 6.5,5.86 C7,6.232 7.5,6.688 8,7.184 C8.5,7.681 9,8.25 9.5,8.837 C10,9.423 10.5,10.067 11,10.705 C11.5,11.342 12,12.016 12.5,12.661 C13,13.305 13.5,13.964 14,14.572 C14.5,15.18 15,15.778 15.5,16.308 C16,16.837 16.5,17.334 17,17.75 C17.5,18.165 18,18.527 18.5,18.8 C19,19.073 19.5,19.276 20,19.387 C20.5,19.499 21,19.528 21.5,19.471 C22,19.414 22.5,19.267 23,19.045 C23.5,18.823 24,18.511 24.5,18.14 C25,17.768 25.5,17.312 26,16.816 C26.5,16.319 27,15.75 27.5,15.163 C28,14.577 28.5,13.933 29,13.295 C29.5,12.658 30,11.984 30.5,11.339 C31,10.695 31.5,10.036 32,9.428 C32.5,8.82 33,8.222 33.5,7.692 C34,7.163 34.5,6.666 35,6.25 C35.5,5.835 36,5.473 36.5,5.2 C37,4.927 37.75,4.711 38,4.613" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="1" />
+          </svg>Symploc</span></span>
+        </a>
+        <nav class="nav" aria-label="Main">
+          <a class="hide-sm" href="#what">What it does</a>
+          <a class="hide-sm" href="#apps">Apps</a>
+          <a class="hide-sm" href="#open-source">Open source</a>
+          <a class="hide-sm" href="/docs/">Docs</a>
+          <a class="btn primary" href="#get">Get notified</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="wrap">
+          <div class="hero-mark" aria-hidden="true">
+            <div class="glow"></div>
+            <div class="sparks"><span></span><span></span><span></span></div>
+            <svg class="mark" viewBox="0 0 64 64">
+              <defs>
+                <radialGradient id="coal-hero" cx="50%" cy="45%" r="55%">
+                  <stop offset="0" stop-color="#ffd27a" />
+                  <stop offset="0.55" stop-color="#ff7a2e" />
+                  <stop offset="1" stop-color="#d6361a" />
+                </radialGradient>
+              </defs>
+              <path
+                d="M9 29.5 32 11l23 18.5V51a5 5 0 0 1-5 5H14a5 5 0 0 1-5-5z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3.5"
+                stroke-linejoin="round"
+              />
+              <circle class="coal" cx="32" cy="41" r="7.5" fill="url(#coal-hero)" />
+            </svg>
+          </div>
+          <p class="eyebrow"><span class="dot"></span>Early preview · open source</p>
+          <h1>A warm home for your <em>personal agent</em></h1>
+          <p class="lede">
+            Emberhut is a personal agent that lives on your own machine. Quiet while you're away, ready the
+            moment you need it, on your desktop, your phone, your browser and your Mac.
+          </p>
+          <div class="ctas">
+            <a class="btn primary" href="#get">Join the waitlist</a>
+            <a class="btn" href="#ember">Why an ember?</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="ember" class="reveal">
+        <div class="wrap story">
+          <div>
+            <p class="kicker">The name</p>
+            <h2>The coal that keeps glowing</h2>
+            <p style="margin-top: 18px">
+              An ember is what's left when the flames die down: a coal that keeps glowing, holding its heat, ready
+              to catch again the moment you breathe on it.
+            </p>
+            <p>
+              Emberhut is a small, warm home where your agent lives. It keeps working quietly while you're away,
+              remembers what you told it, and is there the second you come back.
+            </p>
+            <p class="muted">
+              Not a chat window that forgets you when you close it. A place, on a computer you own, that's always
+              a little bit lit.
+            </p>
+          </div>
+          <div class="ember-card" role="img" aria-label="The Emberhut mark glowing in the dark">
+            <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <radialGradient id="coal-card" cx="50%" cy="45%" r="55%">
+                  <stop offset="0" stop-color="#ffe2a0" />
+                  <stop offset="0.55" stop-color="#ff7a2e" />
+                  <stop offset="1" stop-color="#d6361a" />
+                </radialGradient>
+              </defs>
+              <path
+                d="M9 29.5 32 11l23 18.5V51a5 5 0 0 1-5 5H14a5 5 0 0 1-5-5z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linejoin="round"
+              />
+              <circle class="coal" cx="32" cy="41" r="7.5" fill="url(#coal-card)" />
+            </svg>
+            <span class="caption">Still glowing at 3 a.m.</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="what" class="reveal">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="kicker">What it does</p>
+            <h2>An agent that keeps working while you don't</h2>
+            <p>
+              Talk to it like a person, give it the boring parts, and come back to things done, or to the one
+              question only you can answer.
+            </p>
+          </div>
+          <div class="grid">
+            <article class="card">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+              </div>
+              <h3>Rooms, not threads</h3>
+              <p>Each room is its own conversation with its own agent, so work for one thing never spills into another.</p>
+            </article>
+            <article class="card">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5" /><path d="M12 16h.01" /></svg>
+              </div>
+              <h3>Needs you</h3>
+              <p>When it needs a decision, an approval or a login, it asks in one place, then gets on with the rest.</p>
+            </article>
+            <article class="card">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8" /><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" /></svg>
+              </div>
+              <h3>Tasks and routines</h3>
+              <p>Hand it tasks, schedule things for later and set routines that run on their own while you're away.</p>
+            </article>
+            <article class="card">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z" /></svg>
+              </div>
+              <h3>Uses your browser</h3>
+              <p>It works in tabs in your own Chrome profiles, signed in as you, and you can watch it live.</p>
+            </article>
+            <article class="card">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8" /><path d="M12 16v4" /></svg>
+              </div>
+              <h3>Hands on your Mac</h3>
+              <p>It can use your Mac's apps, one at a time in the background, asking first for each app it touches.</p>
+            </article>
+            <article class="card">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2z" /><path d="M8 8h8" /><path d="M8 12h5" /></svg>
+              </div>
+              <h3>Remembers</h3>
+              <p>Facts about you, notes, your calendar and a quick daily diary, so you don't start from zero every time.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="apps" class="reveal">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="kicker">The apps</p>
+            <h2>One agent, wherever you are</h2>
+            <p>The hut is a small server on a computer you own. Everything else is a window into it.</p>
+          </div>
+          <div class="grid">
+            <article class="card app-card">
+              <div class="meta">
+                <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M2 20h20" /></svg></div>
+                <span class="pill warm">macOS first</span>
+              </div>
+              <h3>Desktop</h3>
+              <p>A fast native app, written in Rust.</p>
+              <ul>
+                <li>Rooms, Needs you and tasks</li>
+                <li>Schedules, calendar and reports</li>
+                <li>Watch its browser as it works</li>
+                <li>Linux and Windows next</li>
+              </ul>
+            </article>
+            <article class="card app-card">
+              <div class="meta">
+                <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" /></svg></div>
+                <span class="pill warm">iPhone · Android</span>
+              </div>
+              <h3>Phone</h3>
+              <p>Your agent in your pocket.</p>
+              <ul>
+                <li>Chat, tasks and Needs you</li>
+                <li>Its live browser, on the go</li>
+                <li>Pairs with a one-time code</li>
+              </ul>
+            </article>
+            <article class="card app-card">
+              <div class="meta">
+                <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" /><circle cx="12" cy="15" r="2" /></svg></div>
+                <span class="pill warm">Self-hosted</span>
+              </div>
+              <h3>The hut</h3>
+              <p>The server your agent lives in.</p>
+              <ul>
+                <li>Written in Rust, one SQLite file</li>
+                <li>Runs on your own computer</li>
+                <li>Mail, calendar, Slack, WhatsApp</li>
+              </ul>
+            </article>
+            <article class="card app-card">
+              <div class="meta">
+                <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.5" /><path d="M12 8.5h8.5" /><path d="M9 13.8 4.8 6.4" /><path d="M15 13.8 10.8 21" /></svg></div>
+                <span class="pill">Chrome</span>
+              </div>
+              <h3>Browser extension</h3>
+              <p>Lets it work in your real Chrome profiles, with your logins, in its own tabs.</p>
+            </article>
+            <article class="card app-card">
+              <div class="meta">
+                <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11V6a2 2 0 0 1 4 0v5" /><path d="M11 10V4.5a2 2 0 0 1 4 0V10" /><path d="M15 10V6.5a2 2 0 0 1 4 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3.4L3 14.5a2 2 0 0 1 3.4-2L7 13" /></svg></div>
+                <span class="pill">macOS</span>
+              </div>
+              <h3>Hands</h3>
+              <p>
+                Uses your Mac's apps in the background. The whole screen only with your OK or while you're away,
+                with a Stop bar. It can lock your Mac, never unlock it.
+              </p>
+            </article>
+            <article class="card app-card">
+              <div class="meta">
+                <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /><path d="M7 6.5h.01" /><path d="M10 6.5h.01" /></svg></div>
+                <span class="pill">Coming</span>
+              </div>
+              <h3>Web</h3>
+              <p>The same agent from any browser, for when you're away from your own devices.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band reveal" id="yours">
+        <div class="wrap">
+          <div class="section-head">
+            <p class="kicker">Yours</p>
+            <h2>It lives with you, not with us</h2>
+          </div>
+          <div class="facts">
+            <div>
+              <h3>On a computer you own</h3>
+              <p>
+                The hut runs on your machine and keeps its data in one SQLite file there. We don't run a copy of
+                your agent, and we don't see what it does.
+              </p>
+            </div>
+            <div>
+              <h3>Paired, not signed up</h3>
+              <p>
+                Your phone and desktop pair with a one-time code that works once, for ten minutes. Each device
+                keeps its session in the system keychain.
+              </p>
+            </div>
+            <div>
+              <h3>A real agent inside</h3>
+              <p>
+                Each room runs a Claude Code session on your machine, with tools for your tasks, notes, calendar,
+                messages and browser.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="open-source" class="reveal">
+        <div class="wrap">
+          <div class="oss">
+            <div>
+              <p class="kicker">Open source</p>
+              <h2>Read every line of it</h2>
+              <p>
+                Emberhut is open source under <span class="code">MIT</span> or
+                <span class="code">Apache-2.0</span>, your choice. The code goes public on GitHub soon.
+              </p>
+            </div>
+            <span class="btn" aria-disabled="true">GitHub · coming soon</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="get" class="get reveal">
+        <div class="wrap">
+          <div class="section-head center">
+            <p class="kicker">Get Emberhut</p>
+            <h2>Be the first to light it</h2>
+            <p>Emberhut is in early preview. Downloads open here first. Leave your email and we'll tell you.</p>
+          </div>
+          <div class="downloads">
+            <div class="dl"><strong>Mac</strong>Coming soon</div>
+            <div class="dl"><strong>iPhone</strong>Coming soon</div>
+            <div class="dl"><strong>Android</strong>Coming soon</div>
+          </div>
+          <a
+            class="btn primary"
+            href="mailto:hello@emberhut.com?subject=Emberhut%20waitlist&amp;body=Please%20let%20me%20know%20when%20Emberhut%20is%20ready."
+            >Join the waitlist by email</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p class="made">Emberhut is made by <a class="symploc" href="https://symploc.com"><svg class="symploc-mark" viewBox="0 0 40 24" fill="none" aria-hidden="true" shape-rendering="geometricPrecision">
+            <path d="M2,14.572 C2.25,14.861 3,15.778 3.5,16.308 C4,16.837 4.5,17.334 5,17.75 C5.5,18.165 6,18.527 6.5,18.8 C7,19.073 7.5,19.276 8,19.387 C8.5,19.499 9,19.528 9.5,19.471 C10,19.414 10.5,19.267 11,19.045 C11.5,18.823 12,18.511 12.5,18.14 C13,17.768 13.5,17.312 14,16.816 C14.5,16.319 15,15.75 15.5,15.163 C16,14.577 16.5,13.933 17,13.295 C17.5,12.658 18,11.984 18.5,11.339 C19,10.695 19.5,10.036 20,9.428 C20.5,8.82 21,8.222 21.5,7.692 C22,7.163 22.5,6.666 23,6.25 C23.5,5.835 24,5.473 24.5,5.2 C25,4.927 25.5,4.724 26,4.613 C26.5,4.501 27,4.472 27.5,4.529 C28,4.586 28.5,4.733 29,4.955 C29.5,5.177 30,5.489 30.5,5.86 C31,6.232 31.5,6.688 32,7.184 C32.5,7.681 33,8.25 33.5,8.837 C34,9.423 34.5,10.067 35,10.705 C35.5,11.342 36,12.016 36.5,12.661 C37,13.305 37.75,14.253 38,14.572" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="0.35" />
+            <path d="M2,16.816 C2.25,16.54 3,15.75 3.5,15.163 C4,14.577 4.5,13.933 5,13.295 C5.5,12.658 6,11.984 6.5,11.339 C7,10.695 7.5,10.036 8,9.428 C8.5,8.82 9,8.222 9.5,7.692 C10,7.163 10.5,6.666 11,6.25 C11.5,5.835 12,5.473 12.5,5.2 C13,4.927 13.5,4.724 14,4.613 C14.5,4.501 15,4.472 15.5,4.529 C16,4.586 16.5,4.733 17,4.955 C17.5,5.177 18,5.489 18.5,5.86 C19,6.232 19.5,6.688 20,7.184 C20.5,7.681 21,8.25 21.5,8.837 C22,9.423 22.5,10.067 23,10.705 C23.5,11.342 24,12.016 24.5,12.661 C25,13.305 25.5,13.964 26,14.572 C26.5,15.18 27,15.778 27.5,16.308 C28,16.837 28.5,17.334 29,17.75 C29.5,18.165 30,18.527 30.5,18.8 C31,19.073 31.5,19.276 32,19.387 C32.5,19.499 33,19.528 33.5,19.471 C34,19.414 34.5,19.267 35,19.045 C35.5,18.823 36,18.511 36.5,18.14 C37,17.768 37.75,17.036 38,16.816" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="0.65" />
+            <path d="M2,4.613 C2.25,4.599 3,4.472 3.5,4.529 C4,4.586 4.5,4.733 5,4.955 C5.5,5.177 6,5.489 6.5,5.86 C7,6.232 7.5,6.688 8,7.184 C8.5,7.681 9,8.25 9.5,8.837 C10,9.423 10.5,10.067 11,10.705 C11.5,11.342 12,12.016 12.5,12.661 C13,13.305 13.5,13.964 14,14.572 C14.5,15.18 15,15.778 15.5,16.308 C16,16.837 16.5,17.334 17,17.75 C17.5,18.165 18,18.527 18.5,18.8 C19,19.073 19.5,19.276 20,19.387 C20.5,19.499 21,19.528 21.5,19.471 C22,19.414 22.5,19.267 23,19.045 C23.5,18.823 24,18.511 24.5,18.14 C25,17.768 25.5,17.312 26,16.816 C26.5,16.319 27,15.75 27.5,15.163 C28,14.577 28.5,13.933 29,13.295 C29.5,12.658 30,11.984 30.5,11.339 C31,10.695 31.5,10.036 32,9.428 C32.5,8.82 33,8.222 33.5,7.692 C34,7.163 34.5,6.666 35,6.25 C35.5,5.835 36,5.473 36.5,5.2 C37,4.927 37.75,4.711 38,4.613" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="1" />
+          </svg>Symploc</a> · <span class="nowrap">© 2026 Symploc, LLC</span></p>
+        <nav aria-label="Footer">
+          <a href="/docs/">Docs</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <a href="mailto:hello@emberhut.com">Contact</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

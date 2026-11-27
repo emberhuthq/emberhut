@@ -1,0 +1,17 @@
+{
+  "at": "2026-11-24T21:57:53.410Z",
+  "account": "main",
+  "live": true,
+  "mcp": [
+    { "name": "assistant", "state": "connected", "error": null, "source": "local", "kind": "stdio", "on": true, "fixed": true, "note": "The assistant's own tools: always on" },
+    { "name": "files", "state": "failed", "error": "connection refused", "source": "user", "kind": "http", "on": true, "fixed": false, "note": null },
+    { "name": "calendar", "state": "needs-auth", "error": null, "source": "claudeai", "kind": "claude.ai connector", "on": true, "fixed": false, "note": "Sign in at claude.ai, Settings, Connectors" },
+    { "name": "notes", "state": "off", "error": null, "source": "user", "kind": null, "on": false, "fixed": false, "note": null }
+  ],
+  "skills": [
+    { "name": "example-skill", "description": "Writes example reports.\nIn the house style.", "source": "yours", "on": true },
+    { "name": "tools:review", "description": "", "source": "plugin", "on": false },
+    { "name": "simplify", "description": "Cleans code up.", "source": "built in", "on": true }
+  ],
+  "note": null
+}

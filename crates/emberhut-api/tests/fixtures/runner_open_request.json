@@ -1,0 +1,2 @@
+{ "machine": "runner-b", "cwd": "/work/mine", "text": "Fix the example", "files": [], "account": "a-2", "model": "example-model",
+  "effort": "xhigh", "worktree": { "branch": "example-fix" } }

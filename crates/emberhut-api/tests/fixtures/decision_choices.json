@@ -1,0 +1,22 @@
+{
+  "question": "Which plan should the example take?",
+  "options": ["Plan A", "Plan B", "More ideas"],
+  "kind": "choose",
+  "recommend": 0,
+  "context": "Both plans are made up.",
+  "choices": [
+    {
+      "label": "Plan A", "title": "The small plan", "summary": "Done in a week.", "badge": "8/10",
+      "then": "The assistant starts on it", "more": "The long version of the small plan.",
+      "fields": [{ "k": "Cost", "v": "100" }, { "k": "Time", "v": "a week" }],
+      "why": "It is cheaper", "media": [7]
+    },
+    {
+      "label": "Plan B", "title": "The big plan", "summary": "Done in a month.", "badge": "6/10",
+      "fields": [{ "k": "Cost", "v": "400" }, { "k": "Time", "v": "a month" }]
+    },
+    { "label": "More ideas" }
+  ],
+  "chat": "Asked in the example room",
+  "asked": "2026-11-24T20:00:00.000Z"
+}

@@ -1,0 +1,78 @@
+{
+  "at": "2026-11-24T22:00:00.000Z",
+  "summary": { "ok": 2, "warn": 1, "down": 1 },
+  "groups": [
+    {
+      "id": "runners", "title": "Runners", "footer": null,
+      "items": [
+        {
+          "id": "runner", "group": "runners", "name": "Runner on the Linux PC", "icon": "server.rack", "tint": "teal",
+          "state": "ok", "status": "Online", "detail": "3 sessions · 2 accounts", "at": "2026-11-24T21:59:30.000Z",
+          "error": null, "hint": null,
+          "facts": [
+            { "label": "Version", "value": "1.4.0" },
+            { "label": "Disk", "value": "Plenty of room on the example disk for new work", "state": "ok" }
+          ],
+          "lists": [
+            {
+              "title": "Accounts",
+              "items": [
+                { "name": "Example account", "value": "25%", "note": "any work", "state": "ok" },
+                { "name": "Second account", "state": "warn" }
+              ]
+            },
+            { "title": "Folders", "items": [], "empty": "No folders yet" }
+          ],
+          "actions": [ { "id": "check", "label": "Check now" } ],
+          "lastError": { "error": "not reachable (ECONNREFUSED)", "at": "2026-11-24T20:00:00.000Z" }
+        }
+      ]
+    },
+    {
+      "id": "browser", "title": "Browser", "footer": "Its own profile, apart from yours.",
+      "items": [
+        {
+          "id": "browser", "group": "browser", "name": "The browser", "icon": "safari.fill", "tint": "orange",
+          "state": "down", "status": "Down", "detail": "Not answering", "at": null,
+          "error": "connect ECONNREFUSED", "hint": "Start it here; it takes a few seconds.",
+          "facts": [], "lists": [],
+          "actions": [ { "id": "check", "label": "Check now" }, { "id": "start", "label": "Start it" } ],
+          "lastError": null
+        }
+      ]
+    },
+    {
+      "id": "t3", "title": "Coding threads", "footer": null,
+      "items": [
+        {
+          "id": "t3-mac", "group": "t3", "name": "Coding app on the Mac", "icon": "laptopcomputer", "tint": "gray", "legacy": true,
+          "state": "off", "status": "Off", "detail": "No threads", "at": null, "error": null, "hint": null,
+          "facts": [], "lists": [], "actions": [], "lastError": null
+        }
+      ]
+    },
+    {
+      "id": "connections", "title": "Connections", "footer": null,
+      "items": [
+        {
+          "id": "gmail:work", "group": "connections", "name": "work@example.com", "icon": "envelope.fill", "tint": "red",
+          "state": "warn", "status": "Read yes · send no", "detail": "Last mail 3 minutes ago", "at": "2026-11-24T21:57:00.000Z",
+          "error": null, "hint": null, "facts": [ { "label": "Reads", "value": "Inbox" } ], "lists": [],
+          "actions": [
+            { "id": "check", "label": "Check now" },
+            { "id": "link", "label": "Reconnect: a Google sign-in link" },
+            { "id": "unlink", "label": "Unlink: delete its sign-in" }
+          ],
+          "lastError": null
+        },
+        {
+          "id": "health", "group": "connections", "name": "Health", "icon": "heart.fill", "tint": "pink",
+          "state": "ok", "status": "Fresh", "detail": "Sent 10 minutes ago", "at": "2026-11-24T21:50:00.000Z",
+          "error": null, "hint": null, "facts": [], "lists": [],
+          "actions": [ { "id": "health-sync", "label": "Sync now" } ],
+          "lastError": null
+        }
+      ]
+    }
+  ]
+}

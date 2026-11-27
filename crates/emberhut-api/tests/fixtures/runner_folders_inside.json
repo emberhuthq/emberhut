@@ -1,0 +1,2 @@
+{ "machine": "runner", "home": "/home/example", "path": "/home/example/Documents", "git": false,
+  "folders": [{ "path": "/home/example/Documents/notes", "name": "notes", "git": false }] }

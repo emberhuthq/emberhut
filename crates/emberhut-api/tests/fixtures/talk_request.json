@@ -1,0 +1,6 @@
+{
+  "text": "Can you look at the example?",
+  "files": [{ "name": "notes.txt", "url": "/uploads/notes.txt", "kind": "file", "path": "/data/uploads/notes.txt" }],
+  "replyTo": 39,
+  "room": 2
+}

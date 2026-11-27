@@ -1,0 +1,24 @@
+packages:
+  - apps/extension
+  - apps/mobile
+  - apps/web
+  - packages/*
+
+# esbuild (from vitest) has a postinstall that only checks its binary; nothing needs it run.
+allowBuilds:
+  esbuild: false
+  # From Clerk's SDK (@clerk/clerk-js): browser-tabs-lock's postinstall loads a file the package doesn't ship, and
+  # core-js's prints a notice. Neither builds anything.
+  browser-tabs-lock: false
+  core-js: false
+
+# Fixes not yet in a release, applied on every install. react-native-bottom-tabs: Android's tab bar doesn't pad itself
+# by the keyboard (apps/mobile/README.md, "The keyboard").
+patchedDependencies:
+  react-native-bottom-tabs@1.5.0: patches/react-native-bottom-tabs-1.5.0.patch
+
+# Dependencies a package uses without declaring them. @clerk/expo-passkeys loads buffer at run time.
+packageExtensions:
+  "@clerk/expo-passkeys@2":
+    dependencies:
+      buffer: ^6.0.3

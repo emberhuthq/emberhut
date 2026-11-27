@@ -1,0 +1,130 @@
+{
+  "at": "2026-11-24T21:57:53.410Z",
+  "thresholds": {
+    "minAvailableGb": 4,
+    "minFreeDiskGb": 15,
+    "maxLoadPerCore": 1.5,
+    "alertDiskGb": 10,
+    "warnDiskPct": 95,
+    "minCapRoomGb": 2,
+    "staleSeconds": 60,
+    "offlineSeconds": 120
+  },
+  "machines": [
+    {
+      "id": "runner",
+      "name": "Example machine",
+      "host": "example-host",
+      "platform": "linux",
+      "state": "warn",
+      "status": "ok",
+      "seen": "2026-11-24T21:57:40.000Z",
+      "age": 13,
+      "placeable": true,
+      "skipWhy": null,
+      "warnings": [
+        {
+          "level": "warn",
+          "text": "/data has 10.0 GB free"
+        }
+      ],
+      "cpu": {
+        "cores": 8,
+        "load1": 1.2,
+        "usage": 0.12
+      },
+      "memory": {
+        "total": 17179869184,
+        "available": 8589934592,
+        "used": 8589934592,
+        "swapTotal": 0,
+        "swapUsed": 0,
+        "pressure": null
+      },
+      "gpus": [
+        {
+          "index": 0,
+          "name": "Example GPU",
+          "util": 0.05,
+          "memUsed": 1073741824,
+          "memTotal": 8589934592,
+          "temp": 41,
+          "power": 30,
+          "procs": [
+            { "pid": 41, "name": "llama-server", "mem": 1073741824, "unit": "example.service", "user": "example" },
+            { "pid": 42, "mem": 0 }
+          ]
+        }
+      ],
+      "disks": [
+        {
+          "path": "/data",
+          "total": 500000000000,
+          "free": 10737418240
+        }
+      ],
+      "battery": null,
+      "runner": {
+        "sessions": 2,
+        "queued": 0,
+        "open": 3,
+        "claude": 2,
+        "claudeRss": 2147483648,
+        "rss": 100000000,
+        "cap": {
+          "name": "example.slice",
+          "used": 4294967296,
+          "high": 8589934592,
+          "max": 12884901888,
+          "by": "MemoryMax"
+        }
+      },
+      "sessions": [
+        {
+          "id": "s-1",
+          "title": "An example session",
+          "status": "running",
+          "running": true,
+          "doing": "Running the example checks",
+          "account": "a-1",
+          "accountName": "Example account",
+          "used5h": 0.25,
+          "used7d": 0.4,
+          "limitedUntil": null
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-11-24T21:55:00.000Z",
+          "cpu": 0.2,
+          "load": 1.5,
+          "memAvail": 7516192768,
+          "gpu": 0.1,
+          "vram": 1073741824,
+          "diskFree": 10737418240
+        }
+      ]
+    },
+    {
+      "id": "runner-2",
+      "name": "Example laptop",
+      "host": null,
+      "platform": null,
+      "state": "unknown",
+      "status": "never reported",
+      "seen": null,
+      "age": null,
+      "placeable": false,
+      "skipWhy": "it never reported",
+      "warnings": [],
+      "cpu": null,
+      "memory": null,
+      "gpus": [],
+      "disks": [],
+      "battery": null,
+      "runner": null,
+      "sessions": [],
+      "history": []
+    }
+  ]
+}

@@ -1,0 +1,265 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pull requests cancel their own stale runs; every commit on main keeps its verdict.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # bash -eo pipefail: a failing command in a pipe fails the step.
+    shell: bash
+
+# Runners: GitHub's hosted runners, Ubuntu 24.04 and macOS 15 (Apple silicon). The workflow uses
+# no secrets and a read-only token, so pull requests from forks run it too, once a maintainer
+# approves an outside contributor's first run.
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Every warning fails the build: rustc, clippy, rustdoc and Cargo's own manifest warnings.
+  CARGO_BUILD_WARNINGS: deny
+  RUST_BACKTRACE: short
+  # GPUI's system libraries on Ubuntu, and ALSA's for the desktop's microphone (dictation).
+  LINUX_DEPS: >-
+    libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev
+    libxcb1-dev libfontconfig-dev libfreetype-dev libssl-dev libzstd-dev pkg-config
+    libasound2-dev
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup show active-toolchain
+      - run: cargo fmt --all --check
+
+  # On macOS too: the desktop's macOS-only code (its menu keys, the computer name, the
+  # automation's memory readout and its `unsafe`) is only seen by a macOS build.
+  clippy:
+    name: clippy and rustdoc (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          read -ra deps <<< "$LINUX_DEPS"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${deps[@]}"
+      - if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo clippy --workspace --all-targets --all-features --locked
+      - run: cargo doc --workspace --all-features --no-deps --locked
+
+  test:
+    name: tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          read -ra deps <<< "$LINUX_DEPS"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${deps[@]}"
+      - if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - if: runner.environment == 'github-hosted' || runner.os != 'Linux'
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest@0.9.152
+      - run: cargo nextest run --workspace --all-features --locked --profile ci
+      - run: cargo test --workspace --all-features --doc --locked
+
+  # No job opens a window. The hosted macOS runners are virtual machines, and GPUI draws with
+  # Metal, which they aren't known to offer; a launch check there is left until that is tried.
+  # The desktop's launch (and its runtime shader compile) is checked on a Mac with the
+  # automation build's `--bench start`; see apps/desktop/README.md.
+  build:
+    name: build (${{ matrix.os }}, release)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          read -ra deps <<< "$LINUX_DEPS"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${deps[@]}"
+      - if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo build --workspace --release --locked
+
+  coverage:
+    name: coverage (libraries)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup component add llvm-tools-preview
+      - if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - if: runner.environment == 'github-hosted' || runner.os != 'Linux'
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-llvm-cov@0.9.2,cargo-nextest@0.9.152
+      # Every library crate; the binaries (the desktop app, xtask) are excluded.
+      - run: cargo llvm-cov nextest --workspace --exclude emberhut-desktop --exclude xtask --all-features --locked --summary-only --color never > coverage.txt
+      - run: |
+          cat coverage.txt
+          {
+            echo '### Coverage (libraries)'
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.environment == 'github-hosted' || runner.os != 'Linux'
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-deny@0.22.1
+      - run: cargo deny --locked check advisories bans licenses sources
+
+  machete:
+    name: cargo machete
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.environment == 'github-hosted' || runner.os != 'Linux'
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-machete@0.10.1
+      - run: cargo machete
+
+  secrets:
+    name: secret and personal-data scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks (checksum verified)
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -sSfLo gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf gitleaks.tar.gz gitleaks
+      # Only the history of the commit under test: with fetch-depth 0 the checkout also holds
+      # every other branch, and their findings belong to their own pull requests.
+      - run: |
+          "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact --verbose --log-opts="HEAD" .
+      # The wording rules (CONTRIBUTING.md, "Writing for a public repository") apply to the files
+      # of the commit under test.
+      - run: |
+          "$RUNNER_TEMP/gitleaks" dir --config .gitleaks-public.toml --redact --verbose .
+      - name: no .env, key or generated files tracked
+        run: |
+          if git ls-files | grep -E '(^|/)\.env(\.|$)|\.(pem|p12|key)$'; then
+            echo "::error::a .env or key file is tracked"; exit 1
+          fi
+          # The directory scan skips these generated paths (.gitleaks-public.toml), so none may be
+          # tracked. The mobile app's config plugins live in apps/mobile/plugins, outside them.
+          if git ls-files | grep -E '(^|/)(target|node_modules|dist|\.expo)/|^apps/mobile/(ios|android)/|\.(tsbuildinfo|profraw)$|(^|/)lcov\.info$'; then
+            echo "::error::a generated file is tracked"; exit 1
+          fi
+
+  # The pnpm workspace (ADR 0003's js job): every package's check script (types, lint, format, tests) from the
+  # workspace's lockfile; today that is apps/mobile and apps/extension (whose check also builds it and writes its zip),
+  # and the api-client generation step joins it with packages/api-client. The mobile app's native builds (Xcode,
+  # Gradle) are made on a maintainer's machine; see apps/mobile/README.md.
+  js:
+    name: js (tsc, lint, format, tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      # The pnpm the root package.json pins, installed for this job only, outside setup-node's tool cache.
+      - run: |
+          npm install --global --prefix "$RUNNER_TEMP/pnpm" "pnpm@$(node -p "require('./package.json').packageManager.replace(/^pnpm@/, '')")"
+          echo "$RUNNER_TEMP/pnpm/bin" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --if-present run check
+      # A build without the emberhut.com account carries none of Clerk (apps/mobile/README.md, "The emberhut.com account"):
+      # the app picks Clerk's modules on the literal EXPO_PUBLIC_ settings, which Metro inlines, so the Android bundle
+      # made with them unset must hold neither Clerk's provider nor any of its packages.
+      - name: mobile bundle without the account has no Clerk
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_EMBERHUT_CLERK_PUBLISHABLE_KEY: ""
+          EXPO_PUBLIC_EMBERHUT_DIRECTORY_URL: ""
+          EXPO_PUBLIC_EMBERHUT_PASSKEYS: ""
+        run: |
+          pnpm exec expo export --platform android --output-dir "$RUNNER_TEMP/mobile-bundle"
+          if grep -a -r -l -e ClerkProvider -e '@clerk/' "$RUNNER_TEMP/mobile-bundle"; then
+            echo "::error::Clerk is in the bundle of a build without the account"; exit 1
+          fi
+
+  # The one check to require: green only when every job above is.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [fmt, clippy, test, build, coverage, deny, machete, secrets, js]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "true" ]; then
+            echo "::error::a required job did not succeed"; exit 1
+          fi

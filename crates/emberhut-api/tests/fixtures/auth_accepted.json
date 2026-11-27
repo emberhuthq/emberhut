@@ -1,0 +1,4 @@
+{
+  "ok": true, "status": 200, "access": "access-token-for-tests", "refresh": "refresh-token-for-tests",
+  "device": 3, "expires": "2026-11-24T22:57:53.410Z"
+}

@@ -1,0 +1,8 @@
+{
+  "session": {
+    "id": "w-12", "title": "EX-12 An example task", "status": "running", "running": true, "doing": "Reading the notes",
+    "since": "2026-11-24T21:40:00.000Z", "place": "Linux PC", "tasks": [12], "project": "Example project", "cwd": "/work/example"
+  },
+  "events": [{ "seq": 1, "turn": null, "at": null, "kind": "text", "text": "Started" }],
+  "earlier": false
+}

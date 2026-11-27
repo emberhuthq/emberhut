@@ -1,0 +1,32 @@
+[package]
+name = "emberhut-db"
+description = "The emberhut server's database: SeaORM entities, migrations and stores."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+form_urlencoded = { workspace = true }
+jiff = { workspace = true, features = ["std"] }
+log = { workspace = true }
+sea-orm = { workspace = true, features = ["macros", "runtime-tokio", "sqlx-sqlite"] }
+sea-orm-migration = { workspace = true, features = ["runtime-tokio", "sqlx-sqlite"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+emberhut-core = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,9 @@
+{
+  "model": "DeepSeek V4.1 Flash",
+  "where": "DeepSeek V4.1 Flash on Cloudflare",
+  "busy": false,
+  "chat": [
+    { "id": 1, "role": "user", "text": "What is a good name for a cat?", "at": "2026-11-25T10:00:00.000Z" },
+    { "id": 2, "role": "assistant", "text": "**Miso** is a good one.", "at": "2026-11-25T10:00:03.000Z" }
+  ]
+}

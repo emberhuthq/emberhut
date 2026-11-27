@@ -1,0 +1,27 @@
+[package]
+name = "emberhut-core"
+description = "The emberhut server's domain rules (sessions, pairing, rooms, ETags, agents and approvals), with no I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+data-encoding = { workspace = true }
+getrandom = { workspace = true, features = ["std"] }
+hmac = { workspace = true }
+jiff = { workspace = true, features = ["std"] }
+regex = { workspace = true, features = ["perf", "std", "unicode"] }
+sha2 = { workspace = true }
+subtle = { workspace = true }
+thiserror = { workspace = true }
+unicode-normalization = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true

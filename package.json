@@ -1,0 +1,10 @@
+{
+  "name": "emberhut",
+  "private": true,
+  "description": "The emberhut pnpm workspace: the mobile and web apps and the TypeScript packages they share",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@12.23.0",
+  "engines": {
+    "node": "^22.18.0"
+  }
+}

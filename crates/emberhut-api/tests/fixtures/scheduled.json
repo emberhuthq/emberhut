@@ -1,0 +1,61 @@
+{
+ "items": [
+  {
+   "id": "checkin:2026-11-24T10:30:00.000Z",
+   "kind": "checkin",
+   "title": "Look at the example build again",
+   "nextAt": "2026-11-24T10:30:00.000Z",
+   "repeat": null,
+   "room": 1,
+   "note": null,
+   "noteAt": null,
+   "tasks": [
+    { "id": 12, "title": "Name the example report", "status": "working" }
+   ],
+   "watch": null,
+   "checkin": "2026-11-24T10:30:00.000Z"
+  },
+  {
+   "id": "watch:3",
+   "kind": "watch",
+   "title": "A reply from the example shop",
+   "nextAt": "2026-11-24T12:00:00.000Z",
+   "repeat": "every 4 h",
+   "room": 2,
+   "note": "No reply yet.",
+   "noteAt": "2026-11-24T08:00:00.000Z",
+   "tasks": [
+    { "id": 13, "title": "Order the example part", "status": "waiting" },
+    { "id": 14, "title": "Pay for the example part", "status": "todo" }
+   ],
+   "watch": 3,
+   "checkin": null
+  },
+  {
+   "id": "routine::08:30",
+   "kind": "routine",
+   "title": "Morning brief",
+   "nextAt": "2026-11-25T05:30:00.000Z",
+   "repeat": "daily 08:30",
+   "room": 1,
+   "note": "Morning brief: what is on today.",
+   "noteAt": null,
+   "tasks": [],
+   "watch": null,
+   "checkin": null
+  },
+  {
+   "id": "unit:example-backup",
+   "kind": "unit",
+   "title": "Example backup",
+   "nextAt": null,
+   "repeat": null,
+   "room": 1,
+   "note": "example-backup",
+   "noteAt": null,
+   "tasks": [],
+   "watch": null,
+   "checkin": null
+  }
+ ]
+}

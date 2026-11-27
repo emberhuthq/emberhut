@@ -1,0 +1,101 @@
+{
+  "description": "statement(prefix, fields): the ASCII prefix and a 0x00 byte, then each field as a 4-byte big-endian length and its bytes. A time is 8 bytes of big-endian milliseconds; a key or nonce its raw bytes; text its UTF-8 bytes in normal form (the machine id as its 32 characters). Signatures are Ed25519 (RFC 8032) over the bytes, by the named key of keys.json.",
+  "statements": [
+    {
+      "name": "probe, direct on the local network",
+      "prefix": "emberhut probe v1",
+      "inputs": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "machineId": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "kind": "lan",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990"
+      },
+      "signer": "machine",
+      "bytes": "656d6265726875742070726f62652076310000000020f47672a2ebc891786fdb2e040861c653a3c7dae34d19c446e84432b5c5f8d63100000020336a3672616a626272643279727276646b6f71326d6f757a3561717877683563000000036c616e00000006646972656374000000103139322e302e322e31303a3138393930000000103139322e302e322e31303a3138393930",
+      "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+    },
+    {
+      "name": "probe, relayed",
+      "prefix": "emberhut probe v1",
+      "inputs": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "machineId": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "kind": "relay",
+        "via": "relayed",
+        "local": "",
+        "host": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example"
+      },
+      "signer": "machine",
+      "bytes": "656d6265726875742070726f62652076310000000020f47672a2ebc891786fdb2e040861c653a3c7dae34d19c446e84432b5c5f8d63100000020336a3672616a626272643279727276646b6f71326d6f757a35617178776835630000000572656c61790000000772656c61796564000000000000002e336a3672616a626272643279727276646b6f71326d6f757a35617178776835632e72656c61792e6578616d706c65",
+      "signature": "3FTIhf1MxuBzklf2EHOWaCNUu8r6-a5ihFxadlPidnlUqz5PUfSjAUAi8qhLJr8sh_2NKMy2jOVwQ9fZ1rV1AQ"
+    },
+    {
+      "name": "probe, direct over IPv6",
+      "prefix": "emberhut probe v1",
+      "inputs": {
+        "nonce": "53XCA-v2MhgiZzwk-jCztDkrn3CVMDHx3dVT68PBKUc",
+        "machineId": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "kind": "vpn",
+        "via": "direct",
+        "local": "[2001:db8::10]:18990",
+        "host": "[2001:db8::10]:18990"
+      },
+      "signer": "machine",
+      "bytes": "656d6265726875742070726f62652076310000000020e775c203ebf6321822673c24fa30b3b4392b9f70953031f1ddd553ebc3c1294700000020336a3672616a626272643279727276646b6f71326d6f757a35617178776835630000000376706e00000006646972656374000000145b323030313a6462383a3a31305d3a3138393930000000145b323030313a6462383a3a31305d3a3138393930",
+      "signature": "3Owx71zuddTRD9oS4opf-wRLXNDXQU-y04tvOkS1iflTdyOsIRgw3oyJmsKoBu9pcJcqsLs9Qu1yfEClPAQCBg"
+    },
+    {
+      "name": "relay auth",
+      "prefix": "emberhut relay auth v1",
+      "inputs": {
+        "relayDomain": "relay.example",
+        "nonce": "-0X-3ekXRCgGC4urti43LX0mfbakKOU0p9R9sbisqBY",
+        "name": "Main computer",
+        "time": 1795561073000
+      },
+      "signer": "machine",
+      "bytes": "656d6265726875742072656c61792061757468207631000000000d72656c61792e6578616d706c6500000020fb45fedde9174428060b8babb62e372d7d267db6a428e534a7d47db1b8aca8160000000d4d61696e20636f6d707574657200000008000001a20fc7a968",
+      "signature": "xuSguiX2vaWjYmPNwoCjtTBKoG0j76kuc1pTMQ-eQAwSgFwzZO0dNtS_ZlPifYW_y0rtTS34ZWfIZqxEfUUPDg"
+    },
+    {
+      "name": "link",
+      "prefix": "emberhut link v1",
+      "inputs": {
+        "account": "user_2example0account",
+        "relayDomain": "relay.example",
+        "name": "Main computer",
+        "time": 1795561073000
+      },
+      "signer": "machine",
+      "bytes": "656d626572687574206c696e6b2076310000000015757365725f326578616d706c65306163636f756e740000000d72656c61792e6578616d706c650000000d4d61696e20636f6d707574657200000008000001a20fc7a968",
+      "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ"
+    },
+    {
+      "name": "unlink",
+      "prefix": "emberhut unlink v1",
+      "inputs": {
+        "machineId": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "relayDomain": "relay.example",
+        "time": 1795561073000
+      },
+      "signer": "machine",
+      "bytes": "656d62657268757420756e6c696e6b2076310000000020336a3672616a626272643279727276646b6f71326d6f757a35617178776835630000000d72656c61792e6578616d706c6500000008000001a20fc7a968",
+      "signature": "_XPXQ3qzk4PelCQc18j96-ZVXxEh44EYnlJShyO1NAUn28RLOJYHKaL15n3Z1MnouIgpXVw5xFGk16T8ThLHAw"
+    },
+    {
+      "name": "link, by the RFC 8032 key, with a name beyond ASCII",
+      "prefix": "emberhut link v1",
+      "inputs": {
+        "account": "user_x",
+        "relayDomain": "relay.example",
+        "name": "Café 🖥",
+        "time": 0
+      },
+      "signer": "rfc8032-test-1",
+      "bytes": "656d626572687574206c696e6b2076310000000006757365725f780000000d72656c61792e6578616d706c650000000a436166c3a920f09f96a5000000080000000000000000",
+      "signature": "CC1ny6HXXHkeUzxLPVueykRgy0aWVaSLIYsfQPu-zHXDvus5g42a0jIIlvAQI4WOiWPSvDLkA0D_Ife9E-IiAQ"
+    }
+  ]
+}

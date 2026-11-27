@@ -1,0 +1,36 @@
+[package]
+name = "emberhut-client"
+description = "A blocking client for the emberhut API: sessions, token renewal and the live stream."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+getrandom = { workspace = true, features = ["std"] }
+http.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+# The SHA-256 of a release payload, taken as it streams to disk.
+sha2.workspace = true
+thiserror.workspace = true
+time = { workspace = true, features = ["std", "parsing"] }
+tracing = { workspace = true, features = ["std"] }
+ureq = { workspace = true, features = ["rustls", "gzip"] }
+emberhut-api.workspace = true
+# The machine id a pairing link names, which the pairing answer's key must have.
+emberhut-identity.workspace = true
+
+[build-dependencies]
+# Reads the wire dialect file named by EMBERHUT_WIRE_DIALECT (build.rs).
+serde_json.workspace = true
+
+[dev-dependencies]
+tiny_http.workspace = true
+
+[lints]
+workspace = true

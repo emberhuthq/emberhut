@@ -1,0 +1,112 @@
+{
+  "description": "https://emberhut.com/pair#id=<machine id>&code=<code>&route=<url>...: the fragment is application/x-www-form-urlencoded (+ is a space); id and code appear once each, route 0 to 8 times and never empty, unknown keys are ignored, and the link is at most 2,000 characters. A canonical link is exactly what a writer makes from its values (every byte but A-Z a-z 0-9 * - . _ percent-encoded, a space as +, the keys in the order id, code, route...). Errors: notAPairingLink, tooLong, missing, repeated, tooManyRoutes, emptyRoute, id.",
+  "valid": [
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&route=http%3A%2F%2F192.0.2.10%3A18990&route=http%3A%2F%2F%5B2001%3Adb8%3A%3A10%5D%3A18990&route=https%3A%2F%2F3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "code": "ABCD-EFGH",
+      "routes": [
+        "http://192.0.2.10:18990",
+        "http://[2001:db8::10]:18990",
+        "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example"
+      ],
+      "canonical": true
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH",
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "code": "ABCD-EFGH",
+      "routes": [],
+      "canonical": true
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&route=https%3A%2F%2Fexample.com%2Fa%3Fb%3Dc%26d%23e",
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "code": "ABCD-EFGH",
+      "routes": [
+        "https://example.com/a?b=c&d#e"
+      ],
+      "canonical": true
+    },
+    {
+      "link": "https://emberhut.com/pair#v=2&route=r1&id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&other&code=abcd+efgh&route=r2",
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "code": "abcd efgh",
+      "routes": [
+        "r1",
+        "r2"
+      ],
+      "canonical": false
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD%2DEFGH&route=http:%2F%2F192.0.2.10:18990",
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "code": "ABCD-EFGH",
+      "routes": [
+        "http://192.0.2.10:18990"
+      ],
+      "canonical": false
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&x=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "code": "ABCD-EFGH",
+      "routes": [],
+      "canonical": false
+    }
+  ],
+  "invalid": [
+    {
+      "link": "https://emberhut.com/pair?id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH",
+      "error": "notAPairingLink"
+    },
+    {
+      "link": "https://example.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH",
+      "error": "notAPairingLink"
+    },
+    {
+      "link": "http://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH",
+      "error": "notAPairingLink"
+    },
+    {
+      "link": "https://emberhut.com/pair#code=ABCD-EFGH",
+      "error": "missing"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=&code=ABCD-EFGH",
+      "error": "missing"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "error": "missing"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=",
+      "error": "missing"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&id=qoasjogo65qh2cy62xmytganhyz74fla",
+      "error": "repeated"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&code=WXYZ-2345",
+      "error": "repeated"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&route=",
+      "error": "emptyRoute"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&route=r0&route=r1&route=r2&route=r3&route=r4&route=r5&route=r6&route=r7&route=r8",
+      "error": "tooManyRoutes"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c&code=ABCD-EFGH&x=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "error": "tooLong"
+    },
+    {
+      "link": "https://emberhut.com/pair#id=3J6RAJBBRD2YRRVDKOQ2MOUZ5AQXWH5C&code=ABCD-EFGH",
+      "error": "id"
+    }
+  ]
+}

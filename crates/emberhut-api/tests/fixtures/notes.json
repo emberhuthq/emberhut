@@ -1,0 +1,22 @@
+{
+ "notes": [
+  {
+   "uid": "assistant:2026-11-24",
+   "who": "assistant",
+   "day": "2026-11-24",
+   "at": "2026-11-24T18:00:00.000Z",
+   "text": "A quiet day: the example report moved on.",
+   "created": "2026-11-24T18:00:00.000Z",
+   "updated": "2026-11-24T18:00:00.000Z"
+  },
+  {
+   "uid": "9d3c2b1a-0000-4000-8000-000000000001",
+   "who": "owner",
+   "day": "2026-11-24",
+   "at": "2026-11-24T07:15:00.000Z",
+   "text": "Buy the example part.",
+   "created": "2026-11-24T07:15:02.000Z",
+   "updated": "2026-11-24T07:15:02.000Z"
+  }
+ ]
+}

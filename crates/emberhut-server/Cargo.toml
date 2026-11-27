@@ -1,0 +1,84 @@
+[package]
+name = "emberhut-server"
+description = "The emberhut server: the HTTP/SSE API that the Emberhut apps talk to."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "emberhut-server"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true, features = ["http1", "json", "matched-path", "query", "tokio", "tracing", "ws"] }
+base64 = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+form_urlencoded = { workspace = true }
+flate2 = { workspace = true, features = ["rust_backend"] }
+futures-util = { workspace = true }
+garde = { workspace = true }
+jiff = { workspace = true, features = ["std", "tz-system", "tzdb-zoneinfo"] }
+qrcode = { workspace = true, features = ["svg"] }
+regex = { workspace = true, features = ["perf", "std", "unicode"] }
+ring = { workspace = true }
+rustls = { workspace = true, features = ["ring", "std", "tls12"] }
+reqwest = { workspace = true, features = ["http2", "rustls-no-provider", "stream"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+subtle = { workspace = true }
+tar = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+    "fs",
+    "io-util",
+    "macros",
+    "net",
+    "process",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+tokio-tungstenite = { workspace = true, features = ["connect"] }
+tokio-util = { workspace = true, features = ["io", "rt"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = [
+    "catch-panic",
+    "compression-gzip",
+    "request-id",
+    "sensitive-headers",
+    "trace",
+] }
+tracing = { workspace = true, features = ["std"] }
+tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "fmt", "tracing-log"] }
+url = { workspace = true, features = ["serde"] }
+utoipa = { workspace = true, features = ["macros", "preserve_order", "preserve_path_order"] }
+utoipa-axum = { workspace = true }
+webpki-roots = { workspace = true }
+emberhut-api = { workspace = true, features = ["openapi", "validate"] }
+emberhut-core = { workspace = true }
+emberhut-db = { workspace = true }
+emberhut-identity = { workspace = true }
+zeroize = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+# Stopping the agent CLI's process group (`kill(-pgid, sig)`), without `unsafe`.
+rustix = { workspace = true, features = ["process", "system"] }
+
+[dev-dependencies]
+http-body-util = { workspace = true }
+sea-orm = { workspace = true, features = ["runtime-tokio", "sqlx-sqlite"] }
+jsonschema = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "test-util"] }
+tower = { workspace = true, features = ["util"] }
+emberhut-client = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+{
+  "facts": [
+    {
+      "id": "people/example-person", "category": "people", "title": "Example Person", "text": "Works on the example project.",
+      "source": "chat, 2026-11-20", "updated": "2026-11-24T10:00:00.000Z", "now": "Waiting on the example report.",
+      "nowAt": "2026-11-24T09:00:00.000Z", "chats": ["chat-1"], "important": true
+    },
+    {
+      "id": "preferences/short-answers", "category": "preferences", "title": "Short answers", "text": "Likes answers in a line or two.",
+      "source": "", "updated": "2026-11-20T10:00:00.000Z", "project": "Example"
+    }
+  ],
+  "lessons": [{ "id": 1, "text": "Check the calendar before proposing a time.", "at": "2026-11-01T10:00:00.000Z" }],
+  "trials": [
+    {
+      "id": 252, "text": "Say which file a change is in.", "at": "2026-11-20T10:00:00.000Z",
+      "ends": "2026-12-04T10:00:00.000Z", "said": "Which file was that in?"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "on": "a-1", "pin": "a-2", "mode": "pinned", "pinOut": false,
+  "rooms": [ { "room": 2, "name": "Room 2", "account": "a-1" } ],
+  "waits": [ "Room 2 moves when its turn ends" ],
+  "usage": [
+    {
+      "id": "a-1", "name": "Example", "scope": "any", "loggedIn": true, "used5h": 25, "resets5h": "2026-11-25T01:00:00.000Z",
+      "used7d": 40, "resets7d": "2026-11-28T00:00:00.000Z", "limitedUntil": null, "checked": "2026-11-24T21:57:00.000Z",
+      "places": ["Linux PC", "Mac"], "best": true
+    }
+  ]
+}

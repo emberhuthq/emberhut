@@ -1,0 +1,435 @@
+{
+  "description": "A host's normal form: a DNS name (UTS 46 with the STD3 rules but _ allowed, hyphens checked and DNS lengths verified: lowercase letters, digits, hyphens and underscores, labels of 1 to 63 characters, at most 253, no trailing dot) or an IPv4 address in dotted decimal or an IPv6 address in RFC 5952 form in brackets (not IPv4-mapped, no zone), and the port dropped when it is the scheme's default. `parse` reads text already in normal form (the scheme isn't known, so a default port stays). Errors: empty, port, ipv6, name, numericName, notNormal.",
+  "normalize": [
+    {
+      "input": "Example.COM",
+      "scheme": "https",
+      "normal": "example.com"
+    },
+    {
+      "input": "example.com:443",
+      "scheme": "https",
+      "normal": "example.com"
+    },
+    {
+      "input": "example.com:443",
+      "scheme": "http",
+      "normal": "example.com:443"
+    },
+    {
+      "input": "example.com:80",
+      "scheme": "http",
+      "normal": "example.com"
+    },
+    {
+      "input": "example.com:080",
+      "scheme": "https",
+      "normal": "example.com:80"
+    },
+    {
+      "input": "Bücher.example:8443",
+      "scheme": "https",
+      "normal": "xn--bcher-kva.example:8443"
+    },
+    {
+      "input": "faß.de",
+      "scheme": "https",
+      "normal": "xn--fa-hia.de"
+    },
+    {
+      "input": "ｅｘａｍｐｌｅ.com",
+      "scheme": "https",
+      "normal": "example.com"
+    },
+    {
+      "input": "192.0.2.1:18990",
+      "scheme": "http",
+      "normal": "192.0.2.1:18990"
+    },
+    {
+      "input": "１９２.０.２.１",
+      "scheme": "http",
+      "normal": "192.0.2.1"
+    },
+    {
+      "input": "127.0.0.1:18990",
+      "scheme": "http",
+      "normal": "127.0.0.1:18990"
+    },
+    {
+      "input": "[2001:0DB8:0:0::1]:443",
+      "scheme": "https",
+      "normal": "[2001:db8::1]"
+    },
+    {
+      "input": "[2001:db8:0:0:1:0:0:1]:18990",
+      "scheme": "http",
+      "normal": "[2001:db8::1:0:0:1]:18990"
+    },
+    {
+      "input": "[2001:db8:0:1:1:1:1:1]",
+      "scheme": "http",
+      "normal": "[2001:db8:0:1:1:1:1:1]"
+    },
+    {
+      "input": "[::1]:18990",
+      "scheme": "http",
+      "normal": "[::1]:18990"
+    },
+    {
+      "input": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+      "scheme": "https",
+      "normal": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example"
+    },
+    {
+      "input": "My_Box.local:18990",
+      "scheme": "http",
+      "normal": "my_box.local:18990",
+      "why": "_ is allowed in a host name"
+    },
+    {
+      "input": "emberhut_server_1",
+      "scheme": "http",
+      "normal": "emberhut_server_1",
+      "why": "a container's name"
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+      "scheme": "https",
+      "normal": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+      "why": "a label of 63"
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "scheme": "https",
+      "normal": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "why": "253 characters"
+    }
+  ],
+  "invalid": [
+    {
+      "input": "",
+      "scheme": "http",
+      "error": "empty"
+    },
+    {
+      "input": ":80",
+      "scheme": "http",
+      "error": "empty"
+    },
+    {
+      "input": "example.com:65536",
+      "scheme": "http",
+      "error": "port"
+    },
+    {
+      "input": "example.com:+80",
+      "scheme": "http",
+      "error": "port"
+    },
+    {
+      "input": "[::1]80",
+      "scheme": "http",
+      "error": "port"
+    },
+    {
+      "input": "::1",
+      "scheme": "http",
+      "error": "ipv6"
+    },
+    {
+      "input": "[fe80::1%25en0]",
+      "scheme": "http",
+      "error": "ipv6"
+    },
+    {
+      "input": "[192.0.2.1]",
+      "scheme": "http",
+      "error": "ipv6"
+    },
+    {
+      "input": "exa mple.com",
+      "scheme": "http",
+      "error": "name"
+    },
+    {
+      "input": "a/b",
+      "scheme": "http",
+      "error": "name"
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+      "scheme": "https",
+      "error": "name",
+      "why": "a label of 64"
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "scheme": "https",
+      "error": "name",
+      "why": "254 characters"
+    },
+    {
+      "input": "1.2.3.4.5",
+      "scheme": "http",
+      "error": "numericName"
+    }
+  ],
+  "whatwgDifferences": {
+    "description": "Every input where these rules differ from the WHATWG URL Standard's host parsing (what `new URL()` does), with what that parser makes of it.",
+    "cases": [
+      {
+        "input": "127.1",
+        "scheme": "http",
+        "whatwg": "127.0.0.1",
+        "error": "numericName",
+        "why": "IPv4 in a short form"
+      },
+      {
+        "input": "0x7f.1",
+        "scheme": "http",
+        "whatwg": "127.0.0.1",
+        "error": "numericName",
+        "why": "IPv4 in hexadecimal"
+      },
+      {
+        "input": "192.0.2.010",
+        "scheme": "http",
+        "whatwg": "192.0.2.8",
+        "error": "numericName",
+        "why": "IPv4 with an octal part"
+      },
+      {
+        "input": "[::ffff:192.0.2.1]",
+        "scheme": "http",
+        "whatwg": "[::ffff:c000:201]",
+        "error": "ipv6",
+        "why": "an IPv4-mapped IPv6 address"
+      },
+      {
+        "input": "[::ffff:c000:201]",
+        "scheme": "http",
+        "whatwg": "[::ffff:c000:201]",
+        "error": "ipv6",
+        "why": "an IPv4-mapped IPv6 address, in hexadecimal"
+      },
+      {
+        "input": "re;lay.example",
+        "scheme": "https",
+        "whatwg": "re;lay.example",
+        "error": "name",
+        "why": ";"
+      },
+      {
+        "input": "a,b.example",
+        "scheme": "https",
+        "whatwg": "a,b.example",
+        "error": "name",
+        "why": ","
+      },
+      {
+        "input": "x=y.example",
+        "scheme": "https",
+        "whatwg": "x=y.example",
+        "error": "name",
+        "why": "="
+      },
+      {
+        "input": "\"q\".example",
+        "scheme": "https",
+        "whatwg": "\"q\".example",
+        "error": "name",
+        "why": "a double quote"
+      },
+      {
+        "input": "a*b.example",
+        "scheme": "https",
+        "whatwg": "a*b.example",
+        "error": "name",
+        "why": "*"
+      },
+      {
+        "input": "-bad-.example",
+        "scheme": "https",
+        "whatwg": "-bad-.example",
+        "error": "name",
+        "why": "a hyphen at a label's ends"
+      },
+      {
+        "input": "ab--cd.example",
+        "scheme": "https",
+        "whatwg": "ab--cd.example",
+        "error": "name",
+        "why": "hyphens in the third and fourth places"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "scheme": "https",
+        "whatwg": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "error": "name",
+        "why": "a label over 63 characters"
+      },
+      {
+        "input": "example.com.",
+        "scheme": "https",
+        "whatwg": "example.com.",
+        "error": "name",
+        "why": "a trailing dot"
+      },
+      {
+        "input": "ex%61mple.com",
+        "scheme": "https",
+        "whatwg": "example.com",
+        "error": "name",
+        "why": "percent-encoding"
+      },
+      {
+        "input": "user@example.com",
+        "scheme": "https",
+        "whatwg": "example.com",
+        "error": "name",
+        "why": "user information: a host is not an authority"
+      },
+      {
+        "input": "example.com:0",
+        "scheme": "https",
+        "whatwg": "example.com:0",
+        "error": "port",
+        "why": "port 0"
+      },
+      {
+        "input": "example.com:",
+        "scheme": "https",
+        "whatwg": "example.com",
+        "error": "port",
+        "why": "an empty port"
+      }
+    ]
+  },
+  "parse": [
+    {
+      "text": "example.com",
+      "normal": "example.com"
+    },
+    {
+      "text": "example.com:443",
+      "normal": "example.com:443"
+    },
+    {
+      "text": "[2001:db8::1]:18990",
+      "normal": "[2001:db8::1]:18990"
+    },
+    {
+      "text": "Example.com",
+      "error": "notNormal",
+      "normalForm": "example.com"
+    },
+    {
+      "text": "[2001:DB8::1]",
+      "error": "notNormal",
+      "normalForm": "[2001:db8::1]"
+    },
+    {
+      "text": "example.com:018990",
+      "error": "notNormal",
+      "normalForm": "example.com:18990"
+    },
+    {
+      "text": "Bücher.example",
+      "error": "notNormal",
+      "normalForm": "xn--bcher-kva.example"
+    },
+    {
+      "text": "::1",
+      "error": "ipv6"
+    }
+  ],
+  "relayDomains": {
+    "description": "A relay domain is a host name in that normal form with no port, under strict STD3 (no _), and at most 220 characters, so <machine id>.<relay domain> fits DNS's 253. Errors: host (not a host name), notAName (a port or an address), tooLong.",
+    "valid": [
+      {
+        "input": "Relay.Example",
+        "normal": "relay.example"
+      },
+      {
+        "input": "relay.example",
+        "normal": "relay.example"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "normal": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "why": "a label of 63"
+      },
+      {
+        "input": "bbbbbbbbbbbbbbbbbbbb.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "normal": "bbbbbbbbbbbbbbbbbbbb.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "why": "220 characters"
+      }
+    ],
+    "invalid": [
+      {
+        "input": "relay.example:443",
+        "error": "notAName"
+      },
+      {
+        "input": "192.0.2.1",
+        "error": "notAName"
+      },
+      {
+        "input": "[2001:db8::1]",
+        "error": "notAName"
+      },
+      {
+        "input": "relay.example.",
+        "error": "host"
+      },
+      {
+        "input": "a..example",
+        "error": "host"
+      },
+      {
+        "input": "re;lay.example",
+        "error": "host"
+      },
+      {
+        "input": "a_b.example",
+        "error": "host",
+        "why": "_ is allowed in hosts, not in relay domains"
+      },
+      {
+        "input": "a,b.example",
+        "error": "host"
+      },
+      {
+        "input": "x=y.example",
+        "error": "host"
+      },
+      {
+        "input": "\"q\".example",
+        "error": "host"
+      },
+      {
+        "input": "a*b.example",
+        "error": "host"
+      },
+      {
+        "input": "-bad-.example",
+        "error": "host"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "error": "host",
+        "why": "a label of 64"
+      },
+      {
+        "input": "bbbbbbbbbbbbbbbbbbbbb.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+        "error": "tooLong",
+        "why": "221 characters"
+      },
+      {
+        "input": "",
+        "error": "host"
+      }
+    ]
+  }
+}

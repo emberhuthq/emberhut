@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "party": {
+    "id": 3,
+    "title": "Tea or coffee",
+    "topic": "Tea or coffee",
+    "status": "paused",
+    "why": "Victor finishes the turn, then it waits",
+    "personas": [
+      { "id": "p1", "name": "Nora", "role": "An optimist.", "model": "claude-opus-5-5", "color": "blue" },
+      { "id": "p2", "name": "Victor", "role": "A skeptic.", "model": "claude-opus-5-5", "color": "orange" }
+    ],
+    "turns": 0,
+    "maxTurns": 12,
+    "tokens": 0,
+    "maxTokens": 150000,
+    "cost": 0,
+    "created": "2026-11-25T10:00:00.000Z",
+    "updated": "2026-11-25T10:00:00.000Z",
+    "speaking": null,
+    "last": null
+  }
+}

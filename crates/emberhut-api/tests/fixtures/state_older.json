@@ -1,0 +1,19 @@
+{
+  "room": 1,
+  "rooms": [
+    {
+      "id": 1, "name": "Main", "project": null, "goal": null, "active": true,
+      "unread": 0, "needs": 0, "ask": null, "busy": false, "doing": null, "last": null, "lastAt": null
+    }
+  ],
+  "on": true,
+  "busy": false,
+  "live": null,
+  "push": false,
+  "unread": false,
+  "pending": 0,
+  "checkins": [],
+  "did": [],
+  "chat": [{ "id": 1, "mine": true, "text": "Hello", "time": "1d", "at": "2026-11-23T09:00:00.000Z" }],
+  "earlier": false
+}

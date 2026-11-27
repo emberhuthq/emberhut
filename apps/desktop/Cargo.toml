@@ -1,0 +1,137 @@
+[package]
+name = "emberhut-desktop"
+description = "Emberhut, the desktop app for the emberhut assistant, built with GPUI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+# The automation hooks (`--bench`, `--drive`): the app measures itself and replays steps from a
+# file into its own window, for performance runs and end-to-end tests. Off in a normal build.
+automation = ["dep:libc"]
+
+[dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+# The account's PKCE verifier and challenge, and an ID token's claims (base64url, src/account/).
+data-encoding.workspace = true
+directories = "6"
+env_logger = { version = "0.11", default-features = false }
+# The account's authorization URL and its callback (src/account/pkce.rs).
+form_urlencoded.workspace = true
+# This device's id for the assistant's browser, made once (src/store/browser/device.rs), and a
+# quick note's uid, made on this device so a note written offline is sent once.
+getrandom = { workspace = true, features = ["std"] }
+gpui-kit = "0.11"
+# Re-encoding a pasted TIFF, BMP, ICO or PNM picture as PNG (gpui decodes with it already).
+image = { version = "0.25", default-features = false, features = ["bmp", "ico", "png", "pnm", "tiff"] }
+# The local clock and time zone, for chat time stamps and decide-by days.
+jiff = { workspace = true, features = ["std", "tz-system", "tzdb-bundle-platform", "tzdb-zoneinfo"] }
+log.workspace = true
+# The update signature on a release payload (ADR 0005), and the SHA-256 its trusted comment names.
+minisign-verify.workspace = true
+# A pairing link drawn as a QR code beside its code (src/ui/qr.rs).
+qrcode.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+smol = "2"
+thiserror.workspace = true
+# emberhut-client logs through `tracing`. The app installs no tracing subscriber, so with `log` on,
+# tracing's events become `log` records and reach the one logger (env_logger) on every
+# platform, LOG_DIRECTIVES included. Nothing in this crate names `tracing` (machete knows).
+tracing = { workspace = true, features = ["log", "std"] }
+# The account's requests to its provider and the directory (src/account/http.rs): the HTTP
+# client emberhut-client already brings, with its rustls.
+ureq = { workspace = true, features = ["rustls"] }
+emberhut-api.workspace = true
+emberhut-client.workspace = true
+# A pasted pairing link read (its id, code and routes), and the account's ids (src/account/).
+emberhut-identity.workspace = true
+# Which characters an approval request's words may not hide (emberhut_core::approvals::shown), the
+# same rule the server's link page and Slack message follow.
+emberhut-core.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+# The updater's file steps: the atomic exchange of the old and new bundles (renameatx_np with
+# RENAME_SWAP on macOS), the free space, and ending a new copy that hangs (ADR 0005).
+rustix = { workspace = true, features = ["fs", "process"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+# The microphone, for dictation in the composer: the system's default input device (ALSA on
+# Linux). Not on macOS yet: the app may not declare microphone use there while reports render in
+# a web view without a permission handler (docs/adr/0006-report-webview.md); cpal's Core Audio
+# backend is the same crate once it may.
+cpal = "0.18"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Reports in the panel as their real HTML, in a WKWebView (docs/adr/0006-report-webview.md).
+# macOS only: elsewhere the panel keeps TextView's rendering, so Linux needs no WebKitGTK.
+gpui-webview = "0.11"
+# The WKWebView's settings: gpui-webview takes Wry's builder. `lb-wry` is the copy of Wry 0.53.3
+# that gpui-webview 0.11 builds on (the ADR); `drag-drop` for the handler that refuses drops.
+wry = { package = "lb-wry", version = "0.53.3", default-features = false, features = ["drag-drop"] }
+# The WebKit settings Wry has none for: windows only from a click, no autoplay, private storage
+# (objc2 itself is declared below, shared with the window material).
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "WKPreferences", "WKWebViewConfiguration", "WKWebsiteDataStore"] }
+# The automation's memory numbers on macOS (proc_pid_rusage).
+libc = { version = "0.2", optional = true }
+# Reduce Transparency, read and watched for the window's material (src/material/system.rs), the
+# share menu for a link or a file (src/ui/share.rs: NSSharingServicePicker over the window's
+# NSView, whose pointer raw-window-handle gives; GPUI already builds on that crate), a HEIC
+# picture read through NSImage (src/heic.rs), the app that opens a kind of file
+# (src/ui/files/default_app.rs: NSWorkspace with a UTType), and a video's still frame made a
+# JPEG (src/store/stills/avfoundation.rs: NSBitmapImageRep over its CGImage).
+block2 = "0.6"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAccessibility", "NSApplication", "NSBitmapImageRep", "NSImage", "NSImageRep", "NSResponder", "NSRunningApplication", "NSSharingService", "NSView", "NSWorkspace", "libc", "objc2-core-graphics", "objc2-uniform-type-identifiers"] }
+# How long the Mac has been without input, for installing an update while it is idle, and a
+# video's still frame as a CGImage.
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEventSource", "CGEventTypes", "CGImage"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSArray", "NSBundle", "NSData", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSOperation", "NSString", "NSURL", "NSValue"] }
+# The file viewer's pages, videos and documents (docs: apps/desktop/README.md, Files): a PDF's
+# pages drawn by PDFKit (src/pdf/pdfkit.rs), a video in AVKit's player and a deck, document or
+# sheet in Quick Look's preview (src/ui/viewer/native.rs). The system's frameworks, so nothing is
+# bundled; the crates are objc2's bindings, from the same project as objc2 above.
+# AVFoundation also takes a video's still frames and length for the assistant
+# (src/store/stills/avfoundation.rs: AVAssetImageGenerator) and plays a video in its chat row
+# (src/ui/inline_video): AVPlayerItemVideoOutput's frames drawn by GPUI's surface element, which
+# takes Core Video's pixel buffers; Core Media for the times, Core Foundation for the buffers.
+objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "AVPlayer", "AVAsset", "AVAssetImageGenerator", "AVPlayerItem", "AVPlayerItemOutput", "block2", "objc2-core-foundation", "objc2-core-graphics", "objc2-core-media", "objc2-core-video"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFString"] }
+objc2-core-media = { version = "0.3", default-features = false, features = ["std", "CMTime", "objc2"] }
+objc2-core-video = { version = "0.3", default-features = false, features = ["std", "CVBuffer", "CVImageBuffer", "CVPixelBuffer", "objc2"] }
+objc2-av-kit = { version = "0.3", default-features = false, features = ["std", "objc2-app-kit", "objc2-av-foundation", "AVPlayerView"] }
+objc2-pdf-kit = { version = "0.3", default-features = false, features = ["std", "objc2-app-kit", "PDFDocument", "PDFPage"] }
+objc2-quick-look-ui = { version = "0.3", default-features = false, features = ["std", "objc2-app-kit", "QLPreviewItem", "QLPreviewView"] }
+objc2-uniform-type-identifiers = { version = "0.3", default-features = false, features = ["std", "UTType"] }
+# Asking at launch to show notifications (src/notifications.rs), as Mac apps do.
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter"] }
+raw-window-handle = "0.6"
+# The session in the Keychain (src/backend/keychain.rs), not in a file. Already in the tree
+# through the TLS stack; the generic-password calls need nothing else.
+security-framework = { version = "3", default-features = false }
+# The account's sign-in through the system's web authentication session, with the HTTPS
+# callback (src/account/web_session.rs), in a build that claims the associated domain.
+objc2-authentication-services = { version = "0.3", default-features = false, features = ["std", "block2", "ASFoundation", "ASWebAuthenticationSession", "ASWebAuthenticationSessionCallback"] }
+# The app lock (src/lock/system.rs): Touch ID or the Mac's password, through LocalAuthentication.
+objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "block2", "LAContext"] }
+
+[dev-dependencies]
+# Signing test payloads, for the updater's verification tests.
+minisign.workspace = true
+# The store's tests run on GPUI's headless test platform.
+gpui-kit = { version = "0.11", features = ["test-support"] }
+tempfile.workspace = true
+
+[package.metadata.cargo-machete]
+# Used for its `log` feature only (see the dependency's comment).
+ignored = ["tracing"]
+
+[lints]
+workspace = true

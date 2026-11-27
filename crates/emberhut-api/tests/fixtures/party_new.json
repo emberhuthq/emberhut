@@ -1,0 +1,9 @@
+{
+  "topic": "Should a small team build its own server?",
+  "maxTurns": 12,
+  "maxTokens": 150000,
+  "personas": [
+    { "name": "Nora", "role": "An optimist.", "model": "claude-opus-5-5" },
+    { "name": "Victor", "role": "A skeptic.", "model": "claude-sonnet-5-5" }
+  ]
+}

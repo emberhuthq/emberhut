@@ -1,0 +1,8 @@
+/target
+*.profraw
+lcov.info
+.DS_Store
+/dist
+.env
+.env.*
+node_modules/

@@ -1,0 +1,550 @@
+{
+  "description": "Wire JSON of the emberhut server's connect routes and the two pairing fields, as docs/api.md's Connect section gives them, signed by the keys of keys.json. `withUnknownFields` holds each message with a field no version knows added to every object: readers must read it as the plain one. `unreadable` messages must not read, refused by what `refusedBy` names (wrongKey, name, time). `linkChecks` are the directory's checks of signedLink (or of signedLink renamed, its signature unchanged) for a token's account at the directory's own relay domain; `expect` is ok or the directory's error code.",
+  "probeQuery": "nonce=9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE&kind=lan",
+  "probeQueryBadKind": "nonce=9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE&kind=LAN",
+  "messages": {
+    "routeList": {
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "name": "Main computer",
+      "sealed": false,
+      "routes": [
+        {
+          "kind": "loopback",
+          "url": "http://127.0.0.1:18990",
+          "label": null,
+          "up": true
+        },
+        {
+          "kind": "lan",
+          "url": "http://192.0.2.10:18990",
+          "label": null,
+          "up": true
+        },
+        {
+          "kind": "vpn",
+          "url": "http://[2001:db8::10]:18990",
+          "label": "WireGuard",
+          "up": false
+        },
+        {
+          "kind": "public",
+          "url": "https://emberhut.example",
+          "label": null,
+          "up": true
+        },
+        {
+          "kind": "relay",
+          "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+          "label": null,
+          "up": false
+        },
+        {
+          "kind": "carrier-pigeon",
+          "url": "pigeon://loft",
+          "label": null,
+          "up": true
+        }
+      ]
+    },
+    "pairRequest": {
+      "code": "ABCD-EFGH",
+      "install": "zr-0123456789abcdef",
+      "name": "Emberhut on linux",
+      "model": "linux",
+      "publicKey": "I2BLx0tvo15VQRZ08PBvN7j-fKjOWCkSJqaBZ8GcuYA"
+    },
+    "pairAnswer": {
+      "ok": true,
+      "status": 200,
+      "access": "access-token-for-tests",
+      "refresh": "refresh-token-for-tests",
+      "device": 3,
+      "expires": "2026-11-24T22:57:53.410Z",
+      "machine": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g"
+      }
+    },
+    "pairAnswerLegacy": {
+      "ok": true,
+      "status": 200,
+      "access": "access-token-for-tests",
+      "refresh": "refresh-token-for-tests",
+      "device": 3,
+      "expires": "2026-11-24T22:57:53.410Z"
+    },
+    "linkStatementRequest": {
+      "account": "user_2example0account",
+      "relayDomain": "relay.example"
+    },
+    "signedLink": {
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "name": "Main computer",
+      "account": "user_2example0account",
+      "relayDomain": "relay.example",
+      "time": 1795561073000,
+      "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ"
+    },
+    "probeAnswer": {
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "via": "direct",
+      "local": "192.0.2.10:18990",
+      "host": "192.0.2.10:18990",
+      "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+    }
+  },
+  "withUnknownFields": {
+    "routeList": {
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "name": "Main computer",
+      "sealed": false,
+      "routes": [
+        {
+          "kind": "loopback",
+          "url": "http://127.0.0.1:18990",
+          "label": null,
+          "up": true,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        },
+        {
+          "kind": "lan",
+          "url": "http://192.0.2.10:18990",
+          "label": null,
+          "up": true,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        },
+        {
+          "kind": "vpn",
+          "url": "http://[2001:db8::10]:18990",
+          "label": "WireGuard",
+          "up": false,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        },
+        {
+          "kind": "public",
+          "url": "https://emberhut.example",
+          "label": null,
+          "up": true,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        },
+        {
+          "kind": "relay",
+          "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+          "label": null,
+          "up": false,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        },
+        {
+          "kind": "carrier-pigeon",
+          "url": "pigeon://loft",
+          "label": null,
+          "up": true,
+          "fromALaterVersion": {
+            "anything": [
+              1,
+              "two",
+              null
+            ]
+          }
+        }
+      ],
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "pairRequest": {
+      "code": "ABCD-EFGH",
+      "install": "zr-0123456789abcdef",
+      "name": "Emberhut on linux",
+      "model": "linux",
+      "publicKey": "I2BLx0tvo15VQRZ08PBvN7j-fKjOWCkSJqaBZ8GcuYA",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "pairAnswer": {
+      "ok": true,
+      "status": 200,
+      "access": "access-token-for-tests",
+      "refresh": "refresh-token-for-tests",
+      "device": 3,
+      "expires": "2026-11-24T22:57:53.410Z",
+      "machine": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "fromALaterVersion": {
+          "anything": [
+            1,
+            "two",
+            null
+          ]
+        }
+      },
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "pairAnswerLegacy": {
+      "ok": true,
+      "status": 200,
+      "access": "access-token-for-tests",
+      "refresh": "refresh-token-for-tests",
+      "device": 3,
+      "expires": "2026-11-24T22:57:53.410Z",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "linkStatementRequest": {
+      "account": "user_2example0account",
+      "relayDomain": "relay.example",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "signedLink": {
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "name": "Main computer",
+      "account": "user_2example0account",
+      "relayDomain": "relay.example",
+      "time": 1795561073000,
+      "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "probeAnswer": {
+      "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "via": "direct",
+      "local": "192.0.2.10:18990",
+      "host": "192.0.2.10:18990",
+      "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    }
+  },
+  "unreadable": {
+    "pairAnswerWrongKey": {
+      "message": {
+        "ok": true,
+        "status": 200,
+        "access": "access-token-for-tests",
+        "refresh": "refresh-token-for-tests",
+        "device": 3,
+        "expires": "2026-11-24T22:57:53.410Z",
+        "machine": {
+          "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+          "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g"
+        }
+      },
+      "refusedBy": "wrongKey"
+    },
+    "routeListWrongKey": {
+      "message": {
+        "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "name": "Main computer",
+        "sealed": false,
+        "routes": [
+          {
+            "kind": "loopback",
+            "url": "http://127.0.0.1:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "lan",
+            "url": "http://192.0.2.10:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "vpn",
+            "url": "http://[2001:db8::10]:18990",
+            "label": "WireGuard",
+            "up": false
+          },
+          {
+            "kind": "public",
+            "url": "https://emberhut.example",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "relay",
+            "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+            "label": null,
+            "up": false
+          },
+          {
+            "kind": "carrier-pigeon",
+            "url": "pigeon://loft",
+            "label": null,
+            "up": true
+          }
+        ]
+      },
+      "refusedBy": "wrongKey"
+    },
+    "routeListLongName": {
+      "message": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "sealed": false,
+        "routes": [
+          {
+            "kind": "loopback",
+            "url": "http://127.0.0.1:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "lan",
+            "url": "http://192.0.2.10:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "vpn",
+            "url": "http://[2001:db8::10]:18990",
+            "label": "WireGuard",
+            "up": false
+          },
+          {
+            "kind": "public",
+            "url": "https://emberhut.example",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "relay",
+            "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+            "label": null,
+            "up": false
+          },
+          {
+            "kind": "carrier-pigeon",
+            "url": "pigeon://loft",
+            "label": null,
+            "up": true
+          }
+        ]
+      },
+      "refusedBy": "name"
+    },
+    "routeListUntrimmedName": {
+      "message": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "name": " Main",
+        "sealed": false,
+        "routes": [
+          {
+            "kind": "loopback",
+            "url": "http://127.0.0.1:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "lan",
+            "url": "http://192.0.2.10:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "vpn",
+            "url": "http://[2001:db8::10]:18990",
+            "label": "WireGuard",
+            "up": false
+          },
+          {
+            "kind": "public",
+            "url": "https://emberhut.example",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "relay",
+            "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+            "label": null,
+            "up": false
+          },
+          {
+            "kind": "carrier-pigeon",
+            "url": "pigeon://loft",
+            "label": null,
+            "up": true
+          }
+        ]
+      },
+      "refusedBy": "name"
+    },
+    "routeListControlInName": {
+      "message": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "name": "Main‮box",
+        "sealed": false,
+        "routes": [
+          {
+            "kind": "loopback",
+            "url": "http://127.0.0.1:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "lan",
+            "url": "http://192.0.2.10:18990",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "vpn",
+            "url": "http://[2001:db8::10]:18990",
+            "label": "WireGuard",
+            "up": false
+          },
+          {
+            "kind": "public",
+            "url": "https://emberhut.example",
+            "label": null,
+            "up": true
+          },
+          {
+            "kind": "relay",
+            "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+            "label": null,
+            "up": false
+          },
+          {
+            "kind": "carrier-pigeon",
+            "url": "pigeon://loft",
+            "label": null,
+            "up": true
+          }
+        ]
+      },
+      "refusedBy": "name"
+    },
+    "signedLinkLongName": {
+      "message": {
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "name": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "account": "user_2example0account",
+        "relayDomain": "relay.example",
+        "time": 1795561073000,
+        "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ"
+      },
+      "refusedBy": "name"
+    },
+    "signedLinkTimeTooLate": {
+      "message": {
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "name": "Main computer",
+        "account": "user_2example0account",
+        "relayDomain": "relay.example",
+        "time": 9007199254740992,
+        "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ"
+      },
+      "refusedBy": "time"
+    }
+  },
+  "linkChecks": [
+    {
+      "link": "signedLink",
+      "account": "user_2example0account",
+      "relayDomain": "relay.example",
+      "expect": "ok"
+    },
+    {
+      "link": "signedLink",
+      "account": "user_2another0account",
+      "relayDomain": "relay.example",
+      "expect": "not-yours"
+    },
+    {
+      "link": "signedLink",
+      "account": "user_2example0account",
+      "relayDomain": "other.example",
+      "expect": "bad-request"
+    },
+    {
+      "link": "signedLinkRenamed",
+      "account": "user_2example0account",
+      "relayDomain": "relay.example",
+      "expect": "bad-signature"
+    }
+  ],
+  "signedLinkRenamed": {
+    "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+    "name": "Another name",
+    "account": "user_2example0account",
+    "relayDomain": "relay.example",
+    "time": 1795561073000,
+    "signature": "yW8iS7u_t7Zy9jsBjkJjE0F_ujb7Z9DTFw9rCamb9d9zm6TVq-oRhpNNz6GTAG8EVbAshJZPMbyNfPgOjDaHCQ"
+  }
+}

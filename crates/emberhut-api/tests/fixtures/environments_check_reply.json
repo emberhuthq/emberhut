@@ -1,0 +1,23 @@
+{
+  "at": "2026-11-24T22:01:00.000Z",
+  "summary": { "ok": 1, "warn": 0, "down": 0 },
+  "groups": [
+    {
+      "id": "chrome", "title": "Chrome profiles", "footer": null,
+      "items": [
+        {
+          "id": "chrome:2", "group": "chrome", "name": "Work", "icon": "globe", "tint": "accent",
+          "state": "ok", "status": "Online", "detail": "Extension 1.2.0", "at": null, "error": null, "hint": null,
+          "facts": [], "lists": [], "actions": [ { "id": "check", "label": "Check now" }, { "id": "repair", "label": "Pair again" } ],
+          "lastError": null
+        }
+      ]
+    }
+  ],
+  "pairing": {
+    "code": "WXYZ", "link": "https://example.com/pair/WXYZ", "label": "Work", "name": "work", "device": 2,
+    "until": "2026-11-24T22:11:00.000Z", "paired": false
+  },
+  "note": "Open the link and sign in on Google's screen: it works once, for a day.",
+  "link": "https://example.com/once/abc"
+}

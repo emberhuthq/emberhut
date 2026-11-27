@@ -1,0 +1,32 @@
+{
+  "at": "2026-11-24T22:00:00.000Z",
+  "jobs": [
+    {
+      "id": "unit:ex12-pictures", "kind": "unit", "place": "Linux PC", "name": "ex12-pictures.service",
+      "title": "Making the example pictures", "what": "Codex run",
+      "task": { "id": 12, "title": "An example task", "status": "working" }, "tasks": [12], "linked": "name",
+      "state": "running", "since": "2026-11-24T20:53:00.000Z", "ended": null, "exit": null,
+      "cpu": 12.5, "cpuTime": 340, "memory": 4900000000,
+      "last": { "text": "Wrote picture 3 of 8", "at": "2026-11-24T21:59:00.000Z", "from": "codex" },
+      "file": { "text": "out/picture-3.png", "at": "2026-11-24T21:59:10.000Z", "from": "file" },
+      "active": "2026-11-24T21:59:10.000Z", "cwd": "/work/example", "command": "codex exec 'make the pictures'",
+      "ports": [], "stop": true, "clear": false
+    },
+    {
+      "id": "unit:ex-files", "kind": "server", "place": "Linux PC", "name": "ex-files.service",
+      "title": "Example file page", "what": "File server", "task": null, "tasks": [], "linked": null,
+      "state": "running", "since": "2026-11-20T08:00:00.000Z", "ended": null, "exit": null,
+      "cpu": null, "cpuTime": 12, "memory": 52000000, "last": null, "file": null, "active": null,
+      "cwd": null, "command": "python3 -m http.server 8080", "ports": [8080], "stop": true, "clear": false
+    },
+    {
+      "id": "unit:ex-old", "kind": "unit", "place": "Mac", "name": "ex-old.service",
+      "title": "An older run", "what": "Claude run", "task": null, "tasks": [], "linked": null,
+      "state": "failed", "since": "2026-11-21T08:00:00.000Z", "ended": "2026-11-21T09:00:00.000Z", "exit": "exit-code (exit 1)",
+      "cpu": null, "cpuTime": null, "memory": null,
+      "last": { "text": "Error: no such file", "at": "2026-11-21T09:00:00.000Z", "from": "log" }, "file": null,
+      "active": "2026-11-21T09:00:00.000Z", "cwd": null, "command": null, "ports": [], "stop": false, "clear": true
+    }
+  ],
+  "mac": { "ok": false, "error": "The Mac's runner didn't answer" }
+}

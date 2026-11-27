@@ -1,0 +1,169 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Emberhut</title>
+<style>
+  body {
+    font:
+      13px -apple-system,
+      "Segoe UI",
+      system-ui,
+      sans-serif;
+    width: 320px;
+    margin: 0;
+    padding: 14px;
+    color: #1f1f1f;
+  }
+  h1 {
+    font-size: 15px;
+    margin: 0 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h1 img {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+  }
+  .sub {
+    color: #666;
+    margin-bottom: 12px;
+  }
+  .on {
+    color: #2563eb;
+    font-weight: 600;
+  }
+  .need {
+    background: #fef3c7;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 8px 0;
+  }
+  .notice {
+    background: #e5ecfd;
+    color: #1e40af;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 8px 0;
+  }
+  .err {
+    color: #b91c1c;
+    margin: 6px 0;
+  }
+  button {
+    font: inherit;
+    padding: 6px 10px;
+    border-radius: 7px;
+    border: 1px solid #ccc;
+    background: #fafafa;
+    cursor: pointer;
+    margin: 2px 4px 2px 0;
+  }
+  button.main {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+  }
+  button.stop {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    color: white;
+  }
+  label {
+    display: block;
+    margin: 6px 0 2px;
+    color: #444;
+  }
+  input[type="text"],
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 5px 7px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+  }
+  textarea {
+    height: 64px;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0;
+    max-height: 150px;
+    overflow: auto;
+  }
+  li {
+    padding: 2px 0;
+    color: #444;
+  }
+  li time {
+    color: #999;
+    margin-right: 6px;
+  }
+  details {
+    margin-top: 10px;
+  }
+  summary {
+    cursor: pointer;
+    color: #555;
+  }
+  .hide {
+    display: none;
+  }
+</style>
+<h1><img src="icons/emberhut-48.png" alt="" />Emberhut</h1>
+<div class="sub" id="status">…</div>
+
+<section id="offer" class="need hide">
+  <b>Pair with this server?</b> <span id="offerServer"></span><br />
+  Pair only if it is your own Emberhut server.<br />
+  <button class="main" id="accept">Pair</button><button id="dismiss">Not now</button>
+</section>
+
+<section id="pair" class="hide">
+  <p>
+    Pair this Chrome profile with Emberhut once: in the Emberhut app, <b>Settings → Chrome profiles → Add</b>, then open its link in this
+    profile. Or paste the link here (or its code, and the server's address):
+  </p>
+  <label>Pairing link or code <input type="text" id="code" placeholder="https://…/chrome/pair#ABCD-EFGH" autocomplete="off" /></label>
+  <label>Server's address (with a code) <input type="text" id="server" placeholder="https://…" autocomplete="off" /></label>
+  <p><button class="main" id="doPair">Pair</button></p>
+</section>
+
+<section id="main" class="hide">
+  <div id="notice" class="notice hide"></div>
+  <div id="need" class="need hide">
+    <b>Emberhut needs you:</b> <span id="needWhy"></span><br /><button class="main" id="handback">Hand back to Emberhut</button>
+  </div>
+  <div id="off" class="hide">
+    <p>
+      Emberhut is paused in this Chrome (<span id="offWhy"></span>). It comes back by itself at <b id="offUntil"></b>, or as soon as you
+      hand back.
+    </p>
+  </div>
+  <div id="in" class="hide">
+    <p>
+      <span class="on" id="inText"></span><br />It works only in the blue "Emberhut" tab group, never types a password, and asks you before
+      any final step.
+    </p>
+    <button class="stop" id="pause" title="Emberhut lets go of its tabs now and comes back by itself in 10 minutes">Pause 10 min</button
+    ><button id="share">Share this tab</button>
+    <div id="tabsBox">
+      <label>Emberhut's tabs</label>
+      <ul id="tabs"></ul>
+    </div>
+  </div>
+  <label>Recent</label>
+  <ul id="steps"></ul>
+  <details>
+    <summary>Settings</summary>
+    <label>Blocked sites (one per line, besides the built-in ones)</label>
+    <textarea id="blocked" placeholder="mybank.com"></textarea>
+    <p><button id="save">Save</button><button id="unpair">Unpair this profile</button></p>
+    <p class="sub">Rename it or pair another profile in the Emberhut app: Settings → Chrome profiles.</p>
+    <p class="sub" id="builtin"></p>
+  </details>
+</section>
+<div class="err" id="err"></div>
+<script src="popup.js"></script>

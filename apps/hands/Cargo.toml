@@ -1,0 +1,65 @@
+[package]
+name = "emberhut-hands"
+description = "Emberhut Hands: the Mac helper that lets the assistant use one app in the background, the whole screen with the owner's OK, and record calls."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum = { workspace = true, features = ["http1", "json", "tokio"] }
+base64.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+# Only picks the deflate backend for zip's `deflate-flate2` (the server's, pure Rust); nothing in
+# this crate names `flate2` (machete knows).
+flate2 = { workspace = true, features = ["rust_backend"] }
+getrandom = { workspace = true, features = ["std"] }
+rustix = { workspace = true, features = ["fs"] }
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tracing = { workspace = true, features = ["std"] }
+url.workspace = true
+emberhut-core.workspace = true
+# The extension's zip, read entry by entry with the checks in src/extension/unpack.rs.
+zip = { workspace = true, features = ["deflate-flate2"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The system frameworks the helper drives, through objc2's bindings (ADR 0024): AppKit for the
+# apps and the bar with Stop, ApplicationServices for Accessibility, Core Graphics for input
+# events, the window list and the lock state, ScreenCaptureKit, AVFoundation and Core Media for
+# recording, Foundation for the system's URL loading. libc for the lock's one C call.
+block2.workspace = true
+dispatch2 = { workspace = true, features = ["std", "alloc", "objc2"] }
+libc.workspace = true
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["std", "block2", "libc", "objc2-core-foundation", "NSApplication", "NSButton", "NSCell", "NSColor", "NSControl", "NSFont", "NSFontDescriptor", "NSGraphics", "NSPanel", "NSParagraphStyle", "NSResponder", "NSRunningApplication", "NSScreen", "NSText", "NSTextField", "NSView", "NSWindow", "NSWorkspace"] }
+objc2-application-services = { workspace = true, features = ["std", "AXError", "AXUIElement", "HIServices", "libc"] }
+objc2-av-foundation = { workspace = true, features = ["std", "block2", "AVAssetWriter", "AVAssetWriterInput", "AVCaptureDevice", "AVMediaFormat", "objc2-core-media"] }
+objc2-core-foundation = { workspace = true, features = ["std", "CFArray", "CFAttributedString", "CFBase", "CFCGTypes", "CFDictionary", "CFNumber", "CFString"] }
+objc2-core-graphics = { workspace = true, features = ["std", "libc", "CGDirectDisplay", "CGEvent", "CGEventSource", "CGEventTypes", "CGRemoteOperation", "CGSession", "CGWindow"] }
+objc2-core-media = { workspace = true, features = ["std", "objc2", "objc2-core-audio-types", "CMBase", "CMBlockBuffer", "CMFormatDescription", "CMSampleBuffer", "CMSync", "CMTime"] }
+objc2-foundation = { workspace = true, features = ["std", "block2", "NSArray", "NSBundle", "NSData", "NSDictionary", "NSEnumerator", "NSError", "NSGeometry", "NSObject", "NSString", "NSURL", "NSURLRequest", "NSURLResponse", "NSURLSession", "NSValue"] }
+objc2-screen-capture-kit = { workspace = true, features = ["std", "block2", "dispatch2", "objc2-core-media", "SCShareableContent", "SCStream"] }
+tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "fmt"] }
+
+[dev-dependencies]
+http-body-util.workspace = true
+tempfile.workspace = true
+tower = { workspace = true, features = ["util"] }
+# The extension's fixed id as the server names it, to keep the helper's copy equal to it.
+emberhut-api.workspace = true
+
+[package.metadata.cargo-machete]
+# Used for its backend feature only (see the dependency's comment).
+ignored = ["flate2"]
+
+[lints]
+workspace = true

@@ -1,0 +1,3 @@
+{ "title": "An older thread", "status": "running", "updatedAt": "2026-11-24T21:20:00.000Z",
+  "items": [{ "type": "user_message", "title": null, "text": "Check the example", "at": "2026-11-24T21:00:00.000Z" },
+    { "type": "command_execution", "title": "cargo test", "text": "cargo test", "at": null }] }

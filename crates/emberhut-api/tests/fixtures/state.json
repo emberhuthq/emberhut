@@ -1,0 +1,313 @@
+{
+  "room": 2,
+  "rooms": [
+    {
+      "id": 1, "name": "Main", "project": null, "goal": null, "active": true, "status": "active", "pausedUntil": null,
+      "unread": 0, "needs": 1, "ask": "Pick a name for the example report", "askId": 12, "busy": false, "doing": null,
+      "last": "Done: the example report is in your files.", "lastAt": "2026-11-24T21:57:53.410Z", "lastMine": false
+    },
+    {
+      "id": 2, "name": "Room 2", "project": 2, "goal": 1, "active": true, "status": "active", "pausedUntil": null,
+      "unread": 2, "needs": 0, "ask": null, "askId": null, "busy": true, "doing": "Reading the example files",
+      "last": "Can you look at the example?", "lastAt": "2026-11-24T21:50:00.000Z", "lastMine": true
+    },
+    {
+      "id": 3, "name": "Room 3", "project": 3, "goal": null, "active": false, "status": "paused", "pausedUntil": "2026-12-01",
+      "unread": 0, "needs": 0, "ask": null, "askId": null, "busy": false, "doing": null,
+      "last": null, "lastAt": null, "lastMine": false
+    },
+    {
+      "id": 4, "name": "Room 4", "project": 4, "goal": null, "active": false, "status": "archived", "pausedUntil": null,
+      "unread": 0, "needs": 0, "ask": null, "askId": null, "busy": false, "doing": null,
+      "last": "Sent a file", "lastAt": "2026-10-02T08:00:00.000Z", "lastMine": true
+    }
+  ],
+  "on": true,
+  "busy": true,
+  "live": { "text": "", "doing": "Reading the example files" },
+  "push": true,
+  "unread": true,
+  "pending": 3,
+  "checkins": [{ "at": "2026-11-25T08:00:00.000Z", "why": "Look at the example again" }],
+  "watches": [
+    {
+      "id": 5, "title": "Example watch", "thread": null, "what": "Whether the example page changed", "every": 60,
+      "until": "2026-11-30T00:00:00.000Z", "nextAt": "2026-11-24T23:00:00.000Z", "note": "No change", "noteAt": null,
+      "fails": 0
+    }
+  ],
+  "loops": [],
+  "contextAt": "2026-11-24T21:45:00.000Z",
+  "voice": false,
+  "awareness": [
+    { "id": "health", "name": "Health", "detail": "Sleep, steps, heart", "at": null, "error": null, "state": "stale" }
+  ],
+  "lastCall": null,
+  "issues": [
+    {
+      "id": 12, "key": "T-12", "title": "Name the example report", "body": "A made-up task.", "owner": "assistant",
+      "status": "waiting", "goal": null, "project": "Example project", "pid": 2, "hard": false, "size": "S", "priority": 2,
+      "due": null, "today": true, "parkedUntil": null, "decideBy": "2026-11-26", "area": 9,
+      "decision": {
+        "question": "Which name should the example report have?", "options": ["Report A", "Report B", "Leave it"],
+        "kind": "choose", "brief": ["Both names are made up."], "recommend": 0,
+        "asked": "2026-11-24T20:00:00.000Z", "checked": "2026-11-24T21:00:00.000Z"
+      },
+      "action": "Pick a name for the example report", "created": "2026-11-20T10:00:00.000Z", "updated": "2026-11-24T21:00:00.000Z",
+      "doneAt": null, "last": "Asked which name", "parent": null, "progress": null, "total": null, "unit": null, "sub": null,
+      "tracked": true, "eta": null, "requested": null, "requestedBy": null, "ultra": false, "agents": null,
+      "artifacts": [
+        {
+          "id": 7, "kind": "image", "caption": "A made-up chart", "at": "2026-11-24T19:00:00.000Z", "name": "chart.png",
+          "url": "/api/artifacts/7", "thumb": "/api/artifacts/7/thumb"
+        }
+      ],
+      "send": null,
+      "live": { "state": "waiting", "since": "2026-11-24T20:00:00.000Z", "alarm": false },
+      "deadline": "2026-11-28", "hardDeadline": false, "score": 4.5
+    },
+    {
+      "id": 13, "key": "T-13", "title": "A subtask of the example", "body": null, "owner": "assistant",
+      "status": "working", "goal": null, "project": "Example project", "pid": 2, "hard": false, "size": null, "priority": 0,
+      "due": null, "today": false, "parkedUntil": null, "decideBy": null, "decision": null, "action": null,
+      "created": "2026-11-21T10:00:00.000Z", "updated": "2026-11-24T18:00:00.000Z", "doneAt": null, "last": null,
+      "parent": 12, "progress": 1, "total": 3, "unit": "parts", "sub": null, "tracked": false, "eta": "about an hour",
+      "requested": null, "requestedBy": null, "ultra": false, "agents": null, "artifacts": [], "send": null,
+      "live": { "state": "running", "since": null, "alarm": false },
+      "area": 9, "deadline": null, "hardDeadline": false, "score": 1
+    }
+  ],
+  "goals": [
+    {
+      "id": 1, "title": "Ship the example", "why": "Made up for the fixture", "rank": 1, "at": "2026-11-01T09:00:00.000Z",
+      "status": "On track this week", "short": "on track", "week": { "owner": 1, "assistant": 2 }
+    }
+  ],
+  "todos": [
+    { "id": 12, "goal": 1, "text": "Name the example report", "who": "assistant", "today": true, "done": null, "parkedUntil": null, "at": "2026-11-24T21:00:00.000Z" }
+  ],
+  "weekStart": "2026-11-23T00:00:00.000Z",
+  "focus": [],
+  "projects": [
+    {
+      "id": 2, "name": "Example project", "goal": 1, "priority": 1, "kind": "deliverable", "deadline": "2026-12-15", "hard": true,
+      "status": "active", "pausedUntil": null, "open": 2, "doneWeek": 1, "health": "on_track", "next": "2026-11-28", "hoursLeft": 4.5
+    },
+    {
+      "id": 3, "name": "Paused project", "goal": null, "priority": 0, "kind": "ongoing", "deadline": null, "hard": false,
+      "status": "paused", "pausedUntil": "2026-12-01", "open": 0, "doneWeek": 0, "health": null, "next": null, "hoursLeft": 0
+    }
+  ],
+  "today": [12],
+  "areas": [
+    {
+      "id": 9, "pid": 2, "name": "Example area", "status": "active", "about": "A made-up area", "state": "needs_you",
+      "counts": { "done": 1, "working": 0, "needsYou": 1, "notStarted": 1, "total": 3 },
+      "questions": [
+        { "id": 13, "title": "A made-up step", "owner": "owner", "status": "waiting", "state": "needs_you", "action": "Say yes", "kids": [] }
+      ],
+      "findings": {
+        "total": 2, "landed": 1, "partly": 0, "notLanded": 1, "superseded": 0, "unchecked": 0, "open": 1,
+        "unlanded": [{ "id": 20, "title": "A made-up finding", "landed": "not_landed", "scan": 19, "scanTitle": "A made-up scan" }]
+      },
+      "tree": [
+        {
+          "id": 12, "title": "Name the example report", "owner": "assistant", "status": "waiting", "state": "needs_you",
+          "kids": [
+            { "id": 13, "title": "A made-up step", "owner": "owner", "status": "done", "state": "done", "doneAt": "2026-11-24T10:00:00.000Z", "kids": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 10, "pid": 2, "name": "Finished area", "status": "done", "state": "done",
+      "counts": { "done": 0, "working": 0, "needsYou": 0, "notStarted": 0, "total": 0 }, "questions": [],
+      "findings": { "total": 0, "landed": 0, "partly": 0, "notLanded": 0, "superseded": 0, "unchecked": 0, "open": 0, "unlanded": [] },
+      "tree": []
+    }
+  ],
+  "report": {
+    "concern": { "title": "A made-up concern", "why": "Made up for the fixture" },
+    "weeks": [0, 1, 2, 1, 0, 3, 2, 1],
+    "weekStarts": [
+      "2026-09-27T21:00:00.000Z", "2026-10-04T21:00:00.000Z", "2026-10-11T21:00:00.000Z", "2026-10-18T21:00:00.000Z",
+      "2026-10-25T21:00:00.000Z", "2026-11-01T22:00:00.000Z", "2026-11-08T22:00:00.000Z", "2026-11-15T22:00:00.000Z"
+    ],
+    "since": "2026-10-10T08:00:00.000Z",
+    "goals": [
+      {
+        "id": 1, "title": "Ship the example", "short": "on track", "done": 1,
+        "projects": [{ "id": 2, "name": "Example project", "doneWeek": 1, "open": 2, "health": "on_track" }]
+      }
+    ],
+    "done": [{ "id": 14, "title": "A finished example", "owner": "owner", "project": "Example project" }]
+  },
+  "ui": { "hideGoals": true, "hideProjects": true },
+  "theme": { "preset": "blue", "appearance": "system", "accent": null, "at": null },
+  "builds": { "ios": 120, "mac": 121 },
+  "working": [
+    {
+      "id": "task:12", "kind": "task", "task": 12, "machine": null, "thread": null, "title": "Name the example report", "pid": 2,
+      "area": 9, "who": "assistant", "state": "waiting", "progress": null, "line": "Asked which name", "at": "2026-11-24T20:00:00.000Z", "eta": null,
+      "live": { "state": "waiting", "since": "2026-11-24T20:00:00.000Z", "alarm": false },
+      "ask": "Which name should the example report have?", "last": null, "action": "Pick a name for the example report",
+      "options": ["Report A", "Report B", "Leave it"], "draft": false, "thumb": "/api/artifacts/7/thumb",
+      "reply": {
+        "id": 8, "kind": "x_reply", "caption": null, "at": "2026-11-24T19:30:00.000Z", "name": "replies", "url": "/api/artifacts/8",
+        "x": {
+          "post_url": "https://x.com/example/status/1", "post_id": "1", "author": "example", "author_name": "Example",
+          "followers": 1200, "posted_at": "2026-11-24T18:00:00.000Z", "post_text": "A made-up post.",
+          "replies": [
+            { "text": "A made-up reply.", "why": "It is short", "label": "Short", "intent_url": "https://x.com/intent/tweet?in_reply_to=1" },
+            { "text": "Another made-up reply.", "why": null }
+          ],
+          "check": "Check the made-up number", "metrics": { "likes": 40.0, "replies": 3 },
+          "room": { "winners_pattern": "Short ones", "top_replies": [{ "author": "someone", "text": "A top reply.", "likes": 12, "url": null }] }
+        },
+        "thumb": null
+      },
+      "need": "choose", "asked": "2026-11-24T20:00:00.000Z", "checked": "2026-11-24T21:00:00.000Z",
+      "decideBy": "2026-11-26", "hardBy": false
+    },
+    {
+      "id": "thread:runner:t-1", "kind": "thread", "task": null, "machine": "runner", "thread": "t-1", "title": "An example thread",
+      "pid": null, "who": "assistant", "state": "running", "progress": "2 of 5", "line": "Running the example checks",
+      "at": "2026-11-24T21:55:00.000Z", "eta": null, "ask": null, "last": null, "action": null, "options": null, "draft": false
+    },
+    {
+      "id": "thread:runner:t-2", "kind": "thread", "task": null, "machine": "runner", "thread": "t-2", "title": "An example thread that asks",
+      "pid": null, "who": "assistant", "state": "waiting", "progress": null, "line": "Asked to go ahead", "at": "2026-11-24T21:40:00.000Z",
+      "eta": null, "ask": "Go ahead with the example?", "last": null, "action": "Say whether to go ahead", "options": ["Approve", "Not now"],
+      "draft": false, "need": "approve", "asked": "2026-11-24T21:40:00.000Z", "checked": null
+    }
+  ],
+  "agentsNow": [
+    {
+      "task": 12, "key": "EX-12", "title": "An example task", "id": "lead-12", "name": "Worker", "line": "Running the example checks",
+      "started": "2026-11-24T21:40:00.000Z", "tokens": 1200, "viewer": "w-12", "parent": null, "lead": true, "kind": "worker",
+      "machine": "runner", "place": "Linux PC", "account": "a-1", "accountName": "Example account"
+    },
+    {
+      "task": 12, "key": "EX-12", "title": "An example task", "id": "agent-3", "name": "Part 1", "line": null, "started": null,
+      "tokens": null, "viewer": "w-12", "parent": "call-1", "lead": false, "kind": "helper", "machine": null, "place": null,
+      "account": null, "accountName": null
+    }
+  ],
+  "sessions": [
+    {
+      "id": "s-1", "machine": "runner", "title": "An example session", "project": "Example project", "status": "running",
+      "updatedAt": "2026-11-24T21:56:00.000Z", "place": "Example machine", "doing": "Running the example checks", "account": "a-1",
+      "accountName": "Example account", "cwd": "/work/example", "branch": "example", "ask": null, "last": null,
+      "statusLine": null, "since": "2026-11-24T21:00:00.000Z", "direct": true, "model": "example-model", "effort": null,
+      "question": null, "tasks": [13], "room": 2
+    }
+  ],
+  "mySessions": [
+    {
+      "id": "r-2b", "machine": "runner-b", "title": "An example of mine", "project": "", "status": "waiting",
+      "updatedAt": "2026-11-24T21:30:00.000Z", "place": "Mac", "doing": null, "account": null, "accountName": null, "cwd": "/work/mine",
+      "branch": null, "ask": null, "last": "Which one should it be?", "statusLine": null, "since": null, "direct": true,
+      "model": "example-model", "effort": "high", "question": "Which one should it be?", "tasks": [], "room": 1
+    }
+  ],
+  "t3Running": [
+    {
+      "id": "t-1", "machine": "t3-mac", "title": "An older thread", "project": "Example project", "status": "running",
+      "updatedAt": "2026-11-24T21:20:00.000Z", "ask": "Check the example", "last": null, "statusLine": null, "tasks": [12], "room": 0
+    }
+  ],
+  "browser": {
+    "connected": true, "url": "https://www.example.com/sign-in", "title": "Sign in", "driver": "You", "task": 12,
+    "control": "owner", "handoff": "Sign in to the example site", "at": "2026-11-24T21:58:00.000Z",
+    "tabs": [
+      { "id": 1, "url": "https://www.example.com/sign-in", "title": "Sign in", "active": true },
+      { "id": 2, "url": "about:blank", "title": "", "active": false }
+    ],
+    "chromeUI": false, "device": "", "fileRequest": { "multiple": false, "at": "2026-11-24T21:59:00.000Z" }
+  },
+  "recording": null,
+  "chrome": [
+    {
+      "id": 2, "name": "work", "label": "Work", "email": "person@example.com", "machine": "example-laptop", "os": "mac",
+      "version": "0.4.1", "browser": "Chrome/131.0.0.0", "outdated": true, "connected": true,
+      "seen": "2026-11-24T21:50:00.000Z", "created": "2026-11-01T09:00:00.000Z", "ext": "abcdefghijklmnop", "oldCopy": false,
+      "grant": { "until": null, "task": null, "by": "paired" }, "paused": null, "control": "agent", "handoff": null,
+      "url": "https://example.com/", "title": "Example", "driver": null, "task": null, "tasks": [12]
+    },
+    {
+      "id": 3, "name": "personal", "label": "Personal", "email": null, "machine": null, "os": null, "version": null,
+      "browser": null, "outdated": false, "connected": false, "seen": null, "created": "2026-11-02T09:00:00.000Z",
+      "ext": null, "oldCopy": false, "grant": null, "paused": { "why": "you paused it from the app", "until": 1795600000000 },
+      "control": "owner", "handoff": "Sign in to the example site", "url": "", "title": "", "driver": null, "task": 13, "tasks": []
+    }
+  ],
+  "chromePairing": [
+    {
+      "code": "ABCD-1234", "link": "https://emberhut.example.com/chrome/pair#ABCD-1234", "label": "Side project",
+      "name": "side-project", "device": null, "until": "2026-11-24T22:30:00.000Z", "paired": false
+    }
+  ],
+  "chromeLatest": "1.0.0",
+  "healthAt": null,
+  "health": null,
+  "auth": {
+    "mode": "report", "bound": true,
+    "devices": [
+      { "id": 3, "name": "Example laptop", "model": "linux", "created": "2026-11-01T09:00:00.000Z", "seen": "2026-11-24T21:57:00.000Z" }
+    ]
+  },
+  "screentimeAt": null,
+  "tasks": [
+    { "id": "b1", "description": "Run the example tests", "type": "local_bash", "status": "running", "startedAt": "2026-11-24T21:40:00.000Z", "endedAt": null, "summary": null, "room": 2 },
+    { "id": "b0", "description": "Look through the example notes", "type": "local_agent", "status": "completed", "startedAt": "2026-11-24T20:00:00.000Z", "endedAt": "2026-11-24T20:10:00.000Z", "summary": "Nothing new" }
+  ],
+  "threads": [],
+  "machines": {},
+  "followed": [],
+  "accounts": [
+    {
+      "id": "a-1", "name": "Example account", "scope": "any", "order": 1, "enabled": true, "loggedIn": true,
+      "email": null, "plan": "max", "used5h": 25, "used7d": 40, "resets5h": null, "resets7d": null, "limitedUntil": null,
+      "limitedWhy": null, "checked": null, "error": null, "provider": null, "optIn": false, "region": null, "models": null,
+      "machine": "runner", "place": "Linux PC"
+    }
+  ],
+  "usage": [
+    {
+      "id": "a-1", "name": "Example", "scope": "any", "loggedIn": true, "used5h": 25, "resets5h": "2026-11-25T01:00:00.000Z",
+      "used7d": 82, "resets7d": "2026-11-28T00:00:00.000Z", "limitedUntil": null, "checked": "2026-11-24T21:57:00.000Z",
+      "places": ["Linux PC", "Mac"], "best": true
+    },
+    {
+      "id": "a-2", "name": "Second", "scope": "any", "loggedIn": false, "used5h": null, "resets5h": null,
+      "used7d": null, "resets7d": null, "limitedUntil": null, "checked": null, "places": [], "best": false
+    }
+  ],
+  "assistantAccount": { "on": "a-1", "pin": null, "mode": "auto", "pinOut": false, "rooms": [ { "room": 1, "name": "Main", "account": "a-1" } ] },
+  "account": {
+    "id": "a-1", "email": "user@example.com", "plan": "max", "loggedIn": true, "used5h": 0.25, "resets5h": "2026-11-25T01:00:00.000Z",
+    "used7d": 0.4, "resets7d": "2026-11-28T00:00:00.000Z", "limitedUntil": null, "at": "2026-11-24T21:57:00.000Z"
+  },
+  "did": [{ "time": "4m", "at": "2026-11-24T21:53:00.000Z", "text": "Looked at the example" }],
+  "chat": [
+    {
+      "id": 40, "mine": true, "text": "Can you look at the example?", "time": "7m", "at": "2026-11-24T21:50:00.000Z",
+      "files": [{ "name": "notes.txt", "url": "/uploads/notes.txt", "kind": "file", "path": "/data/uploads/notes.txt" }]
+    },
+    {
+      "id": 41, "mine": false, "event": true, "text": "A check-in came due", "time": "6m", "at": "2026-11-24T21:51:00.000Z", "files": []
+    },
+    {
+      "id": 42, "mine": false, "text": "I'm on it: **two** things to check.", "time": "now", "at": "2026-11-24T21:57:00.000Z", "files": [],
+      "reply": {
+        "id": 40, "mine": true, "at": "2026-11-24T21:50:00.000Z", "text": "Can you look at the example?",
+        "file": null
+      },
+      "refs": [
+        { "kind": "task", "task": 12, "label": "T-12", "title": "Name the example report" },
+        { "kind": "pr", "label": "PR #3", "title": "example/repo", "url": "https://github.com/example/repo/pull/3" }
+      ]
+    }
+  ],
+  "earlier": true
+}

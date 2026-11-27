@@ -1,0 +1,858 @@
+{
+  "description": "GET /api/connect/probe: the query the client sent, the machine it expected, and the answer it got. An answer that reads has a key with its id and a via that agrees with local; a valid one is from the expected machine and has a signature over emberhut probe v1 with the query's nonce and kind. Errors: decode, otherMachine, signature. `bindings` match a valid answer (by its name in `answers`) against the route the client probed, and `sshBindings` an ssh answer against the local forward (ssh -L 127.0.0.1:<localPort>:127.0.0.1:<machinePort>). A decode case's `refusedBy` names what refused it: wrongKey, reached, host, local, publicKey, via. `kinds` are what a probe's kind may be; a server answers 400 to any other.",
+  "probes": [
+    {
+      "description": "a valid answer: lan",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: relay",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "relay"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "relayed",
+        "local": "",
+        "host": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+        "signature": "3FTIhf1MxuBzklf2EHOWaCNUu8r6-a5ihFxadlPidnlUqz5PUfSjAUAi8qhLJr8sh_2NKMy2jOVwQ9fZ1rV1AQ"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: public",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "public"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "emberhut.example",
+        "signature": "2SC482A9RDX2lKQShJZ0EPT7rxCaVQ2hITLwp7V2UoZhzh9pl_MFbTbEUCnrHA4azyQlJ_stm2ZRdmY9YhmZDQ"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: proxyDefaultHost",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "public"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:18990",
+        "signature": "aPHaW2XYwYqhph4njkD0bjMsGM0T9NohvlLyY1_uTtSgCvrrPWLqx_pciV2dE4a-7dC4EcrgTdJUc82QgpnQDw"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: loopback",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "loopback"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:18990",
+        "signature": "jirUUACEwXna-AmTN8JABAGNn2UbKEGlwBiE4r3Ia8GY7bKEPsMb1eNqAuq6TzwMefr8DlL0B_QTPgeOmao2AQ"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: vpn",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "vpn"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "[2001:db8::10]:18990",
+        "host": "[2001:db8::10]:18990",
+        "signature": "s7Dm0Kzb8WQbMTU2qzdHXHHsBbH8fCmCyBgkRYo-DITVmzUb1a7l4-9AidlXO2IvhF3U1CUTFRREiM57uoCjBg"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: vpnName",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "vpn"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "box.vpn.example",
+        "signature": "5lHK1leD98kqkUkG3ERUnEgS8YvLyqdf4KfAz4GvARth8BG3aVYvylBOMEZqV6FK9CVCdV1U0b9x99CstfXoBA"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: ssh",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "ssh"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:49152",
+        "signature": "hV3yrBOGij7QDSOaCGJCbZz_IvWc72ed05YrozJ7v0jqNmdkwhdHnWaj2wm_BBPTAVTEuq7Vd_DZYr9ImRBFAA"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: sshOverIpv6",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "ssh"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "[::1]:18990",
+        "host": "127.0.0.1:49152",
+        "signature": "io9KtZAOgVUN_aF1mCzZYcy8HJIQAzwUsDgnDj_DzgXn6XnX4eHXHc9e-4ZF4YNz3bItlxGh2mQk9Z1KygILDw"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: sshNotLoopback",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "ssh"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "127.0.0.1:49152",
+        "signature": "jixL_FW7uBjCv4wSlE3jhbqI98BACdH1sKMjtbGnDMXfQJSrq-OV5lcXO8554gKULeRnkUoah9zJilo0cZAHCg"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer: sshRelayed",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "ssh"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "relayed",
+        "local": "",
+        "host": "127.0.0.1:49152",
+        "signature": "tfwcH9TuqzGuKmw7vSVMAjzOcPiJSREqZdey8z2NgpPtB0xncBEr_O_BFrUQuyMMYG8sy_wFZX_Og7jR1l8sBA"
+      },
+      "valid": true
+    },
+    {
+      "description": "a valid answer with a kind this version doesn't know",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "carrier-pigeon"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:18990",
+        "signature": "Vo_o3OFXC6_vbLk-GDPLjNkVmXMcQ4Wabx6enJemutP_uay2SnyIEgmMNtDqPeUnspRDDEOTzcqVnnfDyCIMAw"
+      },
+      "valid": true
+    },
+    {
+      "description": "another machine answered",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+        "publicKey": "2cHeyDHvhA9M_VrS73JVkCm-NoudiJz4GiVevuJ32qc",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "pGpw_o1y1UNzz2bz6uFDniCFGH8QHj0o-HkbsCzWyH4uefbhYQpzzLpFGlrmxCHm27EVaP4n232qgmdEPw_7Dw"
+      },
+      "error": "otherMachine"
+    },
+    {
+      "description": "signed by another key than the one it shows",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "PFeDj0zWSybB5-OobQ9InwWE-6-LeHIzFjWVBzyTgnu8Vu_LUIvsCbmhGHFOJLctnfqngm01eiDQul-JylG3Aw"
+      },
+      "error": "signature"
+    },
+    {
+      "description": "signed for an earlier probe's nonce",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "BZ7JvyjHiA4B_A8BcdMe3PtusCX1NU5_EVkk-GOPqUIGHyf0Jfbe5eQh7ZbX-RVsnVamoXshB-hHe3xrEBsiBw"
+      },
+      "error": "signature"
+    },
+    {
+      "description": "signed for another route kind",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "relay"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+      },
+      "error": "signature"
+    },
+    {
+      "description": "the key of another machine id",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "qoasjogo65qh2cy62xmytganhyz74fla",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "kMWsqck4ygD_fw-Rohgsx_DQC3IxATNR4kWB5gf1HOFTNFVyNeLkAxWqNnkpczzjNkuSz9i1nS_nEeRNdfMwAg"
+      },
+      "error": "decode",
+      "refusedBy": "wrongKey"
+    },
+    {
+      "description": "direct, without its local address",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "",
+        "host": "192.0.2.10:18990",
+        "signature": "kOtS5yCXdb6yB0F0yrQnUPgfQ8ayYYlufJ55gnQQ7GHizym3I54ujEhCJhDxhu-Pwz28KvqK_vOnIfQKcC8BDA"
+      },
+      "error": "decode",
+      "refusedBy": "reached"
+    },
+    {
+      "description": "relayed, with a local address",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "relay"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "relayed",
+        "local": "192.0.2.10:18990",
+        "host": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+        "signature": "4VZbP22NWMS9KMdOgkt1cGa10LV3BYmjkvALxE6X0r-5uNjS1FAocumSset8ZAmF1H2pHXWR5QmlRSVx8hO_BA"
+      },
+      "error": "decode",
+      "refusedBy": "reached"
+    },
+    {
+      "description": "a host not in normal form",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "public"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "Emberhut.example",
+        "signature": "qdvwEB450GUhYYUholAKIchvygaKx2M6QKG6q3dct6pHKtvWz72cJuBfzk0fXmEUBcBIGegbMCYcBpsxJXCnCQ"
+      },
+      "error": "decode",
+      "refusedBy": "host"
+    },
+    {
+      "description": "a local address not in normal form",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "[::ffff:192.0.2.10]:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "UDnQzae3K6zYFon143IJgGGoG2lg_B2a8RETXMzgIxiQMiq4KnUVJ3jhBiMopzxUwuUeK431Of1NE13NESVrBQ"
+      },
+      "error": "decode",
+      "refusedBy": "local"
+    },
+    {
+      "description": "a weak public key",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+      },
+      "error": "decode",
+      "refusedBy": "publicKey"
+    },
+    {
+      "description": "an unknown via",
+      "query": {
+        "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "kind": "lan"
+      },
+      "expected": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "teleported",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+      },
+      "error": "decode",
+      "refusedBy": "via"
+    }
+  ],
+  "answers": {
+    "lan": {
+      "kind": "lan",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "192.0.2.10:18990",
+        "signature": "xTHRC4W3bbr7aL-O-Spj1uX1Y-3F9MKLyvKwyPxwG1KbMcLlTx6bXQRT4K5xmVQvrg1hQ-6PqctmKm-k96c6CQ"
+      }
+    },
+    "relay": {
+      "kind": "relay",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "relayed",
+        "local": "",
+        "host": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+        "signature": "3FTIhf1MxuBzklf2EHOWaCNUu8r6-a5ihFxadlPidnlUqz5PUfSjAUAi8qhLJr8sh_2NKMy2jOVwQ9fZ1rV1AQ"
+      }
+    },
+    "public": {
+      "kind": "public",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "emberhut.example",
+        "signature": "2SC482A9RDX2lKQShJZ0EPT7rxCaVQ2hITLwp7V2UoZhzh9pl_MFbTbEUCnrHA4azyQlJ_stm2ZRdmY9YhmZDQ"
+      }
+    },
+    "proxyDefaultHost": {
+      "kind": "public",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:18990",
+        "signature": "aPHaW2XYwYqhph4njkD0bjMsGM0T9NohvlLyY1_uTtSgCvrrPWLqx_pciV2dE4a-7dC4EcrgTdJUc82QgpnQDw"
+      }
+    },
+    "loopback": {
+      "kind": "loopback",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:18990",
+        "signature": "jirUUACEwXna-AmTN8JABAGNn2UbKEGlwBiE4r3Ia8GY7bKEPsMb1eNqAuq6TzwMefr8DlL0B_QTPgeOmao2AQ"
+      }
+    },
+    "vpn": {
+      "kind": "vpn",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "[2001:db8::10]:18990",
+        "host": "[2001:db8::10]:18990",
+        "signature": "s7Dm0Kzb8WQbMTU2qzdHXHHsBbH8fCmCyBgkRYo-DITVmzUb1a7l4-9AidlXO2IvhF3U1CUTFRREiM57uoCjBg"
+      }
+    },
+    "vpnName": {
+      "kind": "vpn",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "box.vpn.example",
+        "signature": "5lHK1leD98kqkUkG3ERUnEgS8YvLyqdf4KfAz4GvARth8BG3aVYvylBOMEZqV6FK9CVCdV1U0b9x99CstfXoBA"
+      }
+    },
+    "ssh": {
+      "kind": "ssh",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "127.0.0.1:18990",
+        "host": "127.0.0.1:49152",
+        "signature": "hV3yrBOGij7QDSOaCGJCbZz_IvWc72ed05YrozJ7v0jqNmdkwhdHnWaj2wm_BBPTAVTEuq7Vd_DZYr9ImRBFAA"
+      }
+    },
+    "sshOverIpv6": {
+      "kind": "ssh",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "[::1]:18990",
+        "host": "127.0.0.1:49152",
+        "signature": "io9KtZAOgVUN_aF1mCzZYcy8HJIQAzwUsDgnDj_DzgXn6XnX4eHXHc9e-4ZF4YNz3bItlxGh2mQk9Z1KygILDw"
+      }
+    },
+    "sshNotLoopback": {
+      "kind": "ssh",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "direct",
+        "local": "192.0.2.10:18990",
+        "host": "127.0.0.1:49152",
+        "signature": "jixL_FW7uBjCv4wSlE3jhbqI98BACdH1sKMjtbGnDMXfQJSrq-OV5lcXO8554gKULeRnkUoah9zJilo0cZAHCg"
+      }
+    },
+    "sshRelayed": {
+      "kind": "ssh",
+      "answer": {
+        "id": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+        "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+        "via": "relayed",
+        "local": "",
+        "host": "127.0.0.1:49152",
+        "signature": "tfwcH9TuqzGuKmw7vSVMAjzOcPiJSREqZdey8z2NgpPtB0xncBEr_O_BFrUQuyMMYG8sy_wFZX_Og7jR1l8sBA"
+      }
+    }
+  },
+  "nonce": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+  "bindings": [
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "lan",
+        "url": "http://192.0.2.10:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "the address and port it was reached on"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "lan",
+        "url": "http://192.0.2.10:18990/",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "a path doesn't matter"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "lan",
+        "url": "http://192.0.2.11:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "another address: a forward from a remembered one"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "lan",
+        "url": "http://192.0.2.10:18991",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "another port"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "lan",
+        "url": "http://192.0.2.10",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "the default port 80 is another port"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "lan",
+        "url": "http://mybox.example:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "an address route needs an address"
+    },
+    {
+      "answer": "relay",
+      "route": {
+        "kind": "relay",
+        "url": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "not a URL: no scheme"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "public",
+        "url": "https://192.0.2.10:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "the answer was for a lan probe"
+    },
+    {
+      "answer": "loopback",
+      "route": {
+        "kind": "loopback",
+        "url": "http://127.0.0.1:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "loopback"
+    },
+    {
+      "answer": "relay",
+      "route": {
+        "kind": "relay",
+        "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "relayed, for the relay's name"
+    },
+    {
+      "answer": "relay",
+      "route": {
+        "kind": "relay",
+        "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example:443/",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "the default port"
+    },
+    {
+      "answer": "relay",
+      "route": {
+        "kind": "relay",
+        "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.other.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "a relay URL under another domain"
+    },
+    {
+      "answer": "relay",
+      "route": {
+        "kind": "relay",
+        "url": "http://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "a name route must be https"
+    },
+    {
+      "answer": "public",
+      "route": {
+        "kind": "public",
+        "url": "https://emberhut.example",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "the public name, reached directly"
+    },
+    {
+      "answer": "public",
+      "route": {
+        "kind": "public",
+        "url": "https://Emberhut.Example:443/path",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "compared in normal form"
+    },
+    {
+      "answer": "public",
+      "route": {
+        "kind": "public",
+        "url": "https://other.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "another name"
+    },
+    {
+      "answer": "public",
+      "route": {
+        "kind": "public",
+        "url": "https://emberhut.example:8443",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "another port"
+    },
+    {
+      "answer": "proxyDefaultHost",
+      "route": {
+        "kind": "public",
+        "url": "https://emberhut.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "a proxy that sends its own Host"
+    },
+    {
+      "answer": "vpn",
+      "route": {
+        "kind": "vpn",
+        "url": "http://[2001:db8::10]:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "a VPN address"
+    },
+    {
+      "answer": "vpn",
+      "route": {
+        "kind": "vpn",
+        "url": "http://[2001:db8::11]:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "another VPN address"
+    },
+    {
+      "answer": "vpnName",
+      "route": {
+        "kind": "vpn",
+        "url": "https://box.vpn.example",
+        "label": null,
+        "up": true
+      },
+      "matches": true,
+      "why": "a VPN's HTTPS name"
+    },
+    {
+      "answer": "vpnName",
+      "route": {
+        "kind": "vpn",
+        "url": "http://box.vpn.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "a VPN name must be https"
+    },
+    {
+      "answer": "ssh",
+      "route": {
+        "kind": "ssh",
+        "url": "ssh://mybox.example",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "an ssh route is checked against its forward, not its URL"
+    },
+    {
+      "answer": "lan",
+      "route": {
+        "kind": "carrier-pigeon",
+        "url": "http://192.0.2.10:18990",
+        "label": null,
+        "up": true
+      },
+      "matches": false,
+      "why": "a kind this version doesn't know"
+    }
+  ],
+  "sshBindings": [
+    {
+      "answer": "ssh",
+      "forward": {
+        "localPort": 49152,
+        "machinePort": 18990
+      },
+      "matches": true,
+      "why": "loopback on the forward's target port, for the forward's own port"
+    },
+    {
+      "answer": "sshOverIpv6",
+      "forward": {
+        "localPort": 49152,
+        "machinePort": 18990
+      },
+      "matches": true,
+      "why": "IPv6 loopback on the machine is loopback too"
+    },
+    {
+      "answer": "ssh",
+      "forward": {
+        "localPort": 49152,
+        "machinePort": 18991
+      },
+      "matches": false,
+      "why": "another target port"
+    },
+    {
+      "answer": "ssh",
+      "forward": {
+        "localPort": 49153,
+        "machinePort": 18990
+      },
+      "matches": false,
+      "why": "another forward: the host is another local port"
+    },
+    {
+      "answer": "sshNotLoopback",
+      "forward": {
+        "localPort": 49152,
+        "machinePort": 18990
+      },
+      "matches": false,
+      "why": "not on the machine's loopback"
+    },
+    {
+      "answer": "sshRelayed",
+      "forward": {
+        "localPort": 49152,
+        "machinePort": 18990
+      },
+      "matches": false,
+      "why": "relayed"
+    },
+    {
+      "answer": "loopback",
+      "forward": {
+        "localPort": 18990,
+        "machinePort": 18990
+      },
+      "matches": false,
+      "why": "a loopback probe, not an ssh one"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+[package]
+name = "xtask"
+description = "Repository tasks for emberhut, run with `cargo xtask <task>`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# `env`: --sign and --keychain-profile also read EMBERHUT_SIGN_IDENTITY and EMBERHUT_NOTARY_PROFILE.
+clap = { workspace = true, features = ["derive", "env"] }
+# Reads `cargo metadata` and cargo's build messages.
+serde_json.workspace = true
+# bundle-hands' --server-url, checked before it goes into the launch agent.
+url.workspace = true
+# The private-network rules the helper keeps, checked at install time too.
+emberhut-core.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

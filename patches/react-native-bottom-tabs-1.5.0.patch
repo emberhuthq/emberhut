@@ -1,0 +1,42 @@
+diff --git a/android/src/main/java/com/rcttabview/RCTTabView.kt b/android/src/main/java/com/rcttabview/RCTTabView.kt
+index 66de5d2fca9c878e8d67d247eeca66f034aaf3f7..90c1a8bc3eeea5a5b8438e12c9778bfb68b9f328 100644
+--- a/android/src/main/java/com/rcttabview/RCTTabView.kt
++++ b/android/src/main/java/com/rcttabview/RCTTabView.kt
+@@ -16,13 +16,16 @@ import android.view.Choreographer
+ import android.view.HapticFeedbackConstants
+ import android.view.MenuItem
+ import android.view.View
++import android.view.WindowInsets
+ import android.view.ViewGroup
+ import android.widget.FrameLayout
+ import android.widget.LinearLayout
+ import android.widget.TextView
+ import androidx.core.view.AccessibilityDelegateCompat
+ import androidx.core.view.MenuItemCompat
++import androidx.core.graphics.Insets
+ import androidx.core.view.ViewCompat
++import androidx.core.view.WindowInsetsCompat
+ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+ import androidx.core.view.forEachIndexed
+ import coil3.ImageLoader
+@@ -46,6 +49,20 @@ class ExtendedBottomNavigationView(context: Context) : BottomNavigationView(cont
+   override fun getMaxItemCount(): Int {
+     return 100
+   }
++
++  // Material pads the bar by the window's bottom inset, and with adjustResize that inset includes the keyboard's: the
++  // bar would grow by the keyboard's height and sit on top of it, squeezing the screen above. The keyboard covers the
++  // bar instead (as on iOS), so the bar takes the system bars' insets only.
++  override fun dispatchApplyWindowInsets(insets: WindowInsets): WindowInsets {
++    val compat = WindowInsetsCompat.toWindowInsetsCompat(insets, this)
++    if (!compat.isVisible(WindowInsetsCompat.Type.ime())) return super.dispatchApplyWindowInsets(insets)
++    val withoutKeyboard = WindowInsetsCompat.Builder(compat)
++      .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
++      .setVisible(WindowInsetsCompat.Type.ime(), false)
++      .build()
++    super.dispatchApplyWindowInsets(withoutKeyboard.toWindowInsets() ?: insets)
++    return insets
++  }
+ }
+ 
+ class ReactBottomNavigationView(context: Context) : LinearLayout(context) {

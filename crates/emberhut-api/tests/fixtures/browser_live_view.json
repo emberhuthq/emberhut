@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "url": "https://example.org:8447/",
+  "user": "viewer",
+  "password": "example-password",
+  "mode": "control",
+  "screen": { "width": 2880, "height": 1800 }
+}

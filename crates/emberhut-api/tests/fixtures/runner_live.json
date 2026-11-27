@@ -1,0 +1,14 @@
+[
+  { "type": "head", "session": { "id": "r-1a", "title": "An example session", "cwd": "/work/example", "project": "Example project",
+    "status": "running", "account": "a-1", "branch": "example", "worktree": "/work/wt/example", "meta": null, "model": "example-model",
+    "effort": null, "created": "2026-11-24T20:00:00.000Z", "updated": "2026-11-24T21:56:00.000Z", "running": true,
+    "doing": "Running: cargo test", "since": "2026-11-24T21:50:00.000Z", "turn": "r-1a:3", "tokens": 5120,
+    "agents": [{ "id": "call-0", "description": "Check the docs", "tokens": 900, "tools": 4, "last": "Reading", "running": true,
+      "started": "2026-11-24T21:51:00.000Z" }], "queued": 1 } },
+  { "type": "step", "step": { "seq": 17, "turn": "r-1a:3", "at": "2026-11-24T21:52:00.000Z", "kind": "text", "text": "Done." } },
+  { "type": "delta", "turn": "r-1a:3", "start": true, "text": "" },
+  { "type": "delta", "turn": "r-1a:3", "text": "Hel" },
+  { "type": "think", "turn": "r-1a:3", "start": true, "text": "", "since": "2026-11-24T21:52:01.000Z" },
+  { "type": "think", "turn": "r-1a:3", "text": "Looking" },
+  { "type": "tokens", "turn": "r-1a:3", "tokens": 6000 }
+]

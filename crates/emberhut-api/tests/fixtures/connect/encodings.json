@@ -1,0 +1,152 @@
+{
+  "description": "Binary values in JSON (nonces, keys, signatures) are base64url without padding (RFC 4648, section 5); a decoder refuses padding, other alphabets and non-zero trailing bits. Machine ids are 32 characters of lowercase base32. Times are whole milliseconds from 0 to 2^53 - 1. Errors: length, symbol, trailingBits; for public keys also notAPoint, weak, notTorsionFree; for times outOfRange.",
+  "nonces": {
+    "valid": [
+      {
+        "hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      {
+        "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "text": "__________________________________________8"
+      },
+      {
+        "hex": "f47672a2ebc891786fdb2e040861c653a3c7dae34d19c446e84432b5c5f8d631",
+        "text": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE"
+      }
+    ],
+    "invalid": [
+      {
+        "text": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE=",
+        "error": "length",
+        "why": "padding"
+      },
+      {
+        "text": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41j",
+        "error": "length",
+        "why": "42 characters"
+      },
+      {
+        "text": "9HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jB",
+        "error": "trailingBits",
+        "why": "a set bit past the 256th"
+      },
+      {
+        "text": "+HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "error": "symbol",
+        "why": "the standard alphabet's +"
+      },
+      {
+        "text": "/HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "error": "symbol",
+        "why": "the standard alphabet's /"
+      },
+      {
+        "text": " HZyouvIkXhv2y4ECGHGU6PH2uNNGcRG6EQytcX41jE",
+        "error": "symbol",
+        "why": "whitespace"
+      }
+    ]
+  },
+  "machineIds": {
+    "valid": [
+      "h5nxebjfgtqfi7spuo6ws6ww3twfowyg",
+      "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c",
+      "qoasjogo65qh2cy62xmytganhyz74fla",
+      "ck6couh47f2f6kglar5tlosrp26detmc"
+    ],
+    "invalid": [
+      {
+        "text": "3J6RAJBBRD2YRRVDKOQ2MOUZ5AQXWH5C",
+        "error": "symbol",
+        "why": "upper case"
+      },
+      {
+        "text": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5",
+        "error": "length",
+        "why": "31 characters"
+      },
+      {
+        "text": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5ca",
+        "error": "length",
+        "why": "33 characters"
+      },
+      {
+        "text": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh51",
+        "error": "symbol",
+        "why": "1 is not in the alphabet"
+      },
+      {
+        "text": "3j6rajbbrd2yrrvdkoq2mouz5aqxwh5=",
+        "error": "symbol",
+        "why": "padding"
+      }
+    ]
+  },
+  "publicKeys": {
+    "invalid": [
+      {
+        "text": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "error": "weak",
+        "why": "the identity point has small order"
+      },
+      {
+        "text": "xxdqcD1N2E-6PAt2DRBnDyogU_osOczGTsf9d5KsA3o",
+        "error": "weak",
+        "why": "a point of order 8"
+      },
+      {
+        "text": "GxkrYsLJnbEDs_Uh1rSTRulP7zllQIRIRXl1A7igb7o",
+        "error": "notTorsionFree",
+        "why": "the machine's key plus a point of order 8"
+      },
+      {
+        "text": "7v_______________________________________38",
+        "error": "notAPoint",
+        "why": "y = p + 1, a non-canonical encoding"
+      },
+      {
+        "text": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g=",
+        "error": "length",
+        "why": "padding"
+      }
+    ]
+  },
+  "signatures": {
+    "valid": [
+      {
+        "hex": "fbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfb",
+        "text": "-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-_v7-w"
+      }
+    ],
+    "invalid": [
+      {
+        "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "error": "length",
+        "why": "85 characters"
+      },
+      {
+        "text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB",
+        "error": "trailingBits",
+        "why": "a set bit past the 512th"
+      }
+    ]
+  },
+  "times": {
+    "valid": [
+      0,
+      1795561073000,
+      9007199254740991
+    ],
+    "invalid": [
+      {
+        "millis": 9007199254740992,
+        "error": "outOfRange"
+      },
+      {
+        "millis": 18446744073709551615,
+        "error": "outOfRange"
+      }
+    ]
+  }
+}

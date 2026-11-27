@@ -1,0 +1,191 @@
+{
+  "description": "Control messages of docs/relay.md, version 1, for the relay at relayDomain; the auth answers the hello, and signs the name. Unknown fields and message types are ignored. Close reasons are ASCII key=value pairs separated by ;, at most 123 bytes, with reason=<word> always (a word is visible ASCII without ; or =). Errors: noReason, malformed, word, tooLong.",
+  "relayDomain": "relay.example",
+  "messages": {
+    "hello": {
+      "type": "hello",
+      "version": 1,
+      "nonce": "-0X-3ekXRCgGC4urti43LX0mfbakKOU0p9R9sbisqBY",
+      "time": 1795561073000
+    },
+    "auth": {
+      "type": "auth",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "name": "Main computer",
+      "time": 1795561073000,
+      "signature": "xuSguiX2vaWjYmPNwoCjtTBKoG0j76kuc1pTMQ-eQAwSgFwzZO0dNtS_ZlPifYW_y0rtTS34ZWfIZqxEfUUPDg"
+    },
+    "welcome": {
+      "type": "welcome",
+      "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+      "limits": {
+        "streams": 256,
+        "window": 262144
+      },
+      "ping": 20
+    },
+    "drain": {
+      "type": "drain",
+      "within": 10
+    }
+  },
+  "withUnknownFields": {
+    "hello": {
+      "type": "hello",
+      "version": 1,
+      "nonce": "-0X-3ekXRCgGC4urti43LX0mfbakKOU0p9R9sbisqBY",
+      "time": 1795561073000,
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "auth": {
+      "type": "auth",
+      "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+      "name": "Main computer",
+      "time": 1795561073000,
+      "signature": "xuSguiX2vaWjYmPNwoCjtTBKoG0j76kuc1pTMQ-eQAwSgFwzZO0dNtS_ZlPifYW_y0rtTS34ZWfIZqxEfUUPDg",
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "welcome": {
+      "type": "welcome",
+      "url": "https://3j6rajbbrd2yrrvdkoq2mouz5aqxwh5c.relay.example",
+      "limits": {
+        "streams": 256,
+        "window": 262144,
+        "fromALaterVersion": {
+          "anything": [
+            1,
+            "two",
+            null
+          ]
+        }
+      },
+      "ping": 20,
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    },
+    "drain": {
+      "type": "drain",
+      "within": 10,
+      "fromALaterVersion": {
+        "anything": [
+          1,
+          "two",
+          null
+        ]
+      }
+    }
+  },
+  "unknownType": {
+    "type": "a-later-message",
+    "anything": [
+      1,
+      "two"
+    ]
+  },
+  "authRenamed": {
+    "type": "auth",
+    "publicKey": "iJ6VrUsjsH5tpp2N75DjqJTSWs5mm3l979UsEGknM3g",
+    "name": "Another name",
+    "time": 1795561073000,
+    "signature": "xuSguiX2vaWjYmPNwoCjtTBKoG0j76kuc1pTMQ-eQAwSgFwzZO0dNtS_ZlPifYW_y0rtTS34ZWfIZqxEfUUPDg"
+  },
+  "closeCodes": [
+    4400,
+    4401,
+    4403,
+    4408,
+    4409,
+    4410,
+    4429,
+    4502,
+    1009
+  ],
+  "closeReasons": {
+    "valid": [
+      {
+        "text": "reason=deadline",
+        "reason": "deadline"
+      },
+      {
+        "text": "reason=clock;time=1795561073000",
+        "reason": "clock",
+        "time": 1795561073000
+      },
+      {
+        "text": "reason=limit;retry=30",
+        "reason": "limit",
+        "retry": 30
+      },
+      {
+        "text": "reason=revoked;later=1",
+        "reason": "revoked",
+        "written": "reason=revoked"
+      },
+      {
+        "text": "reason=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "reason": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    ],
+    "invalid": [
+      {
+        "text": "time=1795561073000",
+        "error": "noReason"
+      },
+      {
+        "text": "reason",
+        "error": "malformed"
+      },
+      {
+        "text": "reason=limit;retry=soon",
+        "error": "malformed"
+      },
+      {
+        "text": "reason=clock;time=9007199254740992",
+        "error": "malformed"
+      },
+      {
+        "text": "reason=",
+        "error": "word"
+      },
+      {
+        "text": "reason=a=b",
+        "error": "word"
+      },
+      {
+        "text": "reason=a b",
+        "error": "word"
+      },
+      {
+        "text": "reason=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "error": "tooLong"
+      }
+    ]
+  },
+  "relayErrors": [
+    "unknown-host",
+    "misdirected",
+    "limit",
+    "too-large",
+    "offline",
+    "busy",
+    "full",
+    "timeout"
+  ]
+}

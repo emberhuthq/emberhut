@@ -1,0 +1,27 @@
+{
+  "type": "snapshot",
+  "party": {
+    "id": 3,
+    "title": "Tea or coffee",
+    "topic": "Tea or coffee",
+    "status": "running",
+    "why": null,
+    "personas": [
+      { "id": "p1", "name": "Nora", "role": "An optimist.", "model": "claude-opus-5-5", "color": "blue" },
+      { "id": "p2", "name": "Victor", "role": "A skeptic.", "model": "claude-opus-5-5", "color": "orange" }
+    ],
+    "turns": 1,
+    "maxTurns": 12,
+    "tokens": 1200,
+    "maxTokens": 150000,
+    "cost": 0.01,
+    "created": "2026-11-25T10:00:00.000Z",
+    "updated": "2026-11-25T10:01:00.000Z",
+    "speaking": null,
+    "last": null
+  },
+  "messages": [
+    { "id": 10, "party": 3, "who": "owner", "name": "Emberhut", "kind": "say", "text": "Tea or coffee", "model": null, "tokens": 0, "cost": 0, "cut": false, "at": "2026-11-25T10:00:00.000Z" },
+    { "id": 11, "party": 3, "who": "p1", "name": "Nora", "kind": "turn", "text": "Tea, every time.", "model": "claude-opus-5-5", "tokens": 1200, "cost": 0.01, "cut": false, "at": "2026-11-25T10:01:00.000Z" }
+  ]
+}

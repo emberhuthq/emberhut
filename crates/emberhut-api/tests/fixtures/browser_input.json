@@ -1,0 +1,12 @@
+[
+  { "kind": "takeover", "device": "device-1" },
+  { "kind": "handback" },
+  { "kind": "back" },
+  { "kind": "forward" },
+  { "kind": "reload" },
+  { "kind": "go", "url": "example.com" },
+  { "kind": "tab", "id": 3 },
+  { "kind": "newtab" },
+  { "kind": "closetab", "id": 3 },
+  { "kind": "chrome", "show": true }
+]

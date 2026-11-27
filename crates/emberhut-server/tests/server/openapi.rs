@@ -1,0 +1,3434 @@
+//! The `OpenAPI` document: committed, served, and listing exactly the routes the server serves.
+#![expect(
+    clippy::unwrap_used,
+    reason = "a test helper reads the document: a failure there fails the test"
+)]
+
+use std::collections::BTreeSet;
+use std::path::PathBuf;
+
+use axum::body::Body;
+use axum::http::{Method, Request};
+use emberhut_api::paths;
+
+use crate::common::{Call, TestApp, document};
+
+/// Where the document is committed.
+fn committed_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("openapi.json")
+}
+
+/// The committed document is the one the server makes. Run with `EMBERHUT_BLESS=1` to write it
+/// after changing a route.
+#[test]
+fn openapi_document_is_up_to_date() {
+    let made = emberhut_server::openapi_json().unwrap();
+    let path = committed_path();
+    if std::env::var_os("EMBERHUT_BLESS").is_some_and(|bless| bless == "1") {
+        std::fs::write(&path, made).unwrap();
+        return;
+    }
+    let committed = std::fs::read_to_string(&path).unwrap_or_default();
+    assert!(
+        committed == made,
+        "crates/emberhut-server/openapi.json is out of date: run the tests with EMBERHUT_BLESS=1 and \
+         commit the file"
+    );
+}
+
+#[test]
+fn the_document_is_the_same_each_time_it_is_made() {
+    assert_eq!(
+        emberhut_server::openapi().to_pretty_json().unwrap(),
+        emberhut_server::openapi().to_pretty_json().unwrap()
+    );
+}
+
+/// Every (method, path) the document lists.
+fn documented() -> BTreeSet<(String, String)> {
+    let document = document();
+    let mut routes = BTreeSet::new();
+    for (path, item) in document["paths"].as_object().unwrap() {
+        for method in item.as_object().unwrap().keys() {
+            routes.insert((method.to_uppercase(), path.clone()));
+        }
+    }
+    routes
+}
+
+#[test]
+#[expect(clippy::too_many_lines, reason = "every route, a line each")]
+fn the_document_lists_the_slice_s_routes() {
+    let expected: BTreeSet<(String, String)> = [
+        ("POST", paths::PAIR_NEW),
+        ("POST", paths::PAIR),
+        ("POST", paths::REFRESH),
+        ("GET", paths::STATE),
+        ("GET", paths::LIVE),
+        ("POST", paths::TALK),
+        ("POST", paths::SEEN),
+        ("GET", emberhut_api::threads::ACTIVITY),
+        ("GET", "/api/openapi.json"),
+        ("POST", paths::SETTINGS),
+        ("GET", paths::THEME),
+        ("POST", paths::THEME),
+        ("POST", paths::MCP_ROOM),
+        ("GET", paths::HISTORY),
+        ("POST", paths::UPLOADS),
+        ("GET", "/uploads/{path}"),
+        ("GET", paths::HEALTH),
+        ("GET", paths::LOOP),
+        ("GET", paths::AUTH_STATUS),
+        ("POST", paths::DEVICES),
+        ("GET", paths::SECRET_PAGE),
+        ("POST", paths::SECRET_PAGE),
+        ("GET", paths::MAC),
+        ("POST", paths::MAC_LOCK),
+        ("GET", paths::BACKUP),
+        ("POST", paths::SETTINGS),
+        ("GET", paths::TASKS),
+        ("POST", paths::TASKS),
+        ("GET", paths::TASK),
+        ("POST", paths::TASK_MESSAGE),
+        ("GET", paths::ARTIFACT),
+        ("GET", paths::ARTIFACT_THUMB),
+        ("GET", paths::SCHEDULED),
+        ("POST", paths::EVENTS),
+        ("GET", paths::FACTS),
+        ("GET", paths::NOTES),
+        ("POST", paths::NOTES),
+        ("POST", "/api/runner/events"),
+        ("POST", "/api/runner/machine"),
+        ("GET", "/api/runner/mcp"),
+        ("GET", "/api/machines"),
+        ("GET", "/api/runner/sessions"),
+        ("POST", "/api/runner/sessions"),
+        ("GET", "/api/runner/folders"),
+        ("GET", "/api/runner/branches"),
+        ("GET", "/api/runner/sessions/r-{id}/transcript"),
+        ("GET", "/api/runner/sessions/r-{id}/live"),
+        ("POST", "/api/runner/sessions/r-{id}/send"),
+        ("POST", "/api/runner/sessions/r-{id}/stop"),
+        ("POST", "/api/runner/sessions/r-{id}/interrupt"),
+        ("POST", "/api/runner/sessions/r-{id}/settings"),
+        ("GET", "/api/accounts"),
+        ("POST", "/api/accounts/use"),
+        ("POST", "/api/usage/check"),
+        ("GET", "/api/runner/sessions/w-{id}/transcript"),
+        ("GET", "/api/runner/sessions/w-{id}/live"),
+        ("POST", "/api/runner/sessions/w-{id}/send"),
+        ("POST", "/api/runner/sessions/w-{id}/stop"),
+        ("POST", "/api/runner/sessions/w-{id}/interrupt"),
+        ("GET", "/api/jobs"),
+        ("POST", "/api/jobs/stop"),
+        ("GET", "/api/switches"),
+        ("POST", "/api/switches"),
+        ("GET", "/api/environments"),
+        ("POST", "/api/environments/check"),
+        ("POST", paths::CALLS_RECORD),
+        ("POST", paths::CALLS_IN),
+        ("POST", paths::CALLS_LIVE),
+        ("GET", paths::CALLS),
+        ("GET", paths::CALL_TRANSCRIPT),
+        ("GET", paths::CALL_LIVE),
+        ("POST", paths::VOICE_SESSION),
+        ("POST", paths::VOICE_ASK),
+        ("POST", paths::VOICE_DONE),
+        ("POST", paths::TRANSCRIBE),
+        ("GET", paths::CALENDAR),
+        ("POST", paths::HEALTH_DAYS),
+        ("POST", paths::SCREENTIME),
+        ("GET", "/api/whatsapp"),
+        ("POST", "/api/whatsapp"),
+        ("POST", "/api/whatsapp/in"),
+        ("GET", "/wa/{token}"),
+        ("GET", "/gmail/connect/{token}"),
+        ("GET", "/gmail/callback"),
+        ("POST", paths::MCP_WORKER),
+        ("POST", paths::ULTRA_GATE),
+        ("GET", paths::BROWSER_SESSION),
+        ("GET", paths::BROWSER_FRAME),
+        ("POST", paths::BROWSER_INPUT),
+        ("POST", paths::BROWSER_UPLOAD),
+        ("POST", paths::CHROME),
+        ("GET", paths::CHROME_WS),
+        ("GET", paths::CHROME_PAIR),
+        ("GET", paths::CHROME_PAIR_STATUS),
+        ("GET", paths::CHROME_EXTENSION_ZIP),
+        ("GET", "/api/parties"),
+        ("POST", "/api/parties"),
+        ("GET", "/api/parties/{id}"),
+        ("GET", "/api/parties/{id}/live"),
+        ("POST", "/api/parties/{id}/say"),
+        ("POST", "/api/parties/{id}/pause"),
+        ("POST", "/api/parties/{id}/resume"),
+        ("POST", "/api/parties/{id}/stop"),
+        ("POST", "/api/parties/{id}/caps"),
+        ("POST", "/api/parties/{id}/delete"),
+        ("GET", "/api/dark"),
+        ("POST", "/api/dark"),
+        ("DELETE", "/api/dark"),
+        ("POST", emberhut_api::connect::LINK_STATEMENT),
+        ("GET", "/api/agents"),
+        ("POST", "/api/agents"),
+        ("GET", "/api/agents/{id}"),
+        ("PATCH", "/api/agents/{id}"),
+        ("DELETE", "/api/agents/{id}"),
+        ("PUT", "/api/agents/{id}/channels"),
+        ("PUT", "/api/agents/{id}/tools"),
+        ("PUT", "/api/agents/{id}/accounts"),
+        ("PUT", "/api/agents/{id}/policies"),
+        ("POST", paths::AGENT_INBOUND),
+        ("GET", "/api/approvers"),
+        ("POST", "/api/approvers"),
+        ("PATCH", "/api/approvers/{id}"),
+        ("DELETE", "/api/approvers/{id}"),
+        ("GET", "/api/trusted-requesters"),
+        ("PUT", "/api/trusted-requesters"),
+        ("GET", "/api/approvals"),
+        ("GET", "/api/approvals/{id}"),
+        ("POST", "/api/approvals/{id}/decision"),
+        ("POST", "/api/approvals/{id}/withdraw"),
+        ("POST", "/api/approvals/{id}/use"),
+        ("POST", "/api/approvals/slack"),
+        ("POST", "/api/approvals/{id}/webhook"),
+        ("GET", "/approve/{token}"),
+        ("POST", "/approve/{token}"),
+        // Family rooms are off: one refusal answers every family route.
+        ("GET", "/family/{route}"),
+        ("POST", "/family/{route}"),
+    ]
+    .into_iter()
+    .map(|(method, path)| (method.to_owned(), path.to_owned()))
+    .collect();
+    assert_eq!(documented(), expected);
+}
+
+/// The router serves every route the document lists (none answers 404 or 405), and nothing
+/// else: a path the document doesn't list is 404.
+#[tokio::test]
+async fn the_router_serves_exactly_the_documented_routes() {
+    let app = TestApp::new().await;
+    for (method, path) in documented() {
+        let request = Request::builder()
+            .method(Method::from_bytes(method.as_bytes()).unwrap())
+            .uri(&path)
+            .body(Body::empty())
+            .unwrap();
+        // A stream answers with its head at once; its body is not read.
+        let response = app.send(request).await;
+        let status = response.status();
+        // A route with a parameter may answer 404 for a value it doesn't know (a secret
+        // link's token), but not with the JSON of the 404 for a path no route has.
+        let json = response
+            .headers()
+            .get("content-type")
+            .is_some_and(|kind| kind == "application/json");
+        assert!(
+            !(status == 404 && json) && status != 405,
+            "{method} {path} is documented but answers {status}"
+        );
+    }
+    for (method, path) in [("GET", "/api/nothing-here"), ("GET", "/")] {
+        let request = Request::builder()
+            .method(method)
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.send(request).await.status(),
+            404,
+            "{method} {path} is not documented, so not served"
+        );
+    }
+}
+
+#[tokio::test]
+pub(crate) async fn the_document_is_served() {
+    let app = TestApp::new().await;
+    let served = app.call(Call::get("/api/openapi.json")).await;
+    assert_eq!(served.status, 200);
+    assert_eq!(served.header("content-type"), "application/json");
+    assert_eq!(served.text, emberhut_server::openapi_json().unwrap());
+}
+
+#[test]
+fn protected_routes_name_the_bearer_scheme() {
+    let document = document();
+    assert_eq!(
+        document["components"]["securitySchemes"]["bearer"]["scheme"],
+        "bearer"
+    );
+    for (method, path) in documented() {
+        let operation = &document["paths"][&path][method.to_lowercase()];
+        let public = [
+            paths::PAIR,
+            paths::REFRESH,
+            "/api/openapi.json",
+            paths::HEALTH,
+            paths::SECRET_PAGE,
+            "/wa/{token}",
+            "/gmail/connect/{token}",
+            "/gmail/callback",
+            paths::CHROME_WS,
+            paths::CHROME_PAIR,
+            paths::CHROME_PAIR_STATUS,
+            paths::CHROME_EXTENSION_ZIP,
+            paths::APPROVALS_SLACK,
+            paths::APPROVAL_WEBHOOK,
+            paths::APPROVE_PAGE,
+        ]
+        .contains(&path.as_str());
+        assert_eq!(operation["security"].is_array(), !public, "{method} {path}");
+    }
+}
+
+/// The check every route test relies on does catch a body that breaks the document.
+#[tokio::test]
+#[should_panic(expected = "the body doesn't match the document")]
+async fn the_document_check_catches_a_wrong_body() {
+    let wrong = axum::http::Response::builder()
+        .status(200)
+        .body(Body::from(r#"{"ok":"yes","started":true}"#))
+        .unwrap();
+    let answer = crate::common::Answer::read(wrong).await;
+    crate::common::check_against_document(&Method::POST, paths::TALK, &answer);
+}
+
+/// And a status the document doesn't list for the route.
+#[tokio::test]
+#[should_panic(expected = "which the document doesn't list")]
+async fn the_document_check_catches_an_unlisted_status() {
+    let teapot = axum::http::Response::builder()
+        .status(418)
+        .body(Body::empty())
+        .unwrap();
+    let answer = crate::common::Answer::read(teapot).await;
+    crate::common::check_against_document(&Method::POST, paths::TALK, &answer);
+}
+
+/// Every (method, path, status) the document lists, and the test that gets it. The table is
+/// checked against the document, and each test is run to see that it does get that status.
+/// One documented response and the test that gets it.
+struct Covered {
+    method: &'static str,
+    path: &'static str,
+    status: u16,
+    name: &'static str,
+    test: fn(),
+}
+
+const COVERED: &[Covered] = &[
+    Covered {
+        method: "POST",
+        path: emberhut_api::connect::LINK_STATEMENT,
+        status: 200,
+        name: "a_device_on_this_computer_gets_a_signed_link",
+        test: crate::machine_link::a_device_on_this_computer_gets_a_signed_link,
+    },
+    Covered {
+        method: "POST",
+        path: emberhut_api::connect::LINK_STATEMENT,
+        status: 400,
+        name: "a_link_statement_needs_a_session_a_good_body_and_an_identity",
+        test: crate::machine_link::a_link_statement_needs_a_session_a_good_body_and_an_identity,
+    },
+    Covered {
+        method: "POST",
+        path: emberhut_api::connect::LINK_STATEMENT,
+        status: 401,
+        name: "a_link_statement_needs_a_session_a_good_body_and_an_identity",
+        test: crate::machine_link::a_link_statement_needs_a_session_a_good_body_and_an_identity,
+    },
+    Covered {
+        method: "POST",
+        path: emberhut_api::connect::LINK_STATEMENT,
+        status: 403,
+        name: "any_other_peer_is_refused_a_link_statement",
+        test: crate::machine_link::any_other_peer_is_refused_a_link_statement,
+    },
+    Covered {
+        method: "POST",
+        path: emberhut_api::connect::LINK_STATEMENT,
+        status: 404,
+        name: "a_link_statement_needs_a_session_a_good_body_and_an_identity",
+        test: crate::machine_link::a_link_statement_needs_a_session_a_good_body_and_an_identity,
+    },
+    Covered {
+        method: "POST",
+        path: emberhut_api::connect::LINK_STATEMENT,
+        status: 413,
+        name: "a_link_statement_needs_a_session_a_good_body_and_an_identity",
+        test: crate::machine_link::a_link_statement_needs_a_session_a_good_body_and_an_identity,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR_NEW,
+        status: 200,
+        name: "a_signed_in_device_makes_a_code_that_pairs_a_new_one",
+        test: crate::auth_routes::a_signed_in_device_makes_a_code_that_pairs_a_new_one,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR_NEW,
+        status: 401,
+        name: "only_a_signed_in_device_makes_a_code_even_in_report_mode",
+        test: crate::auth_routes::only_a_signed_in_device_makes_a_code_even_in_report_mode,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR,
+        status: 200,
+        name: "a_signed_in_device_makes_a_code_that_pairs_a_new_one",
+        test: crate::auth_routes::a_signed_in_device_makes_a_code_that_pairs_a_new_one,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR,
+        status: 400,
+        name: "pairing_refusals_answer_in_the_auth_reply_shape",
+        test: crate::auth_routes::pairing_refusals_answer_in_the_auth_reply_shape,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR,
+        status: 401,
+        name: "pairing_refusals_answer_in_the_auth_reply_shape",
+        test: crate::auth_routes::pairing_refusals_answer_in_the_auth_reply_shape,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR,
+        status: 413,
+        name: "a_sign_in_body_over_the_limit_is_413_in_the_auth_reply_shape",
+        test: crate::auth_routes::a_sign_in_body_over_the_limit_is_413_in_the_auth_reply_shape,
+    },
+    Covered {
+        method: "POST",
+        path: paths::PAIR,
+        status: 429,
+        name: "too_many_wrong_codes_answer_429_with_retry_after",
+        test: crate::auth_routes::too_many_wrong_codes_answer_429_with_retry_after,
+    },
+    Covered {
+        method: "POST",
+        path: paths::REFRESH,
+        status: 200,
+        name: "a_refresh_token_is_traded_once_for_new_tokens",
+        test: crate::auth_routes::a_refresh_token_is_traded_once_for_new_tokens,
+    },
+    Covered {
+        method: "POST",
+        path: paths::REFRESH,
+        status: 400,
+        name: "a_refresh_token_is_traded_once_for_new_tokens",
+        test: crate::auth_routes::a_refresh_token_is_traded_once_for_new_tokens,
+    },
+    Covered {
+        method: "POST",
+        path: paths::REFRESH,
+        status: 401,
+        name: "a_refresh_token_is_traded_once_for_new_tokens",
+        test: crate::auth_routes::a_refresh_token_is_traded_once_for_new_tokens,
+    },
+    Covered {
+        method: "POST",
+        path: paths::REFRESH,
+        status: 413,
+        name: "a_sign_in_body_over_the_limit_is_413_in_the_auth_reply_shape",
+        test: crate::auth_routes::a_sign_in_body_over_the_limit_is_413_in_the_auth_reply_shape,
+    },
+    Covered {
+        method: "GET",
+        path: paths::STATE,
+        status: 200,
+        name: "the_state_is_main_s_with_an_etag_and_unchanged_is_304",
+        test: crate::state_route::the_state_is_main_s_with_an_etag_and_unchanged_is_304,
+    },
+    Covered {
+        method: "GET",
+        path: paths::STATE,
+        status: 304,
+        name: "the_state_is_main_s_with_an_etag_and_unchanged_is_304",
+        test: crate::state_route::the_state_is_main_s_with_an_etag_and_unchanged_is_304,
+    },
+    Covered {
+        method: "GET",
+        path: paths::STATE,
+        status: 401,
+        name: "without_a_session_enforce_mode_says_sign_in",
+        test: crate::state_route::without_a_session_enforce_mode_says_sign_in,
+    },
+    Covered {
+        method: "GET",
+        path: paths::LIVE,
+        status: 200,
+        name: "the_stream_starts_with_the_room_now_then_follows_a_turn_to_its_end",
+        test: crate::live_route::the_stream_starts_with_the_room_now_then_follows_a_turn_to_its_end,
+    },
+    Covered {
+        method: "GET",
+        path: paths::LIVE,
+        status: 401,
+        name: "without_a_session_the_stream_is_refused",
+        test: crate::live_route::without_a_session_the_stream_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TALK,
+        status: 200,
+        name: "what_is_said_is_in_the_chat_and_the_reply_comes_after",
+        test: crate::talk_routes::what_is_said_is_in_the_chat_and_the_reply_comes_after,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TALK,
+        status: 400,
+        name: "a_body_the_route_refuses_is_400_with_the_reason",
+        test: crate::talk_routes::a_body_the_route_refuses_is_400_with_the_reason,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TALK,
+        status: 401,
+        name: "talking_needs_a_session",
+        test: crate::talk_routes::talking_needs_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TALK,
+        status: 413,
+        name: "a_body_over_the_limit_is_413",
+        test: crate::talk_routes::a_body_over_the_limit_is_413,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TALK,
+        status: 429,
+        name: "a_room_takes_eight_turns_at_once_and_refuses_the_ninth",
+        test: crate::turns::a_room_takes_eight_turns_at_once_and_refuses_the_ninth,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TALK,
+        status: 503,
+        name: "shutdown_lets_the_running_turn_finish_and_drops_the_queued_ones",
+        test: crate::turns::shutdown_lets_the_running_turn_finish_and_drops_the_queued_ones,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SEEN,
+        status: 200,
+        name: "seeing_a_room_clears_its_unread",
+        test: crate::talk_routes::seeing_a_room_clears_its_unread,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SEEN,
+        status: 400,
+        name: "seeing_a_room_that_is_not_a_positive_number_is_400",
+        test: crate::talk_routes::seeing_a_room_that_is_not_a_positive_number_is_400,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SEEN,
+        status: 401,
+        name: "talking_needs_a_session",
+        test: crate::talk_routes::talking_needs_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SEEN,
+        status: 413,
+        name: "a_body_over_the_limit_is_413",
+        test: crate::talk_routes::a_body_over_the_limit_is_413,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::threads::ACTIVITY,
+        status: 200,
+        name: "the_activity_is_a_thread_s_latest_steps",
+        test: crate::threads::the_activity_is_a_thread_s_latest_steps,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::threads::ACTIVITY,
+        status: 400,
+        name: "the_activity_of_an_unknown_machine_is_400",
+        test: crate::threads::the_activity_of_an_unknown_machine_is_400,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::threads::ACTIVITY,
+        status: 401,
+        name: "the_activity_needs_a_session",
+        test: crate::threads::the_activity_needs_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: emberhut_api::threads::ACTIVITY,
+        status: 502,
+        name: "the_activity_the_app_cannot_give_is_502_with_its_error",
+        test: crate::threads::the_activity_the_app_cannot_give_is_502_with_its_error,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/openapi.json",
+        status: 200,
+        name: "the_document_is_served",
+        test: the_document_is_served,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SETTINGS,
+        status: 200,
+        name: "ui_changes_what_the_app_hides_and_answers_with_the_state",
+        test: crate::settings::ui_changes_what_the_app_hides_and_answers_with_the_state,
+    },
+    Covered {
+        method: "GET",
+        path: paths::MAC,
+        status: 200,
+        name: "the_mac_row_is_offline_until_the_helper_answers",
+        test: crate::mac_routes::the_mac_row_is_offline_until_the_helper_answers,
+    },
+    Covered {
+        method: "GET",
+        path: paths::MAC,
+        status: 401,
+        name: "the_mac_needs_a_session_when_sign_in_is_enforced",
+        test: crate::mac_routes::the_mac_needs_a_session_when_sign_in_is_enforced,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MAC_LOCK,
+        status: 200,
+        name: "lock_now_locks_the_mac",
+        test: crate::mac_routes::lock_now_locks_the_mac,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MAC_LOCK,
+        status: 400,
+        name: "a_lock_the_helper_refuses_is_400_with_its_words",
+        test: crate::mac_routes::a_lock_the_helper_refuses_is_400_with_its_words,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MAC_LOCK,
+        status: 401,
+        name: "the_mac_needs_a_session_when_sign_in_is_enforced",
+        test: crate::mac_routes::the_mac_needs_a_session_when_sign_in_is_enforced,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BACKUP,
+        status: 200,
+        name: "a_signed_in_device_gets_the_database_and_the_files",
+        test: crate::backup_route::a_signed_in_device_gets_the_database_and_the_files,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BACKUP,
+        status: 401,
+        name: "only_a_signed_in_device_gets_the_backup_even_in_report_mode",
+        test: crate::backup_route::only_a_signed_in_device_gets_the_backup_even_in_report_mode,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BACKUP,
+        status: 503,
+        name: "one_backup_is_made_at_a_time",
+        test: crate::backup_route::one_backup_is_made_at_a_time,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SETTINGS,
+        status: 200,
+        name: "a_reported_build_is_in_the_state_and_only_moves_up",
+        test: crate::settings_build::a_reported_build_is_in_the_state_and_only_moves_up,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SETTINGS,
+        status: 400,
+        name: "a_settings_body_that_is_not_json_is_400_and_one_too_large_413",
+        test: crate::settings::a_settings_body_that_is_not_json_is_400_and_one_too_large_413,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SETTINGS,
+        status: 413,
+        name: "a_settings_body_that_is_not_json_is_400_and_one_too_large_413",
+        test: crate::settings::a_settings_body_that_is_not_json_is_400_and_one_too_large_413,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SETTINGS,
+        status: 401,
+        name: "settings_need_a_session",
+        test: crate::settings::settings_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::THEME,
+        status: 200,
+        name: "the_theme_page_matches_its_fixture",
+        test: crate::theme_route::the_theme_page_matches_its_fixture,
+    },
+    Covered {
+        method: "GET",
+        path: paths::THEME,
+        status: 401,
+        name: "the_theme_needs_a_session",
+        test: crate::theme_route::the_theme_needs_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::THEME,
+        status: 200,
+        name: "a_change_is_kept_and_the_state_carries_it",
+        test: crate::theme_route::a_change_is_kept_and_the_state_carries_it,
+    },
+    Covered {
+        method: "POST",
+        path: paths::THEME,
+        status: 400,
+        name: "a_value_the_theme_does_not_take_is_400_and_changes_nothing",
+        test: crate::theme_route::a_value_the_theme_does_not_take_is_400_and_changes_nothing,
+    },
+    Covered {
+        method: "POST",
+        path: paths::THEME,
+        status: 413,
+        name: "a_value_the_theme_does_not_take_is_400_and_changes_nothing",
+        test: crate::theme_route::a_value_the_theme_does_not_take_is_400_and_changes_nothing,
+    },
+    Covered {
+        method: "POST",
+        path: paths::THEME,
+        status: 401,
+        name: "the_theme_needs_a_session",
+        test: crate::theme_route::the_theme_needs_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_ROOM,
+        status: 200,
+        name: "initialize_then_list_then_call_a_tool",
+        test: crate::mcp::initialize_then_list_then_call_a_tool,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_ROOM,
+        status: 202,
+        name: "other_methods_notifications_and_bodies",
+        test: crate::mcp::other_methods_notifications_and_bodies,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_ROOM,
+        status: 400,
+        name: "other_methods_notifications_and_bodies",
+        test: crate::mcp::other_methods_notifications_and_bodies,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_ROOM,
+        status: 413,
+        name: "other_methods_notifications_and_bodies",
+        test: crate::mcp::other_methods_notifications_and_bodies,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_ROOM,
+        status: 401,
+        name: "only_a_rooms_agent_token_is_let_in",
+        test: crate::mcp::only_a_rooms_agent_token_is_let_in,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_ROOM,
+        status: 501,
+        name: "family_rooms_are_off_and_every_way_into_one_refuses",
+        test: crate::family::family_rooms_are_off_and_every_way_into_one_refuses,
+    },
+    Covered {
+        method: "GET",
+        path: paths::HISTORY,
+        status: 200,
+        name: "pages_go_back_through_older_messages_and_catch_up_after_one",
+        test: crate::history_route::pages_go_back_through_older_messages_and_catch_up_after_one,
+    },
+    Covered {
+        method: "GET",
+        path: paths::HISTORY,
+        status: 401,
+        name: "history_needs_a_session",
+        test: crate::history_route::history_needs_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::LOOP,
+        status: 200,
+        name: "the_loop_report_names_the_work_that_held_the_runtime",
+        test: crate::health_routes::the_loop_report_names_the_work_that_held_the_runtime,
+    },
+    Covered {
+        method: "GET",
+        path: paths::LOOP,
+        status: 401,
+        name: "the_loop_report_needs_a_session",
+        test: crate::health_routes::the_loop_report_needs_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::HEALTH,
+        status: 200,
+        name: "health_needs_no_sign_in_and_says_the_lag",
+        test: crate::health_routes::health_needs_no_sign_in_and_says_the_lag,
+    },
+    Covered {
+        method: "POST",
+        path: paths::UPLOADS,
+        status: 200,
+        name: "a_file_is_stored_beside_the_database_and_answered_whole",
+        test: crate::upload_routes::a_file_is_stored_beside_the_database_and_answered_whole,
+    },
+    Covered {
+        method: "POST",
+        path: paths::UPLOADS,
+        status: 400,
+        name: "a_file_over_500_mb_is_refused_before_it_is_read",
+        test: crate::upload_routes::a_file_over_500_mb_is_refused_before_it_is_read,
+    },
+    Covered {
+        method: "POST",
+        path: paths::UPLOADS,
+        status: 401,
+        name: "uploading_and_fetching_need_a_session",
+        test: crate::upload_routes::uploading_and_fetching_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: "/uploads/{path}",
+        status: 200,
+        name: "a_stored_file_is_served_whole_or_in_ranges",
+        test: crate::upload_routes::a_stored_file_is_served_whole_or_in_ranges,
+    },
+    Covered {
+        method: "GET",
+        path: "/uploads/{path}",
+        status: 206,
+        name: "a_stored_file_is_served_whole_or_in_ranges",
+        test: crate::upload_routes::a_stored_file_is_served_whole_or_in_ranges,
+    },
+    Covered {
+        method: "GET",
+        path: "/uploads/{path}",
+        status: 416,
+        name: "a_stored_file_is_served_whole_or_in_ranges",
+        test: crate::upload_routes::a_stored_file_is_served_whole_or_in_ranges,
+    },
+    Covered {
+        method: "GET",
+        path: "/uploads/{path}",
+        status: 401,
+        name: "uploading_and_fetching_need_a_session",
+        test: crate::upload_routes::uploading_and_fetching_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: "/uploads/{path}",
+        status: 404,
+        name: "a_missing_file_or_one_outside_the_folder_is_404",
+        test: crate::upload_routes::a_missing_file_or_one_outside_the_folder_is_404,
+    },
+    Covered {
+        method: "GET",
+        path: paths::AUTH_STATUS,
+        status: 200,
+        name: "the_status_says_whether_this_device_is_signed_in",
+        test: crate::auth_routes::the_status_says_whether_this_device_is_signed_in,
+    },
+    Covered {
+        method: "POST",
+        path: paths::DEVICES,
+        status: 200,
+        name: "an_iphone_registers_its_token_and_is_sent_the_replies",
+        test: crate::push_apns::an_iphone_registers_its_token_and_is_sent_the_replies,
+    },
+    Covered {
+        method: "POST",
+        path: paths::DEVICES,
+        status: 400,
+        name: "a_token_that_is_not_one_is_400_naming_the_token_kind",
+        test: crate::push_apns::a_token_that_is_not_one_is_400_naming_the_token_kind,
+    },
+    Covered {
+        method: "POST",
+        path: paths::DEVICES,
+        status: 401,
+        name: "registering_needs_a_session",
+        test: crate::push_apns::registering_needs_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::DEVICES,
+        status: 413,
+        name: "a_token_that_is_not_one_is_400_naming_the_token_kind",
+        test: crate::push_apns::a_token_that_is_not_one_is_400_naming_the_token_kind,
+    },
+    Covered {
+        method: "GET",
+        path: paths::SECRET_PAGE,
+        status: 200,
+        name: "a_link_shows_its_form_once_and_saves_what_is_typed",
+        test: crate::secret_links::a_link_shows_its_form_once_and_saves_what_is_typed,
+    },
+    Covered {
+        method: "GET",
+        path: paths::SECRET_PAGE,
+        status: 404,
+        name: "an_unknown_or_expired_link_is_404",
+        test: crate::secret_links::an_unknown_or_expired_link_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SECRET_PAGE,
+        status: 200,
+        name: "a_link_shows_its_form_once_and_saves_what_is_typed",
+        test: crate::secret_links::a_link_shows_its_form_once_and_saves_what_is_typed,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SECRET_PAGE,
+        status: 404,
+        name: "an_unknown_or_expired_link_is_404",
+        test: crate::secret_links::an_unknown_or_expired_link_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SETTINGS,
+        status: 413,
+        name: "reporting_a_build_needs_a_session_and_a_small_body",
+        test: crate::settings_build::reporting_a_build_needs_a_session_and_a_small_body,
+    },
+    Covered {
+        method: "GET",
+        path: paths::TASKS,
+        status: 200,
+        name: "tasks_are_found_by_key_or_words_and_opened_with_their_history",
+        test: crate::tasks::tasks_are_found_by_key_or_words_and_opened_with_their_history,
+    },
+    Covered {
+        method: "GET",
+        path: paths::TASKS,
+        status: 401,
+        name: "tasks_are_found_by_key_or_words_and_opened_with_their_history",
+        test: crate::tasks::tasks_are_found_by_key_or_words_and_opened_with_their_history,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TASKS,
+        status: 200,
+        name: "a_program_hands_the_assistant_a_job_with_the_key",
+        test: crate::tasks::a_program_hands_the_assistant_a_job_with_the_key,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TASKS,
+        status: 400,
+        name: "a_program_hands_the_assistant_a_job_with_the_key",
+        test: crate::tasks::a_program_hands_the_assistant_a_job_with_the_key,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TASKS,
+        status: 401,
+        name: "a_program_hands_the_assistant_a_job_with_the_key",
+        test: crate::tasks::a_program_hands_the_assistant_a_job_with_the_key,
+    },
+    Covered {
+        method: "GET",
+        path: paths::TASK,
+        status: 200,
+        name: "tasks_are_found_by_key_or_words_and_opened_with_their_history",
+        test: crate::tasks::tasks_are_found_by_key_or_words_and_opened_with_their_history,
+    },
+    Covered {
+        method: "GET",
+        path: paths::TASK,
+        status: 401,
+        name: "tasks_are_found_by_key_or_words_and_opened_with_their_history",
+        test: crate::tasks::tasks_are_found_by_key_or_words_and_opened_with_their_history,
+    },
+    Covered {
+        method: "GET",
+        path: paths::TASK,
+        status: 404,
+        name: "tasks_are_found_by_key_or_words_and_opened_with_their_history",
+        test: crate::tasks::tasks_are_found_by_key_or_words_and_opened_with_their_history,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TASK_MESSAGE,
+        status: 200,
+        name: "a_reply_on_a_task_page_goes_to_its_worker_or_the_assistant",
+        test: crate::tasks::a_reply_on_a_task_page_goes_to_its_worker_or_the_assistant,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TASK_MESSAGE,
+        status: 400,
+        name: "a_reply_on_a_task_page_goes_to_its_worker_or_the_assistant",
+        test: crate::tasks::a_reply_on_a_task_page_goes_to_its_worker_or_the_assistant,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TASK_MESSAGE,
+        status: 401,
+        name: "a_reply_on_a_task_page_goes_to_its_worker_or_the_assistant",
+        test: crate::tasks::a_reply_on_a_task_page_goes_to_its_worker_or_the_assistant,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT,
+        status: 200,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT,
+        status: 206,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT,
+        status: 401,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT,
+        status: 404,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT,
+        status: 416,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT_THUMB,
+        status: 200,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT_THUMB,
+        status: 401,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::ARTIFACT_THUMB,
+        status: 404,
+        name: "what_a_task_produced_is_served_by_its_id",
+        test: crate::tasks::what_a_task_produced_is_served_by_its_id,
+    },
+    Covered {
+        method: "GET",
+        path: paths::SCHEDULED,
+        status: 200,
+        name: "the_scheduled_page_lists_every_source_soonest_first",
+        test: crate::tasks::the_scheduled_page_lists_every_source_soonest_first,
+    },
+    Covered {
+        method: "GET",
+        path: paths::SCHEDULED,
+        status: 401,
+        name: "the_scheduled_page_lists_every_source_soonest_first",
+        test: crate::tasks::the_scheduled_page_lists_every_source_soonest_first,
+    },
+    Covered {
+        method: "POST",
+        path: paths::EVENTS,
+        status: 200,
+        name: "an_event_needs_text_and_waits_in_its_room",
+        test: crate::events_route::an_event_needs_text_and_waits_in_its_room,
+    },
+    Covered {
+        method: "POST",
+        path: paths::EVENTS,
+        status: 400,
+        name: "an_event_needs_text_and_waits_in_its_room",
+        test: crate::events_route::an_event_needs_text_and_waits_in_its_room,
+    },
+    Covered {
+        method: "POST",
+        path: paths::EVENTS,
+        status: 401,
+        name: "an_event_needs_text_and_waits_in_its_room",
+        test: crate::events_route::an_event_needs_text_and_waits_in_its_room,
+    },
+    Covered {
+        method: "POST",
+        path: paths::EVENTS,
+        status: 413,
+        name: "an_event_needs_text_and_waits_in_its_room",
+        test: crate::events_route::an_event_needs_text_and_waits_in_its_room,
+    },
+    Covered {
+        method: "GET",
+        path: paths::FACTS,
+        status: 200,
+        name: "facts_lessons_and_trials_make_the_about_you_page",
+        test: crate::memory::facts_lessons_and_trials_make_the_about_you_page,
+    },
+    Covered {
+        method: "GET",
+        path: paths::FACTS,
+        status: 401,
+        name: "facts_lessons_and_trials_make_the_about_you_page",
+        test: crate::memory::facts_lessons_and_trials_make_the_about_you_page,
+    },
+    Covered {
+        method: "GET",
+        path: paths::NOTES,
+        status: 200,
+        name: "quick_notes_are_saved_edited_resent_and_deleted",
+        test: crate::memory::quick_notes_are_saved_edited_resent_and_deleted,
+    },
+    Covered {
+        method: "GET",
+        path: paths::NOTES,
+        status: 401,
+        name: "quick_notes_are_saved_edited_resent_and_deleted",
+        test: crate::memory::quick_notes_are_saved_edited_resent_and_deleted,
+    },
+    Covered {
+        method: "POST",
+        path: paths::NOTES,
+        status: 200,
+        name: "quick_notes_are_saved_edited_resent_and_deleted",
+        test: crate::memory::quick_notes_are_saved_edited_resent_and_deleted,
+    },
+    Covered {
+        method: "POST",
+        path: paths::NOTES,
+        status: 400,
+        name: "quick_notes_are_saved_edited_resent_and_deleted",
+        test: crate::memory::quick_notes_are_saved_edited_resent_and_deleted,
+    },
+    Covered {
+        method: "POST",
+        path: paths::NOTES,
+        status: 401,
+        name: "saving_a_note_needs_a_session_and_a_small_body",
+        test: crate::memory::saving_a_note_needs_a_session_and_a_small_body,
+    },
+    Covered {
+        method: "POST",
+        path: paths::NOTES,
+        status: 413,
+        name: "saving_a_note_needs_a_session_and_a_small_body",
+        test: crate::memory::saving_a_note_needs_a_session_and_a_small_body,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/events",
+        status: 200,
+        name: "a_runners_events_make_its_sessions",
+        test: crate::runners::a_runners_events_make_its_sessions,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/events",
+        status: 400,
+        name: "only_a_runner_with_its_token_reports_and_only_for_itself",
+        test: crate::runners::only_a_runner_with_its_token_reports_and_only_for_itself,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/events",
+        status: 401,
+        name: "only_a_runner_with_its_token_reports_and_only_for_itself",
+        test: crate::runners::only_a_runner_with_its_token_reports_and_only_for_itself,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/machine",
+        status: 200,
+        name: "a_sample_is_kept_in_machine_latest_and_machine_points_and_shown",
+        test: crate::runners::a_sample_is_kept_in_machine_latest_and_machine_points_and_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/machine",
+        status: 400,
+        name: "a_sample_is_kept_in_machine_latest_and_machine_points_and_shown",
+        test: crate::runners::a_sample_is_kept_in_machine_latest_and_machine_points_and_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/machine",
+        status: 401,
+        name: "only_a_runner_with_its_token_reports_and_only_for_itself",
+        test: crate::runners::only_a_runner_with_its_token_reports_and_only_for_itself,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/mcp",
+        status: 200,
+        name: "the_runners_get_the_shared_mcp_list",
+        test: crate::runners::the_runners_get_the_shared_mcp_list,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/mcp",
+        status: 401,
+        name: "only_a_runner_with_its_token_reports_and_only_for_itself",
+        test: crate::runners::only_a_runner_with_its_token_reports_and_only_for_itself,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/machines",
+        status: 200,
+        name: "a_sample_is_kept_in_machine_latest_and_machine_points_and_shown",
+        test: crate::runners::a_sample_is_kept_in_machine_latest_and_machine_points_and_shown,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/machines",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions",
+        status: 200,
+        name: "a_runners_events_make_its_sessions",
+        test: crate::runners::a_runners_events_make_its_sessions,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions",
+        status: 200,
+        name: "the_person_opens_their_own_session",
+        test: crate::runners::the_person_opens_their_own_session,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions",
+        status: 409,
+        name: "the_person_opens_their_own_session",
+        test: crate::runners::the_person_opens_their_own_session,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/folders",
+        status: 200,
+        name: "the_pickers_list_a_runners_folders_and_branches",
+        test: crate::runners::the_pickers_list_a_runners_folders_and_branches,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/folders",
+        status: 400,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/folders",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/folders",
+        status: 502,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/branches",
+        status: 200,
+        name: "the_pickers_list_a_runners_folders_and_branches",
+        test: crate::runners::the_pickers_list_a_runners_folders_and_branches,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/branches",
+        status: 400,
+        name: "the_pickers_list_a_runners_folders_and_branches",
+        test: crate::runners::the_pickers_list_a_runners_folders_and_branches,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/branches",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/branches",
+        status: 502,
+        name: "the_pickers_list_a_runners_folders_and_branches",
+        test: crate::runners::the_pickers_list_a_runners_folders_and_branches,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/transcript",
+        status: 200,
+        name: "a_sessions_transcript_comes_from_its_runner_with_what_the_server_knows",
+        test:
+            crate::runners::a_sessions_transcript_comes_from_its_runner_with_what_the_server_knows,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/transcript",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/transcript",
+        status: 404,
+        name: "a_sessions_transcript_comes_from_its_runner_with_what_the_server_knows",
+        test:
+            crate::runners::a_sessions_transcript_comes_from_its_runner_with_what_the_server_knows,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/transcript",
+        status: 502,
+        name: "a_sessions_transcript_comes_from_its_runner_with_what_the_server_knows",
+        test:
+            crate::runners::a_sessions_transcript_comes_from_its_runner_with_what_the_server_knows,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/live",
+        status: 200,
+        name: "a_live_stream_is_the_runners_passed_through",
+        test: crate::runners::a_live_stream_is_the_runners_passed_through,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/live",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/live",
+        status: 404,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/r-{id}/live",
+        status: 502,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/send",
+        status: 200,
+        name: "the_person_replies_stops_interrupts_and_changes_a_session",
+        test: crate::runners::the_person_replies_stops_interrupts_and_changes_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/send",
+        status: 400,
+        name: "the_person_replies_stops_interrupts_and_changes_a_session",
+        test: crate::runners::the_person_replies_stops_interrupts_and_changes_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/send",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/send",
+        status: 404,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/send",
+        status: 502,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/stop",
+        status: 200,
+        name: "the_person_replies_stops_interrupts_and_changes_a_session",
+        test: crate::runners::the_person_replies_stops_interrupts_and_changes_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/stop",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/stop",
+        status: 404,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/stop",
+        status: 502,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/interrupt",
+        status: 200,
+        name: "the_person_replies_stops_interrupts_and_changes_a_session",
+        test: crate::runners::the_person_replies_stops_interrupts_and_changes_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/interrupt",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/interrupt",
+        status: 404,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/interrupt",
+        status: 502,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/settings",
+        status: 200,
+        name: "the_person_replies_stops_interrupts_and_changes_a_session",
+        test: crate::runners::the_person_replies_stops_interrupts_and_changes_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/settings",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/settings",
+        status: 404,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/settings",
+        status: 502,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/accounts",
+        status: 200,
+        name: "the_accounts_in_usage_and_the_pin_in_prefs",
+        test: crate::runners::the_accounts_in_usage_and_the_pin_in_prefs,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/accounts",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/accounts/use",
+        status: 200,
+        name: "the_accounts_in_usage_and_the_pin_in_prefs",
+        test: crate::runners::the_accounts_in_usage_and_the_pin_in_prefs,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/accounts/use",
+        status: 400,
+        name: "the_accounts_in_usage_and_the_pin_in_prefs",
+        test: crate::runners::the_accounts_in_usage_and_the_pin_in_prefs,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/accounts/use",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/usage/check",
+        status: 200,
+        name: "a_usage_check_asks_every_runner_at_most_once_in_two_minutes",
+        test: crate::runners::a_usage_check_asks_every_runner_at_most_once_in_two_minutes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/usage/check",
+        status: 401,
+        name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
+        test:
+            crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/w-{id}/transcript",
+        status: 200,
+        name: "a_workers_transcript_is_its_steps",
+        test: crate::worker_sessions::a_workers_transcript_is_its_steps,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/w-{id}/transcript",
+        status: 401,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/w-{id}/transcript",
+        status: 404,
+        name: "a_workers_transcript_is_its_steps",
+        test: crate::worker_sessions::a_workers_transcript_is_its_steps,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/w-{id}/live",
+        status: 200,
+        name: "a_workers_live_stream_sends_its_steps_and_head",
+        test: crate::worker_sessions::a_workers_live_stream_sends_its_steps_and_head,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/w-{id}/live",
+        status: 401,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/runner/sessions/w-{id}/live",
+        status: 404,
+        name: "a_workers_live_stream_sends_its_steps_and_head",
+        test: crate::worker_sessions::a_workers_live_stream_sends_its_steps_and_head,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/send",
+        status: 200,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/send",
+        status: 400,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/send",
+        status: 401,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/send",
+        status: 404,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/send",
+        status: 409,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/stop",
+        status: 200,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/stop",
+        status: 401,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/stop",
+        status: 404,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/interrupt",
+        status: 200,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/interrupt",
+        status: 401,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/w-{id}/interrupt",
+        status: 404,
+        name: "the_person_replies_to_and_stops_a_worker",
+        test: crate::worker_sessions::the_person_replies_to_and_stops_a_worker,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/jobs",
+        status: 200,
+        name: "the_jobs_are_the_runners_sessions_and_runs",
+        test: crate::jobs::the_jobs_are_the_runners_sessions_and_runs,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/jobs",
+        status: 401,
+        name: "the_jobs_are_the_runners_sessions_and_runs",
+        test: crate::jobs::the_jobs_are_the_runners_sessions_and_runs,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/jobs/stop",
+        status: 200,
+        name: "a_job_is_stopped_where_it_runs",
+        test: crate::jobs::a_job_is_stopped_where_it_runs,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/jobs/stop",
+        status: 400,
+        name: "a_job_is_stopped_where_it_runs",
+        test: crate::jobs::a_job_is_stopped_where_it_runs,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/jobs/stop",
+        status: 401,
+        name: "a_job_is_stopped_where_it_runs",
+        test: crate::jobs::a_job_is_stopped_where_it_runs,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/switches",
+        status: 200,
+        name: "the_switches_list_what_the_session_has_and_turn_it_off",
+        test: crate::settings_pages::the_switches_list_what_the_session_has_and_turn_it_off,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/switches",
+        status: 401,
+        name: "the_switches_list_what_the_session_has_and_turn_it_off",
+        test: crate::settings_pages::the_switches_list_what_the_session_has_and_turn_it_off,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/switches",
+        status: 200,
+        name: "the_switches_list_what_the_session_has_and_turn_it_off",
+        test: crate::settings_pages::the_switches_list_what_the_session_has_and_turn_it_off,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/switches",
+        status: 400,
+        name: "the_switches_list_what_the_session_has_and_turn_it_off",
+        test: crate::settings_pages::the_switches_list_what_the_session_has_and_turn_it_off,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/switches",
+        status: 401,
+        name: "the_switches_list_what_the_session_has_and_turn_it_off",
+        test: crate::settings_pages::the_switches_list_what_the_session_has_and_turn_it_off,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/environments",
+        status: 200,
+        name: "environments_show_the_runners_the_coding_app_and_the_accounts",
+        test: crate::settings_pages::environments_show_the_runners_the_coding_app_and_the_accounts,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/environments",
+        status: 401,
+        name: "environments_show_the_runners_the_coding_app_and_the_accounts",
+        test: crate::settings_pages::environments_show_the_runners_the_coding_app_and_the_accounts,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/environments/check",
+        status: 200,
+        name: "environments_show_the_runners_the_coding_app_and_the_accounts",
+        test: crate::settings_pages::environments_show_the_runners_the_coding_app_and_the_accounts,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/environments/check",
+        status: 400,
+        name: "environments_show_the_runners_the_coding_app_and_the_accounts",
+        test: crate::settings_pages::environments_show_the_runners_the_coding_app_and_the_accounts,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/environments/check",
+        status: 401,
+        name: "environments_show_the_runners_the_coding_app_and_the_accounts",
+        test: crate::settings_pages::environments_show_the_runners_the_coding_app_and_the_accounts,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_RECORD,
+        status: 200,
+        name: "a_call_recorded_on_the_mac_is_transcribed_into_a_call_event",
+        test: crate::calls_routes::a_call_recorded_on_the_mac_is_transcribed_into_a_call_event,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_RECORD,
+        status: 400,
+        name: "a_start_the_mac_refuses_leaves_no_call_and_a_bad_body_is_400",
+        test: crate::calls_routes::a_start_the_mac_refuses_leaves_no_call_and_a_bad_body_is_400,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_RECORD,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_IN,
+        status: 200,
+        name: "a_call_recorded_on_the_mac_is_transcribed_into_a_call_event",
+        test: crate::calls_routes::a_call_recorded_on_the_mac_is_transcribed_into_a_call_event,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_IN,
+        status: 400,
+        name: "a_track_needs_a_call_and_a_track_and_an_unknown_call_is_made_in_main",
+        test: crate::calls_routes::a_track_needs_a_call_and_a_track_and_an_unknown_call_is_made_in_main,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_IN,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_LIVE,
+        status: 200,
+        name: "a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints",
+        test: crate::calls_routes::a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_LIVE,
+        status: 400,
+        name: "a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints",
+        test: crate::calls_routes::a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CALLS_LIVE,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALLS,
+        status: 200,
+        name: "a_call_recorded_on_the_mac_is_transcribed_into_a_call_event",
+        test: crate::calls_routes::a_call_recorded_on_the_mac_is_transcribed_into_a_call_event,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALLS,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALL_TRANSCRIPT,
+        status: 200,
+        name: "a_call_recorded_on_the_mac_is_transcribed_into_a_call_event",
+        test: crate::calls_routes::a_call_recorded_on_the_mac_is_transcribed_into_a_call_event,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALL_TRANSCRIPT,
+        status: 404,
+        name: "a_track_needs_a_call_and_a_track_and_an_unknown_call_is_made_in_main",
+        test: crate::calls_routes::a_track_needs_a_call_and_a_track_and_an_unknown_call_is_made_in_main,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALL_TRANSCRIPT,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALL_LIVE,
+        status: 200,
+        name: "a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints",
+        test: crate::calls_routes::a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALL_LIVE,
+        status: 404,
+        name: "a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints",
+        test: crate::calls_routes::a_live_call_s_chunks_become_lines_and_the_copilot_gives_hints,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALL_LIVE,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_SESSION,
+        status: 200,
+        name: "a_voice_call_gets_a_key_asks_the_assistant_and_reports_its_end",
+        test: crate::voice_routes::a_voice_call_gets_a_key_asks_the_assistant_and_reports_its_end,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_SESSION,
+        status: 502,
+        name: "without_a_speech_provider_voice_is_off_and_its_routes_say_why",
+        test: crate::voice_routes::without_a_speech_provider_voice_is_off_and_its_routes_say_why,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_SESSION,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_ASK,
+        status: 200,
+        name: "a_voice_call_gets_a_key_asks_the_assistant_and_reports_its_end",
+        test: crate::voice_routes::a_voice_call_gets_a_key_asks_the_assistant_and_reports_its_end,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_ASK,
+        status: 400,
+        name: "a_voice_request_the_room_cant_take_is_502_and_a_bad_body_is_400",
+        test: crate::voice_routes::a_voice_request_the_room_cant_take_is_502_and_a_bad_body_is_400,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_ASK,
+        status: 502,
+        name: "a_voice_request_the_room_cant_take_is_502_and_a_bad_body_is_400",
+        test: crate::voice_routes::a_voice_request_the_room_cant_take_is_502_and_a_bad_body_is_400,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_ASK,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_DONE,
+        status: 200,
+        name: "a_voice_call_gets_a_key_asks_the_assistant_and_reports_its_end",
+        test: crate::voice_routes::a_voice_call_gets_a_key_asks_the_assistant_and_reports_its_end,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_DONE,
+        status: 400,
+        name: "a_voice_request_the_room_cant_take_is_502_and_a_bad_body_is_400",
+        test: crate::voice_routes::a_voice_request_the_room_cant_take_is_502_and_a_bad_body_is_400,
+    },
+    Covered {
+        method: "POST",
+        path: paths::VOICE_DONE,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TRANSCRIBE,
+        status: 200,
+        name: "dictation_turns_a_recording_into_text_up_to_25_mib",
+        test: crate::voice_routes::dictation_turns_a_recording_into_text_up_to_25_mib,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TRANSCRIBE,
+        status: 413,
+        name: "dictation_turns_a_recording_into_text_up_to_25_mib",
+        test: crate::voice_routes::dictation_turns_a_recording_into_text_up_to_25_mib,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TRANSCRIBE,
+        status: 502,
+        name: "without_a_speech_provider_voice_is_off_and_its_routes_say_why",
+        test: crate::voice_routes::without_a_speech_provider_voice_is_off_and_its_routes_say_why,
+    },
+    Covered {
+        method: "POST",
+        path: paths::TRANSCRIBE,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALENDAR,
+        status: 200,
+        name: "the_calendar_shows_the_mac_s_events_by_day_and_keeps_them",
+        test: crate::calendar_routes::the_calendar_shows_the_mac_s_events_by_day_and_keeps_them,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALENDAR,
+        status: 400,
+        name: "a_range_the_calendar_doesn_t_take_is_400",
+        test: crate::calendar_routes::a_range_the_calendar_doesn_t_take_is_400,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CALENDAR,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::HEALTH_DAYS,
+        status: 200,
+        name: "the_phone_s_health_days_are_kept_and_today_shows_in_the_state",
+        test: crate::health_data_routes::the_phone_s_health_days_are_kept_and_today_shows_in_the_state,
+    },
+    Covered {
+        method: "POST",
+        path: paths::HEALTH_DAYS,
+        status: 400,
+        name: "the_phone_s_health_days_are_kept_and_today_shows_in_the_state",
+        test: crate::health_data_routes::the_phone_s_health_days_are_kept_and_today_shows_in_the_state,
+    },
+    Covered {
+        method: "POST",
+        path: paths::HEALTH_DAYS,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SCREENTIME,
+        status: 200,
+        name: "screen_time_is_kept_per_day_and_device",
+        test: crate::health_data_routes::screen_time_is_kept_per_day_and_device,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SCREENTIME,
+        status: 400,
+        name: "screen_time_is_kept_per_day_and_device",
+        test: crate::health_data_routes::screen_time_is_kept_per_day_and_device,
+    },
+    Covered {
+        method: "POST",
+        path: paths::SCREENTIME,
+        status: 401,
+        name: "the_calls_voice_calendar_and_health_routes_need_a_session",
+        test: crate::calls_routes::the_calls_voice_calendar_and_health_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/whatsapp",
+        status: 200,
+        name: "wa_group_reply_answers_once_per_ask_at_the_pace_rules",
+        test: crate::whatsapp::wa_group_reply_answers_once_per_ask_at_the_pace_rules,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/whatsapp",
+        status: 401,
+        name: "the_kill_switch_stops_every_reply",
+        test: crate::whatsapp::the_kill_switch_stops_every_reply,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/whatsapp",
+        status: 200,
+        name: "the_kill_switch_stops_every_reply",
+        test: crate::whatsapp::the_kill_switch_stops_every_reply,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/whatsapp",
+        status: 400,
+        name: "the_kill_switch_stops_every_reply",
+        test: crate::whatsapp::the_kill_switch_stops_every_reply,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/whatsapp",
+        status: 401,
+        name: "the_kill_switch_stops_every_reply",
+        test: crate::whatsapp::the_kill_switch_stops_every_reply,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/whatsapp/in",
+        status: 200,
+        name: "the_daemon_needs_its_token_and_unknown_news_is_refused",
+        test: crate::whatsapp::the_daemon_needs_its_token_and_unknown_news_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/whatsapp/in",
+        status: 400,
+        name: "the_daemon_needs_its_token_and_unknown_news_is_refused",
+        test: crate::whatsapp::the_daemon_needs_its_token_and_unknown_news_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/whatsapp/in",
+        status: 401,
+        name: "the_daemon_needs_its_token_and_unknown_news_is_refused",
+        test: crate::whatsapp::the_daemon_needs_its_token_and_unknown_news_is_refused,
+    },
+    Covered {
+        method: "GET",
+        path: "/wa/{token}",
+        status: 200,
+        name: "linking_gives_a_pairing_code_or_a_one_time_qr_page",
+        test: crate::whatsapp::linking_gives_a_pairing_code_or_a_one_time_qr_page,
+    },
+    Covered {
+        method: "GET",
+        path: "/wa/{token}",
+        status: 404,
+        name: "linking_gives_a_pairing_code_or_a_one_time_qr_page",
+        test: crate::whatsapp::linking_gives_a_pairing_code_or_a_one_time_qr_page,
+    },
+    Covered {
+        method: "GET",
+        path: "/gmail/connect/{token}",
+        status: 302,
+        name: "an_account_is_signed_in_through_google_and_its_mail_is_read",
+        test: crate::gmail::an_account_is_signed_in_through_google_and_its_mail_is_read,
+    },
+    Covered {
+        method: "GET",
+        path: "/gmail/connect/{token}",
+        status: 404,
+        name: "a_sign_in_with_another_address_or_without_the_scope_saves_nothing",
+        test: crate::gmail::a_sign_in_with_another_address_or_without_the_scope_saves_nothing,
+    },
+    Covered {
+        method: "GET",
+        path: "/gmail/callback",
+        status: 200,
+        name: "an_account_is_signed_in_through_google_and_its_mail_is_read",
+        test: crate::gmail::an_account_is_signed_in_through_google_and_its_mail_is_read,
+    },
+    Covered {
+        method: "GET",
+        path: "/gmail/callback",
+        status: 400,
+        name: "a_sign_in_with_another_address_or_without_the_scope_saves_nothing",
+        test: crate::gmail::a_sign_in_with_another_address_or_without_the_scope_saves_nothing,
+    },
+    Covered {
+        method: "GET",
+        path: "/gmail/callback",
+        status: 404,
+        name: "a_sign_in_with_another_address_or_without_the_scope_saves_nothing",
+        test: crate::gmail::a_sign_in_with_another_address_or_without_the_scope_saves_nothing,
+    },
+    Covered {
+        method: "GET",
+        path: "/gmail/callback",
+        status: 500,
+        name: "a_sign_in_with_another_address_or_without_the_scope_saves_nothing",
+        test: crate::gmail::a_sign_in_with_another_address_or_without_the_scope_saves_nothing,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_WORKER,
+        status: 200,
+        name: "the_worker_endpoint_serves_a_worker_s_own_task_tools",
+        test: crate::workers::the_worker_endpoint_serves_a_worker_s_own_task_tools,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_WORKER,
+        status: 202,
+        name: "the_worker_endpoint_reads_its_messages_as_the_room_s_does",
+        test: crate::workers::the_worker_endpoint_reads_its_messages_as_the_room_s_does,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_WORKER,
+        status: 400,
+        name: "the_worker_endpoint_reads_its_messages_as_the_room_s_does",
+        test: crate::workers::the_worker_endpoint_reads_its_messages_as_the_room_s_does,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_WORKER,
+        status: 413,
+        name: "the_worker_endpoint_reads_its_messages_as_the_room_s_does",
+        test: crate::workers::the_worker_endpoint_reads_its_messages_as_the_room_s_does,
+    },
+    Covered {
+        method: "POST",
+        path: paths::MCP_WORKER,
+        status: 401,
+        name: "the_worker_endpoint_serves_a_worker_s_own_task_tools",
+        test: crate::workers::the_worker_endpoint_serves_a_worker_s_own_task_tools,
+    },
+    Covered {
+        method: "POST",
+        path: paths::ULTRA_GATE,
+        status: 200,
+        name: "a_lead_plans_first_and_the_gate_holds_its_plan_and_caps",
+        test: crate::ultra::a_lead_plans_first_and_the_gate_holds_its_plan_and_caps,
+    },
+    Covered {
+        method: "POST",
+        path: paths::ULTRA_GATE,
+        status: 401,
+        name: "a_lead_plans_first_and_the_gate_holds_its_plan_and_caps",
+        test: crate::ultra::a_lead_plans_first_and_the_gate_holds_its_plan_and_caps,
+    },
+    Covered {
+        method: "POST",
+        path: paths::ULTRA_GATE,
+        status: 400,
+        name: "the_gate_takes_a_hook_s_input_only",
+        test: crate::ultra::the_gate_takes_a_hook_s_input_only,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_SESSION,
+        status: 200,
+        name: "the_live_view_s_session_is_view_or_control_and_503_until_set_up",
+        test: crate::browser::the_live_view_s_session_is_view_or_control_and_503_until_set_up,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_SESSION,
+        status: 503,
+        name: "the_live_view_s_session_is_view_or_control_and_503_until_set_up",
+        test: crate::browser::the_live_view_s_session_is_view_or_control_and_503_until_set_up,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_SESSION,
+        status: 401,
+        name: "the_browser_routes_need_a_session",
+        test: crate::browser::the_browser_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_FRAME,
+        status: 200,
+        name: "the_frame_is_the_tab_s_picture_and_none_while_the_owner_drives",
+        test: crate::browser::the_frame_is_the_tab_s_picture_and_none_while_the_owner_drives,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_FRAME,
+        status: 404,
+        name: "the_frame_is_the_tab_s_picture_and_none_while_the_owner_drives",
+        test: crate::browser::the_frame_is_the_tab_s_picture_and_none_while_the_owner_drives,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_FRAME,
+        status: 401,
+        name: "the_browser_routes_need_a_session",
+        test: crate::browser::the_browser_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::BROWSER_INPUT,
+        status: 200,
+        name: "the_live_view_s_input_takes_over_drives_and_hands_back",
+        test: crate::browser::the_live_view_s_input_takes_over_drives_and_hands_back,
+    },
+    Covered {
+        method: "POST",
+        path: paths::BROWSER_INPUT,
+        status: 409,
+        name: "the_live_view_s_input_takes_over_drives_and_hands_back",
+        test: crate::browser::the_live_view_s_input_takes_over_drives_and_hands_back,
+    },
+    Covered {
+        method: "POST",
+        path: paths::BROWSER_INPUT,
+        status: 401,
+        name: "the_browser_routes_need_a_session",
+        test: crate::browser::the_browser_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::BROWSER_UPLOAD,
+        status: 200,
+        name: "the_app_s_file_goes_into_the_page_that_asked_for_one",
+        test: crate::browser::the_app_s_file_goes_into_the_page_that_asked_for_one,
+    },
+    Covered {
+        method: "POST",
+        path: paths::BROWSER_UPLOAD,
+        status: 409,
+        name: "the_app_s_file_goes_into_the_page_that_asked_for_one",
+        test: crate::browser::the_app_s_file_goes_into_the_page_that_asked_for_one,
+    },
+    Covered {
+        method: "POST",
+        path: paths::BROWSER_UPLOAD,
+        status: 401,
+        name: "the_browser_routes_need_a_session",
+        test: crate::browser::the_browser_routes_need_a_session,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CHROME,
+        status: 200,
+        name: "a_profile_pairs_with_its_link_into_chrome_devices_and_says_hello_with_its_token",
+        test: crate::chrome::a_profile_pairs_with_its_link_into_chrome_devices_and_says_hello_with_its_token,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CHROME,
+        status: 409,
+        name: "the_app_s_chrome_input_refuses_what_it_can_t_do",
+        test: crate::chrome::the_app_s_chrome_input_refuses_what_it_can_t_do,
+    },
+    Covered {
+        method: "POST",
+        path: paths::CHROME,
+        status: 401,
+        name: "the_browser_routes_need_a_session",
+        test: crate::browser::the_browser_routes_need_a_session,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CHROME_WS,
+        status: 400,
+        name: "the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip",
+        test: crate::chrome::the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CHROME_PAIR,
+        status: 200,
+        name: "the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip",
+        test: crate::chrome::the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CHROME_PAIR_STATUS,
+        status: 200,
+        name: "a_profile_pairs_with_its_link_into_chrome_devices_and_says_hello_with_its_token",
+        test: crate::chrome::a_profile_pairs_with_its_link_into_chrome_devices_and_says_hello_with_its_token,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CHROME_EXTENSION_ZIP,
+        status: 200,
+        name: "the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip",
+        test: crate::chrome::the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip,
+    },
+    Covered {
+        method: "GET",
+        path: paths::CHROME_EXTENSION_ZIP,
+        status: 404,
+        name: "the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip",
+        test: crate::chrome::the_pairing_page_the_socket_without_an_upgrade_and_the_extension_s_zip,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties",
+        status: 200,
+        name: "a_party_talks_turn_by_turn_until_its_turn_cap",
+        test: crate::parties::a_party_talks_turn_by_turn_until_its_turn_cap,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties",
+        status: 200,
+        name: "a_party_talks_turn_by_turn_until_its_turn_cap",
+        test: crate::parties::a_party_talks_turn_by_turn_until_its_turn_cap,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties",
+        status: 400,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties",
+        status: 413,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties/{id}",
+        status: 200,
+        name: "a_party_talks_turn_by_turn_until_its_turn_cap",
+        test: crate::parties::a_party_talks_turn_by_turn_until_its_turn_cap,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties/{id}",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties/{id}",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties/{id}/live",
+        status: 200,
+        name: "the_live_stream_starts_with_a_snapshot_then_follows_the_talk",
+        test: crate::parties::the_live_stream_starts_with_a_snapshot_then_follows_the_talk,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties/{id}/live",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/parties/{id}/live",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/say",
+        status: 200,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/say",
+        status: 400,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/say",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/say",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/say",
+        status: 413,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/pause",
+        status: 200,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/pause",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/pause",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/resume",
+        status: 200,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/resume",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/resume",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/stop",
+        status: 200,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/stop",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/stop",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/caps",
+        status: 200,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/caps",
+        status: 400,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/caps",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/caps",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/caps",
+        status: 413,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/delete",
+        status: 200,
+        name: "the_person_stops_steers_resumes_sets_caps_and_deletes",
+        test: crate::parties::the_person_stops_steers_resumes_sets_caps_and_deletes,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/delete",
+        status: 401,
+        name: "a_party_without_a_session_or_with_a_bad_cast_is_refused",
+        test: crate::parties::a_party_without_a_session_or_with_a_bad_cast_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/parties/{id}/delete",
+        status: 404,
+        name: "a_party_that_is_not_there_is_404",
+        test: crate::parties::a_party_that_is_not_there_is_404,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/dark",
+        status: 200,
+        name: "the_local_model_answers_and_the_chat_is_kept",
+        test: crate::dark::the_local_model_answers_and_the_chat_is_kept,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/dark",
+        status: 401,
+        name: "without_a_session_the_room_is_refused",
+        test: crate::dark::without_a_session_the_room_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/dark",
+        status: 200,
+        name: "the_local_model_answers_and_the_chat_is_kept",
+        test: crate::dark::the_local_model_answers_and_the_chat_is_kept,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/dark",
+        status: 400,
+        name: "one_reply_at_a_time_and_a_clear_empties_the_room",
+        test: crate::dark::one_reply_at_a_time_and_a_clear_empties_the_room,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/dark",
+        status: 401,
+        name: "without_a_session_the_room_is_refused",
+        test: crate::dark::without_a_session_the_room_is_refused,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/dark",
+        status: 409,
+        name: "one_reply_at_a_time_and_a_clear_empties_the_room",
+        test: crate::dark::one_reply_at_a_time_and_a_clear_empties_the_room,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/dark",
+        status: 413,
+        name: "one_reply_at_a_time_and_a_clear_empties_the_room",
+        test: crate::dark::one_reply_at_a_time_and_a_clear_empties_the_room,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/dark",
+        status: 200,
+        name: "one_reply_at_a_time_and_a_clear_empties_the_room",
+        test: crate::dark::one_reply_at_a_time_and_a_clear_empties_the_room,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/dark",
+        status: 401,
+        name: "without_a_session_the_room_is_refused",
+        test: crate::dark::without_a_session_the_room_is_refused,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/dark",
+        status: 409,
+        name: "one_reply_at_a_time_and_a_clear_empties_the_room",
+        test: crate::dark::one_reply_at_a_time_and_a_clear_empties_the_room,
+    },
+    Covered {
+        method: "GET",
+        path: "/family/{route}",
+        status: 501,
+        name: "family_rooms_are_off_and_every_way_into_one_refuses",
+        test: crate::family::family_rooms_are_off_and_every_way_into_one_refuses,
+    },
+    Covered {
+        method: "POST",
+        path: "/family/{route}",
+        status: 501,
+        name: "family_rooms_are_off_and_every_way_into_one_refuses",
+        test: crate::family::family_rooms_are_off_and_every_way_into_one_refuses,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/agents",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/agents",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/agents",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/agents",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/agents",
+        status: 409,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/agents",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/agents/{id}",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/agents/{id}",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/agents/{id}",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/agents/{id}",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/agents/{id}",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/agents/{id}",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/agents/{id}",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/agents/{id}",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/agents/{id}",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/agents/{id}",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/agents/{id}",
+        status: 409,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/agents/{id}",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/channels",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/channels",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/channels",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/channels",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/tools",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/tools",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/tools",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/tools",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/accounts",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/accounts",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/accounts",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/accounts",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/policies",
+        status: 200,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/policies",
+        status: 400,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/policies",
+        status: 404,
+        name: "agents_are_made_changed_and_deleted",
+        test: crate::agents_routes::agents_are_made_changed_and_deleted,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/agents/{id}/policies",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvers",
+        status: 200,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvers",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvers",
+        status: 200,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvers",
+        status: 400,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvers",
+        status: 409,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvers",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/approvers/{id}",
+        status: 200,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/approvers/{id}",
+        status: 400,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/approvers/{id}",
+        status: 404,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "PATCH",
+        path: "/api/approvers/{id}",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/approvers/{id}",
+        status: 200,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/approvers/{id}",
+        status: 404,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/approvers/{id}",
+        status: 409,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "DELETE",
+        path: "/api/approvers/{id}",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/trusted-requesters",
+        status: 200,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/trusted-requesters",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/trusted-requesters",
+        status: 200,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/trusted-requesters",
+        status: 400,
+        name: "approvers_and_trusted_requesters_are_kept",
+        test: crate::agents_routes::approvers_and_trusted_requesters_are_kept,
+    },
+    Covered {
+        method: "PUT",
+        path: "/api/trusted-requesters",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvals",
+        status: 200,
+        name: "requests_expire_and_are_withdrawn_and_listed",
+        test: crate::approvals::requests_expire_and_are_withdrawn_and_listed,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvals",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvals/{id}",
+        status: 200,
+        name: "requests_expire_and_are_withdrawn_and_listed",
+        test: crate::approvals::requests_expire_and_are_withdrawn_and_listed,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvals/{id}",
+        status: 404,
+        name: "requests_expire_and_are_withdrawn_and_listed",
+        test: crate::approvals::requests_expire_and_are_withdrawn_and_listed,
+    },
+    Covered {
+        method: "GET",
+        path: "/api/approvals/{id}",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/decision",
+        status: 200,
+        name: "the_owner_decides_once_on_the_hash_shown",
+        test: crate::approvals::the_owner_decides_once_on_the_hash_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/decision",
+        status: 400,
+        name: "the_owner_decides_once_on_the_hash_shown",
+        test: crate::approvals::the_owner_decides_once_on_the_hash_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/decision",
+        status: 401,
+        name: "the_owner_decides_once_on_the_hash_shown",
+        test: crate::approvals::the_owner_decides_once_on_the_hash_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/decision",
+        status: 403,
+        name: "the_owner_decides_once_on_the_hash_shown",
+        test: crate::approvals::the_owner_decides_once_on_the_hash_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/decision",
+        status: 404,
+        name: "the_owner_decides_once_on_the_hash_shown",
+        test: crate::approvals::the_owner_decides_once_on_the_hash_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/decision",
+        status: 409,
+        name: "the_owner_decides_once_on_the_hash_shown",
+        test: crate::approvals::the_owner_decides_once_on_the_hash_shown,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/withdraw",
+        status: 200,
+        name: "requests_expire_and_are_withdrawn_and_listed",
+        test: crate::approvals::requests_expire_and_are_withdrawn_and_listed,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/withdraw",
+        status: 404,
+        name: "requests_expire_and_are_withdrawn_and_listed",
+        test: crate::approvals::requests_expire_and_are_withdrawn_and_listed,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/withdraw",
+        status: 409,
+        name: "requests_expire_and_are_withdrawn_and_listed",
+        test: crate::approvals::requests_expire_and_are_withdrawn_and_listed,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/withdraw",
+        status: 401,
+        name: "every_owner_route_needs_a_signed_in_device",
+        test: crate::agents_routes::every_owner_route_needs_a_signed_in_device,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/use",
+        status: 200,
+        name: "the_use_route_takes_an_agents_own_requests_only",
+        test: crate::approvals::the_use_route_takes_an_agents_own_requests_only,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/use",
+        status: 400,
+        name: "the_use_route_takes_an_agents_own_requests_only",
+        test: crate::approvals::the_use_route_takes_an_agents_own_requests_only,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/use",
+        status: 401,
+        name: "the_use_route_takes_an_agents_own_requests_only",
+        test: crate::approvals::the_use_route_takes_an_agents_own_requests_only,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/use",
+        status: 404,
+        name: "the_use_route_takes_an_agents_own_requests_only",
+        test: crate::approvals::the_use_route_takes_an_agents_own_requests_only,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/slack",
+        status: 200,
+        name: "a_slack_click_counts_only_from_the_approver",
+        test: crate::approvals::a_slack_click_counts_only_from_the_approver,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/slack",
+        status: 400,
+        name: "a_slack_click_counts_only_from_the_approver",
+        test: crate::approvals::a_slack_click_counts_only_from_the_approver,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/slack",
+        status: 401,
+        name: "a_slack_click_counts_only_from_the_approver",
+        test: crate::approvals::a_slack_click_counts_only_from_the_approver,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/slack",
+        status: 403,
+        name: "a_slack_click_counts_only_from_the_approver",
+        test: crate::approvals::a_slack_click_counts_only_from_the_approver,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/slack",
+        status: 404,
+        name: "a_slack_click_counts_only_from_the_approver",
+        test: crate::approvals::a_slack_click_counts_only_from_the_approver,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/slack",
+        status: 409,
+        name: "a_slack_click_counts_only_from_the_approver",
+        test: crate::approvals::a_slack_click_counts_only_from_the_approver,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/webhook",
+        status: 200,
+        name: "a_webhook_answer_counts_only_under_the_approvers_secret",
+        test: crate::approvals::a_webhook_answer_counts_only_under_the_approvers_secret,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/webhook",
+        status: 400,
+        name: "a_webhook_answer_counts_only_under_the_approvers_secret",
+        test: crate::approvals::a_webhook_answer_counts_only_under_the_approvers_secret,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/webhook",
+        status: 401,
+        name: "a_webhook_answer_counts_only_under_the_approvers_secret",
+        test: crate::approvals::a_webhook_answer_counts_only_under_the_approvers_secret,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/approvals/{id}/webhook",
+        status: 409,
+        name: "a_webhook_answer_counts_only_under_the_approvers_secret",
+        test: crate::approvals::a_webhook_answer_counts_only_under_the_approvers_secret,
+    },
+    Covered {
+        method: "GET",
+        path: "/approve/{token}",
+        status: 200,
+        name: "a_signed_link_decides_once_on_the_hash_it_showed",
+        test: crate::approvals::a_signed_link_decides_once_on_the_hash_it_showed,
+    },
+    Covered {
+        method: "GET",
+        path: "/approve/{token}",
+        status: 410,
+        name: "a_signed_link_decides_once_on_the_hash_it_showed",
+        test: crate::approvals::a_signed_link_decides_once_on_the_hash_it_showed,
+    },
+    Covered {
+        method: "POST",
+        path: "/approve/{token}",
+        status: 200,
+        name: "a_signed_link_decides_once_on_the_hash_it_showed",
+        test: crate::approvals::a_signed_link_decides_once_on_the_hash_it_showed,
+    },
+    Covered {
+        method: "POST",
+        path: "/approve/{token}",
+        status: 400,
+        name: "a_signed_link_decides_once_on_the_hash_it_showed",
+        test: crate::approvals::a_signed_link_decides_once_on_the_hash_it_showed,
+    },
+    Covered {
+        method: "POST",
+        path: "/approve/{token}",
+        status: 409,
+        name: "a_signed_link_decides_once_on_the_hash_it_showed",
+        test: crate::approvals::a_signed_link_decides_once_on_the_hash_it_showed,
+    },
+    Covered {
+        method: "POST",
+        path: "/approve/{token}",
+        status: 410,
+        name: "a_signed_link_decides_once_on_the_hash_it_showed",
+        test: crate::approvals::a_signed_link_decides_once_on_the_hash_it_showed,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_INBOUND,
+        status: 200,
+        name: "only_the_agents_channels_reach_it_and_only_what_is_for_it_is_a_turn",
+        test: crate::agent_inbound::only_the_agents_channels_reach_it_and_only_what_is_for_it_is_a_turn,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_INBOUND,
+        status: 400,
+        name: "only_the_agents_channels_reach_it_and_only_what_is_for_it_is_a_turn",
+        test: crate::agent_inbound::only_the_agents_channels_reach_it_and_only_what_is_for_it_is_a_turn,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_INBOUND,
+        status: 401,
+        name: "only_the_agents_bridge_gets_in",
+        test: crate::agent_inbound::only_the_agents_bridge_gets_in,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_INBOUND,
+        status: 403,
+        name: "only_the_agents_channels_reach_it_and_only_what_is_for_it_is_a_turn",
+        test: crate::agent_inbound::only_the_agents_channels_reach_it_and_only_what_is_for_it_is_a_turn,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_INBOUND,
+        status: 404,
+        name: "only_the_agents_bridge_gets_in",
+        test: crate::agent_inbound::only_the_agents_bridge_gets_in,
+    },
+];
+
+/// Every documented response has a test that gets it: the table matches the document, and each
+/// test, run here (several at a time, each on a thread and runtime of its own), records every
+/// (method, path, status) it got through `TestApp::send`, which must include the ones the table
+/// gives it. A status added to the document without a test
+/// fails here, and so does a test that stops getting its status.
+#[test]
+fn every_documented_status_is_exercised() {
+    let document = document();
+    let mut listed = BTreeSet::new();
+    for (path, item) in document["paths"].as_object().unwrap() {
+        for (method, operation) in item.as_object().unwrap() {
+            for status in operation["responses"].as_object().unwrap().keys() {
+                listed.insert((
+                    method.to_uppercase(),
+                    path.clone(),
+                    status.parse::<u16>().unwrap(),
+                ));
+            }
+        }
+    }
+    let covered: BTreeSet<(String, String, u16)> = COVERED
+        .iter()
+        .map(|row| (row.method.to_owned(), row.path.to_owned(), row.status))
+        .collect();
+    assert_eq!(covered, listed, "the table and the document disagree");
+
+    run_each_once(COVERED);
+    let got = crate::common::statuses_got();
+    for row in COVERED {
+        assert!(
+            got.contains(&(row.method.to_owned(), row.path.to_owned(), row.status)),
+            "{} does not get {} from {} {}",
+            row.name,
+            row.status,
+            row.method,
+            row.path
+        );
+    }
+}
+
+/// Runs each test the table names once, on as many threads as the machine has cores, and fails
+/// naming every test that failed.
+fn run_each_once(rows: &[Covered]) {
+    let mut tests: Vec<(&'static str, fn())> = Vec::new();
+    for row in rows {
+        if !tests.iter().any(|(name, _)| *name == row.name) {
+            tests.push((row.name, row.test));
+        }
+    }
+    let queue = std::sync::Mutex::new(tests);
+    let failed = std::sync::Mutex::new(Vec::new());
+    let workers = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let Some((name, test)) = queue.lock().unwrap().pop() else {
+                        break;
+                    };
+                    if std::panic::catch_unwind(test).is_err() {
+                        failed.lock().unwrap().push(name);
+                    }
+                }
+            });
+        }
+    });
+    let failed = failed.into_inner().unwrap();
+    assert!(failed.is_empty(), "these tests failed: {failed:?}");
+}
+
+/// The looking header the state route documents is the contract's (a literal in the route's
+/// macro, which can't name the constant).
+#[test]
+fn the_state_route_documents_the_looking_header() {
+    let document = document();
+    let parameters = document["paths"][paths::STATE]["get"]["parameters"]
+        .as_array()
+        .unwrap();
+    assert!(
+        parameters.iter().any(
+            |parameter| parameter["name"] == emberhut_api::headers::LOOKING
+                && parameter["in"] == "header"
+        ),
+        "{parameters:?}"
+    );
+}

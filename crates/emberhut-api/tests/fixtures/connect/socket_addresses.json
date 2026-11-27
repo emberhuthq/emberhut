@@ -1,0 +1,62 @@
+{
+  "description": "A local socket address's normal form: a.b.c.d:port or [v6]:port, the IPv6 address in RFC 5952 form, no zone id, and an IPv4-mapped IPv6 address as the IPv4 address. `parse` reads text that must already be in normal form. Errors: invalid, notNormal.",
+  "normalize": [
+    {
+      "input": "192.0.2.1:18990",
+      "normal": "192.0.2.1:18990"
+    },
+    {
+      "input": "[::ffff:192.0.2.1]:18990",
+      "normal": "192.0.2.1:18990"
+    },
+    {
+      "input": "[2001:0DB8:0000::0001]:18990",
+      "normal": "[2001:db8::1]:18990"
+    },
+    {
+      "input": "[2001:db8:0:0:1:0:0:1]:80",
+      "normal": "[2001:db8::1:0:0:1]:80"
+    },
+    {
+      "input": "[::1]:18990",
+      "normal": "[::1]:18990"
+    }
+  ],
+  "parse": [
+    {
+      "text": "192.0.2.1:18990",
+      "normal": "192.0.2.1:18990"
+    },
+    {
+      "text": "[2001:db8::1]:18990",
+      "normal": "[2001:db8::1]:18990"
+    },
+    {
+      "text": "[::ffff:192.0.2.1]:18990",
+      "error": "notNormal",
+      "normalForm": "192.0.2.1:18990"
+    },
+    {
+      "text": "[2001:DB8::1]:18990",
+      "error": "notNormal",
+      "normalForm": "[2001:db8::1]:18990"
+    },
+    {
+      "text": "[2001:db8:0::1]:18990",
+      "error": "notNormal",
+      "normalForm": "[2001:db8::1]:18990"
+    },
+    {
+      "text": "192.0.2.1",
+      "error": "invalid"
+    },
+    {
+      "text": "example.com:80",
+      "error": "invalid"
+    },
+    {
+      "text": "",
+      "error": "invalid"
+    }
+  ]
+}
