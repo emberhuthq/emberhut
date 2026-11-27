@@ -640,7 +640,7 @@ fn rgb_of(colour: Hsla) -> Rgb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::color::{contrast_ratio, luminance};
+    use crate::color::{contrast_ratio, delta_e_2000, lab, luminance};
     use crate::material::alpha::{AA, BACKDROPS, KEEP_BELOW_AA};
     use crate::theme::{built_in, preset_tokens};
 
@@ -1000,5 +1000,58 @@ mod tests {
             );
             assert_eq!(room_color(None, &p), p.faint);
         }
+    }
+
+    /// How far apart (CIEDE2000) the accent, warn and danger must look. About 1 is the least
+    /// an eye sees between two large patches side by side; these are small marks (an icon, a
+    /// word) met one at a time, and "warn" must not read as "danger" without the other beside
+    /// it to compare. 10 is the top of the band usually called perceptible at a glance, past
+    /// which two colours read as different ones.
+    const DISTINCT: f64 = 10.0;
+
+    /// What falls short in `preset`'s palettes, in either appearance: a text level (body,
+    /// muted, faint) under 4.5:1 on a ground, or two of the accent, warn and danger closer
+    /// than [`DISTINCT`].
+    fn shortfalls(preset: &str) -> Vec<String> {
+        let mut short = Vec::new();
+        for p in both(&preset_page(preset)) {
+            let dark = p.dark;
+            let grounds = [
+                ("background", p.background),
+                ("surface", p.surface),
+                ("raised", p.surface_raised),
+            ];
+            for (ink_name, ink) in [("text", p.text), ("muted", p.muted), ("faint", p.faint)] {
+                for (ground_name, ground) in grounds {
+                    let r = contrast(ink, ground);
+                    if r < AA {
+                        short.push(format!(
+                            "{preset} dark={dark}: {ink_name} on {ground_name} {r:.2}"
+                        ));
+                    }
+                }
+            }
+            let marks = [("accent", p.accent), ("warn", p.warn), ("danger", p.danger)];
+            for (i, (a_name, a)) in marks.iter().enumerate() {
+                for (b_name, b) in &marks[i + 1..] {
+                    let apart = delta_e_2000(lab(rgb_of(*a)), lab(rgb_of(*b)));
+                    if apart < DISTINCT {
+                        short.push(format!(
+                            "{preset} dark={dark}: {a_name} and {b_name} {apart:.1} apart"
+                        ));
+                    }
+                }
+            }
+        }
+        short
+    }
+
+    #[test]
+    fn every_presets_text_reads_and_its_status_colours_differ() {
+        let short: Vec<String> = emberhut_core::theme::PRESETS
+            .iter()
+            .flat_map(|preset| shortfalls(preset.id))
+            .collect();
+        assert!(short.is_empty(), "{short:#?}");
     }
 }
