@@ -60,7 +60,11 @@ opening a window. It keeps the session exactly where the app does (the Keychain 
 the server whether it takes the session (`GET /api/auth/status`), and exits, 0 when it does. Use
 it for a machine whose screen isn't at hand. `--pair -` reads the code from the standard input,
 so it stays out of the process list. `--forget-session` removes this device's session with that
-server from where the app keeps it (on macOS, its Keychain item).
+server from where the app keeps it: the session, its tokens and its install id, so the next
+pairing is a new install. On macOS that is the server's Keychain item (and a `session.json`
+waiting to move into it), removed without any dialog. A file-based keychain removes an item only
+with its owner's right, which another build of the app may not hold; then the item is
+overwritten with a mark that every later read takes for no item at all.
 
 ### The app's files
 

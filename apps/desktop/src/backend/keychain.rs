@@ -11,6 +11,11 @@
 //! once, with a warning, and this device starts a new install and signs in again (a new launch
 //! then finds the new item, not the broken one).
 //!
+//! Clearing removes the item. Where the keychain refuses to (an item in a file-based keychain is
+//! removed only with its owner's right, which another build of the app may not hold), the item is
+//! overwritten with [`FORGOTTEN`] instead, which every later read takes for no item at all: the
+//! session, its tokens and its install id are gone either way, and nothing asks the user.
+//!
 //! The Keychain itself is behind [`Item`], so this logic is tested with a fake; the system's item
 //! is `system::SystemItem` (macOS only).
 
@@ -37,13 +42,27 @@ pub(crate) trait Item: Send + Sync {
     /// The keychain couldn't be written: [`StoreError::Backend`].
     fn write(&self, bytes: &[u8]) -> Result<(), StoreError>;
 
-    /// Removes the item; none is fine.
+    /// Removes the item, never asking the user; none is fine. [`Removal::Refused`] when the
+    /// keychain won't remove it without a right this process doesn't have.
     ///
     /// # Errors
     ///
     /// The keychain couldn't be written: [`StoreError::Backend`].
-    fn delete(&self) -> Result<(), StoreError>;
+    fn delete(&self) -> Result<Removal, StoreError>;
 }
+
+/// What became of an item asked to go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Removal {
+    /// It is gone (or there was none).
+    Gone,
+    /// The keychain keeps it: removing it needs its owner's right, or the user's say.
+    Refused,
+}
+
+/// What an item holds once its session is forgotten where the keychain wouldn't remove it: read
+/// back, it is no item at all.
+pub(crate) const FORGOTTEN: &[u8] = br#"{"forgotten": true}"#;
 
 /// The session in a keychain item, moving in the one an earlier launch kept in a file.
 pub(crate) struct KeychainSessionStore<I> {
@@ -91,7 +110,7 @@ fn refuse_newer(bytes: &[u8]) -> Result<(), StoreError> {
 
 impl<I: Item> SessionStore for KeychainSessionStore<I> {
     fn load(&self) -> Result<Option<Session>, StoreError> {
-        let Some(bytes) = self.item.read()? else {
+        let Some(bytes) = self.item.read()?.filter(|bytes| bytes != FORGOTTEN) else {
             return self.move_in();
         };
         refuse_newer(&bytes)?;
@@ -102,7 +121,7 @@ impl<I: Item> SessionStore for KeychainSessionStore<I> {
                     "the session in the Keychain isn't one ({error}); removing it: this device \
                      signs in again"
                 );
-                self.item.delete()?;
+                self.forget()?;
                 Ok(None)
             }
         }
@@ -117,7 +136,20 @@ impl<I: Item> SessionStore for KeychainSessionStore<I> {
     }
 
     fn clear(&self) -> Result<(), StoreError> {
-        self.item.delete()
+        self.forget()
+    }
+}
+
+impl<I: Item> KeychainSessionStore<I> {
+    /// Removes the item, or, where the keychain refuses, leaves [`FORGOTTEN`] in it.
+    fn forget(&self) -> Result<(), StoreError> {
+        match self.item.delete()? {
+            Removal::Gone => Ok(()),
+            Removal::Refused => {
+                log::info!("the keychain keeps the item: it is marked forgotten instead");
+                self.item.write(FORGOTTEN)
+            }
+        }
     }
 }
 
@@ -129,17 +161,31 @@ pub(super) mod tests {
 
     /// A keychain item in memory; its clones share it.
     #[derive(Clone, Debug, Default)]
-    pub(crate) struct FakeItem(Arc<Mutex<Option<Vec<u8>>>>);
+    pub(crate) struct FakeItem {
+        bytes: Arc<Mutex<Option<Vec<u8>>>>,
+        /// Whether it refuses to be removed, as a file-based keychain's item does without its
+        /// owner's right.
+        refuses_removal: bool,
+    }
 
     impl FakeItem {
         /// An item holding `bytes`.
         pub(crate) fn holding(bytes: &[u8]) -> Self {
-            Self(Arc::new(Mutex::new(Some(bytes.to_vec()))))
+            Self {
+                bytes: Arc::new(Mutex::new(Some(bytes.to_vec()))),
+                refuses_removal: false,
+            }
+        }
+
+        /// The same item, refusing to be removed.
+        pub(crate) fn refusing_removal(mut self) -> Self {
+            self.refuses_removal = true;
+            self
         }
 
         /// What the item holds.
         pub(crate) fn bytes(&self) -> Option<Vec<u8>> {
-            self.0
+            self.bytes
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .clone()
@@ -152,13 +198,17 @@ pub(super) mod tests {
         }
 
         fn write(&self, bytes: &[u8]) -> Result<(), StoreError> {
-            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(bytes.to_vec());
+            *self.bytes.lock().unwrap_or_else(PoisonError::into_inner) = Some(bytes.to_vec());
             Ok(())
         }
 
-        fn delete(&self) -> Result<(), StoreError> {
-            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = None;
-            Ok(())
+        fn delete(&self) -> Result<Removal, StoreError> {
+            let mut held = self.bytes.lock().unwrap_or_else(PoisonError::into_inner);
+            if self.refuses_removal && held.is_some() {
+                return Ok(Removal::Refused);
+            }
+            *held = None;
+            Ok(Removal::Gone)
         }
     }
 
@@ -227,5 +277,49 @@ pub(super) mod tests {
             Some(session),
             "the next launch reads it"
         );
+    }
+
+    #[test]
+    fn an_item_the_keychain_keeps_is_forgotten_all_the_same() {
+        let dir = tempfile::tempdir().unwrap();
+        let item = FakeItem::default().refusing_removal();
+        let store = store(&item, &dir);
+        let session = Session::new_install().unwrap();
+        store.save(&session).unwrap();
+        store.clear().unwrap();
+        assert_eq!(item.bytes().as_deref(), Some(FORGOTTEN), "kept, but marked");
+        assert_eq!(store.load().unwrap(), None, "read back as no item");
+        let next = Session::new_install().unwrap();
+        assert_ne!(next.install, session.install);
+        store.save(&next).unwrap();
+        assert_eq!(
+            store.load().unwrap(),
+            Some(next),
+            "a new session over the mark"
+        );
+    }
+
+    #[test]
+    fn an_item_that_isnt_a_session_and_cant_be_removed_is_marked_forgotten() {
+        let dir = tempfile::tempdir().unwrap();
+        let item = FakeItem::holding(b"{ broken").refusing_removal();
+        let store = store(&item, &dir);
+        assert_eq!(store.load().unwrap(), None);
+        assert_eq!(item.bytes().as_deref(), Some(FORGOTTEN));
+        assert_eq!(
+            store.load().unwrap(),
+            None,
+            "no warning loop: the mark reads as nothing"
+        );
+    }
+
+    #[test]
+    fn a_forgotten_item_still_takes_in_an_earlier_launchs_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let item = FakeItem::holding(FORGOTTEN);
+        let file = FileSessionStore::new(dir.path().join("session.json"));
+        let session = Session::new_install().unwrap();
+        file.save(&session).unwrap();
+        assert_eq!(store(&item, &dir).load().unwrap(), Some(session));
     }
 }
