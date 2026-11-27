@@ -7,7 +7,8 @@ use std::time::{Duration, SystemTime};
 
 use emberhut_api::answers::AnswerRequest;
 use emberhut_api::auth::{
-    AccessToken, AuthReply, PairRequest, PairingCode, RefreshRequest, RevokeRequest, SessionGrant,
+    AccessToken, AuthReply, AuthStatus, PairRequest, PairingCode, RefreshRequest, RevokeRequest,
+    SessionGrant,
 };
 use emberhut_api::calls::{RecordCallReply, RecordCallRequest};
 use emberhut_api::chat::{ChatFile, ChatPage, HistoryQuery};
@@ -434,6 +435,17 @@ impl Client {
             date,
             machine,
         })
+    }
+
+    /// The server's sign-in state, and whether it takes this device's session as a signed-in
+    /// device's (`GET /api/auth/status`, signed when there is a session): the check that a
+    /// pairing took.
+    ///
+    /// # Errors
+    ///
+    /// The transport's and decoding errors; [`Error::Status`] when the server fails.
+    pub fn auth_status(&self) -> Result<AuthStatus, Error> {
+        exchange::json(self.get(paths::AUTH_STATUS, "")?)
     }
 
     /// Makes a one-time pairing code for another device (this one must be signed in).

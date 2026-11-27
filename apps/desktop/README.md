@@ -52,6 +52,16 @@ left out, and a build without a dialect ignores it):
   moving a server's address from `server` to `fallback` keeps it signed in as the fallback;
   the new server is paired as usual. Elsewhere the fallback's session is in `fallback/`.
 
+### Pairing without the window
+
+`emberhut-desktop --pair ABCD-EFGH` (on macOS, `Emberhut.app/Contents/MacOS/Emberhut --pair …`)
+pairs this device with the server, never the fallback, using a one-time pairing code, without
+opening a window. It keeps the session exactly where the app does (the Keychain on macOS), asks
+the server whether it takes the session (`GET /api/auth/status`), and exits, 0 when it does. Use
+it for a machine whose screen isn't at hand. `--pair -` reads the code from the standard input,
+so it stays out of the process list. `--forget-session` forgets this device's session with that
+server here.
+
 ### The app's files
 
 | Platform | Directory |

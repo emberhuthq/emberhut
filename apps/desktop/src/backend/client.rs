@@ -103,6 +103,11 @@ impl EmberhutBackend {
         Ok(Self { server, client })
     }
 
+    /// Whether the server takes this device's session as a signed-in device's.
+    pub(super) fn signed_in_on_server(&self) -> Result<bool, Error> {
+        Ok(self.client.auth_status().map_err(error)?.signed_in)
+    }
+
     /// Whether the server answers its health check within `within`.
     pub(super) fn answers(&self, within: std::time::Duration) -> bool {
         match self.client.health(within) {

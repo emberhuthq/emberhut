@@ -42,6 +42,9 @@ struct Startup {
 
 /// Runs the app until it quits.
 pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
+    if crate::headless::wanted(&cli) {
+        return crate::headless::run(&cli);
+    }
     let self_check = cli
         .self_check
         .then(SelfCheck::start)
