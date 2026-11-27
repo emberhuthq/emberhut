@@ -7,9 +7,10 @@ use emberhut_api::task_page::Run;
 use emberhut_api::tasks::TaskStatus;
 use gpui_kit::assets::IconName;
 use gpui_kit::prelude::*;
-use gpui_kit::{Div, ElementId, FontWeight, ImageSource, div, img, px};
+use gpui_kit::{Div, ElementId, FontWeight, div, px};
 
 use super::text::{Long, collapsible, link_button};
+use super::thumb::thumb;
 use super::{Part, TaskView, fold, fold_row, section};
 use crate::store::Page;
 use crate::store::files::RemoteFile;
@@ -431,17 +432,12 @@ fn run_media(
                 ))
                 .debug_selector(move || media_selector(run_id, artifact_id))
                 .relative()
+                .flex_none()
                 .w(px(120.))
                 .h(px(84.))
-                .rounded(px(8.))
-                .bg(p.card)
                 .cursor_pointer()
-                .children(picture.map(|image| {
-                    img(ImageSource::Render(image))
-                        .debug_selector(move || picture_selector(run_id, artifact_id))
-                        .w(px(120.))
-                        .h(px(84.))
-                        .rounded(px(8.))
+                .child(thumb(picture, (120., 84.), 8., p.card, move || {
+                    picture_selector(run_id, artifact_id)
                 }))
                 .when(artifact.kind == "video", |d| {
                     d.child(

@@ -10,7 +10,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::Sizable as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::prelude::*;
-use gpui_kit::{ClipboardItem, Div, ElementId, FontWeight, ImageSource, div, img, px};
+use gpui_kit::{ClipboardItem, Div, ElementId, FontWeight, div, px};
 
 use super::text::{Long, collapsible, link_button, rich};
 use super::{Part, TaskView, section};
@@ -469,19 +469,10 @@ fn card_pictures(part: &Part<'_>, card: &OptionCard<'_>) -> Div {
             .thumb
             .as_deref()
             .and_then(|thumb| part.read.picture(thumb));
-        let picture = match thumb {
-            Some(image) => img(ImageSource::Render(image))
-                .w(px(120.))
-                .h(px(80.))
-                .rounded(px(8.))
-                .into_any_element(),
-            None => div()
-                .w(px(120.))
-                .h(px(80.))
-                .rounded(px(8.))
-                .bg(p.hover)
-                .into_any_element(),
-        };
+        let id = artifact.id.get();
+        let picture = super::thumb::thumb(thumb, (120., 80.), 8., p.hover, move || {
+            format!("choice-picture-{id}")
+        });
         let (url, name) = (artifact.url.clone(), artifact.name.clone());
         let video = artifact.kind == "video";
         strip = strip.child(
@@ -490,6 +481,7 @@ fn card_pictures(part: &Part<'_>, card: &OptionCard<'_>) -> Div {
                     format!("choice-media-{}", artifact.id).into(),
                 ))
                 .relative()
+                .flex_none()
                 .cursor_pointer()
                 .child(picture)
                 .when(video, |d| {

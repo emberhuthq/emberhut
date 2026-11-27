@@ -12,6 +12,7 @@ mod media_tests;
 mod reply;
 mod results;
 mod text;
+mod thumb;
 mod top;
 mod width;
 mod work;

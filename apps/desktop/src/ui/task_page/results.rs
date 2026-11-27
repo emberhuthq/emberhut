@@ -8,9 +8,7 @@ use emberhut_api::tasks::{Artifact, TaskStatus};
 use gpui_kit::assets::IconName;
 use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::prelude::*;
-use gpui_kit::{
-    App, ClipboardItem, Div, ElementId, Entity, FontWeight, ImageSource, Window, div, img, px,
-};
+use gpui_kit::{App, ClipboardItem, Div, ElementId, Entity, FontWeight, Window, div, px};
 
 use super::{Part, TaskView, fold, fold_row, text};
 use crate::store::files::RemoteFile;
@@ -132,19 +130,10 @@ fn tile(p: &Pal, store: &Entity<Store>, artifact: &Artifact, cx: &App) -> Div {
         .thumb
         .as_deref()
         .and_then(|thumb| store.read(cx).picture(thumb));
-    let shown = match thumb {
-        Some(image) => img(ImageSource::Render(image))
-            .w(px(200.))
-            .h(px(124.))
-            .rounded(px(10.))
-            .into_any_element(),
-        None => div()
-            .w(px(200.))
-            .h(px(124.))
-            .rounded(px(10.))
-            .bg(p.card)
-            .into_any_element(),
-    };
+    let id = artifact.id.get();
+    let shown = super::thumb::thumb(thumb, (200., 124.), 10., p.card, move || {
+        format!("result-picture-{id}")
+    });
     let video = artifact.kind == "video";
     let (url, name) = (artifact.url.clone(), artifact.name.clone());
     let file = remote(artifact);
