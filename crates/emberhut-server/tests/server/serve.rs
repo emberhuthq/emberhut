@@ -83,6 +83,7 @@ fn pair_config(
         machine_key: emberhut_server::config::MachineKeyConfig::default(),
         listen,
         public_url,
+        json: false,
     }
 }
 
@@ -107,6 +108,25 @@ async fn the_pair_command_makes_a_working_code() {
     let shown = made.issued.code.to_string();
     assert_eq!(shown.len(), 9);
     assert_eq!(&shown[4..5], "-");
+    assert_eq!(made.machine, key.machine_id());
+
+    // `pair --json`: the same code, its expiry, the machine and the link, for a program.
+    let json = made.to_json(&config.database.url);
+    let expires = made.issued.expires_at.to_string();
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "code": shown,
+            "expiresAt": expires,
+            "machine": key.machine_id().to_string(),
+            "database": config.database.url.path().display().to_string(),
+            "link": made.link.as_ref().unwrap().to_url(),
+        })
+    );
+    assert!(
+        expires.parse::<jiff::Timestamp>().is_ok(),
+        "RFC 3339: {expires}"
+    );
 
     // The link carries the same code, the machine's id (its key beside the database) and
     // the configured routes; the QR code is drawn from it.
