@@ -472,7 +472,11 @@ fn the_thinks_with_pane_tests_a_key_then_uses_it(cx: &mut TestAppContext) {
     let picked = |cx: &VisualTestContext| {
         store.read_with(cx, |store, _| store.credentials().picked().cloned())
     };
-    assert_eq!(picked(&cx), None, "coming next: not picked");
+    assert_eq!(
+        picked(&cx),
+        Some(ProviderKind::OpenAi),
+        "through the server's OpenAI bridge"
+    );
     cx.update(|window, cx| window.click("provider-anthropic", cx));
     cx.run_until_parked();
     assert_eq!(picked(&cx), Some(ProviderKind::Anthropic));
