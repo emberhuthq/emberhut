@@ -162,7 +162,7 @@ impl AppearancePane {
             presets = presets.child(
                 div()
                     .id(ElementId::Name(format!("preset-{}", preset.id).into()))
-                    // The chosen one is read as selected, and Blue as the default.
+                    // The chosen one is read as selected, and Paper as the default.
                     .button_named(a11y::preset(&preset.name, preset.id == DEFAULT_PRESET))
                     .aria_selected(on)
                     .accessibility_id(format!("preset {}", preset.id))

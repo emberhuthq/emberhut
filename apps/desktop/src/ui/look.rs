@@ -305,7 +305,7 @@ mod tests {
 
     #[gpui_kit::test]
     fn light_mode_is_opaque_with_the_server_presets(cx: &mut TestAppContext) {
-        // Its sidebar would be 0.98 opaque: too faint to count.
+        // Paper's sidebar is opaque outright, the other presets' 0.98 opaque: too faint to count.
         let store = store(Appearance::Light, cx);
         let window = open_on_macos(&store, cx);
         assert!(!root_is_clear(window, cx));
