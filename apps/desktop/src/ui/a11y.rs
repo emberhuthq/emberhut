@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn presets_and_folds_have_their_words() {
-        assert_eq!(preset("Blue", true), "Blue, the default");
+        assert_eq!(preset("Paper", true), "Paper, the default");
         assert_eq!(preset("Green", false), "Green");
         assert_eq!(folded(true), "open");
         assert_eq!(folded(false), "folded");

@@ -70,12 +70,13 @@ pub(crate) struct Pal {
 
 /// The most of the window's material the sidebar lets through in the light appearance: its
 /// fill is never more translucent than this. The theme's colours may hold it more opaque (see
-/// `material::alpha`): with the server's presets it ends at 0.98 or 0.99, where the accent and
-/// "running" keep 4.5:1 over a black backdrop, which is above [`SIDEBAR_ALPHA_MOST`]: light
-/// mode stays opaque unless a theme allows real glass.
+/// `material::alpha`): with the server's presets it ends at 0.98 or 0.99 (1 with paper), where
+/// the accent and "running" keep 4.5:1 over a black backdrop, which is above
+/// [`SIDEBAR_ALPHA_MOST`]: light mode stays opaque unless a theme allows real glass.
 const SIDEBAR_ALPHA_FLOOR_LIGHT: f32 = 0.90;
 
-/// The same in the dark appearance (0.93 with the server's presets, for the faint text).
+/// The same in the dark appearance (0.93 with the server's presets, 0.94 with paper, for the
+/// faint text).
 const SIDEBAR_ALPHA_FLOOR_DARK: f32 = 0.84;
 
 /// The most opaque the sidebar may be and still count as having material. Above it the glass
@@ -326,39 +327,12 @@ mod tests {
     use super::*;
     use crate::color::{contrast_ratio, luminance};
     use crate::material::alpha::{AA, BACKDROPS, KEEP_BELOW_AA};
-    use crate::theme::built_in;
-
-    /// The server's presets: the accent in light and dark, and whether "running" is blue (it is
-    /// cyan when the accent is blue itself). The neutrals are the built-in theme's.
-    ///
-    /// A copy, with nowhere better to come from yet: the presets are the reference server's
-    /// table (its theme module), the Rust server serves no themes yet, and emberhut-api's contract
-    /// fixture is a recorded reply with only two of them (fabricating the other five there
-    /// would make it no longer a real reply). When the Rust server has its preset table, this
-    /// test should read that instead; until then a change to the server's presets must change
-    /// this list.
-    const PRESETS: [(&str, &str, &str, bool); 7] = [
-        ("graphite", "#374151", "#D1D5DB", true),
-        ("blue", "#2563EB", "#60A5FA", false),
-        ("teal", "#0F766E", "#2DD4BF", true),
-        ("green", "#15803D", "#4ADE80", true),
-        ("orange", "#C2410C", "#FB923C", true),
-        ("rose", "#BE123C", "#FB7185", true),
-        ("purple", "#7C3AED", "#A78BFA", true),
-    ];
+    use crate::theme::{built_in, preset_tokens};
 
     /// The theme with `preset`'s colours, as the server makes it.
-    fn preset_page((_, light, dark, blue_info): (&str, &str, &str, bool)) -> ThemePage {
+    fn preset_page(preset: &str) -> ThemePage {
         let mut page = built_in();
-        page.tokens.light.accent = light.into();
-        page.tokens.dark.accent = dark.into();
-        let (light_info, dark_info) = if blue_info {
-            ("#2563EB", "#60A5FA")
-        } else {
-            ("#0E7490", "#22D3EE")
-        };
-        page.tokens.light.info = light_info.into();
-        page.tokens.dark.info = dark_info.into();
+        page.tokens = preset_tokens(preset);
         page
     }
 
@@ -432,9 +406,9 @@ mod tests {
 
     #[test]
     fn with_material_the_sidebar_takes_the_themes_alpha() {
-        let [light, dark] = both(&built_in()).map(|p| p.with_material(Material::Sidebar));
-        // The values the README and the floors' docs quote. Light's 0.98 is too faint to
-        // count: no material there.
+        let [light, dark] = both(&preset_page("blue")).map(|p| p.with_material(Material::Sidebar));
+        // The values the README and the floors' docs quote for the graphite presets. Light's
+        // 0.98 is too faint to count: no material there.
         assert!(
             (light.sidebar_alpha - 0.98).abs() < f32::EPSILON,
             "{}",
@@ -478,16 +452,22 @@ mod tests {
 
     #[test]
     fn every_presets_sidebar_text_keeps_aa_over_any_backdrop() {
-        for preset in PRESETS {
+        for preset in emberhut_core::theme::PRESETS.map(|preset| preset.id) {
             let page = preset_page(preset);
             for p in both(&page) {
                 let p = p.with_material(Material::Sidebar);
-                // The range the README quotes.
-                let (low, high) = if p.dark { (0.93, 0.93) } else { (0.98, 0.99) };
+                // The range the README quotes: paper's near-AA ember and green leave its
+                // light sidebar no room at all.
+                let (low, high) = match (preset, p.dark) {
+                    ("paper", false) => (1.0, 1.0),
+                    ("paper", true) => (0.94, 0.94),
+                    (_, false) => (0.98, 0.99),
+                    (_, true) => (0.93, 0.93),
+                };
                 assert!(
                     (low - 1e-6..=high + 1e-6).contains(&p.sidebar_alpha),
                     "{} dark={}: {}",
-                    preset.0,
+                    preset,
                     p.dark,
                     p.sidebar_alpha
                 );
@@ -497,15 +477,15 @@ mod tests {
                 } else {
                     Material::Opaque
                 };
-                assert_eq!(p.material, expected, "{} dark={}", preset.0, p.dark);
-                assert_sidebar_reads(&page, &p, preset.0);
+                assert_eq!(p.material, expected, "{} dark={}", preset, p.dark);
+                assert_sidebar_reads(&page, &p, preset);
             }
         }
     }
 
     #[test]
     fn a_light_theme_with_strong_colours_gets_real_glass() {
-        let mut page = built_in();
+        let mut page = preset_page("blue");
         page.tokens.light.accent = "#1D4ED8".into();
         page.tokens.light.info = "#155E75".into();
         let p = Pal::new(&page, false).with_material(Material::Sidebar);

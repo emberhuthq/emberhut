@@ -1,59 +1,66 @@
 //! The app's own side of the theme: the built-in default for before the server ever answered,
 //! and how a choice is applied from the presets at hand. No colours are drawn here; see
-//! `ui::palette`. (When the design tokens come from `packages/design-tokens`, `built_in` reads
-//! them instead of the literals below.)
+//! `ui::palette`. The built-in colours are worked out by `emberhut-core`'s theme rules, the
+//! server's own, so they are the server's default to the last digit.
 
 use emberhut_api::theme::{
     Contrast, ContrastFacts, DEFAULT_PRESET, Preset, ThemeChoice, ThemePage, TokenPair, Tokens,
 };
+use emberhut_core::theme as rules;
 
-use crate::color::{contrast_ratio, parse_hex};
+/// The presets the built-in theme offers: the default, paper, and blue beside it.
+const BUILT_IN_PRESETS: [&str; 2] = [DEFAULT_PRESET, "blue"];
 
-/// The built-in theme, blue on graphite (the server's default). The one place the app has
-/// colour values of its own.
+/// The built-in theme: the server's default (paper, as the system is, never set), with blue
+/// to pick as well.
 #[must_use]
 pub(crate) fn built_in() -> ThemePage {
-    let light = tokens([
-        "#2563EB", "#E5ECFD", "#FFFFFF", "#F5F6F8", "#FFFFFF", "#ECEEF1", "#D9DCE1", "#14171C",
-        "#5B6270", "#8A909B", "#15803D", "#C2410C", "#DC2626", "#0E7490",
-    ]);
-    let dark = tokens([
-        "#60A5FA", "#27384E", "#0B0D10", "#0E1013", "#17191D", "#202328", "#2C3036", "#E9EBEE",
-        "#9BA1AB", "#6B717B", "#4ADE80", "#FB923C", "#F87171", "#22D3EE",
-    ]);
-    let contrast = Contrast {
-        light: facts(&light),
-        dark: facts(&dark),
-        aa: true,
-    };
-    let aa = contrast.light.accent_on_surface >= 4.5 && contrast.dark.accent_on_surface >= 4.5;
+    let (_, light) = rules::resolve(DEFAULT_PRESET, None, false);
+    let (_, dark) = rules::resolve(DEFAULT_PRESET, None, true);
+    let aa = light.is_aa() && dark.is_aa();
     ThemePage {
         version: 0,
         choice: ThemeChoice::default(),
-        presets: vec![Preset {
-            id: DEFAULT_PRESET.into(),
-            name: "Blue".into(),
-            light: light.clone(),
-            dark: dark.clone(),
-        }],
-        tokens: TokenPair { light, dark },
-        contrast: Contrast { aa, ..contrast },
-        names: Vec::new(),
+        presets: rules::PRESETS
+            .iter()
+            .filter(|preset| BUILT_IN_PRESETS.contains(&preset.id))
+            .map(|preset| {
+                let TokenPair { light, dark } = preset_tokens(preset.id);
+                Preset {
+                    id: preset.id.into(),
+                    name: preset.name.into(),
+                    light,
+                    dark,
+                }
+            })
+            .collect(),
+        tokens: preset_tokens(DEFAULT_PRESET),
+        contrast: Contrast {
+            light: facts(light),
+            dark: facts(dark),
+            aa,
+        },
+        names: rules::NAMES.iter().map(|name| (*name).to_owned()).collect(),
     }
 }
 
-/// The accent's contrast in one appearance, as the server would measure it.
-fn facts(tokens: &Tokens) -> ContrastFacts {
-    let colour = |hex: &str| parse_hex(hex).unwrap_or_default();
-    let accent = colour(&tokens.accent);
-    // Two decimals, as the server sends them (and so the cache reads back exactly).
-    let ratio = |a, b| (contrast_ratio(a, b) * 100.0).round() / 100.0;
+/// A preset's own colours in both appearances, as the server resolves them.
+#[must_use]
+pub(crate) fn preset_tokens(preset: &str) -> TokenPair {
+    TokenPair {
+        light: tokens(rules::resolve(preset, None, false).0),
+        dark: tokens(rules::resolve(preset, None, true).0),
+    }
+}
+
+/// The accent's contrast in one appearance, as the server sends it.
+fn facts(facts: rules::Contrast) -> ContrastFacts {
     ContrastFacts {
-        accent_on_background: ratio(accent, colour(&tokens.background)),
-        accent_on_surface: ratio(accent, colour(&tokens.surface)),
-        on_accent: ratio(colour(&tokens.on_accent), accent),
-        adjusted: false,
-        asked: tokens.accent.clone(),
+        accent_on_background: facts.accent_on_background,
+        accent_on_surface: facts.accent_on_surface,
+        on_accent: facts.on_accent,
+        adjusted: facts.adjusted,
+        asked: facts.asked,
     }
 }
 
@@ -74,9 +81,9 @@ pub(crate) fn with_choice(page: &ThemePage, choice: &ThemeChoice) -> Option<Them
     Some(out)
 }
 
-/// Tokens in the order the type lists them.
-fn tokens(hex: [&str; 14]) -> Tokens {
-    let [
+/// One appearance's colours, as the API carries them.
+fn tokens(palette: rules::Palette) -> Tokens {
+    let rules::Palette {
         accent,
         accent_soft,
         on_accent,
@@ -91,7 +98,7 @@ fn tokens(hex: [&str; 14]) -> Tokens {
         warn,
         danger,
         info,
-    ] = hex.map(String::from);
+    } = palette;
     Tokens {
         accent,
         accent_soft,
@@ -113,6 +120,7 @@ fn tokens(hex: [&str; 14]) -> Tokens {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::parse_hex;
     use emberhut_api::theme::Appearance;
 
     fn with_green() -> ThemePage {
@@ -162,6 +170,26 @@ mod tests {
             ..ThemeChoice::default()
         };
         assert_eq!(with_choice(&page, &custom), None);
+    }
+
+    #[test]
+    fn the_built_in_theme_is_paper_with_blue_to_pick() {
+        let page = built_in();
+        assert_eq!(page.choice.preset, "paper");
+        assert_eq!(page.tokens.light.background, "#F6F0E6");
+        assert_eq!(page.tokens.light.accent, "#B83D0C");
+        assert_eq!(page.tokens.dark.background, "#15110E");
+        assert_eq!(page.tokens.dark.accent, "#FF9A5A");
+        let ids: Vec<&str> = page.presets.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["paper", "blue"]);
+        assert_eq!(page.preset_tokens("paper").unwrap(), page.tokens);
+        let blue = ThemeChoice {
+            preset: "blue".into(),
+            ..ThemeChoice::default()
+        };
+        let blue = with_choice(&page, &blue).unwrap();
+        assert_eq!(blue.tokens.light.accent, "#2563EB");
+        assert_eq!(blue.tokens.light.background, "#F5F6F8");
     }
 
     #[test]

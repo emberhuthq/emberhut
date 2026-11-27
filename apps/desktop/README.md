@@ -214,7 +214,7 @@ VoiceOver reads the app through GPUI's AccessKit tree. GPUI reports an element o
 and a role, so the app's own controls are named in `ui/a11y.rs`'s terms: icon buttons by their
 tips (Send, Attach, Stop Emberhut, Dictate, Reply, Back, Close), a room, a task or a Settings row read
 as one line ("Main, 2 need you, 3 new, working"), folded sections as open or folded, the chosen
-colour preset as selected and Blue as the default, a Needs you card as a group named by its
+colour preset as selected and Paper as the default, a Needs you card as a group named by its
 title. The toast, the working line ("Emberhut is working: …") and a file's download status are
 announced as they change. Decoration (status dots, the avatar, icons beside a label) has no role
 and stays out of the tree. The main controls carry stable identifiers (`send`, `attach`, `stop`,
@@ -597,8 +597,9 @@ faint one, which never had it. Selected rows are filled with an opaque token.
 
 An alpha above 0.96 counts as no material: the glass would be too faint to see, so the sidebar
 is opaque and the window isn't blurred for it. With the server's presets light mode works out
-at 0.98 to 0.99 (the accent and "running" are close to AA, so a dark window behind a light-mode
-app leaves no room) and so stays opaque; dark mode works out at 0.93 and has the material. A
+at 0.98 to 0.99, and at 1 with paper (the accent and "running" are close to AA, so a dark window
+behind a light-mode app leaves no room) and so stays opaque; dark mode works out at 0.93, 0.94
+with paper, and has the material. A
 light theme with stronger colours gets real glass. Hiding the sidebar (⌃⌘S) turns the blur off
 too, since nothing translucent is left.
 
