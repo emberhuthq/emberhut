@@ -1,0 +1,24 @@
+/* The main call to action: the one thing on the first screen you can't miss. Each page sets its colours with
+   --cta-bg, --cta-fg, --cta-edge, --cta-shadow (and optionally --cta-glow, --cta-alt). */
+.ctas { display: flex; align-items: center; gap: 14px 28px; flex-wrap: wrap; }
+.cta-main { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; padding: 6px 32px 2px; border-radius: 20px;
+  font: 800 22px/1 "Baloo 2", ui-rounded, system-ui, sans-serif; text-decoration: none; white-space: nowrap;
+  background: var(--cta-bg); color: var(--cta-fg); border: 3px solid var(--cta-edge, transparent);
+  box-shadow: 0 7px 0 var(--cta-shadow, transparent), var(--cta-glow, 0 0 0 transparent); transition: transform .15s, box-shadow .15s; }
+.cta-main:hover { transform: translateY(-2px); box-shadow: 0 9px 0 var(--cta-shadow, transparent), var(--cta-glow, 0 0 0 transparent); }
+.cta-main:active { transform: translateY(4px); box-shadow: 0 3px 0 var(--cta-shadow, transparent); }
+.cta-main .arrow { display: inline-block; transition: transform .2s; }
+.cta-main:hover .arrow { transform: translateX(4px); }
+.cta-alt { padding: 8px 2px; font: 800 17px/1.2 "Baloo 2", ui-rounded, system-ui, sans-serif; color: var(--cta-alt, inherit); text-decoration: underline;
+  text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.cta-alt:hover { text-decoration-thickness: 3px; }
+.cta-note { margin: 12px 0 0; font-size: 14.5px; font-weight: 600; color: var(--cta-note, inherit); }
+.nav-cta { white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .cta-main, .cta-main .arrow { transition: none; } }
+@media (max-width: 560px) { .cta-main { width: 100%; } .ctas { gap: 8px 18px; } }
+
+/* a section's link colour must never repaint the main button */
+a.cta-main, a.cta-main:visited { color: var(--cta-fg) !important; text-decoration: none !important; }
+.nav-long { display: inline; }
+@media (max-width: 480px) { .nav-long { display: none; } }
+.nav-cta { gap: 0 !important; }

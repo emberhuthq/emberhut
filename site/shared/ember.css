@@ -1,0 +1,56 @@
+/* The living ember: stacked HTML layers (glow, body, eyes, mouth) so every motion is a compositor-only
+   transform or opacity change. Size it with font-size or width on .ember. */
+.ember { position: relative; width: var(--ember-size, 160px); aspect-ratio: 1; display: inline-block; flex: none;
+  --lx: 0; --ly: 0; -webkit-tap-highlight-color: transparent; }
+.ember > * { position: absolute; inset: 0; }
+.ember img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none;
+  -webkit-user-drag: none; pointer-events: none; }
+.ember-glow { inset: -30%; pointer-events: none; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 179, 92, .55),
+  rgba(255, 138, 61, .22) 55%, rgba(255, 138, 61, 0) 100%); }
+.ember-hop, .ember-bob, .ember-look, .ember-lids, .ember-mouths { position: absolute; inset: 0; }
+.ember-bob { transform-origin: 50% 78%; }
+
+.ember-look { transform: translate(calc(var(--lx) * 4%), calc(var(--ly) * 3%)); transition: transform .25s ease-out; }
+.ember .e-closed, .ember .e-happy, .ember .m-open, .ember .m-happy, .ember .m-ooh { opacity: 0; }
+.ember[data-mood="sleepy"] .e-open, .ember[data-mood="happy"] .e-open { opacity: 0; }
+.ember[data-mood="sleepy"] .e-closed { opacity: 1; }
+.ember[data-mood="happy"] .e-happy, .ember[data-mood="happy"] .m-happy { opacity: 1; }
+.ember[data-mood="happy"] .m-smile { opacity: 0; }
+.ember[data-mood="ooh"] .m-smile { opacity: 0; }
+.ember[data-mood="ooh"] .m-ooh { opacity: 1; }
+.ember.is-talking .m-smile, .ember.is-talking .m-happy { opacity: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* idle, the way a coal lives: an uneven glow, a slow swell, a spark now and then, and a soft sleepy blink */
+  .ember-glow { animation: ember-flicker 7.3s linear infinite; }
+  .ember-bob { animation: ember-swell 6.2s ease-in-out infinite; }
+  .ember .e-open { animation: ember-lid-open 8.6s infinite; }
+  .ember .e-closed { animation: ember-lid-shut 8.6s infinite; }
+  .ember[data-mood="sleepy"] .e-closed, .ember[data-mood="sleepy"] .e-open, .ember[data-mood="happy"] .e-open, .ember[data-mood="happy"] .e-closed { animation: none; }
+  .ember::after { content: ""; position: absolute; left: 58%; top: 30%; width: 5%; height: 5%; border-radius: 50%; background: #ffd58a;
+    box-shadow: 0 0 6px 2px rgba(255, 179, 92, .8); opacity: 0; animation: ember-spark 9.5s ease-out 2s infinite; pointer-events: none; }
+  .ember[data-mood="sleepy"] .ember-bob { animation-duration: 9s; }
+  .ember.is-busy .ember-bob { animation-duration: 1.8s; }
+  .ember.is-busy .ember-glow { animation-duration: 2.4s; }
+  .ember.is-hopping .ember-hop { animation: ember-hop .62s cubic-bezier(.3, .7, .4, 1); }
+  .ember.is-talking .m-open { animation: ember-talk .26s steps(1) infinite; }
+  .ember.is-talking .m-smile { animation: ember-talk .26s steps(1) infinite reverse; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ember-look { transition: none; }
+  .ember.is-talking .m-open { opacity: 1; }
+}
+@keyframes ember-flicker { 0% { opacity: .78; transform: scale(.98); } 11% { opacity: .92; } 17% { opacity: .8; } 31% { opacity: 1; transform: scale(1.04); }
+  44% { opacity: .86; } 52% { opacity: .95; transform: scale(1.01); } 63% { opacity: .82; } 78% { opacity: 1; transform: scale(1.05); } 89% { opacity: .9; } 100% { opacity: .78; transform: scale(.98); } }
+@keyframes ember-swell { 0%, 100% { transform: translateY(0) scale(1, 1); } 45% { transform: translateY(-1%) scale(1.012, .992); } }
+@keyframes ember-lid-open { 0%, 61%, 66.5%, 100% { opacity: 1; } 62.5%, 65% { opacity: 0; } }
+@keyframes ember-lid-shut { 0%, 61%, 66.5%, 100% { opacity: 0; } 62.5%, 65% { opacity: 1; } }
+@keyframes ember-spark { 0% { opacity: 0; transform: translate(0, 0) scale(1); } 4% { opacity: 1; } 22% { opacity: 0; transform: translate(12%, -260%) scale(.4); } 100% { opacity: 0; } }
+@keyframes ember-hop { 0% { transform: translateY(0) scale(1, 1); } 18% { transform: translateY(2%) scale(1.1, .88); }
+  48% { transform: translateY(-22%) scale(.94, 1.08); } 78% { transform: translateY(0) scale(1.06, .93); } 100% { transform: translateY(0) scale(1, 1); } }
+@keyframes ember-talk { 0% { opacity: 1; } 50% { opacity: 0; } }
+.mini-ember::after, .side-ember::after, .ph-ember::after { display: none; }
+
+/* no blink while it talks */
+.ember.is-talking .e-open { animation: none; }
+.ember.is-talking .e-closed { animation: none; opacity: 0; }
