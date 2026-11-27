@@ -36,9 +36,9 @@ type OnDone = Rc<dyn Fn(&mut Window, &mut App)>;
 /// The picker.
 pub(crate) struct CredentialsView {
     store: Entity<Store>,
-    /// The picked row's API key, masked.
+    /// The selected row's API key, masked.
     pub(crate) key: Entity<InputState>,
-    /// The picked row's base URL.
+    /// The selected row's base URL.
     pub(crate) base_url: Entity<InputState>,
     on_done: OnDone,
     /// The saves the view has answered, to tell when a new one went through.
@@ -231,7 +231,7 @@ impl CredentialsView {
             .when(on, |d| d.child(self.fields(row, picker, p, cx)))
     }
 
-    /// The picked row's fields, its check and what it found, and its buttons.
+    /// The selected row's fields, its check and what it found, and its buttons.
     fn fields(&self, row: &Row, picker: &Credentials, p: &Pal, cx: &Context<'_, Self>) -> Div {
         let kind = picker.picked().unwrap_or(&row.kind);
         let takes = fields(kind);
