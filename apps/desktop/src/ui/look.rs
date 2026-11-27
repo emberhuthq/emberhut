@@ -376,6 +376,25 @@ mod tests {
     }
 
     #[test]
+    fn only_a_dark_appearance_is_dark() {
+        use WindowAppearance::{Dark, Light, VibrantDark, VibrantLight};
+        assert!(palette::is_dark(Dark) && palette::is_dark(VibrantDark));
+        assert!(!palette::is_dark(Light) && !palette::is_dark(VibrantLight));
+    }
+
+    #[gpui_kit::test]
+    fn on_system_the_palette_takes_the_apps_appearance(cx: &mut TestAppContext) {
+        // gpui's test platform gives no window an appearance of its own (its windows and the
+        // app are both light), so this checks the source: the app's appearance decides.
+        let store = store(Appearance::System, cx);
+        open_on_macos(&store, cx);
+        cx.update(|cx| {
+            assert_eq!(pal(cx).dark, palette::is_dark(cx.window_appearance()));
+            assert!(!pal(cx).dark, "the test platform's app is light");
+        });
+    }
+
+    #[test]
     fn the_windows_are_held_to_the_themes_light_or_dark_and_let_go_for_system() {
         assert_eq!(held(&Appearance::Light), Some(WindowAppearance::Light));
         assert_eq!(held(&Appearance::Dark), Some(WindowAppearance::Dark));
