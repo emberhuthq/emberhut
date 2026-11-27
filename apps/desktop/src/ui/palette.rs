@@ -402,6 +402,14 @@ fn color(value: Rgb) -> Hsla {
     rgb(value).into()
 }
 
+/// The WCAG 2 contrast ratio of two colours, each drawn opaque: for the tests of what views
+/// draw.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn contrast(a: Hsla, b: Hsla) -> f64 {
+    crate::color::contrast_ratio(rgb_of(a), rgb_of(b))
+}
+
 /// A colour as `0xRRGGBB`, its alpha left out.
 fn rgb_of(colour: Hsla) -> Rgb {
     let colour = colour.to_rgb();
@@ -436,11 +444,6 @@ mod tests {
                 both(&page).map(|p| (preset.id, page.clone(), p))
             })
             .collect()
-    }
-
-    /// The WCAG 2 contrast ratio of two colours, each drawn opaque.
-    fn ratio(a: Hsla, b: Hsla) -> f64 {
-        contrast_ratio(rgb_of(a), rgb_of(b))
     }
 
     /// Checks, without `material::alpha`, that every colour the sidebar draws text in reads
@@ -639,7 +642,7 @@ mod tests {
                 ("accent", toast.accent),
             ];
             for (name, ink) in inks {
-                let r = ratio(ink, toast.surface);
+                let r = contrast(ink, toast.surface);
                 assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
             }
         }
@@ -650,7 +653,7 @@ mod tests {
         for (preset, _, p) in every_palette() {
             assert!((p.queued.a - 1.0).abs() < f32::EPSILON, "{preset}: opaque");
             assert_ne!(p.queued, p.mine, "{preset}: told apart from a sent one");
-            let r = ratio(p.on_queued, p.queued);
+            let r = contrast(p.on_queued, p.queued);
             assert!(r >= AA, "{preset} dark={}: {r:.2}", p.dark);
         }
     }
@@ -660,14 +663,14 @@ mod tests {
         for (preset, _, p) in every_palette() {
             for tone in Tone::LEGEND {
                 let c = calendar(tone, &p);
-                let on_fill = ratio(c.on_fill, c.fill);
+                let on_fill = contrast(c.on_fill, c.fill);
                 assert!(
                     on_fill >= AA,
                     "{preset} dark={} {tone:?}: {on_fill:.2}",
                     p.dark
                 );
                 let wash = p.surface.blend(c.tint);
-                let on_tint = ratio(c.on_tint, wash);
+                let on_tint = contrast(c.on_tint, wash);
                 assert!(
                     on_tint >= AA,
                     "{preset} dark={} {tone:?} wash: {on_tint:.2}",
@@ -675,7 +678,7 @@ mod tests {
                 );
             }
             // Now and today: the danger colour, its own text on it.
-            let today = ratio(Pal::readable_on(p.danger), p.danger);
+            let today = contrast(Pal::readable_on(p.danger), p.danger);
             assert!(today >= AA, "{preset} dark={}: {today:.2}", p.dark);
         }
     }

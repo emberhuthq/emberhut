@@ -79,7 +79,7 @@ pub(super) fn page(view: &mut PartyWindow, p: &Pal, cx: &mut Context<'_, PartyWi
             talk = talk.child(
                 div()
                     .when(reads::starts_right(&speaking.text), Styled::text_right)
-                    .child(speaking_bubble(speaking, color, reduced)),
+                    .child(speaking_bubble(speaking, color, reduced, p)),
             );
         }
     }
@@ -298,13 +298,16 @@ fn bubble(line: &PartyLine, party: &Party, store: &Entity<Store>, p: &Pal) -> An
                 &line.name,
                 color,
                 selectable(id("turn"), &text, store).into_any_element(),
+                p,
             )
         }
     }
 }
 
-/// A persona's turn: its initial and name in its colour over a bubble tinted with it.
-fn turn(name: &str, color: Hsla, words: AnyElement) -> AnyElement {
+/// A persona's turn: its initial in its colour, and its name over a bubble tinted with it. The
+/// name is in the body text: a categorical colour as small text on the page reads about 2:1
+/// in light, and the initial and the bubble already carry the colour.
+fn turn(name: &str, color: Hsla, words: AnyElement, p: &Pal) -> AnyElement {
     div()
         .flex()
         .items_start()
@@ -321,7 +324,7 @@ fn turn(name: &str, color: Hsla, words: AnyElement) -> AnyElement {
                     div()
                         .text_size(px(12.))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(color)
+                        .text_color(p.text)
                         .child(name.to_owned()),
                 )
                 .child(
@@ -338,7 +341,7 @@ fn turn(name: &str, color: Hsla, words: AnyElement) -> AnyElement {
 
 /// Who is speaking: their words so far, or a pulsing ellipsis before the first one (still when
 /// the system asks for less motion).
-fn speaking_bubble(speaking: &Speaking, color: Hsla, reduced: bool) -> AnyElement {
+fn speaking_bubble(speaking: &Speaking, color: Hsla, reduced: bool, p: &Pal) -> AnyElement {
     let words = if speaking.text.is_empty() {
         let ellipsis = glyph(IconName::Ellipsis, color, 16.);
         if reduced {
@@ -358,7 +361,7 @@ fn speaking_bubble(speaking: &Speaking, color: Hsla, reduced: bool) -> AnyElemen
     } else {
         div().child(speaking.text.clone()).into_any_element()
     };
-    turn(&speaking.name, color, words)
+    turn(&speaking.name, color, words, p)
 }
 
 /// Text the user can select and copy, shown as it was written (not as markdown), as the
