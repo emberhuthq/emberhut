@@ -35,6 +35,8 @@ export interface SettingsChange {
   personSet?: { id: string; important: boolean };
   factDrop?: string;
   trialDrop?: number;
+  /** Keep a lesson on trial now, as a standing rule, instead of waiting for the weekly review. */
+  trialKeep?: number;
   /** Stop a task's worker. */
   taskStop?: number;
   /** A new task's title, with `goal` or `project`. */

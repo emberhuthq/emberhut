@@ -1,5 +1,6 @@
 import { OWNER } from "@/api";
 import { accountConfig } from "@/config/account";
+import { aboutYouTitle } from "@/features/aboutYou/facts";
 import { statusText } from "@/features/browser/browser";
 import { useBrowserDevice } from "@/features/browser/browserDevice";
 import { todayLists } from "@/features/tasks/model";
@@ -9,7 +10,7 @@ import { useEmberhutState } from "@/state/queries";
 import { ListRow, Screen, Section } from "@/ui";
 
 /**
- * Everything without a tab of its own: Today, About you, Emberhut's browser, the rooms, the machines, Party and Settings, and
+ * Everything without a tab of its own: Today, what your ember knows about you, Emberhut's browser, the rooms, the machines, Party and Settings, and
  * the emberhut.com account in builds that have it.
  */
 export function MoreScreen({ navigation }: TabScreenProps<"More">) {
@@ -37,8 +38,8 @@ export function MoreScreen({ navigation }: TabScreenProps<"More">) {
         <ListRow
           key="about"
           icon="person-outline"
-          title="About you"
-          subtitle="What Emberhut knows about you, and the rules it's trying out"
+          title={aboutYouTitle}
+          subtitle="Facts, and lessons from your corrections"
           onPress={() => navigation.navigate("AboutYou")}
         />
       </Section>

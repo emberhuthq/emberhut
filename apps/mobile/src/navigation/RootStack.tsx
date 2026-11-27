@@ -7,6 +7,7 @@ import { AboutYouScreen } from "@/features/aboutYou/AboutYouScreen";
 import { ApprovalScreen } from "@/features/approvals/ApprovalScreen";
 import { ApprovalsScreen } from "@/features/approvals/ApprovalsScreen";
 import { FactScreen } from "@/features/aboutYou/FactScreen";
+import { aboutYouTitle } from "@/features/aboutYou/facts";
 import { AddServerScreen, SignInScreen } from "@/features/auth/SignInScreen";
 import { BrowserScreen } from "@/features/browser/BrowserScreen";
 import { RoomsScreen } from "@/features/chat/RoomsScreen";
@@ -122,7 +123,7 @@ export function RootStack() {
             // A page sheet: it swipes down to close, and its header has Done (FileScreen).
             options={({ route }) => ({ title: route.params.name, presentation: "modal" })}
           />
-          <Stack.Screen name="AboutYou" component={AboutYouScreen} options={{ title: "About you" }} />
+          <Stack.Screen name="AboutYou" component={AboutYouScreen} options={{ title: aboutYouTitle }} />
           <Stack.Screen name="Fact" component={FactScreen} options={{ title: "Fix a fact", presentation: "modal" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
           <Stack.Screen name="AddServer" component={AddServerScreen} options={{ title: "Pair with a server", presentation: "modal" }} />
