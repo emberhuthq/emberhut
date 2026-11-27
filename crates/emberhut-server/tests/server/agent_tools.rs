@@ -855,7 +855,7 @@ async fn an_agent_sees_and_changes_only_its_own_check_ins_and_watches() {
         text(&scheduled),
         format!("Check-in at {}.", owners_at.as_str())
     );
-    let watched = desk
+    let started = desk
         .call(
             "watch",
             json!({ "title": "the deck", "what": "its worker's notes", "every_minutes": 30 }),
@@ -863,8 +863,8 @@ async fn an_agent_sees_and_changes_only_its_own_check_ins_and_watches() {
         .await;
     let own_watch = owners_watch + 1;
     assert!(
-        text(&watched).starts_with(&format!("Watch #{own_watch} started")),
-        "{watched:?}"
+        text(&started).starts_with(&format!("Watch #{own_watch} started")),
+        "{started:?}"
     );
 
     let listed: Vec<Checkin> =
@@ -930,11 +930,11 @@ async fn an_agent_sees_and_changes_only_its_own_check_ins_and_watches() {
     wake.tick().await.unwrap();
     desk.app.settle().await;
     let turns = desk.app.assistant.turns();
-    let woke = |room: RoomId, why: &str| {
+    let came_due = |room: RoomId, why: &str| {
         turns
             .iter()
             .any(|turn| turn.room == room && turn.prompt.contains(&format!("Your check-in: {why}")))
     };
-    assert!(woke(desk.room, "the deck again"), "{turns:?}");
-    assert!(woke(RoomId::MAIN, "the owner's own look"), "{turns:?}");
+    assert!(came_due(desk.room, "the deck again"), "{turns:?}");
+    assert!(came_due(RoomId::MAIN, "the owner's own look"), "{turns:?}");
 }
