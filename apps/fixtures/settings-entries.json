@@ -1,0 +1,95 @@
+{
+  "groups": [
+    "Your ember",
+    "Appearance",
+    "Devices",
+    "Connections",
+    "Sharing",
+    "Privacy",
+    "Advanced",
+    "Account"
+  ],
+  "entries": [
+    {
+      "id": "on-duty"
+    },
+    {
+      "id": "thinks-with"
+    },
+    {
+      "id": "usage"
+    },
+    {
+      "id": "about-you"
+    },
+    {
+      "id": "lessons"
+    },
+    {
+      "id": "models"
+    },
+    {
+      "id": "appearance-mode"
+    },
+    {
+      "id": "colour"
+    },
+    {
+      "id": "custom-colour"
+    },
+    {
+      "id": "devices"
+    },
+    {
+      "id": "pair"
+    },
+    {
+      "id": "sign-in-here"
+    },
+    {
+      "id": "machines"
+    },
+    {
+      "id": "sources"
+    },
+    {
+      "id": "chrome"
+    },
+    {
+      "id": "tools"
+    },
+    {
+      "id": "skills"
+    },
+    {
+      "id": "sharing"
+    },
+    {
+      "id": "archived-rooms"
+    },
+    {
+      "id": "dark-room"
+    },
+    {
+      "id": "data-flow"
+    },
+    {
+      "id": "updates"
+    },
+    {
+      "id": "server"
+    },
+    {
+      "id": "phone-push"
+    },
+    {
+      "id": "diagnostics"
+    },
+    {
+      "id": "workplaces"
+    },
+    {
+      "id": "account"
+    }
+  ]
+}
