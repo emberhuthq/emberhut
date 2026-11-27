@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDialect, parseDialect } from "@/api";
+import { createDialect, parseDialect, type PushAddress } from "@/api";
 import { createSessionStore } from "@/state/session";
 import { fakeApi, fixedAddress, json, tokens } from "@/test/fakes";
-import { linkOf } from "./link";
-import { createPushStore, type PushPermission, type PushPlatform } from "./registration";
+import { linkOf, tappedLink } from "./link";
+import { apnsEnv, createPushStore, type PushPermission, type PushPlatform } from "./registration";
 
 /**
  * A phone as push sees it: a permission it grants or refuses when asked (Android lets the app ask again after a first
- * no), and an FCM token that can turn over or be voided.
+ * no), and a push token that can turn over or be voided. An Android phone's address is its FCM token; an iPhone's is its
+ * APNs token with the service the build registered with.
  */
-function standIn(answer: boolean | "noFirebase" = true, permission: PushPermission = "undetermined") {
+function standIn(
+  answer: boolean | "noFirebase" = true,
+  permission: PushPermission = "undetermined",
+  address: (token: string) => PushAddress = (token) => ({ token, platform: "android" }),
+) {
   let token = "fcm-1";
   let voided = 0;
   let listener: ((token: string) => void) | null = null;
@@ -28,6 +33,7 @@ function standIn(answer: boolean | "noFirebase" = true, permission: PushPermissi
       if (answer === "noFirebase") throw new Error("no google-services.json");
       return token;
     },
+    address: async (t) => address(t),
     onTokenChange: (l) => {
       listener = l;
       return () => (listener = null);
@@ -46,12 +52,13 @@ function setup(
   answer: boolean | "noFirebase" = true,
   devices: () => Response | Promise<Response> = () => json(200, { ok: true }),
   permission: PushPermission = "undetermined",
+  address?: (token: string) => PushAddress,
 ) {
   const { server, auth, api, clock } = fakeApi();
   server.on("POST", "/api/auth/pair", () => json(200, tokens(1, clock.now)));
   server.on("POST", "/api/devices", devices);
   const session = createSessionStore({ auth, api, address: fixedAddress(), device: { name: "Pixel", model: "Pixel" } });
-  const phone = standIn(answer, permission);
+  const phone = standIn(answer, permission, address);
   const push = createPushStore({ platform: phone.platform, register: (t) => api.devices.registerPush(t), session });
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
   return { server, session, push, phone, settle, registered: () => server.to("/api/devices").map((r) => r.body) };
@@ -100,18 +107,29 @@ describe("push registration", () => {
     expect(registered()).toHaveLength(1);
   });
 
-  it("on a phone without push never asks or sends, and says why", async () => {
-    const { server, auth, api, clock } = fakeApi();
-    server.on("POST", "/api/auth/pair", () => json(200, tokens(1, clock.now)));
-    const session = createSessionStore({ auth, api, address: fixedAddress(), device: { name: "iPhone", model: "iPhone" } });
-    const { platform } = standIn();
-    const push = createPushStore({ platform: { ...platform, unsupported: "Not on iPhone yet" }, register: vi.fn(), session });
+  it("on an iPhone gives Emberhut the APNs token and its service, with no platform", async () => {
+    const apns = "a".repeat(64);
+    const { session, push, phone, settle, registered } = setup(true, undefined, "undetermined", (token) => ({ token, env: "production" }));
+    vi.spyOn(phone.platform, "token").mockResolvedValue(apns);
     await session.getState().start();
     await session.getState().pair("4F7K-92QX");
-    await push.getState().sync();
-    expect(platform.requestPermission).not.toHaveBeenCalled();
-    expect(server.to("/api/devices")).toEqual([]);
-    expect(push.getState()).toMatchObject({ permission: null, registered: false, unsupported: "Not on iPhone yet" });
+    await settle();
+    expect(phone.platform.requestPermission).toHaveBeenCalledOnce();
+    expect(registered()).toEqual([{ token: apns, env: "production" }]);
+    expect(push.getState()).toMatchObject({ permission: "granted", registered: true, error: null });
+  });
+
+  it("on an iPhone gives Emberhut the new APNs token when it changes", async () => {
+    const { session, phone, settle, registered } = setup(true, undefined, "undetermined", (token) => ({ token, env: "sandbox" }));
+    await session.getState().start();
+    await session.getState().pair("4F7K-92QX");
+    await settle();
+    phone.turnOver("b".repeat(64));
+    await settle();
+    expect(registered()).toEqual([
+      { token: "fcm-1", env: "sandbox" },
+      { token: "b".repeat(64), env: "sandbox" },
+    ]);
   });
 
   it("sends nothing when you say no, and asks only once a launch", async () => {
@@ -190,6 +208,18 @@ describe("push registration", () => {
   });
 });
 
+describe("an iPhone's APNs service", () => {
+  it("is the sandbox for a development build's profile and in the Simulator, production otherwise", () => {
+    expect(apnsEnv("development", true)).toBe("sandbox");
+    // An ad hoc profile.
+    expect(apnsEnv("production", true)).toBe("production");
+    // TestFlight and the App Store: no embedded profile.
+    expect(apnsEnv(null, true)).toBe("production");
+    expect(apnsEnv(undefined, true)).toBe("production");
+    expect(apnsEnv(null, false)).toBe("sandbox");
+  });
+});
+
 describe("a tapped notification", () => {
   it("opens the app's own links and nothing else", () => {
     expect(linkOf({ link: "emberhut://chat?room=4", room: "4" })).toBe("emberhut://chat?room=4");
@@ -199,10 +229,23 @@ describe("a tapped notification", () => {
     expect(linkOf(undefined)).toBeNull();
   });
 
+  it("finds the link where each platform puts the server's data", () => {
+    // Android, the app running: the content's data.
+    expect(tappedLink({ link: "emberhut://chat?room=4" }, { type: "push" })).toBe("emberhut://chat?room=4");
+    // Android, shown by the system with the app closed: only in FCM's message.
+    expect(tappedLink({}, { type: "push", remoteMessage: { data: { link: "emberhut://task/12" } } })).toBe("emberhut://task/12");
+    // iPhone: the content's data is only an Expo push's body; the server's keys sit beside aps in the payload.
+    const apns = { aps: { alert: { title: "Emberhut", body: "Done" } }, link: "emberhut://chat?room=4", room: 4 };
+    expect(tappedLink(null, { type: "push", payload: apns })).toBe("emberhut://chat?room=4");
+    expect(tappedLink(null, { type: "push", payload: { aps: {} } })).toBeNull();
+    expect(tappedLink(null, null)).toBeNull();
+  });
+
   it("reads a link in a server's dialect as the app's own", () => {
     const words = createDialect(parseDialect(JSON.stringify({ prefixes: [["other://", "emberhut://"]] })));
     expect(linkOf({ link: "other://task/12" }, words)).toBe("emberhut://task/12");
     expect(linkOf({ link: "emberhut://task/12" }, words)).toBe("emberhut://task/12");
     expect(linkOf({ link: "https://example.com" }, words)).toBeNull();
+    expect(tappedLink(null, { type: "push", payload: { link: "other://task/12" } }, words)).toBe("emberhut://task/12");
   });
 });

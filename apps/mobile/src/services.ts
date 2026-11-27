@@ -110,7 +110,7 @@ sessionStore.subscribe((now, before) => {
 export const connectionStore = createConnectionStore();
 export const pushStore = createPushStore({
   platform: expoPush,
-  register: (token) => api.devices.registerPush(token),
+  register: (address) => api.devices.registerPush(address),
   session: sessionStore,
 });
 export const talkStore = createTalkStore({

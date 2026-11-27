@@ -1,22 +1,34 @@
 import type { LinkingOptions } from "@react-navigation/native";
+import * as Application from "expo-application";
+import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
 import { Linking, Platform } from "react-native";
-import { channelId, linkOf } from "./link";
-import type { PushPlatform } from "./registration";
+import { channelId, tappedLink } from "./link";
+import { apnsEnv, type PushPlatform } from "./registration";
 
-// expo-notifications behind PushPlatform. getDevicePushTokenAsync gives the native FCM token on Android, which is what
-// the server sends to (not Expo's push service). On iOS it would give an APNs token, but the server doesn't send iPhone
-// pushes to this app's bundle id yet, so this app doesn't ask for any there.
+// expo-notifications behind PushPlatform. getDevicePushTokenAsync gives the native token, which is what the server sends
+// to (not Expo's push service): FCM's on Android, the APNs device token (hex) on an iPhone.
 
 // One of the server's alerts while the app is open still shows: the server already holds those for the room on screen.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
+const ios = Platform.OS === "ios";
+
+/** The aps-environment of the profile this build was signed with, or null without one (or when it can't be read). */
+async function apsEnvironment(): Promise<string | null> {
+  try {
+    return await Application.getIosPushNotificationServiceEnvironmentAsync();
+  } catch {
+    return null;
+  }
+}
+
 export const expoPush: PushPlatform = {
-  unsupported: Platform.OS === "ios" ? "Not on iPhone yet: the server doesn't send iPhone notifications to this app" : undefined,
   async prepare() {
+    if (ios) return;
     await Notifications.setNotificationChannelAsync(channelId, {
       name: "Emberhut",
       description: "Emberhut's messages and what needs you",
@@ -28,27 +40,31 @@ export const expoPush: PushPlatform = {
     return { status, canAskAgain };
   },
   async requestPermission() {
-    return (await Notifications.requestPermissionsAsync()).granted;
+    return (await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } })).granted;
   },
   async token() {
     return String((await Notifications.getDevicePushTokenAsync()).data);
+  },
+  async address(token) {
+    if (!ios) return { token, platform: "android" };
+    return { token, env: apnsEnv(await apsEnvironment(), Device.isDevice) };
   },
   onTokenChange(listener) {
     const subscription = Notifications.addPushTokenListener((token) => listener(String(token.data)));
     return () => subscription.remove();
   },
   async forget() {
-    // On Android this deletes the FCM token.
-    await Notifications.unregisterForNotificationsAsync();
+    // On Android this deletes the FCM token. iOS keeps its APNs token (Apple advises against unregistering), and the
+    // server forgets it with the sign-out.
+    if (!ios) await Notifications.unregisterForNotificationsAsync();
   },
 };
 
-/** The link a tapped notification carries: in its content's data, or in FCM's own message when Android showed it. */
+/** The link a tapped notification carries, wherever its platform put the server's data (push/link.ts). */
 function responseLink(response: Notifications.NotificationResponse | null): string | null {
   if (!response) return null;
   const { content, trigger } = response.notification.request;
-  const remote = trigger && "remoteMessage" in trigger ? trigger.remoteMessage?.data : undefined;
-  return linkOf(content.data) ?? linkOf(remote);
+  return tappedLink(content.data, trigger);
 }
 
 /** React Navigation's links, with the ones a tapped notification opens (cold start and while running). */

@@ -210,7 +210,11 @@ Not run by CI (no Xcode or Android SDK there); record the result in the pull req
 - `pnpm run ios:prebuild` generates `ios/` from `app.config.ts` (it is never committed), then `cd ios && pod install`.
 - Simulator builds need at least ad hoc signing (`CODE_SIGN_IDENTITY=-`): without it the app has no Keychain access and
   pairing can't keep its tokens.
-- Push isn't asked for on iOS yet; Settings says so.
+- Push: after pairing the app asks for notifications (alerts, badges, sounds) and gives the server its APNs device token
+  with the service it belongs to (`env`). That comes from the aps-environment of the provisioning profile the build was
+  signed with: a development build's profile says `development` (the sandbox); TestFlight and App Store builds carry no
+  profile, and ad hoc ones say `production` (production). The server's APNs key must be for the bundle id
+  `com.emberhut.mobile`.
 - TestFlight: bump `IOS_BUILD_NUMBER` in `app.config.ts`, prebuild, archive the `Emberhut` scheme with an App Store profile
   for `com.emberhut.mobile` (`APPLE_TEAM_ID` in `.env`), and upload with an App Store Connect API key.
 
@@ -262,7 +266,7 @@ src/
   services.ts        the app's one api, session and stores, built from the native pieces
   navigation/        the root stack, the native tabs and each tab's native header, their params, deep links
   theme/             the palette from the theme's tokens, the built-in default, spacing, type, the theme provider
-  push/              FCM push: the permission, the token given to the server, the link a tapped notification opens
+  push/              push (FCM, APNs): the permission, the token given to the server, the link a tapped notification opens
   format/            dates and times as the app says them ("yesterday", "3d late", "Mon 14:05"), sizes ("12.3 GB")
   ui/                shared primitives: Screen, Text, Button, Card, ListRow, Section, SectionHeading, Chip,
                      Collapsible, FoldRow, ProgressBar, Segmented, TextField, Toggle, ActionSheet, Markdown, Face,

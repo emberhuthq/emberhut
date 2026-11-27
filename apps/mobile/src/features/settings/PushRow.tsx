@@ -9,8 +9,6 @@ export function PushRow() {
   const permission = usePush((s) => s.permission);
   const registered = usePush((s) => s.registered);
   const error = usePush((s) => s.error);
-  const unsupported = usePush((s) => s.unsupported);
-  if (unsupported) return <ListRow icon="notifications-off-outline" title="Notifications" subtitle={unsupported} />;
   if (permission === "denied") {
     return (
       <ListRow
