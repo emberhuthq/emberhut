@@ -454,14 +454,17 @@ impl Render for SpotlightView {
     }
 }
 
+/// The spotlight's shortcut, as this platform writes it.
+pub(crate) const SEARCH_KEYS: &str = if cfg!(target_os = "macos") {
+    "⌘K"
+} else {
+    "Ctrl+K"
+};
+
 /// The chat bar's Search: the spotlight, and its shortcut.
 pub(crate) fn search_button(p: &Pal) -> Stateful<Div> {
-    let keys = if cfg!(target_os = "macos") {
-        "⌘K"
-    } else {
-        "Ctrl+K"
-    };
-    let tip = format!("Find a task, project or person ({keys})");
+    let keys = SEARCH_KEYS;
+    let tip = format!("Find a task, project, agent or person ({keys})");
     div()
         .id("search")
         .button_named("Search")
