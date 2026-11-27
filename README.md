@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/emberhut-lockup-on-dark.svg">
+    <img src="assets/brand/emberhut-lockup-on-light.svg" alt="Emberhut" width="360">
+  </picture>
+</p>
+
 # Emberhut
 
 **Emberhut** is an open-source personal assistant you run yourself: a desktop app, **Emberhut**,
@@ -22,6 +29,7 @@ deploy/             Docker image and compose file for self-hosting
 site/               the website, emberhut.com: static HTML on Cloudflare Pages
 xtask/              cargo xtask: macOS bundle, release
 docs/               architecture.md and the ADRs
+assets/brand/       the Emberhut mark: vector masters, lockups and the social preview
 ```
 
 The Rust server is the single source of truth for the API. The OpenAPI document and the

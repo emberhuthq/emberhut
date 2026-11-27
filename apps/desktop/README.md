@@ -966,9 +966,10 @@ Each line passes when:
 
 Linux and Windows use Inter, built in (SIL Open Font License 1.1, see
 `assets/fonts/Inter-LICENSE.txt`); macOS uses its system font. `assets/face.png` is the
-assistant's face in the sidebar and on the sign-in screen; `assets/AppIcon-1024.png` is the
-source of the macOS icon. The icon still carries the prototype's "GPUI" badge: it stays until
-Emberhut has an icon of its own (it can't be painted out cleanly, the badge covers part of the face).
+assistant's face in the sidebar and on the sign-in screen: the ember, on a transparent ground,
+with a cream rim for dark themes. `assets/AppIcon-1024.png` is the source of the macOS icon,
+drawn on Apple's 1024 grid (the 824 px tile and its shadow included). Both come from the brand
+masters in `assets/brand/`.
 
 The views' icons are Lucide's, through gpui-kit: its default bundle (its components' own icons)
 plus the ones the views name beyond it, listed in `src/assets.rs` (`AppIcons`), not the whole

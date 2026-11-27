@@ -2,7 +2,7 @@
 // works, its reply, and the approval card above the message box ("Go ahead" / "Stop") that waits for you.
 // Shared by every direction; each styles it its own way. Markup hooks: [data-feed], [data-status], [data-askslot],
 // [data-room-title], [data-room-hint], [data-room] buttons, [data-needs-count], [data-live], [data-agent-ember].
-import { mount, rest, hop } from "./ember.js?v=18fafb9ed5";
+import { mount, rest, hop } from "./ember.js?v=3f14f3d5e9";
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 const wait = (ms) => new Promise((r) => setTimeout(r, still.matches ? 0 : ms));
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);

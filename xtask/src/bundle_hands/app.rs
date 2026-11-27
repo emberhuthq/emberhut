@@ -16,6 +16,11 @@ pub(crate) const PACKAGE: &str = "emberhut-hands";
 pub(crate) const EXECUTABLE: &str = "emberhut-hands";
 /// The launch agent's label (and its plist's name).
 pub(crate) const LABEL: &str = "com.emberhut.hands";
+/// The icon's file name in `Contents/Resources`, without `.icns` (`CFBundleIconFile`).
+pub(crate) const ICON_NAME: &str = "AppIcon";
+/// The helper's icon, a ready `.icns` (made with the brand masters, so no Mac tools are needed),
+/// relative to the workspace root. System Settings' privacy lists and Finder show it.
+pub(crate) const ICON_SOURCE: &str = "apps/hands/assets/AppIcon.icns";
 /// The helper's version: the workspace's, which xtask shares.
 pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -42,6 +47,12 @@ impl Layout {
     #[must_use]
     pub(crate) fn target(&self) -> &Path {
         self.workspace.target()
+    }
+
+    /// The helper's `.icns`, in the workspace.
+    #[must_use]
+    pub(crate) fn icon_source(&self) -> PathBuf {
+        self.root().join(ICON_SOURCE)
     }
 
     /// Where the bundle, its entitlements and its zip go.
@@ -88,6 +99,10 @@ mod tests {
         assert_eq!(
             layout.app_bundle(),
             Path::new("/w/target/bundle/Emberhut Hands.app")
+        );
+        assert_eq!(
+            layout.icon_source(),
+            Path::new("/w/apps/hands/assets/AppIcon.icns")
         );
         assert_eq!(
             layout.entitlements(),

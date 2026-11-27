@@ -31,7 +31,7 @@ code, pre, kbd { font-family: var(--mono); }
   -webkit-backdrop-filter: blur(12px) saturate(1.2); border-bottom: 1px solid var(--line); }
 .nav-in { display: flex; align-items: center; gap: 28px; height: 64px; }
 .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; text-decoration: none; }
-.brand-mark { border-radius: 8px; box-shadow: 0 0 0 1px var(--line-2); }
+.brand-mark { display: block; }
 .wordmark { font: 800 22px/1 "Baloo 2", ui-rounded, system-ui, sans-serif; padding-top: 3px; letter-spacing: -.005em; }
 .by { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; }
 .nav-links { display: flex; gap: 24px; font-size: 14.5px; font-weight: 500; color: var(--ink-2); }

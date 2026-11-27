@@ -1,4 +1,4 @@
 // Inner pages: the ember (if the page has one) and copy buttons.
-import { mountAll } from "./ember.js?v=18fafb9ed5";
-import "./copy.js?v=18fafb9ed5";
+import { mountAll } from "./ember.js?v=3f14f3d5e9";
+import "./copy.js?v=3f14f3d5e9";
 mountAll();

@@ -1,10 +1,10 @@
 //! The helper's `Info.plist`, its entitlements and its launch agent's plist.
 
-use super::app::{BUNDLE_ID, DISPLAY_NAME, EXECUTABLE, LABEL};
+use super::app::{BUNDLE_ID, DISPLAY_NAME, EXECUTABLE, ICON_NAME, LABEL};
 use crate::bundle_macos::plist::{Value, document};
 
-/// The `Info.plist` of `Emberhut Hands.app` at `version`: its own name in System Settings' privacy
-/// lists, no Dock icon, and why it asks for the microphone.
+/// The `Info.plist` of `Emberhut Hands.app` at `version`: its own name and icon in System Settings'
+/// privacy lists, no Dock icon, and why it asks for the microphone.
 #[must_use]
 pub(crate) fn info_plist(version: &str) -> String {
     document(&[
@@ -12,6 +12,7 @@ pub(crate) fn info_plist(version: &str) -> String {
         ("CFBundleDisplayName", Value::String(DISPLAY_NAME)),
         ("CFBundleIdentifier", Value::String(BUNDLE_ID)),
         ("CFBundleExecutable", Value::String(EXECUTABLE)),
+        ("CFBundleIconFile", Value::String(ICON_NAME)),
         ("CFBundlePackageType", Value::String("APPL")),
         ("CFBundleShortVersionString", Value::String(version)),
         ("CFBundleVersion", Value::String(version)),
@@ -87,6 +88,7 @@ mod tests {
         assert!(xml.contains("<key>CFBundleIdentifier</key><string>com.emberhut.hands</string>"));
         assert!(xml.contains("<key>CFBundleName</key><string>Emberhut Hands</string>"));
         assert!(xml.contains("<key>CFBundleExecutable</key><string>emberhut-hands</string>"));
+        assert!(xml.contains("<key>CFBundleIconFile</key><string>AppIcon</string>"));
         assert!(xml.contains("<key>LSUIElement</key><true/>"));
         assert!(xml.contains("<key>NSMicrophoneUsageDescription</key>"));
         assert!(xml.contains("<key>NSAllowsLocalNetworking</key><true/>"));
