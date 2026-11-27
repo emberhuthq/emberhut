@@ -461,8 +461,9 @@ pub(crate) const SEARCH_KEYS: &str = if cfg!(target_os = "macos") {
     "Ctrl+K"
 };
 
-/// The chat bar's Search: the spotlight, and its shortcut.
-pub(crate) fn search_button(p: &Pal) -> Stateful<Div> {
+/// The chat bar's Search: the spotlight, and its shortcut; when `compact`, its magnifier
+/// alone (its name and shortcut stay in its tooltip).
+pub(crate) fn search_button(p: &Pal, compact: bool) -> Stateful<Div> {
     let keys = SEARCH_KEYS;
     let tip = format!("Find a task, project, agent or person ({keys})");
     div()
@@ -479,9 +480,12 @@ pub(crate) fn search_button(p: &Pal) -> Stateful<Div> {
         .cursor_pointer()
         .hover(|d| d.bg(p.hover))
         .text_size(px(12.5))
+        .flex_none()
         .child(glyph(IconName::Search, p.muted, 13.))
-        .child("Search")
-        .child(div().text_size(px(11.)).text_color(p.faint).child(keys))
+        .when(!compact, |d| {
+            d.child("Search")
+                .child(div().text_size(px(11.)).text_color(p.faint).child(keys))
+        })
         .tooltip(move |window, cx| {
             gpui_kit::component::tooltip::Tooltip::new(tip.clone()).build(window, cx)
         })
