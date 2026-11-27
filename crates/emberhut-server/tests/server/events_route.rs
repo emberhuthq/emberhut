@@ -214,3 +214,140 @@ pub(crate) async fn in_report_mode_a_request_without_a_session_never_tells_the_a
         .await;
     assert_eq!(told.status, 200, "{}", told.text);
 }
+
+/// An app whose programs hold `program-key-for-tests`, with a project's room as an import
+/// writes it: project 3's room is room 2, and room 5 is a room of no project.
+async fn with_program_key() -> TestApp {
+    let app = TestApp::with_dependencies(emberhut_server::config::AuthMode::Enforce, |deps, _| {
+        emberhut_server::app::Dependencies {
+            program_key: Some("program-key-for-tests".to_owned()),
+            ..deps
+        }
+    })
+    .await;
+    app.state.routines().set(Some(&[]), None).await.unwrap();
+    let ms = 1_795_651_200_000_i64;
+    let conn = sea_orm::Database::connect(app.url.as_str()).await.unwrap();
+    for statement in [
+        format!(
+            "INSERT INTO projects (id, name, status, created, updated) VALUES \
+             (3, 'Garden', 'active', {ms}, {ms})"
+        ),
+        format!(
+            "INSERT INTO rooms (id, name, created_at, project_id) VALUES \
+             (2, 'Garden', {ms}, 3), (5, 'Notes', {ms}, NULL)"
+        ),
+    ] {
+        sea_orm::ConnectionTrait::execute_unprepared(&conn, &statement)
+            .await
+            .unwrap();
+    }
+    conn.close().await.unwrap();
+    app
+}
+
+#[tokio::test]
+pub(crate) async fn a_program_tells_the_assistant_with_the_key() {
+    let app = with_program_key().await;
+    let key = "Bearer program-key-for-tests";
+    for wrong in ["Bearer not-the-key", "Bearer ", "program-key-for-tests"] {
+        let refused = app
+            .call(
+                Call::post(paths::EVENTS)
+                    .header("authorization", wrong)
+                    .json(&json!({ "text": "hi" })),
+            )
+            .await;
+        assert_eq!(refused.status, 401, "{wrong}");
+    }
+    let told = app
+        .call(
+            Call::post(paths::EVENTS)
+                .header("authorization", key)
+                .json(&json!({ "text": "The backup finished", "kind": "backup" })),
+        )
+        .await;
+    assert_eq!(told.status, 200, "{}", told.text);
+    assert_eq!(told.read_as::<OkReply>(), OkReply::OK);
+    // A device's session still tells it too.
+    let session = app.sign_in().await;
+    let by_device = app
+        .call(
+            Call::post(paths::EVENTS)
+                .token(&session)
+                .json(&json!({ "text": "From the phone" })),
+        )
+        .await;
+    assert_eq!(by_device.status, 200);
+    let db = emberhut_db::Database::connect(&app.url).await.unwrap();
+    let main = db.events().waiting(RoomId::MAIN, 100).await.unwrap();
+    let texts: Vec<&str> = main.iter().map(|event| event.text.as_str()).collect();
+    assert_eq!(texts, ["The backup finished", "From the phone"]);
+}
+
+#[tokio::test]
+pub(crate) async fn a_number_names_a_projects_room_then_a_room() {
+    let app = with_program_key().await;
+    for (project, text) in [
+        (json!(3), "project 3"),
+        (json!("3"), "project 3 as digits"),
+        (json!(5), "room 5"),
+        (json!(2), "room 2"),
+        (json!(99), "no such number"),
+        (json!(0), "zero"),
+        (json!(-3), "below zero"),
+        (json!(3.5), "not whole"),
+        (json!("garden"), "by name"),
+        (json!(true), "not a name"),
+    ] {
+        let told = app
+            .call(
+                Call::post(paths::EVENTS)
+                    .header("authorization", "Bearer program-key-for-tests")
+                    .json(&json!({ "text": text, "project": project })),
+            )
+            .await;
+        assert_eq!(told.status, 200, "{project}: {}", told.text);
+    }
+    let db = emberhut_db::Database::connect(&app.url).await.unwrap();
+    let texts = |room: i64| {
+        let db = db.clone();
+        async move {
+            db.events()
+                .waiting(RoomId::new(room), 100)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|event| event.text)
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(
+        texts(2).await,
+        ["project 3", "project 3 as digits", "room 2", "by name"]
+    );
+    assert_eq!(texts(5).await, ["room 5"]);
+    assert_eq!(
+        texts(RoomId::MAIN.get()).await,
+        [
+            "no such number",
+            "zero",
+            "below zero",
+            "not whole",
+            "not a name"
+        ]
+    );
+}
+
+#[tokio::test]
+pub(crate) async fn without_a_program_key_only_a_device_tells_it() {
+    let app = TestApp::new().await;
+    let refused = app
+        .call(
+            Call::post(paths::EVENTS)
+                .header("authorization", "Bearer ")
+                .json(&json!({ "text": "hi" })),
+        )
+        .await;
+    assert_eq!(refused.status, 401);
+}
