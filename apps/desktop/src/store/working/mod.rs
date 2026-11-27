@@ -16,6 +16,7 @@ use self::environments::EnvironmentsFeed;
 use self::jobs::JobsFeed;
 use self::settings_filter::SettingsFilter;
 use self::usage::UsageCard;
+use super::settings::SettingsPane;
 use super::{Page, Store};
 use crate::config::AppFiles;
 
@@ -54,7 +55,11 @@ impl Store {
     /// A column shows `page` afresh: what it shows is fetched now.
     pub(super) fn working_page_shown(&self, page: Option<Page>) {
         match page {
-            Some(Page::Settings | Page::Environment(_)) => self.working.envs.kick(),
+            Some(
+                Page::Settings
+                | Page::SettingsPane(SettingsPane::Connections | SettingsPane::Advanced)
+                | Page::Environment(_),
+            ) => self.working.envs.kick(),
             Some(Page::Jobs | Page::Job(_)) => self.working.jobs.kick(),
             _ => {}
         }

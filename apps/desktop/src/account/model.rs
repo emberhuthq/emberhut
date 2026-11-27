@@ -16,8 +16,9 @@ use super::pkce::CodeFlow;
 use super::session::{AccountError, AccountSession};
 use super::web_session::{self, WebSession};
 use crate::backend::Backend;
+use crate::store::Store;
 use crate::store::presence::Presence;
-use crate::store::{Page, Store};
+use crate::store::settings::SettingsPane;
 
 /// How old the machines' list may get while Settings shows it in front.
 const FRESH_FOR: Duration = Duration::from_secs(30);
@@ -79,7 +80,8 @@ impl Account {
     ) -> Self {
         cx.observe(store, |account, store, cx| {
             let store = store.read(cx);
-            let wanted = store.shows_page(Page::Settings) && store.presence() == Presence::Front;
+            let wanted = store.shows_settings(&[SettingsPane::Account])
+                && store.presence() == Presence::Front;
             if wanted {
                 account.refresh_if_stale(cx);
             }
