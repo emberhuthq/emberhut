@@ -570,8 +570,11 @@ impl MainWindow {
                     .into_any_element();
             }
             Gate::Connecting => {
-                return gate::connecting(store.server().as_str(), store.offline(), &p)
-                    .into_any_element();
+                let server = store.server().as_str();
+                return match store.relight_problem() {
+                    Some(why) => gate::hut_out(server, why, &self.store, &p).into_any_element(),
+                    None => gate::connecting(server, store.offline(), &p).into_any_element(),
+                };
             }
             Gate::Open => {}
         }

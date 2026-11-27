@@ -309,6 +309,11 @@ impl Setup {
         self.world.lock().unwrap()
     }
 
+    /// How many servers were started as the app's child.
+    pub(crate) fn spawned(&self) -> usize {
+        self.world().spawned.len()
+    }
+
     /// From now on a server started exits at once.
     pub(crate) fn exits_at_start(&self) {
         self.world().exits = true;

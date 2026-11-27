@@ -30,6 +30,9 @@ pub(crate) struct FakeHome {
     pub(crate) kept: Option<Result<(), &'static str>>,
     pub(crate) starts: Rc<Cell<usize>>,
     pub(crate) keeps: Rc<RefCell<Vec<KeepLit>>>,
+    /// What each launch's relight finds, in order (then nothing here); the addresses asked.
+    pub(crate) relights: Rc<RefCell<std::collections::VecDeque<Relit>>>,
+    pub(crate) relit_at: Rc<RefCell<Vec<ServerUrl>>>,
 }
 
 impl FakeHome {
@@ -42,6 +45,8 @@ impl FakeHome {
             kept: None,
             starts: Rc::default(),
             keeps: Rc::default(),
+            relights: Rc::default(),
+            relit_at: Rc::default(),
         }
     }
 
@@ -80,6 +85,16 @@ impl LocalHome for FakeHome {
         let kept = self.kept?;
         self.keeps.borrow_mut().push(keep);
         Some(Task::ready(kept.map_err(str::to_owned)))
+    }
+
+    fn relight(&self, server: &ServerUrl, _: &mut App) -> Task<Relit> {
+        self.relit_at.borrow_mut().push(server.clone());
+        Task::ready(
+            self.relights
+                .borrow_mut()
+                .pop_front()
+                .unwrap_or(Relit::NotHere),
+        )
     }
 }
 
@@ -922,4 +937,98 @@ fn a_home_that_isnt_the_apps_to_keep_has_no_change(cx: &mut TestAppContext) {
         assert_eq!(store.setup().keep(), None);
         assert!(!store.setup().shows_keep_sheet());
     });
+}
+
+#[gpui_kit::test]
+fn a_relaunch_with_the_hut_out_starts_it_and_connects(cx: &mut TestAppContext) {
+    let down = Err(Error::Unreachable("refused".into()));
+    let up = Ok(StateReply::Fresh(FreshState {
+        state: Box::new(state(json!({}))),
+        etag: None,
+    }));
+    let backend = Arc::new(FakeBackend::new([down, up]).at(HERE).with_session());
+    let home = FakeHome::at(HERE, None);
+    home.relights
+        .borrow_mut()
+        .push_back(Relit::Started(ServerUrl::parse(HERE).unwrap()));
+    let relit_at = Rc::clone(&home.relit_at);
+    let store = store_with(&backend, None, home, cx);
+    store.update(cx, |store, cx| {
+        store.start_poll(cx);
+        store.begin_setup(false, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(gate(&store, cx), Gate::Connecting, "the hut is out");
+    store.update(cx, Store::relight_home);
+    cx.run_until_parked();
+    assert_eq!(relit_at.borrow().len(), 1);
+    assert_eq!(relit_at.borrow()[0].as_str(), HERE);
+    assert_eq!(
+        gate(&store, cx),
+        Gate::Open,
+        "started, then the poll went at once"
+    );
+    assert_eq!(
+        store.read_with(cx, |store, _| store.relight_problem().map(str::to_owned)),
+        None
+    );
+}
+
+#[gpui_kit::test]
+fn a_relaunch_elsewhere_or_pinned_starts_nothing(cx: &mut TestAppContext) {
+    // An address that isn't the hut's: the home says so, and the app keeps connecting.
+    let backend = Arc::new(FakeBackend::new([]).at("https://ember.example.com"));
+    let home = FakeHome::at(HERE, None);
+    let relit_at = Rc::clone(&home.relit_at);
+    let store = store_with(&backend, None, home, cx);
+    store.update(cx, Store::relight_home);
+    cx.run_until_parked();
+    assert_eq!(relit_at.borrow().len(), 1);
+    assert_eq!(gate(&store, cx), Gate::Connecting);
+    assert_eq!(
+        store.read_with(cx, |store, _| store.relight_problem().map(str::to_owned)),
+        None
+    );
+
+    // EMBERHUT_URL named the server: the home isn't even asked.
+    let backend = Arc::new(FakeBackend::new([]).at(HERE));
+    let home = FakeHome::at(HERE, None);
+    let relit_at = Rc::clone(&home.relit_at);
+    let connector = Arc::new(FakeConnector::default()) as Arc<dyn Connector>;
+    let store = store_moving(
+        &backend,
+        None,
+        home,
+        Reconnect::new(connector, Some("EMBERHUT_URL")),
+        cx,
+    );
+    store.update(cx, Store::relight_home);
+    cx.run_until_parked();
+    assert!(relit_at.borrow().is_empty());
+}
+
+#[gpui_kit::test]
+fn a_hut_that_doesnt_start_again_says_why_and_tries_again(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).at(HERE).with_session());
+    let home = FakeHome::at(HERE, None);
+    home.relights.borrow_mut().extend([
+        Relit::Failed("The hut didn't answer within 60 seconds.".to_owned()),
+        Relit::Started(ServerUrl::parse(HERE).unwrap()),
+    ]);
+    let relit_at = Rc::clone(&home.relit_at);
+    let store = store_with(&backend, None, home, cx);
+    store.update(cx, Store::relight_home);
+    cx.run_until_parked();
+    let problem = |cx: &TestAppContext| {
+        store.read_with(cx, |store, _| store.relight_problem().map(str::to_owned))
+    };
+    assert_eq!(
+        problem(cx).as_deref(),
+        Some("The hut didn't answer within 60 seconds.")
+    );
+    assert_eq!(gate(&store, cx), Gate::Connecting);
+    store.update(cx, Store::relight_home);
+    cx.run_until_parked();
+    assert_eq!(relit_at.borrow().len(), 2, "Try again asks again");
+    assert_eq!(problem(cx), None);
 }

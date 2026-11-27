@@ -16,9 +16,11 @@
 //! one the app talks to (its port was taken), the app moves there as it runs
 //! ([`Store::switch_server`]). Then it is kept lit while the window is closed and from login
 //! ([`KEEP_LIT`], which step 1's Change sheet turns back), and the app pairs with a code it
-//! makes, through the same sign-in as a typed code.
+//! makes, through the same sign-in as a typed code. At a later launch, Emberhut here is started
+//! again when the app talks to it and it is out ([`Store::relight_home`]).
 
 mod home;
+mod relight;
 #[cfg(test)]
 pub(crate) mod tests;
 
@@ -31,8 +33,9 @@ use gpui_kit::Context;
 use serde::{Deserialize, Serialize};
 
 pub(crate) use self::home::{
-    CANT_HERE, DevHome, HutHome, LocalHome, NoLocalHome, on_this_computer,
+    CANT_HERE, DevHome, HutHome, LocalHome, NoLocalHome, Relit, on_this_computer,
 };
+pub(crate) use self::relight::Relighting;
 
 use super::{Store, update_or_log};
 use crate::backend::Error;
@@ -352,6 +355,8 @@ pub(crate) struct Setup {
     asked: BTreeSet<Tile>,
     /// How Emberhut here is kept lit, and its sheet.
     keep: Keeping,
+    /// Emberhut here started again at launch.
+    relighting: Relighting,
 }
 
 /// How Emberhut here is kept lit, and the sheet that changes it.
@@ -391,6 +396,7 @@ impl Setup {
             known_devices: None,
             asked: BTreeSet::new(),
             keep: Keeping::default(),
+            relighting: Relighting::default(),
         }
     }
 

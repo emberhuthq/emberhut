@@ -238,6 +238,8 @@ fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> any
             store.preview_sign_in();
         }
         store.begin_setup(fresh_install, cx);
+        // The hut this app talks to, started again when it is out (a child of the last run).
+        store.relight_home(cx);
         if let Some(step) = cli.setup {
             store.preview_setup(step.step(), cx);
         }

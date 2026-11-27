@@ -1,13 +1,16 @@
-//! The screens before the app proper: connecting (before the first state), and "not your
-//! device" (the server doesn't let this device in). Sign-in is [`super::sign_in`].
+//! The screens before the app proper: connecting (before the first state), Emberhut here that
+//! didn't start again, and "not your device" (the server doesn't let this device in). Sign-in
+//! is [`super::sign_in`].
 
+use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::prelude::*;
-use gpui_kit::{Div, FontWeight, div, img, px};
+use gpui_kit::{Div, Entity, FontWeight, Role, TestSupportExt as _, div, img, px};
 
 use super::palette::Pal;
 use crate::assets::FACE;
 use crate::brand::APP_NAME;
+use crate::store::Store;
 
 /// What the "not your device" screen says the user can do.
 pub(crate) const NOT_YOURS_HINT: &str = "The server only talks to your own devices, on your \
@@ -40,6 +43,49 @@ pub(crate) fn connecting(server: &str, offline: Option<&str>, p: &Pal) -> Div {
             .when_some(offline.map(str::to_owned), |d, offline| {
                 d.child(div().text_size(px(12.)).text_color(p.muted).child(offline))
             }),
+    )
+}
+
+/// In Connecting's place: Emberhut on this computer, which the app talks to, didn't start
+/// again. Why, in the hut's words, and Try again.
+pub(crate) fn hut_out(server: &str, why: &str, store: &Entity<Store>, p: &Pal) -> Div {
+    let store = store.clone();
+    centered(p).child(
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(px(12.))
+            .w(px(440.))
+            .child(
+                div()
+                    .text_size(px(15.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(format!("{APP_NAME} on this computer didn't start")),
+            )
+            .child(
+                div()
+                    .id("gate-hut-problem")
+                    .role(Role::Status)
+                    .aria_label(why.to_owned())
+                    .text_size(px(13.))
+                    .text_color(p.warn)
+                    .text_center()
+                    .child(why.to_owned())
+                    .test_support(),
+            )
+            .child(
+                Button::new("gate-hut-retry")
+                    .primary()
+                    .label("Try again")
+                    .on_click(move |_, _, cx| store.update(cx, Store::relight_home)),
+            )
+            .child(
+                div()
+                    .text_size(px(12.))
+                    .text_color(p.muted)
+                    .child(server.to_owned()),
+            ),
     )
 }
 

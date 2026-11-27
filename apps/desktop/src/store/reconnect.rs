@@ -71,6 +71,14 @@ impl Reconnect {
     }
 }
 
+impl Reconnect {
+    /// Whether the variable that named the server at launch pins it.
+    #[must_use]
+    pub(super) fn is_pinned(&self) -> bool {
+        self.pinned_by.is_some()
+    }
+}
+
 impl Store {
     /// The backend the store talks through now.
     #[must_use]
