@@ -6,7 +6,8 @@
 //! number, the facts to weigh, the assistant's reason on its pick, and its answer. The first
 //! plain answer is prominent, a second sits beside it and the rest are under More; a thing to
 //! do has "I did it". Open (or "Read the draft") and a click on the question open the task's
-//! page. "· 3 more" opens Needs you, "2 more in other rooms" the rooms, and X puts every card
+//! page. "· 3 more" opens Needs you, "2 more in other rooms" the rooms (on a line of its own in a
+//! narrow chat), and X puts every card
 //! showing away until a new question comes.
 //!
 //! What the card shows is worked out when the store changes ([`AskArea::of`]), not as it is
@@ -21,7 +22,8 @@ use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Anchor, AnyElement, App, ClipboardItem, Div, ElementId, Entity, FontWeight, actions, div, px,
+    Anchor, AnyElement, App, ClipboardItem, Div, ElementId, Entity, FontWeight, Stateful, actions,
+    div, px,
 };
 
 use super::ChatView;
@@ -39,6 +41,21 @@ actions!(
         ShowRooms,
     ]
 );
+
+/// The ask card's top line, for tests to find.
+pub(super) const ASK_TOP: &str = "ask-top";
+
+/// The top line's task and "needs you", for tests to find.
+pub(super) const ASK_EYEBROW: &str = "ask-eyebrow";
+
+/// The count of asks in other rooms, for tests to find.
+pub(super) const ASK_ELSEWHERE: &str = "ask-elsewhere";
+
+/// The chat's width from which the other rooms' count fits on the card's top line, in pixels.
+const INLINE_ELSEWHERE_FROM: f32 = 560.;
+
+/// The top line's Hide button, for tests to find.
+pub(super) const ASK_HIDE: &str = "ask-hide";
 
 /// What goes over the composer: the ask card, and Main's line for the other rooms (their
 /// count of asks).
@@ -147,8 +164,9 @@ impl ChatView {
         card.into_iter().chain(line).collect()
     }
 
-    /// The card's top line: which task, how many more, the other rooms' count, and Hide.
-    fn ask_top(card: &Card, p: &Pal, cx: &Context<'_, Self>) -> Div {
+    /// The card's top line: which task, how many more, the other rooms' count when `inline`,
+    /// and Hide.
+    fn ask_top(card: &Card, inline: bool, p: &Pal, cx: &Context<'_, Self>) -> Div {
         let hide = if card.more > 0 {
             format!("Hide all {}", card.more + 1)
         } else {
@@ -159,8 +177,14 @@ impl ChatView {
             .flex()
             .items_center()
             .gap(px(6.))
+            .debug_selector(|| ASK_TOP.to_owned())
             .child(
+                // The one part that gives way in a narrow chat: it shrinks and ends in "…"
+                // before anything after it is pushed out of the card.
                 div()
+                    .debug_selector(|| ASK_EYEBROW.to_owned())
+                    .min_w_0()
+                    .truncate()
                     .text_size(px(11.5))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(p.warn)
@@ -172,6 +196,7 @@ impl ChatView {
                         .id("ask-more")
                         .button_named(format!("{} more asks: show them all", card.more))
                         .cursor_pointer()
+                        .flex_none()
                         .flex()
                         .items_center()
                         .gap(px(2.))
@@ -186,27 +211,15 @@ impl ChatView {
                 )
             })
             .child(div().flex_1())
-            .when(card.elsewhere > 0, |d| {
-                d.child(
-                    div()
-                        .id("ask-elsewhere")
-                        .button_named(format!("{} more in other rooms", card.elsewhere))
-                        .cursor_pointer()
-                        .px(px(8.))
-                        .py(px(3.))
-                        .rounded(px(10.))
-                        .bg(p.accent_soft)
-                        .text_color(p.accent)
-                        .text_size(px(11.5))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(format!("{} more in other rooms", card.elsewhere))
-                        .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowRooms), cx)),
-                )
+            .when(inline && card.elsewhere > 0, |d| {
+                d.child(Self::elsewhere(card.elsewhere, p))
             })
             .child(
                 div()
                     .id("ask-hide")
+                    .debug_selector(|| ASK_HIDE.to_owned())
                     .button_named(hide.clone())
+                    .flex_none()
                     .size(px(22.))
                     .flex()
                     .items_center()
@@ -226,8 +239,33 @@ impl ChatView {
             )
     }
 
+    /// The count of asks in other rooms, as a pill that opens the rooms. It keeps its width.
+    fn elsewhere(count: u32, p: &Pal) -> Stateful<Div> {
+        let words = format!("{count} more in other rooms");
+        div()
+            .id("ask-elsewhere")
+            .debug_selector(|| ASK_ELSEWHERE.to_owned())
+            .button_named(words.clone())
+            .cursor_pointer()
+            .flex_none()
+            .px(px(8.))
+            .py(px(3.))
+            .rounded(px(10.))
+            .bg(p.accent_soft)
+            .text_color(p.accent)
+            .text_size(px(11.5))
+            .font_weight(FontWeight::SEMIBOLD)
+            .child(words)
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowRooms), cx))
+    }
+
     fn ask_card(&self, card: &Card, p: &Pal, cx: &Context<'_, Self>) -> Div {
         let task = card.task;
+        // In a chat too narrow for it, the other rooms' count leaves the top line for a line of
+        // its own, so the task's line keeps its words. Before the list is laid out its width
+        // is unknown (0): the count takes its own line then too.
+        let width = f32::from(self.list.viewport_bounds().size.width);
+        let inline = width >= INLINE_ELSEWHERE_FROM;
         let question = div()
             .id("ask-question")
             // Read as the ask itself; a press opens its task.
@@ -261,7 +299,10 @@ impl ChatView {
             .border_1()
             .border_color(p.border)
             .bg(p.card)
-            .child(Self::ask_top(card, p, cx))
+            .child(Self::ask_top(card, inline, p, cx))
+            .when(!inline && card.elsewhere > 0, |d| {
+                d.child(div().flex().child(Self::elsewhere(card.elsewhere, p)))
+            })
             .child(question)
             .when(!card.option_cards.is_empty(), |d| {
                 d.child(self.option_cards(card, p))
