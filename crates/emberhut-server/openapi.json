@@ -7145,6 +7145,83 @@
         ]
       }
     },
+    "/api/agents/{id}/notes": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "A note from the agent's bridge about the bridge itself (its connection was down and is\nback, a button on one of the agent's messages was tapped): a turn in the agent's room,\nframed as the bridge's, never as anyone's words in a channel and never an approval.",
+        "operationId": "notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The agent's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboundNote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Taken: a turn in the agent's room, or left with why",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundReply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not the agent's inbound token (`agent-<id>-inbound`), or no such secret saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such configured agent (the default agent takes no bridge)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/approvers": {
       "get": {
         "tags": [
@@ -10683,10 +10760,11 @@
       },
       "ChannelKind": {
         "type": "string",
-        "description": "One of: slack, whatsapp. A newer server may send another word; clients keep it as it is.",
+        "description": "One of: slack, whatsapp, app. A newer server may send another word; clients keep it as it is.",
         "examples": [
           "slack",
-          "whatsapp"
+          "whatsapp",
+          "app"
         ]
       },
       "ChannelsRequest": {
@@ -13780,9 +13858,22 @@
           }
         }
       },
+      "InboundNote": {
+        "type": "object",
+        "description": "`POST /api/agents/{id}/notes`: a note from the agent's bridge about the bridge itself (its\nconnection was down and is back, a button on one of the agent's own messages was tapped),\nnot from anyone in a channel. It is no one's request and never an approval.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "What the bridge says."
+          }
+        }
+      },
       "InboundReply": {
         "type": "object",
-        "description": "What became of an inbound message.",
+        "description": "What became of an inbound message or a bridge's note.",
         "required": [
           "turn"
         ],

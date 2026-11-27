@@ -181,6 +181,7 @@ fn the_document_lists_the_slice_s_routes() {
         ("PUT", "/api/agents/{id}/accounts"),
         ("PUT", "/api/agents/{id}/policies"),
         ("POST", paths::AGENT_INBOUND),
+        ("POST", paths::AGENT_NOTES),
         ("GET", "/api/approvers"),
         ("POST", "/api/approvers"),
         ("PATCH", "/api/approvers/{id}"),
@@ -3388,6 +3389,33 @@ const COVERED: &[Covered] = &[
         status: 404,
         name: "only_the_agents_bridge_gets_in",
         test: crate::agent_inbound::only_the_agents_bridge_gets_in,
+    },    Covered {
+        method: "POST",
+        path: paths::AGENT_NOTES,
+        status: 200,
+        name: "only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges",
+        test: crate::agent_inbound::only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_NOTES,
+        status: 400,
+        name: "only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges",
+        test: crate::agent_inbound::only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_NOTES,
+        status: 401,
+        name: "only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges",
+        test: crate::agent_inbound::only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges,
+    },
+    Covered {
+        method: "POST",
+        path: paths::AGENT_NOTES,
+        status: 404,
+        name: "only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges",
+        test: crate::agent_inbound::only_the_agents_bridge_leaves_a_note_and_it_is_the_bridges,
     },
 ];
 

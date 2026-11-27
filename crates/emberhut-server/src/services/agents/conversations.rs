@@ -222,10 +222,11 @@ impl AgentConversations {
         let channels = self.inner.agents.channels(agent).await?;
         if channels
             .iter()
-            .any(|known| known.kind == ChannelKind::WhatsApp && known.address == channel)
+            .any(|known| known.kind.answered_by_its_bridge() && known.address == channel)
         {
             return Err(refused(
-                "agent_reply posts in Slack only: a WhatsApp chat is answered through its bridge.",
+                "agent_reply posts in Slack only: a WhatsApp chat or an app's chat is answered \
+                 through its bridge's own tools.",
             ));
         }
         let slack: Vec<&Channel> = channels
