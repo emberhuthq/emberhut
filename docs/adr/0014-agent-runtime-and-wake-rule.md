@@ -101,7 +101,7 @@ reaches the chat as it came. Which accounts the owner pins and the accounts' use
 
 ### The wake rule
 
-`services::wake::WakeService` keeps the switch (`on`), the check-ins (`checkins`, the 20
+`services::wake::WakeService` keeps the switch (`on`), the check-ins (`checkins`, each room's 20
 soonest) and the watches (`watches`, `watchSeq`) as settings (their shapes in api.md),
 and ticks every 30 seconds: due routines and check-ins become events, each room not in a turn
 wakes by `emberhut_core::wake`'s rule, and due watches remind their room (a watch on a coding thread

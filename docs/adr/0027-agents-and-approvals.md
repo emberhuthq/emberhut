@@ -86,9 +86,10 @@ What an agent has besides, each its own table so it is queried and changed row b
   write time and again when its tool set is built. Of the server tools it lists, only those that act
   for it alone are served: the ones that act in its own room (`send_file`, and its check-ins and
   watches: `wake_me_at`, `list_checkins`, `cancel_checkin`, `watch`, `watch_note`,
-  `list_watches`, `stop_watch`, which list, cancel, note and stop only what its room scheduled;
-  another room's at the same moment stay) and its task tools, scoped to the tasks made in its room
-  (`tasks`, `task_create`, `task_send`, `task_stop`, `task_cancel`). A tool that reads or changes the owner's own things (their messages,
+  `list_watches`, `stop_watch`, which list, cancel, note and stop only what its room
+  scheduled; another room's at the same moment stay, and each room keeps its own 20 soonest
+  check-ins) and its task tools, scoped to the tasks made in its room (`tasks`,
+  `task_create`, `task_send`, `task_stop`, `task_cancel`). A tool that reads or changes the owner's own things (their messages,
   plan, notes, other rooms, every task, recall over everything) is not served to it, and the server
   logs that it was listed.
 - **Accounts** (`agent_accounts`): `label` and `secret` (the secret file's name). The server
@@ -474,7 +475,10 @@ live step's hash ever matches it and it can never be used.
   core nor messages as the owner.
 - **What is not covered**: an agent's MCP server is code the owner chose to run; if it acts
   without using an approval, the server cannot stop it. Plugins should take their credentials
-  from the agent's accounts and call `approval_use` first; the server logs every use.
+  from the agent's accounts and call `approval_use` first; the server logs every use. Nor is an
+  agent's share of the wakes: the wake budget (twenty an hour) is every room's together, and
+  watches have no cap, so a busy agent can delay the owner's wakes; and watch numbers are shared,
+  so an agent can tell from gaps that other rooms have watches.
 
 ### Importing an existing setup
 

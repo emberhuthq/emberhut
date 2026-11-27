@@ -7,6 +7,7 @@
 //! Check-ins (`wake_me_at`) and watches are kept as settings (`checkins`, `watches`,
 //! `watchSeq`), so they survive a restart and import as they are.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -34,7 +35,7 @@ const WATCHES: SettingKey<Vec<Watch>> = SettingKey::new("watches");
 /// The last watch's number.
 const WATCH_SEQ: SettingKey<i64> = SettingKey::new("watchSeq");
 
-/// Check-ins kept at most (the soonest).
+/// Check-ins kept at most for each room (its soonest), so one room's can't push out another's.
 pub const MAX_CHECKINS: usize = 20;
 
 /// How often the server looks for what should wake the assistant.
@@ -292,7 +293,7 @@ impl WakeService {
     }
 
     /// Schedules a check-in in `room` `minutes` from now (one at least) with `why`; its time.
-    /// Only the [`MAX_CHECKINS`] soonest are kept.
+    /// Only each room's [`MAX_CHECKINS`] soonest are kept.
     ///
     /// # Errors
     ///
@@ -316,7 +317,12 @@ impl WakeService {
             room: (room != RoomId::MAIN).then(|| room_to_api(room)),
         });
         checkins.sort_by(|a, b| a.at.cmp(&b.at));
-        checkins.truncate(MAX_CHECKINS);
+        let mut kept = HashMap::new();
+        checkins.retain(|checkin| {
+            let count = kept.entry(checkin.room).or_insert(0_usize);
+            *count += 1;
+            *count <= MAX_CHECKINS
+        });
         self.inner.settings.set(&CHECKINS, &checkins).await?;
         self.inner
             .activity
@@ -336,8 +342,11 @@ impl WakeService {
         let mut checkins = self.checkins().await?;
         let before = checkins.len();
         checkins.retain(|checkin| checkin.at.as_str() != at || !scope.reaches(checkin.room));
+        if checkins.len() == before {
+            return Ok(false);
+        }
         self.inner.settings.set(&CHECKINS, &checkins).await?;
-        Ok(checkins.len() < before)
+        Ok(true)
     }
 
     // ---- Watches ----
@@ -551,7 +560,7 @@ impl WakeService {
                 .room
                 .map_or(RoomId::MAIN, |room| RoomId::new(room.get()));
             let event = NewEvent::new(room, "checkin", format!("Your check-in: {}", checkin.why))
-                .once(format!("checkin:{}", checkin.at));
+                .once(format!("checkin:{room}:{}", checkin.at));
             self.inner.events.add(event, self.now()).await?;
         }
         self.inner.settings.set(&CHECKINS, &later).await
