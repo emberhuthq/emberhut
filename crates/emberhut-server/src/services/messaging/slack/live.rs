@@ -5,7 +5,7 @@
 //!
 //! The socket's address comes from `apps.connections.open` (with the app-level token, read fresh
 //! at every connect). Every envelope is acknowledged at once, before its event is looked at
-//! (Slack wants the acknowledgement within 3 seconds); a message is then kept on its own task,
+//! (Slack's limit for it is 3 seconds); a message is then kept on its own task,
 //! the way the Web API's messages are. Slack rotates sockets with a `disconnect` envelope: a new
 //! one is opened after a short pause. A socket that drops, never opens or goes quiet is opened
 //! again after a pause that doubles with each failure in a row, up to five minutes. Once messages
