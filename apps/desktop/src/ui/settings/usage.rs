@@ -17,7 +17,8 @@ use jiff::tz::TimeZone;
 use super::parts::{note, section, tag};
 use crate::store::Store;
 use crate::store::working::usage::{
-    Fill, RowLine, checked, choices, details, fill, percent, picked, resets, row_line, runs_on,
+    Fill, RowLine, checked, choices, details, fill, most_room, percent, picked, resets, row_line,
+    runs_on,
 };
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
@@ -52,7 +53,7 @@ pub(super) fn card(store: &Entity<Store>, p: &Pal, cx: &App) -> Div {
                     div()
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_size(px(13.5))
-                        .child(format!("Most room: {}", best.name)),
+                        .child(most_room(account, best)),
                 )
                 .into_any_element(),
         );

@@ -181,6 +181,16 @@ pub(crate) fn checked(rows: &[UsageRow], now: Timestamp) -> Option<String> {
     Some(format!("Checked {}", relative(oldest, now)))
 }
 
+/// The usage card's top line, on the account with the most room left (`best`): on Auto, the
+/// one the agent uses; pinned to another, only that it has the most room.
+#[must_use]
+pub(crate) fn most_room(account: Option<&AssistantAccount>, best: &UsageRow) -> String {
+    match account.and_then(|account| account.pin.as_ref()) {
+        Some(pin) if *pin != best.id => format!("{} has the most room left", best.name),
+        _ => format!("Uses the account with the most room left: {}", best.name),
+    }
+}
+
 /// The line under the account picker, and whether it is a warning (the pinned one is out).
 #[must_use]
 pub(crate) fn runs_on(account: &AssistantAccount, rows: &[UsageRow]) -> (String, bool) {
@@ -492,5 +502,15 @@ mod tests {
         );
         assert_eq!(picked(&account(Some("a-2"), false), &rows), "Second");
         assert_eq!(picked(&account(None, false), &rows), "Auto");
+        let best = &rows[0];
+        let uses = "Uses the account with the most room left: Example";
+        assert_eq!(most_room(Some(&account(None, false)), best), uses);
+        assert_eq!(most_room(None, best), uses);
+        assert_eq!(most_room(Some(&account(Some("a-1"), false)), best), uses);
+        assert_eq!(
+            most_room(Some(&account(Some("a-2"), false)), best),
+            "Example has the most room left",
+            "pinned to another, it only says which has room"
+        );
     }
 }
