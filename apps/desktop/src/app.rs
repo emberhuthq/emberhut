@@ -11,13 +11,16 @@ use gpui_kit::{App, Bounds, Entity, WindowBounds, px};
 use crate::assets::{self, Assets};
 use crate::backend::Backend;
 use crate::cli::{Cli, SettingsArg};
-use crate::config::{self, AppFiles, SERVER_ENV};
+use crate::config::{self, AppFiles, SERVER_ENV, ServerUrl, Servers};
+use crate::hut::{HutOptions, LocalHut};
 use crate::prefs::{self, Kept as KeptPrefs};
 use crate::shell::{self, LinkReceiver};
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
-use crate::store::setup::{DevHome, LocalHome};
-use crate::store::{DiskCache, Kept, Page, Store, ThemeState, ViewFile};
+use crate::store::setup::{DevHome, HutHome, LocalHome};
+use crate::store::{
+    Connected, Connector, DiskCache, Kept, Page, Reconnect, Store, ThemeState, ViewFile,
+};
 use crate::ui::look;
 use crate::ui::palette::Pal;
 use crate::ui::report::ReportSize;
@@ -42,6 +45,35 @@ struct Startup {
     self_check: Option<SelfCheck>,
     /// No server is named anywhere (and this isn't the smoke run): the setup may show.
     fresh_install: bool,
+    /// `EMBERHUT_URL` named the server: no move of the setup's takes it elsewhere.
+    pinned: bool,
+}
+
+/// Makes the backend for a server the app moves to while it runs, as [`run`] made the first:
+/// its servers as `config.json` says now (the new address is kept there first), its session
+/// kept in the app's files.
+struct AppConnector {
+    /// The app's files, where sessions are kept (none: in memory).
+    files: Option<AppFiles>,
+    /// This device's name, for a pairing.
+    device: String,
+}
+
+impl Connector for AppConnector {
+    fn connect(&self, server: &ServerUrl) -> Result<Connected, backend::Error> {
+        let file = self.files.as_ref().map_or_default(AppFiles::read_config);
+        let servers = config::servers(None, &file);
+        // The file names `server` once kept; without the app's files, there is only it.
+        let servers = if &servers.primary.url == server {
+            servers
+        } else {
+            Servers::only(server.clone())
+        };
+        Ok(Connected {
+            backend: backend::connect(servers, self.files.as_ref(), &self.device)?,
+            disk: DiskCache::locate(server),
+        })
+    }
 }
 
 /// Runs the app until it quits.
@@ -65,7 +97,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     let fresh_install = self_check.is_none() && from_env.is_none() && file.server.is_none();
     // The server, and the fallback server the app turns to when it stops answering.
     let url = match &self_check {
-        Some(_) => config::Servers::only(SelfCheck::server()?),
+        Some(_) => Servers::only(SelfCheck::server()?),
         None => config::servers(from_env.as_deref(), &file),
     };
     log::info!("talking to {url}");
@@ -90,6 +122,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         files,
         self_check,
         fresh_install,
+        pinned: from_env.is_some(),
     };
     let app = gpui_kit::application().with_assets(Assets);
     // A link may come before the window is open (the one that launched the app): it waits.
@@ -117,6 +150,39 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         }
     });
     Ok(())
+}
+
+/// Emberhut on this computer, for the setup's first step, and how the store moves to it: the
+/// hut this app runs when its server binary is found (a hut that runs as the app's child is
+/// asked to stop as the app quits), else one already running at the app's address. The
+/// self-check has neither a hut nor a move.
+fn home_here(
+    self_check: bool,
+    files: Option<&AppFiles>,
+    backend: &Arc<dyn Backend>,
+    pinned: bool,
+    cx: &mut App,
+) -> (Rc<dyn LocalHome>, Reconnect) {
+    let dev = || Rc::new(DevHome::new(Arc::clone(backend))) as Rc<dyn LocalHome>;
+    if self_check {
+        return (dev(), Reconnect::none());
+    }
+    let connector = AppConnector {
+        files: files.cloned(),
+        device: device::name(),
+    };
+    let reconnect = Reconnect::new(Arc::new(connector), pinned.then_some(SERVER_ENV));
+    let Some(hut) = LocalHut::system(HutOptions::for_app()).filter(LocalHut::available) else {
+        log::info!("no hut's server binary here: the setup uses one already running");
+        return (dev(), reconnect);
+    };
+    let going = hut.clone();
+    cx.on_app_quit(move |_| {
+        going.let_go();
+        async {}
+    })
+    .detach();
+    (Rc::new(HutHome::new(hut)), reconnect)
 }
 
 /// The windows: the main ones, then each window of its own's view.
@@ -152,16 +218,15 @@ fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> any
         prefs,
         self_check,
         fresh_install,
+        pinned,
     } = startup;
     cx.set_global(prefs);
     let (room, start) = (cli.start_room(view.room), cli.start_page(view.room));
     let update_files = files.clone();
     let sidebar = KeptPrefs::get(cx).sidebar;
     let linking = Arc::clone(&backend);
-    // Emberhut on this computer, for the setup's first step: one already running at the app's
-    // address until the app can start its own.
-    let home: Rc<dyn LocalHome> = Rc::new(DevHome::new(Arc::clone(&backend)));
-    let store = cx.new(|cx| Store::new(backend, files, theme, room, home, cx));
+    let (home, reconnect) = home_here(self_check.is_some(), files.as_ref(), &backend, pinned, cx);
+    let store = cx.new(|cx| Store::new(backend, files, theme, room, home, reconnect, cx));
     // The account, in a build that has one; a build from source makes nothing here.
     crate::account::install(linking, &store, cx);
     store.update(cx, |store, cx| {

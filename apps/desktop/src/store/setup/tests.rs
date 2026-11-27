@@ -1,9 +1,10 @@
 //! The setup's tests: when it shows, how its steps go and what the ember's glow is at each,
-//! putting steps off, the home here through a fake [`LocalHome`], and that an ending is kept.
+//! putting steps off, the home here through a fake [`LocalHome`] (the move to its address,
+//! keeping it lit, the Change sheet), and that an ending is kept.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use emberhut_api::ids::RoomId;
@@ -17,24 +18,38 @@ use crate::backend::fake::{Call, FakeBackend};
 use crate::backend::{FreshState, StateReply};
 use crate::fixtures::state;
 use crate::store::gate::Gate;
+use crate::store::{Connected, Connector, Reconnect};
 
-/// Emberhut on this computer as a test wants it: whether it can live here, what starting it
-/// and asking it for a code answer, and how often it was started.
-struct FakeHome {
-    available: bool,
-    started: Result<&'static str, &'static str>,
-    code: Result<Option<&'static str>, &'static str>,
-    starts: Rc<Cell<usize>>,
+/// Emberhut on this computer as a test wants it: whether it can live here, what starting it,
+/// asking it for a code and keeping it lit answer (`None`: not the app's to keep), how often
+/// it was started and how it was asked to stay lit.
+pub(crate) struct FakeHome {
+    pub(crate) available: bool,
+    pub(crate) started: Result<&'static str, &'static str>,
+    pub(crate) code: Result<Option<&'static str>, &'static str>,
+    pub(crate) kept: Option<Result<(), &'static str>>,
+    pub(crate) starts: Rc<Cell<usize>>,
+    pub(crate) keeps: Rc<RefCell<Vec<KeepLit>>>,
 }
 
 impl FakeHome {
-    /// A home here that starts at `address` and hands over `code`.
-    fn at(address: &'static str, code: Option<&'static str>) -> Self {
+    /// A home here that starts at `address`, hands over `code` and isn't the app's to keep lit.
+    pub(crate) fn at(address: &'static str, code: Option<&'static str>) -> Self {
         Self {
             available: true,
             started: Ok(address),
             code: Ok(code),
+            kept: None,
             starts: Rc::default(),
+            keeps: Rc::default(),
+        }
+    }
+
+    /// The same home, kept lit as `kept` says.
+    pub(crate) fn keeping(self, kept: Result<(), &'static str>) -> Self {
+        Self {
+            kept: Some(kept),
+            ..self
         }
     }
 }
@@ -60,6 +75,37 @@ impl LocalHome for FakeHome {
                 .map_err(str::to_owned),
         )
     }
+
+    fn keep_lit(&self, keep: KeepLit, _: &mut App) -> Option<Task<Result<(), String>>> {
+        let kept = self.kept?;
+        self.keeps.borrow_mut().push(keep);
+        Some(Task::ready(kept.map_err(str::to_owned)))
+    }
+}
+
+/// Makes a fake backend at each address the store moves to, and keeps them.
+#[derive(Default)]
+pub(crate) struct FakeConnector {
+    pub(crate) made: Mutex<Vec<Arc<FakeBackend>>>,
+}
+
+impl FakeConnector {
+    /// The backends made, in order.
+    pub(crate) fn made(&self) -> Vec<Arc<FakeBackend>> {
+        self.made.lock().unwrap().clone()
+    }
+}
+
+impl Connector for FakeConnector {
+    fn connect(&self, server: &ServerUrl) -> Result<Connected, Error> {
+        let backend = Arc::new(FakeBackend::new([]).at(server.as_str()));
+        backend.setup.push_page(Ok(provider(SetupState::Missing)));
+        self.made.lock().unwrap().push(Arc::clone(&backend));
+        Ok(Connected {
+            backend,
+            disk: None,
+        })
+    }
 }
 
 const HERE: &str = "http://127.0.0.1:18990";
@@ -70,8 +116,38 @@ fn store_with(
     home: impl LocalHome + 'static,
     cx: &mut TestAppContext,
 ) -> Entity<Store> {
+    store_moving(backend, files, home, Reconnect::none(), cx)
+}
+
+fn store_moving(
+    backend: &Arc<FakeBackend>,
+    files: Option<AppFiles>,
+    home: impl LocalHome + 'static,
+    reconnect: Reconnect,
+    cx: &mut TestAppContext,
+) -> Entity<Store> {
     let shared = Arc::clone(backend) as Arc<dyn crate::backend::Backend>;
-    cx.new(|_| Store::for_setup_tests(shared, files, Rc::new(home)))
+    cx.new(|_| Store::for_setup_tests(shared, files, Rc::new(home), reconnect))
+}
+
+/// Whether `backend` was handed a pairing code.
+fn paired(backend: &FakeBackend) -> Vec<String> {
+    backend
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::Pair(code) => Some(code),
+            _ => None,
+        })
+        .collect()
+}
+
+fn here(store: &Entity<Store>, cx: &TestAppContext) -> Here {
+    store.read_with(cx, |store, _| store.setup().here().clone())
+}
+
+fn home_line(store: &Entity<Store>, cx: &TestAppContext) -> StepState {
+    store.read_with(cx, |store, _| store.setup().state(SetupStep::Home).clone())
 }
 
 fn store(backend: &Arc<FakeBackend>, cx: &mut TestAppContext) -> Entity<Store> {
@@ -614,4 +690,236 @@ fn light_it_put_off_ends_the_setup_unlit(cx: &mut TestAppContext) {
     let kept: serde_json::Value =
         serde_json::from_slice(&std::fs::read(files.setup()).unwrap()).unwrap();
     assert_eq!(kept, json!({"ended": "skipped"}));
+}
+
+#[gpui_kit::test]
+fn a_home_here_at_another_address_moves_the_app_there_pairs_and_lights(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let files = AppFiles::in_dir(dir.path());
+    let backend = Arc::new(FakeBackend::new([]).at(HERE));
+    backend.setup.push_page(Ok(provider(SetupState::Missing)));
+    let connector = Arc::new(FakeConnector::default());
+    let home = FakeHome::at("http://127.0.0.1:18995", Some("WXYZ-2345")).keeping(Ok(()));
+    let store = store_moving(
+        &backend,
+        Some(files.clone()),
+        home,
+        Reconnect::new(Arc::clone(&connector) as Arc<dyn Connector>, None),
+        cx,
+    );
+    store.update(cx, |store, cx| {
+        store.start_poll(cx);
+        store.begin_setup(true, cx);
+    });
+    cx.run_until_parked();
+    let polled = |backend: &FakeBackend| {
+        backend
+            .calls()
+            .iter()
+            .filter(|call| matches!(call, Call::State(..)))
+            .count()
+    };
+    assert_eq!(polled(&backend), 1, "the poll ran on the first address");
+    store.update(cx, Store::continue_home);
+    cx.run_until_parked();
+
+    // The address is kept for the next launch, and the app talks to it now.
+    let kept: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(files.config()).unwrap()).unwrap();
+    assert_eq!(kept, json!({"server": "http://127.0.0.1:18995"}));
+    let made = connector.made();
+    let [moved] = made.as_slice() else {
+        panic!("one backend made, not {}", made.len());
+    };
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.server().as_str(), "http://127.0.0.1:18995");
+        assert!(Arc::ptr_eq(
+            store.backend(),
+            &(Arc::clone(moved) as Arc<dyn crate::backend::Backend>)
+        ));
+    });
+    assert!(
+        polled(moved) >= 1,
+        "the poll started again on the new address"
+    );
+    assert_eq!(polled(&backend), 1, "and stopped on the old one");
+
+    // Paired through the normal sign-in, with the code the home made: on to "Light it".
+    assert_eq!(paired(moved), ["WXYZ-2345"]);
+    assert!(
+        paired(&backend).is_empty(),
+        "no code goes to the old address"
+    );
+    assert!(store.read_with(cx, |store, _| store.is_signed_in()));
+    assert_eq!(open(&store, cx), Some(SetupStep::Light));
+    assert_eq!(here(&store, cx), Here::Idle);
+}
+
+#[gpui_kit::test]
+fn localhost_and_the_loopback_address_on_one_port_are_one_place(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).at("http://localhost:18990"));
+    backend.setup.push_page(Ok(provider(SetupState::Missing)));
+    let connector = Arc::new(FakeConnector::default());
+    let store = store_moving(
+        &backend,
+        None,
+        FakeHome::at(HERE, Some("WXYZ-2345")),
+        Reconnect::new(Arc::clone(&connector) as Arc<dyn Connector>, None),
+        cx,
+    );
+    store.update(cx, |store, cx| {
+        store.begin_setup(true, cx);
+        store.continue_home(cx);
+    });
+    cx.run_until_parked();
+    assert!(connector.made().is_empty(), "no move");
+    assert_eq!(
+        store
+            .read_with(cx, |store, _| store.server().clone())
+            .as_str(),
+        "http://localhost:18990"
+    );
+    assert_eq!(paired(&backend), ["WXYZ-2345"]);
+    assert_eq!(open(&store, cx), Some(SetupStep::Light));
+}
+
+#[gpui_kit::test]
+fn the_variable_that_named_the_server_wins_and_says_so(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let files = AppFiles::in_dir(dir.path());
+    let backend = Arc::new(FakeBackend::new([]).at(HERE));
+    backend.setup.push_page(Ok(provider(SetupState::Missing)));
+    let connector = Arc::new(FakeConnector::default());
+    let store = store_moving(
+        &backend,
+        Some(files.clone()),
+        FakeHome::at("http://127.0.0.1:18995", Some("WXYZ-2345")).keeping(Ok(())),
+        Reconnect::new(
+            Arc::clone(&connector) as Arc<dyn Connector>,
+            Some("EMBERHUT_URL"),
+        ),
+        cx,
+    );
+    store.update(cx, |store, cx| {
+        store.begin_setup(true, cx);
+        store.continue_home(cx);
+    });
+    cx.run_until_parked();
+    let Here::Failed(said) = here(&store, cx) else {
+        panic!("{:?}", here(&store, cx));
+    };
+    for part in [
+        "EMBERHUT_URL",
+        "http://127.0.0.1:18995",
+        HERE,
+        "Unset EMBERHUT_URL",
+    ] {
+        assert!(said.contains(part), "{said:?} names {part}");
+    }
+    assert!(connector.made().is_empty(), "no move");
+    assert!(!files.config().exists(), "nothing kept");
+    assert!(paired(&backend).is_empty(), "no code goes anywhere");
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.server().as_str(), HERE);
+        assert!(
+            store.setup().shows_elsewhere(),
+            "another computer is offered"
+        );
+        assert_eq!(store.setup().open(), Some(SetupStep::Home));
+    });
+}
+
+#[gpui_kit::test]
+fn a_home_here_is_kept_lit_while_closed_and_from_login(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).at(HERE));
+    backend.setup.push_page(Ok(provider(SetupState::Missing)));
+    let home = FakeHome::at(HERE, Some("WXYZ-2345")).keeping(Ok(()));
+    let keeps = Rc::clone(&home.keeps);
+    let store = store_with(&backend, None, home, cx);
+    store.update(cx, |store, cx| {
+        store.begin_setup(true, cx);
+        store.continue_home(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        *keeps.borrow(),
+        [KeepLit {
+            when_closed: true,
+            at_login: true
+        }]
+    );
+    assert_eq!(
+        home_line(&store, cx),
+        StepState::Done(
+            "It lives on this computer and stays lit when the window is closed.".to_owned()
+        )
+    );
+    assert_eq!(open(&store, cx), Some(SetupStep::Light));
+
+    // Change: both off, and the line says it runs while the app does.
+    store.update(cx, Store::open_keep_sheet);
+    assert!(store.read_with(cx, |store, _| store.setup().shows_keep_sheet()));
+    store.update(cx, |store, cx| {
+        store.change_keep_lit(KeepLit::default(), cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(keeps.borrow().last(), Some(&KeepLit::default()));
+    assert_eq!(
+        home_line(&store, cx),
+        StepState::Done("It lives on this computer while Emberhut is open.".to_owned())
+    );
+    store.update(cx, Store::close_keep_sheet);
+    assert!(!store.read_with(cx, |store, _| store.setup().shows_keep_sheet()));
+}
+
+#[gpui_kit::test]
+fn a_home_here_that_cant_stay_lit_without_the_app_still_pairs(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).at(HERE));
+    backend.setup.push_page(Ok(provider(SetupState::Missing)));
+    let home = FakeHome::at(HERE, Some("WXYZ-2345")).keeping(Err("No service manager."));
+    let store = store_with(&backend, None, home, cx);
+    store.update(cx, |store, cx| {
+        store.begin_setup(true, cx);
+        store.continue_home(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(paired(&backend), ["WXYZ-2345"]);
+    assert_eq!(open(&store, cx), Some(SetupStep::Light));
+    assert_eq!(
+        home_line(&store, cx),
+        StepState::Done("It lives on this computer while Emberhut is open.".to_owned())
+    );
+
+    // Turned on from the sheet, it says why it can't, and nothing changes.
+    store.update(cx, |store, cx| {
+        store.open_keep_sheet(cx);
+        store.change_keep_lit(KEEP_LIT, cx);
+    });
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.setup().keep_problem(), Some("No service manager."));
+        assert_eq!(store.setup().keep(), Some(KeepLit::default()));
+    });
+}
+
+#[gpui_kit::test]
+fn a_home_that_isnt_the_apps_to_keep_has_no_change(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).at(HERE));
+    backend.setup.push_page(Ok(provider(SetupState::Missing)));
+    let store = store_with(&backend, None, FakeHome::at(HERE, Some("WXYZ-2345")), cx);
+    store.update(cx, |store, cx| {
+        store.begin_setup(true, cx);
+        store.continue_home(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(open(&store, cx), Some(SetupStep::Light));
+    assert_eq!(
+        home_line(&store, cx),
+        StepState::Done("It lives on this computer.".to_owned())
+    );
+    store.update(cx, Store::open_keep_sheet);
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.setup().keep(), None);
+        assert!(!store.setup().shows_keep_sheet());
+    });
 }

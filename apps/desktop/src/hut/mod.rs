@@ -25,7 +25,7 @@ mod state;
 #[cfg(test)]
 mod real_tests;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -48,6 +48,14 @@ use crate::private_files;
 /// The port the hut listens on unless it is taken: the server's own default, which the app's
 /// default server address names too.
 pub(crate) const DEFAULT_PORT: u16 = 18990;
+
+/// The variable that names the hut's first port instead of [`DEFAULT_PORT`], read only by a
+/// debug or automation build: a test run on a computer whose default port is another
+/// server's.
+pub(crate) const PORT_ENV: &str = "EMBERHUT_HUT_PORT";
+
+/// Whether this build reads the test runs' variables ([`PORT_ENV`], [`paths::SERVICE_ENV`]).
+const READS_TEST_VARS: bool = cfg!(any(test, debug_assertions, feature = "automation"));
 
 /// How the hut is run: its first port and how many after it may be tried, and how long it
 /// gets to start and to stop.
@@ -77,7 +85,45 @@ impl Default for HutOptions {
     }
 }
 
+impl HutOptions {
+    /// The options the app runs its hut with: the defaults, the first port as [`PORT_ENV`]
+    /// says in a build that reads it.
+    #[must_use]
+    pub(crate) fn for_app() -> Self {
+        Self::from_vars(&|name| std::env::var_os(name))
+    }
+
+    /// [`HutOptions::for_app`], the variables read through `var`.
+    fn from_vars(var: &dyn Fn(&str) -> Option<std::ffi::OsString>) -> Self {
+        let options = Self::default();
+        if !READS_TEST_VARS {
+            return options;
+        }
+        let Some(value) = var(PORT_ENV) else {
+            return options;
+        };
+        match value.to_str().and_then(|port| port.parse::<u16>().ok()) {
+            Some(port) if port != 0 => Self { port, ..options },
+            _ => {
+                log::warn!(
+                    "{PORT_ENV} isn't a port ({}); the hut uses {DEFAULT_PORT}",
+                    value.display()
+                );
+                options
+            }
+        }
+    }
+}
+
 /// How the hut is now.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the setup starts, pairs and keeps the hut lit; stopping it and asking how it \
+                  is wait for a page of their own"
+    )
+)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HutStatus {
     /// Its address, when it answers there as this computer's hut.
@@ -190,12 +236,41 @@ impl LocalHut {
 
     /// Stops the hut now, however it runs. One kept lit from login starts again at the next
     /// login; [`LocalHut::keep_lit`] with neither switch on stops that.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the setup starts, pairs and keeps the hut lit; stopping it and asking how it \
+                      is wait for a page of their own"
+        )
+    )]
     pub(crate) fn stop(&self, cx: &App) -> Task<Result<(), HutError>> {
         let hut = self.clone();
         cx.background_spawn(async move { hut.stop_now() })
     }
 
+    /// The app is quitting: a hut that runs as its child is asked to stop (`SIGTERM`, which the
+    /// server shuts down cleanly on) without waiting for it, so the quit isn't held up. A hut
+    /// a service runs stays lit. It doesn't wait for a call under way.
+    pub(crate) fn let_go(&self) {
+        let Some(child) = lock(&self.inner.child).take() else {
+            return;
+        };
+        log::info!("the app quits: stopping the hut, process {}", child.pid());
+        if let Err(error) = self.inner.spawner.terminate(child.pid()) {
+            log::warn!("couldn't ask the hut to stop: {error}");
+        }
+    }
+
     /// How the hut is now.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the setup starts, pairs and keeps the hut lit; stopping it and asking how it \
+                      is wait for a page of their own"
+        )
+    )]
     pub(crate) fn status(&self, cx: &App) -> Task<HutStatus> {
         let hut = self.clone();
         cx.background_spawn(async move { hut.status_now() })
@@ -275,6 +350,14 @@ impl LocalHut {
     /// # Errors
     ///
     /// The service manager refused, or the hut didn't stop in time.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the setup starts, pairs and keeps the hut lit; stopping it and asking how it \
+                      is wait for a page of their own"
+        )
+    )]
     pub(crate) fn stop_now(&self) -> Result<(), HutError> {
         let _busy = lock(&self.inner.busy);
         let mut state = self.read_state();
@@ -292,6 +375,14 @@ impl LocalHut {
     }
 
     /// [`LocalHut::status`], on this thread.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the setup starts, pairs and keeps the hut lit; stopping it and asking how it \
+                      is wait for a page of their own"
+        )
+    )]
     #[must_use]
     pub(crate) fn status_now(&self) -> HutStatus {
         let _busy = lock(&self.inner.busy);
@@ -524,6 +615,14 @@ impl LocalHut {
     }
 
     /// Stops the hut's service now, leaving it installed.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the setup starts, pairs and keeps the hut lit; stopping it and asking how it \
+                      is wait for a page of their own"
+        )
+    )]
     fn stop_service(&self) -> Result<(), HutError> {
         match self.inner.paths.manager() {
             Manager::Launchd { uid, .. } => {

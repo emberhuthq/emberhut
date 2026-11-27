@@ -82,6 +82,13 @@ impl LiveFeed {
 }
 
 impl LiveFeed {
+    /// Follows `room` through `backend` from now on (another server's): the thread on the old
+    /// one stops at its next line. Nothing is followed until the feed is started.
+    pub(crate) fn switch(&mut self, backend: Arc<dyn Backend>, room: RoomId) {
+        self.backend = backend;
+        self.follow(room);
+    }
+
     /// Follows nothing any more: the room's thread stops at its next line, and none starts
     /// again until [`LiveFeed::follow`].
     pub(crate) fn halt(&self) {

@@ -338,6 +338,50 @@ impl AppFiles {
             }
         }
     }
+
+    /// Keeps `server` as `config.json`'s `server`, for this launch's moves to another server
+    /// (the first-run setup's hut) to hold at the next: the file's other keys stay as they are,
+    /// but its `dialect` goes, as that word was about the server before (a new server is
+    /// spoken to in the built dialect, as one that says nothing is). Written whole through a
+    /// temporary file, the user's only.
+    ///
+    /// # Errors
+    ///
+    /// The file is there but isn't a JSON object (a hand-written file is never overwritten
+    /// then), or it couldn't be read or written.
+    pub(crate) fn write_server(&self, server: &ServerUrl) -> std::io::Result<()> {
+        use std::io::Write as _;
+        let path = self.config();
+        let mut file = match std::fs::read(&path) {
+            Ok(bytes) if bytes.iter().all(u8::is_ascii_whitespace) => serde_json::Map::new(),
+            Ok(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(serde_json::Value::Object(file)) => file,
+                Ok(_) | Err(_) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("{} isn't a JSON object", path.display()),
+                    ));
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => serde_json::Map::new(),
+            Err(error) => return Err(error),
+        };
+        file.insert("server".to_owned(), server.as_str().into());
+        file.remove("dialect");
+        let bytes = serde_json::to_vec_pretty(&file).map_err(std::io::Error::from)?;
+        crate::private_files::folder(&self.dir)?;
+        let temporary = path.with_extension("json.tmp");
+        let written = crate::private_files::file(&temporary)
+            .and_then(|mut out| out.write_all(&bytes))
+            .and_then(|()| std::fs::rename(&temporary, &path));
+        if written.is_err()
+            && let Err(error) = std::fs::remove_file(&temporary)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            log::warn!("can't remove {}: {error}", temporary.display());
+        }
+        written
+    }
 }
 
 /// The platform's cache directory for this app (`~/Library/Caches/com.emberhut.desktop` on macOS,
@@ -400,6 +444,55 @@ pub(crate) fn servers(from_env: Option<&str>, file: &ConfigFile) -> Servers {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_server_kept_in_the_config_file_keeps_its_other_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = AppFiles::in_dir(&dir.path().join("emberhut"));
+        let hut = ServerUrl::loopback(18995);
+        files.write_server(&hut).unwrap();
+        let read = |files: &AppFiles| -> serde_json::Value {
+            serde_json::from_slice(&std::fs::read(files.config()).unwrap()).unwrap()
+        };
+        assert_eq!(
+            read(&files),
+            serde_json::json!({"server": "http://127.0.0.1:18995"})
+        );
+        assert_eq!(server_url(None, &files.read_config()), hut);
+
+        std::fs::write(
+            files.config(),
+            r#"{"server": "https://old.example", "dialect": false,
+                "fallback": {"server": "https://older.example"}, "mine": 1}"#,
+        )
+        .unwrap();
+        files.write_server(&hut).unwrap();
+        assert_eq!(
+            read(&files),
+            serde_json::json!({
+                "server": "http://127.0.0.1:18995",
+                "fallback": {"server": "https://older.example"},
+                "mine": 1,
+            })
+        );
+        #[cfg(unix)]
+        assert_eq!(crate::private_files::mode(&files.config()), 0o600);
+        assert!(!files.config().with_extension("json.tmp").exists());
+    }
+
+    #[test]
+    fn a_config_file_that_isnt_an_object_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = AppFiles::in_dir(dir.path());
+        for text in ["[1]", "{", "\"\""] {
+            std::fs::write(files.config(), text).unwrap();
+            assert!(
+                files.write_server(&ServerUrl::loopback(18995)).is_err(),
+                "{text}"
+            );
+            assert_eq!(std::fs::read_to_string(files.config()).unwrap(), text);
+        }
+    }
 
     #[test]
     fn an_address_loses_its_trailing_slashes() {

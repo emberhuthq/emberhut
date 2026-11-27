@@ -70,8 +70,9 @@ pub(crate) struct Account {
 }
 
 impl Account {
-    /// The account of `session`, linking through `backend` (the server this app talks to),
-    /// refreshing its machines while `store` shows Settings in front. Reads the Keychain first.
+    /// The account of `session`, linking through `backend` (the server this app talks to, and
+    /// then whichever the store moves to), refreshing its machines while `store` shows Settings
+    /// in front. Reads the Keychain first.
     pub(crate) fn new(
         session: Arc<AccountSession>,
         backend: Arc<dyn Backend>,
@@ -80,6 +81,9 @@ impl Account {
     ) -> Self {
         cx.observe(store, |account, store, cx| {
             let store = store.read(cx);
+            if !Arc::ptr_eq(&account.backend, store.backend()) {
+                account.backend = Arc::clone(store.backend());
+            }
             let wanted = store.shows_settings(&[SettingsPane::Account])
                 && store.presence() == Presence::Front;
             if wanted {

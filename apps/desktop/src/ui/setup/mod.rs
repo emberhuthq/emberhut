@@ -7,9 +7,11 @@
 //! The steps reuse what the app has: the pairing form (another computer's code), the provider
 //! picker (Light it), the pairing code and its QR code (Let it reach you) and the Chrome
 //! profiles' sheet (Show it your world). Its data is the store's ([`crate::store::setup`]).
+//! Step 1's done line has Change when the app keeps Emberhut here lit: a sheet with how.
 
 pub(crate) mod banner;
 mod ember;
+mod keep;
 mod steps;
 #[cfg(test)]
 mod tests;
@@ -18,8 +20,8 @@ use emberhut_api::ids::RoomId;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    AnyElement, Div, Entity, FontWeight, ScrollHandle, TestSupportExt as _, Window, div, px,
-    relative,
+    AnyElement, Div, Entity, FocusHandle, FontWeight, ScrollHandle, TestSupportExt as _, Window,
+    div, px, relative,
 };
 
 use self::steps::FIND_HINT;
@@ -65,6 +67,8 @@ pub(crate) struct SetupView {
     /// The phone's pairing code as a QR code.
     qr: PairingQr,
     scroll: ScrollHandle,
+    /// The keep-lit sheet's focus, and whether it took it since the sheet opened.
+    keep_focus: (FocusHandle, bool),
 }
 
 impl SetupView {
@@ -94,7 +98,28 @@ impl SetupView {
             chrome,
             qr: PairingQr::default(),
             scroll: ScrollHandle::new(),
+            keep_focus: (cx.focus_handle(), false),
         }
+    }
+
+    /// The keep-lit sheet while it shows, taking the focus once as it opens.
+    fn keep_sheet(
+        &mut self,
+        p: &Pal,
+        window: &mut Window,
+        cx: &mut Context<'_, Self>,
+    ) -> Option<Div> {
+        let shows = self.store.read(cx).setup().shows_keep_sheet();
+        let (focus, focused) = &mut self.keep_focus;
+        if !shows {
+            *focused = false;
+            return None;
+        }
+        if !*focused {
+            *focused = true;
+            window.focus(focus, cx);
+        }
+        Some(keep::keep_sheet(&self.store, focus, p, cx))
     }
 
     /// The steps' side: the eyebrow, the headline (and the welcome's lead), the ladder.
@@ -239,6 +264,7 @@ impl Render for SetupView {
             return root.child(self.lit(&p, reduced, cx));
         };
         let steps = self.steps(open, &p, window, cx);
+        let keep_sheet = self.keep_sheet(&p, window, cx);
         root.flex()
             .child(
                 div()
@@ -269,5 +295,6 @@ impl Render for SetupView {
             .when(sheet, |d| {
                 d.child(div().absolute().inset_0().child(self.chrome.clone()))
             })
+            .children(keep_sheet)
     }
 }

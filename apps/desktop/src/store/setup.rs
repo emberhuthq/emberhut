@@ -11,10 +11,16 @@
 //! The ember beside the steps glows a little more with each one done ([`Setup::glow`]). Where
 //! the setup begins is one choice ([`DIRECTION`]); Emberhut on this computer is a port
 //! ([`LocalHome`]) the app hands the store at launch.
+//!
+//! "Here, on this computer" starts Emberhut here; when it answers at another address than the
+//! one the app talks to (its port was taken), the app moves there as it runs
+//! ([`Store::switch_server`]). Then it is kept lit while the window is closed and from login
+//! ([`KEEP_LIT`], which step 1's Change sheet turns back), and the app pairs with a code it
+//! makes, through the same sign-in as a typed code.
 
 mod home;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::collections::BTreeSet;
 use std::rc::Rc;
@@ -24,11 +30,14 @@ use gpui_kit::AppContext as _;
 use gpui_kit::Context;
 use serde::{Deserialize, Serialize};
 
-pub(crate) use self::home::{CANT_HERE, DevHome, LocalHome, NoLocalHome, on_this_computer};
+pub(crate) use self::home::{
+    CANT_HERE, DevHome, HutHome, LocalHome, NoLocalHome, on_this_computer,
+};
 
 use super::{Store, update_or_log};
 use crate::backend::Error;
 use crate::config::{AppFiles, ServerUrl};
+use crate::hut::KeepLit;
 use crate::json_file::{self, Writes};
 use crate::store::credentials;
 use emberhut_api::ids::DeviceId;
@@ -304,6 +313,12 @@ pub(crate) const NOTES: [&str; 5] = [
 /// The brightest glow: the setup is done.
 pub(crate) const BRIGHTEST: u8 = 4;
 
+/// How a home here is kept lit once it starts: while the window is closed, and from login.
+pub(crate) const KEEP_LIT: KeepLit = KeepLit {
+    when_closed: true,
+    at_login: true,
+};
+
 /// The setup.
 pub(crate) struct Setup {
     /// Emberhut on this computer.
@@ -335,6 +350,21 @@ pub(crate) struct Setup {
     known_devices: Option<Vec<DeviceId>>,
     /// The tiles Connect was pressed on.
     asked: BTreeSet<Tile>,
+    /// How Emberhut here is kept lit, and its sheet.
+    keep: Keeping,
+}
+
+/// How Emberhut here is kept lit, and the sheet that changes it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Keeping {
+    /// How it is kept, once the app keeps it (both off: it runs while the app does).
+    kept: Option<KeepLit>,
+    /// Whether the sheet shows.
+    sheet: bool,
+    /// Whether a change is on its way.
+    changing: bool,
+    /// Why the last change didn't take.
+    problem: Option<String>,
 }
 
 impl Setup {
@@ -360,6 +390,7 @@ impl Setup {
             elsewhere: false,
             known_devices: None,
             asked: BTreeSet::new(),
+            keep: Keeping::default(),
         }
     }
 
@@ -428,6 +459,30 @@ impl Setup {
     #[must_use]
     pub(crate) fn shows_elsewhere(&self) -> bool {
         self.elsewhere
+    }
+
+    /// How Emberhut here is kept lit, once the app keeps it: step 1's Change shows then.
+    #[must_use]
+    pub(crate) fn keep(&self) -> Option<KeepLit> {
+        self.keep.kept
+    }
+
+    /// Whether the sheet that changes how it is kept lit shows.
+    #[must_use]
+    pub(crate) fn shows_keep_sheet(&self) -> bool {
+        self.keep.sheet
+    }
+
+    /// Whether a change of how it is kept lit is on its way.
+    #[must_use]
+    pub(crate) fn keeping(&self) -> bool {
+        self.keep.changing
+    }
+
+    /// Why the last change of how it is kept lit didn't take.
+    #[must_use]
+    pub(crate) fn keep_problem(&self) -> Option<&str> {
+        self.keep.problem.as_deref()
     }
 
     /// Whether the ember thinks, as far as the app knows.
@@ -675,20 +730,50 @@ impl Store {
         cx.notify();
     }
 
-    /// Emberhut here started at `started`, or didn't: this app pairs with it.
+    /// Emberhut here started at `started`, or didn't: the app moves to its address (nothing
+    /// to do when it talks to it already), then keeps it lit.
     fn home_started(&mut self, started: Result<ServerUrl, String>, cx: &mut Context<'_, Self>) {
         let url = match started {
             Ok(url) => url,
             Err(why) => return self.home_failed(why, cx),
         };
-        if &url != self.server() {
-            let why = format!(
-                "Emberhut started here at {url}, and this app looks for your ember at {}. Open \
-                 the app again to use it.",
-                self.server()
-            );
-            return self.home_failed(why, cx);
-        }
+        let moved = self.switch_server(url, cx);
+        cx.spawn(async move |this, cx| {
+            let moved = moved.await;
+            update_or_log(&this, cx, |store, cx| match moved {
+                Ok(()) => store.keep_home_lit(cx),
+                Err(why) => store.home_failed(why, cx),
+            });
+        })
+        .detach();
+    }
+
+    /// The app talks to Emberhut here: it is kept lit as [`KEEP_LIT`] says (when it is this
+    /// app's to keep), then paired with. Not staying lit without the app is no failure: the
+    /// done line says it lives here while the app runs.
+    fn keep_home_lit(&mut self, cx: &mut Context<'_, Self>) {
+        let Some(kept) = self.setup.home.keep_lit(KEEP_LIT, cx) else {
+            return self.pair_home_here(cx);
+        };
+        cx.spawn(async move |this, cx| {
+            let kept = kept.await;
+            update_or_log(&this, cx, |store, cx| {
+                store.setup.keep.kept = Some(match kept {
+                    Ok(()) => KEEP_LIT,
+                    Err(why) => {
+                        log::warn!("Emberhut here runs only while the app does: {why}");
+                        KeepLit::default()
+                    }
+                });
+                store.pair_home_here(cx);
+            });
+        })
+        .detach();
+    }
+
+    /// Pairs this app with Emberhut here, through the code it makes (or the one the user
+    /// types), unless it is paired already.
+    fn pair_home_here(&mut self, cx: &mut Context<'_, Self>) {
         if self.is_signed_in() {
             return self.home_given(cx);
         }
@@ -733,9 +818,64 @@ impl Store {
         self.ask_lit(cx);
     }
 
-    /// Step 1's line once done: where the ember lives.
+    /// Step 1's line once done: where the ember lives, and how it stays lit when the app keeps
+    /// it.
     fn home_line(&self) -> String {
-        format!("It lives on {}.", place(self.server()))
+        let place = place(self.server());
+        match self.setup.keep.kept {
+            Some(keep) if keep.by_service() => {
+                format!("It lives on {place} and stays lit when the window is closed.")
+            }
+            Some(_) => format!("It lives on {place} while Emberhut is open."),
+            None => format!("It lives on {place}."),
+        }
+    }
+
+    /// Change on step 1's done line: the sheet with how Emberhut here is kept lit.
+    pub(crate) fn open_keep_sheet(&mut self, cx: &mut Context<'_, Self>) {
+        if self.setup.keep.kept.is_some() {
+            self.setup.keep.sheet = true;
+            self.setup.keep.problem = None;
+            cx.notify();
+        }
+    }
+
+    /// Done on that sheet.
+    pub(crate) fn close_keep_sheet(&mut self, cx: &mut Context<'_, Self>) {
+        self.setup.keep.sheet = false;
+        cx.notify();
+    }
+
+    /// A switch on that sheet: Emberhut here is kept lit as `keep` says from now on, and step
+    /// 1's line says so; why not shows on the sheet.
+    pub(crate) fn change_keep_lit(&mut self, keep: KeepLit, cx: &mut Context<'_, Self>) {
+        if self.setup.keep.changing || self.setup.keep.kept.is_none() {
+            return;
+        }
+        let Some(kept) = self.setup.home.keep_lit(keep, cx) else {
+            return;
+        };
+        self.setup.keep.changing = true;
+        self.setup.keep.problem = None;
+        cx.spawn(async move |this, cx| {
+            let kept = kept.await;
+            update_or_log(&this, cx, |store, cx| {
+                store.setup.keep.changing = false;
+                match kept {
+                    Ok(()) => {
+                        store.setup.keep.kept = Some(keep);
+                        if store.setup.is_done(SetupStep::Home) {
+                            store.setup.steps[SetupStep::Home.index()] =
+                                StepState::Done(store.home_line());
+                        }
+                    }
+                    Err(why) => store.setup.keep.problem = Some(why),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
     }
 
     /// This device paired (from the setup's form, or the sign-in screen's): step 1 is done if

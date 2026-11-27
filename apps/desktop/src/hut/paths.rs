@@ -15,6 +15,11 @@ const AGENT: &str = "claude";
 pub(crate) const LAUNCH_AGENT: &str = "com.emberhut.hut";
 /// The systemd user unit (Linux).
 pub(crate) const SYSTEMD_UNIT: &str = "emberhut-hut.service";
+/// The variable that, set to `none` in a debug or automation build, leaves the service manager
+/// out: the hut then runs only as the app's child, and keeping it lit without the app is
+/// refused. A test run on a real computer sets it, so no launch agent or unit is ever written
+/// or loaded for the user.
+pub(crate) const SERVICE_ENV: &str = "EMBERHUT_HUT_SERVICE";
 
 /// Which system the hut is on, for its folders and what keeps it lit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,7 +131,8 @@ impl HutPaths {
     /// - the log: macOS `~/Library/Logs/Emberhut/hut.log`, elsewhere
     ///   `$XDG_STATE_HOME/emberhut/hut.log` (`~/.local/state/emberhut/hut.log`);
     /// - the service: macOS the launch agent `~/Library/LaunchAgents/com.emberhut.hut.plist`,
-    ///   Linux the unit `$XDG_CONFIG_HOME/systemd/user/emberhut-hut.service`.
+    ///   Linux the unit `$XDG_CONFIG_HOME/systemd/user/emberhut-hut.service` (none when
+    ///   [`SERVICE_ENV`] says so).
     #[must_use]
     pub(crate) fn new(place: Place) -> Self {
         let Place {
@@ -142,6 +148,8 @@ impl HutPaths {
                 .filter(|dir| dir.is_absolute())
                 .unwrap_or_else(|| fallback.iter().fold(home.clone(), |dir, at| dir.join(at)))
         };
+        let no_service = super::READS_TEST_VARS
+            && var(SERVICE_ENV).is_some_and(|value| value.eq_ignore_ascii_case("none"));
         let (data, log, manager) = match os {
             Os::Mac => {
                 let library = home.join("Library");
@@ -182,6 +190,7 @@ impl HutPaths {
                 )
             }
         };
+        let manager = if no_service { Manager::None } else { manager };
         Self {
             home,
             exe,
