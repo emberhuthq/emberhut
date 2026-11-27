@@ -291,7 +291,7 @@ App state lives in zustand stores, each made by a factory that takes its depende
 - `prefs`: the room on screen and the Needs you grouping, kept across launches; also the last `GET /api/theme` answer, a
   theme change made offline, and the old local appearance (sent to the server once, if no device ever chose).
 - `theme`: the server's theme. The palette comes from the server's
-  tokens (the built-in blue until it answers); fetched when the state's `theme.at` differs from the cache, applied
+  tokens (the built-in paper theme until it answers); fetched when the state's `theme.at` differs from the cache, applied
   live. A preset or the appearance shows at once and works offline from the cached presets (sent when the server answers
   again); a custom colour is previewed by the server and needs it; a refusal puts the old one back.
 - `talk`: your message on its way in each room, until the room's chat has it (the pending bubble, "Not sent", retry).

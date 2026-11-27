@@ -1,51 +1,90 @@
-import type { ThemePage, ThemeTokens } from "@/api";
+import type { ThemePage, ThemePreset, ThemeTokens } from "@/api";
 
-// The blue preset as the server resolves it (version 1): graphite neutrals with
-// a blue accent. What the app shows before Emberhut has ever answered, so the first launch looks right offline too.
+// The paper preset as the server resolves it (version 1), the server's default: kraft paper and brown-black ink with an
+// ember accent, and the blue preset beside it to pick. What the app shows before Emberhut has ever answered, so the first
+// launch looks right offline too.
 
 const light: ThemeTokens = {
-  accent: "#2563EB",
-  accentSoft: "#E5ECFD",
-  onAccent: "#FFFFFF",
-  background: "#F5F6F8",
-  surface: "#FFFFFF",
-  surfaceRaised: "#ECEEF1",
-  border: "#D9DCE1",
-  text: "#14171C",
-  muted: "#5B6270",
-  faint: "#8A909B",
-  success: "#15803D",
-  warn: "#C2410C",
-  danger: "#DC2626",
-  info: "#0E7490",
+  accent: "#B83D0C",
+  accentSoft: "#F6E6DD",
+  onAccent: "#FFF8EF",
+  background: "#F6F0E6",
+  surface: "#FFFDF9",
+  surfaceRaised: "#EFE6D8",
+  border: "#DCD6CD",
+  text: "#1D1712",
+  muted: "#65574C",
+  faint: "#6E6055",
+  success: "#2B7248",
+  warn: "#8A5800",
+  danger: "#A51D2D",
+  info: "#2B5F8E",
 };
 
 const dark: ThemeTokens = {
-  accent: "#60A5FA",
-  accentSoft: "#27384E",
-  onAccent: "#0B0D10",
-  background: "#0E1013",
-  surface: "#17191D",
-  surfaceRaised: "#202328",
-  border: "#2C3036",
-  text: "#E9EBEE",
-  muted: "#9BA1AB",
-  faint: "#6B717B",
-  success: "#4ADE80",
-  warn: "#FB923C",
-  danger: "#F87171",
-  info: "#22D3EE",
+  accent: "#FF9A5A",
+  accentSoft: "#523725",
+  onAccent: "#1D1206",
+  background: "#15110E",
+  surface: "#211B16",
+  surfaceRaised: "#261F19",
+  border: "#2C2723",
+  text: "#F6EEE5",
+  muted: "#BDAE9F",
+  faint: "#A39486",
+  success: "#7FD19B",
+  warn: "#E8B04A",
+  danger: "#FF8089",
+  info: "#8DB8E0",
+};
+
+// Blue on the graphite neutrals.
+const blue: ThemePreset = {
+  id: "blue",
+  name: "Blue",
+  light: {
+    accent: "#2563EB",
+    accentSoft: "#E5ECFD",
+    onAccent: "#FFFFFF",
+    background: "#F5F6F8",
+    surface: "#FFFFFF",
+    surfaceRaised: "#ECEEF1",
+    border: "#D9DCE1",
+    text: "#14171C",
+    muted: "#5B6270",
+    faint: "#8A909B",
+    success: "#15803D",
+    warn: "#C2410C",
+    danger: "#DC2626",
+    info: "#0E7490",
+  },
+  dark: {
+    accent: "#60A5FA",
+    accentSoft: "#27384E",
+    onAccent: "#0B0D10",
+    background: "#0E1013",
+    surface: "#17191D",
+    surfaceRaised: "#202328",
+    border: "#2C3036",
+    text: "#E9EBEE",
+    muted: "#9BA1AB",
+    faint: "#6B717B",
+    success: "#4ADE80",
+    warn: "#FB923C",
+    danger: "#F87171",
+    info: "#22D3EE",
+  },
 };
 
 export const builtInTheme: ThemePage = {
   version: 1,
-  choice: { preset: "blue", appearance: "system", accent: null, at: null },
+  choice: { preset: "paper", appearance: "system", accent: null, at: null },
   tokens: { light, dark },
   contrast: {
-    light: { accentOnBackground: 4.77, accentOnSurface: 5.16, onAccent: 5.16, adjusted: false },
-    dark: { accentOnBackground: 7.49, accentOnSurface: 6.92, onAccent: 7.65, adjusted: false },
+    light: { accentOnBackground: 4.99, accentOnSurface: 5.57, onAccent: 5.36, adjusted: false },
+    dark: { accentOnBackground: 8.96, accentOnSurface: 8.12, onAccent: 8.78, adjusted: false },
     aa: true,
   },
-  presets: [{ id: "blue", name: "Blue", light, dark }],
+  presets: [{ id: "paper", name: "Paper", light, dark }, blue],
   names: Object.keys(light) as (keyof ThemeTokens)[],
 };
