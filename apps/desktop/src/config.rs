@@ -74,6 +74,13 @@ impl ServerUrl {
         }
     }
 
+    /// The address of a server on this computer's loopback at `port`:
+    /// `http://127.0.0.1:<port>` (the hut the app runs, `hut`).
+    #[must_use]
+    pub(crate) fn loopback(port: u16) -> Self {
+        Self(format!("http://127.0.0.1:{port}"))
+    }
+
     /// The address of a path on this server (`path` starts with `/`).
     #[must_use]
     pub(crate) fn join(&self, path: &str) -> String {
