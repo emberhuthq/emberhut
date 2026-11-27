@@ -270,7 +270,7 @@ async fn without_an_app_token_no_socket_is_opened() {
     let kit = connect(quick().await).await;
     kit.app.state.messaging().collect().await;
     tokio::time::sleep(Duration::from_millis(50)).await;
-    assert!(kit.slack.calls("apps.connections.open").is_empty());
+    assert_eq!(kit.slack.calls("apps.connections.open").len(), 0);
 }
 
 #[tokio::test]
