@@ -56,6 +56,7 @@ pub(crate) mod provider;
 pub(crate) mod releases;
 pub(crate) mod sessions;
 pub(crate) mod settings;
+pub(crate) mod setup;
 pub(crate) mod working;
 
 use self::account::AccountReplies;
@@ -67,6 +68,7 @@ use self::provider::ProviderReplies;
 use self::releases::ReleaseReplies;
 use self::sessions::SessionReplies;
 use self::settings::SettingsReplies;
+use self::setup::SetupReplies;
 use self::working::WorkingReplies;
 use emberhut_api::ids::SessionId;
 use emberhut_api::runner::actions::{SendToSession, SentToSession, SessionSettings};
@@ -142,6 +144,8 @@ pub(crate) enum Call {
     SaveAgentProvider(ProviderRequest),
     /// The saved provider removed.
     ForgetAgentProvider,
+    /// The setup checklist read.
+    Setup,
     /// A task's page, by its id.
     Task(TaskId),
     /// A task search, by its query string.
@@ -283,6 +287,10 @@ pub(crate) struct FakeBackend {
     failover: Mutex<(Serving, bool)>,
     /// The agent's provider: what is saved, checks and saves.
     pub(crate) provider: ProviderReplies,
+    /// The setup checklist, and whether the server answers its health check.
+    pub(crate) setup: SetupReplies,
+    /// Whether this device has a session of its own: from the start, or once a code is traded.
+    session: std::sync::atomic::AtomicBool,
 }
 
 impl FakeBackend {
@@ -320,7 +328,16 @@ impl FakeBackend {
             approvals: ApprovalReplies::default(),
             failover: Mutex::new((Serving::Primary, false)),
             provider: ProviderReplies::default(),
+            setup: SetupReplies::default(),
+            session: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    /// The same fake, with a session of its own already (as after a pairing).
+    pub(crate) fn with_session(self) -> Self {
+        self.session
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self
     }
 
     /// The same fake, on the fallback server `fallback` since `primary` stopped answering.
@@ -534,7 +551,7 @@ impl Backend for FakeBackend {
     }
 
     fn is_signed_in(&self) -> bool {
-        false
+        self.session.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     fn state(&self, room: RoomId, etag: Option<&ETag>, looking: bool) -> Result<StateReply, Error> {
@@ -674,7 +691,12 @@ impl Backend for FakeBackend {
 
     fn pair(&self, code: &str) -> Result<(), Error> {
         self.record(Call::Pair(code.to_owned()));
-        Ok(())
+        let paired = self.account.pairing();
+        if paired.is_ok() {
+            self.session
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        paired
     }
 
     fn pair_with_machine(
@@ -879,6 +901,15 @@ impl Backend for FakeBackend {
     fn forget_agent_provider(&self) -> Result<AgentProvider, Error> {
         self.record(Call::ForgetAgentProvider);
         self.provider.forget()
+    }
+
+    fn setup(&self) -> Result<emberhut_api::setup::SetupPage, Error> {
+        self.record(Call::Setup);
+        self.setup.page()
+    }
+
+    fn answers_within(&self, _within: Duration) -> bool {
+        self.setup.answers()
     }
 
     fn session_transcript(&self, id: &SessionId, query: &StepsQuery) -> Result<Transcript, Error> {

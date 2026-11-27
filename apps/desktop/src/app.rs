@@ -1,6 +1,7 @@
 //! Starting the app: the server to talk to, the store, the menus, the first main window, and
 //! the links and the command line's place.
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -15,6 +16,7 @@ use crate::prefs::{self, Kept as KeptPrefs};
 use crate::shell::{self, LinkReceiver};
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
+use crate::store::setup::{DevHome, LocalHome};
 use crate::store::{DiskCache, Kept, Page, Store, ThemeState, ViewFile};
 use crate::ui::look;
 use crate::ui::palette::Pal;
@@ -38,6 +40,8 @@ struct Startup {
     prefs: KeptPrefs,
     /// The smoke run, with `--self-check`.
     self_check: Option<SelfCheck>,
+    /// No server is named anywhere (and this isn't the smoke run): the setup may show.
+    fresh_install: bool,
 }
 
 /// Runs the app until it quits.
@@ -58,6 +62,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
     }
     let from_env = std::env::var(SERVER_ENV).ok();
     let file = files.as_ref().map_or_default(AppFiles::read_config);
+    let fresh_install = self_check.is_none() && from_env.is_none() && file.server.is_none();
     // The server, and the fallback server the app turns to when it stops answering.
     let url = match &self_check {
         Some(_) => config::Servers::only(SelfCheck::server()?),
@@ -84,6 +89,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         prefs: KeptPrefs::load(files.clone()),
         files,
         self_check,
+        fresh_install,
     };
     let app = gpui_kit::application().with_assets(Assets);
     // A link may come before the window is open (the one that launched the app): it waits.
@@ -141,13 +147,17 @@ fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> any
         view,
         prefs,
         self_check,
+        fresh_install,
     } = startup;
     cx.set_global(prefs);
     let (room, start) = (cli.start_room(view.room), cli.start_page(view.room));
     let update_files = files.clone();
     let sidebar = KeptPrefs::get(cx).sidebar;
     let linking = Arc::clone(&backend);
-    let store = cx.new(|cx| Store::new(backend, files, theme, room, cx));
+    // Emberhut on this computer, for the setup's first step: one already running at the app's
+    // address until the app can start its own.
+    let home: Rc<dyn LocalHome> = Rc::new(DevHome::new(Arc::clone(&backend)));
+    let store = cx.new(|cx| Store::new(backend, files, theme, room, home, cx));
     // The account, in a build that has one; a build from source makes nothing here.
     crate::account::install(linking, &store, cx);
     store.update(cx, |store, cx| {
@@ -157,6 +167,10 @@ fn launch(cli: &Cli, startup: Startup, links: LinkReceiver, cx: &mut App) -> any
         }
         if cli.sign_in {
             store.preview_sign_in();
+        }
+        store.begin_setup(fresh_install, cx);
+        if let Some(step) = cli.setup {
+            store.preview_setup(step.step(), cx);
         }
         #[cfg(debug_assertions)]
         if cli.flaky {

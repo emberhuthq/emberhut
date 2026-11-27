@@ -51,6 +51,7 @@ use emberhut_api::runner::new_session::{
 use emberhut_api::runner::transcript::{SessionLive, StepsQuery, Transcript};
 use emberhut_api::scheduled::ScheduledPage;
 use emberhut_api::settings::SettingsAction;
+use emberhut_api::setup::SetupPage;
 use emberhut_api::switches::{SwitchAction, SwitchPage};
 use emberhut_api::talk::{TalkReply, TalkRequest};
 use emberhut_api::task_actions::TaskAction;
@@ -535,6 +536,14 @@ impl Backend for Failover {
 
     fn forget_agent_provider(&self) -> Result<AgentProvider, Error> {
         self.active().forget_agent_provider()
+    }
+
+    fn setup(&self) -> Result<SetupPage, Error> {
+        self.active().setup()
+    }
+
+    fn answers_within(&self, within: Duration) -> bool {
+        self.active().answers_within(within)
     }
 
     fn interrupt(&self, room: RoomId) -> Result<(), Error> {

@@ -437,6 +437,7 @@ impl Render for ChatView {
             .bg(p.surface)
             .child(self.header(&p, window, cx))
             .children(super::fallback_bar::bar(&self.store, &p, cx))
+            .children(super::setup::banner::bar(&self.store, &p, cx))
             .children(super::update_bar::bar(&self.store, &p, cx))
             .child(body)
             .children((count > 0).then(|| row::follow_width(self.list.clone(), laid_out)))

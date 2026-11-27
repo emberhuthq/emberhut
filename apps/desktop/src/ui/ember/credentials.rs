@@ -47,6 +47,9 @@ pub(crate) struct CredentialsView {
     row_for: Option<ProviderKind>,
     /// The provider the fields' placeholders were last set for.
     fields_for: Option<ProviderKind>,
+    /// Shown inside the setup's step: no line of its own over the list (the step has it) and
+    /// no scroll or margins of its own (the setup's page has them).
+    in_setup: bool,
 }
 
 impl CredentialsView {
@@ -84,9 +87,17 @@ impl CredentialsView {
             saves_seen,
             row_for: None,
             fields_for: None,
+            in_setup: false,
         };
         view.store_changed(window, cx);
         view
+    }
+
+    /// The picker as the setup's "Light it" step shows it.
+    #[must_use]
+    pub(crate) fn in_setup(mut self) -> Self {
+        self.in_setup = true;
+        self
     }
 
     /// A field's text changed, or Return was pressed in it: the store hears the text, and
@@ -524,12 +535,14 @@ impl Render for CredentialsView {
             .flex()
             .flex_col()
             .gap(px(14.))
-            .child(
-                div()
-                    .text_size(px(13.))
-                    .text_color(p.muted)
-                    .child("Choose the model your ember thinks with."),
-            )
+            .when(!self.in_setup, |d| {
+                d.child(
+                    div()
+                        .text_size(px(13.))
+                        .text_color(p.muted)
+                        .child("Choose the model your ember thinks with."),
+                )
+            })
             .children(read_problem.map(|why| problem_line(&p, why)))
             .when(loading, |d| {
                 d.child(note(&p, "Reading what it thinks with now…"))
@@ -558,11 +571,15 @@ impl Render for CredentialsView {
                     .children(rows),
             )
             .child(note(&p, FOOTER).px(px(4.)));
+        if self.in_setup {
+            return content.into_any_element();
+        }
         div()
             .size_full()
             .flex()
             .flex_col()
             .child(page_body("credentials-scroll", content))
+            .into_any_element()
     }
 }
 

@@ -8,6 +8,7 @@ use crate::links::{self, LinkError, Target};
 use crate::material::Look;
 use crate::shell::WindowKind;
 use crate::store::settings::SettingsPane;
+use crate::store::setup::SetupStep;
 use crate::store::{OpenReport, Page};
 use emberhut_api::ids::{EnvironmentId, RoomId, SessionId, TaskId};
 use emberhut_api::theme::Appearance;
@@ -56,6 +57,17 @@ pub(crate) struct Cli {
     /// Show the sign-in screen whatever the server says (for screenshots).
     #[arg(long)]
     pub(crate) sign_in: bool,
+
+    /// Show the first-run setup on a step (home when none is named), or the "lit" screen,
+    /// whatever the server says (for screenshots).
+    #[arg(
+        long,
+        value_enum,
+        value_name = "STEP",
+        num_args = 0..=1,
+        default_missing_value = "home"
+    )]
+    pub(crate) setup: Option<SetupArg>,
 
     /// Show a theme preset without saving it (for screenshots).
     #[arg(long, value_name = "PRESET")]
@@ -235,6 +247,38 @@ pub(crate) enum StartPage {
     Settings,
     /// What is scheduled.
     Scheduled,
+}
+
+/// A step of the first-run setup to show.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub(crate) enum SetupArg {
+    /// Give your ember a home.
+    Home,
+    /// Light it.
+    Light,
+    /// Let it reach you.
+    Reach,
+    /// Show it your world.
+    World,
+    /// Share your ember.
+    Share,
+    /// Your ember is lit.
+    Lit,
+}
+
+impl SetupArg {
+    /// The step, or `None` for the "lit" screen.
+    #[must_use]
+    pub(crate) fn step(self) -> Option<SetupStep> {
+        match self {
+            Self::Home => Some(SetupStep::Home),
+            Self::Light => Some(SetupStep::Light),
+            Self::Reach => Some(SetupStep::Reach),
+            Self::World => Some(SetupStep::World),
+            Self::Share => Some(SetupStep::Share),
+            Self::Lit => None,
+        }
+    }
 }
 
 /// One of Settings' pages to open on.

@@ -1,6 +1,6 @@
 //! What the window shows before the app proper, and the lines that tell the user something
-//! went wrong: exactly one of "not your device", sign-in, connecting, or the app once a state
-//! is on hand; the offline line once polls have failed for a few seconds; and the last action
+//! went wrong: exactly one of the first-run setup, "not your device", sign-in, connecting, or
+//! the app once a state is on hand; the offline line once polls have failed for a few seconds; and the last action
 //! the server refused, with its reason.
 
 use std::time::{Duration, Instant};
@@ -19,6 +19,10 @@ pub(crate) const QUIET: Duration = Duration::from_secs(5);
 /// What the window shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Gate {
+    /// The first-run setup ("Set up your ember"): on a fresh install with no session, or while
+    /// the ember this device is signed in to isn't lit; until it is finished or put off
+    /// (`store::setup`).
+    Setup,
     /// The server doesn't let this device in (a 401 without a sign-in: not on the user's
     /// network). Nothing held shows; the poll keeps checking and opens the app once it is let
     /// in.
@@ -117,7 +121,9 @@ impl Store {
     /// What the window shows now.
     #[must_use]
     pub(crate) fn gate(&self) -> Gate {
-        if self.door.refused {
+        if self.setup().shows() {
+            Gate::Setup
+        } else if self.door.refused {
             Gate::NotYourDevice
         } else if self.shows_sign_in() {
             Gate::SignIn {

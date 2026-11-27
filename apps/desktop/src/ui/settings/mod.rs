@@ -24,7 +24,6 @@ mod usage;
 use std::collections::HashSet;
 use std::time::Instant;
 
-use emberhut_identity::PairingLink;
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::input::{InputEvent, InputState};
@@ -34,7 +33,7 @@ use gpui_kit::{AnyElement, App, Entity, FocusHandle, ScrollHandle, Window, div};
 use self::about::AboutPane;
 use self::appearance::AppearancePane;
 pub(crate) use self::appearance::OpenAgentRoom;
-use self::chrome::ChromePane;
+pub(crate) use self::chrome::ChromePane;
 use self::front_door::{Listing, PLACEHOLDER};
 use self::group::FLASH;
 use self::parts::{nav_row, page_body};
@@ -42,10 +41,9 @@ use super::column;
 use super::ember::credentials::CredentialsView;
 use super::pairing::PairingForm;
 use super::palette::{Pal, category_color, pal};
-use super::qr::Qr;
+use super::qr::{PairingQr, Qr};
 use super::widgets::page_head;
 use crate::store::credentials::{not_in_use, saved_line};
-use crate::store::devices::NewCode;
 use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::Health;
 use crate::store::settings::entries::{Destination, Entry, Fold, Group};
@@ -62,8 +60,8 @@ pub(crate) struct SettingsView {
     credentials: Entity<CredentialsView>,
     /// The account's sign-in sheet's focus.
     account_sheet: FocusHandle,
-    /// The pairing link last drawn as a QR code, for which display scale, and its picture.
-    qr: Option<((String, u32), Qr)>,
+    /// The pairing link last drawn as a QR code.
+    qr: PairingQr,
     /// The front door's search field.
     search: Entity<InputState>,
     /// What the field holds.
@@ -137,7 +135,7 @@ impl SettingsView {
             chrome,
             credentials,
             account_sheet: cx.focus_handle(),
-            qr: None,
+            qr: PairingQr::default(),
             search,
             query: String::new(),
             pick: 0,
@@ -308,25 +306,10 @@ impl SettingsView {
             .map(IntoElement::into_any_element)
     }
 
-    /// The QR code of the pairing link made for another device, for a display of `scale`,
-    /// drawn once a link and scale. Only a link for the code shown is drawn.
+    /// The QR code of the pairing link made for another device, for a display of `scale`.
     fn pairing_qr(&mut self, scale: f32, cx: &mut Context<'_, Self>) -> Option<Qr> {
-        let link = match self.store.read(cx).new_code() {
-            Some(NewCode::Made(code)) => code.link.clone().filter(|link| {
-                PairingLink::parse(link).is_ok_and(|read| same_code(read.code(), &code.code))
-            }),
-            _ => None,
-        };
-        let wanted = link.map(|link| (link, scale.to_bits()));
-        if self.qr.as_ref().map(|(drawn, _)| drawn) != wanted.as_ref() {
-            if let Some((_, old)) = self.qr.take() {
-                cx.drop_image(old.picture, None);
-            }
-            self.qr = wanted.and_then(|(link, bits)| {
-                super::qr::qr(&link, scale).map(|drawn| ((link, bits), drawn))
-            });
-        }
-        self.qr.as_ref().map(|(_, drawn)| drawn.clone())
+        let code = self.store.read(cx).new_code().cloned();
+        self.qr.of(code.as_ref(), scale, cx)
     }
 }
 
@@ -345,18 +328,6 @@ impl Render for SettingsView {
             .child(page_body("settings-scroll", self.front_door(&now, &p, cx)))
             .children(sheet)
     }
-}
-
-/// Whether two pairing codes are the same as the server reads them: case, spaces and the dash
-/// don't matter.
-fn same_code(a: &str, b: &str) -> bool {
-    let plain = |code: &str| {
-        code.chars()
-            .filter(char::is_ascii_alphanumeric)
-            .map(|c| c.to_ascii_uppercase())
-            .collect::<String>()
-    };
-    plain(a) == plain(b)
 }
 
 /// The row of what the ember thinks with: the provider saved, its model and key, in the colour

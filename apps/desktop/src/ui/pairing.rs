@@ -1,6 +1,6 @@
 //! The pairing form: a one-time code from a signed-in device, or its pairing link pasted
 //! (`https://emberhut.com/pair#…`), traded for this device's own session. Shown on the sign-in
-//! screen and in Settings.
+//! screen, in Settings, and on the setup's first step with its own line ([`PairingForm::hint`]).
 
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputState};
@@ -20,6 +20,8 @@ pub(crate) struct PairingForm {
     note: Option<String>,
     /// A code is on its way: a second click waits (a code works once).
     pairing: bool,
+    /// The line over the field while this device isn't signed in.
+    hint: &'static str,
 }
 
 impl PairingForm {
@@ -36,7 +38,15 @@ impl PairingForm {
             code,
             note: None,
             pairing: false,
+            hint: PAIRING_HINT,
         }
+    }
+
+    /// The same form, saying `hint` over its field while this device isn't signed in.
+    #[must_use]
+    pub(crate) fn hint(mut self, hint: &'static str) -> Self {
+        self.hint = hint;
+        self
     }
 
     fn pair(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) {
@@ -113,7 +123,7 @@ impl Render for PairingForm {
         let line = if signed_in {
             "This device is signed in with its own session. To sign in again, type a new code."
         } else {
-            PAIRING_HINT
+            self.hint
         };
         div()
             .flex()

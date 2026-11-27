@@ -4,9 +4,12 @@
 
 use std::sync::Arc;
 
-use gpui_kit::RenderImage;
+use emberhut_identity::PairingLink;
+use gpui_kit::{App, RenderImage};
 use image::{Frame, Rgba, RgbaImage};
 use qrcode::{Color, EcLevel, QrCode};
+
+use crate::store::devices::NewCode;
 
 /// The quiet zone around the code, in modules (the standard's least).
 const QUIET: u32 = 4;
@@ -20,6 +23,48 @@ pub(crate) struct Qr {
     pub(crate) picture: Arc<RenderImage>,
     /// Its side in points: its pixels over the display's scale factor.
     pub(crate) side: f32,
+}
+
+/// The QR code of a pairing code's link, drawn once a link and display scale (Settings ›
+/// Devices, and the setup's "Let it reach you").
+#[derive(Default)]
+pub(crate) struct PairingQr {
+    /// The link last drawn, for which scale (its bits), and its picture.
+    drawn: Option<((String, u32), Qr)>,
+}
+
+impl PairingQr {
+    /// The QR code of `code`'s link for a display of `scale`, once it is made and its link
+    /// carries that code; the picture drawn before is let go when another is wanted.
+    pub(crate) fn of(&mut self, code: Option<&NewCode>, scale: f32, cx: &mut App) -> Option<Qr> {
+        let link = match code {
+            Some(NewCode::Made(code)) => code.link.clone().filter(|link| {
+                PairingLink::parse(link).is_ok_and(|read| same_code(read.code(), &code.code))
+            }),
+            _ => None,
+        };
+        let wanted = link.map(|link| (link, scale.to_bits()));
+        if self.drawn.as_ref().map(|(drawn, _)| drawn) != wanted.as_ref() {
+            if let Some((_, old)) = self.drawn.take() {
+                cx.drop_image(old.picture, None);
+            }
+            self.drawn =
+                wanted.and_then(|(link, bits)| qr(&link, scale).map(|drawn| ((link, bits), drawn)));
+        }
+        self.drawn.as_ref().map(|(_, drawn)| drawn.clone())
+    }
+}
+
+/// Whether two pairing codes are the same as the server reads them: case, spaces and the dash
+/// don't matter.
+fn same_code(a: &str, b: &str) -> bool {
+    let plain = |code: &str| {
+        code.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .map(|c| c.to_ascii_uppercase())
+            .collect::<String>()
+    };
+    plain(a) == plain(b)
 }
 
 /// `text` as a QR code for a display of `scale` pixels a point, or `None` when it is too long

@@ -142,6 +142,9 @@ Behind the session gate (`SetupPage`). Every item once, in the order the apps sh
 - `detail` is a line for the owner: how many there are, or what to do. It may be left out.
 - `id` and `state` are open words: a newer server may add items, and a client shows or skips
   the ones it doesn't know.
+- The desktop app reads it once a launch with its session: a `provider` that is `missing` or
+  `off` opens its first-run setup on choosing a model, and `mac`, `gmail`, `slack` and `chrome`
+  are its connection tiles (apps/desktop/README.md, "Setting up your ember").
 
 | `id` | `ready` | otherwise |
 |---|---|---|

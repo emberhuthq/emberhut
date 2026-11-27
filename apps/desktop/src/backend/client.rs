@@ -37,6 +37,7 @@ use emberhut_api::runner::new_session::{
 use emberhut_api::runner::transcript::{SessionLive, StepsQuery, Transcript};
 use emberhut_api::scheduled::ScheduledPage;
 use emberhut_api::settings::SettingsAction;
+use emberhut_api::setup::SetupPage;
 use emberhut_api::switches::{SwitchAction, SwitchPage};
 use emberhut_api::talk::{TalkReply, TalkRequest};
 use emberhut_api::task_actions::TaskAction;
@@ -376,6 +377,14 @@ impl Backend for EmberhutBackend {
 
     fn forget_agent_provider(&self) -> Result<AgentProvider, Error> {
         self.client.forget_agent_provider().map_err(error)
+    }
+
+    fn setup(&self) -> Result<SetupPage, Error> {
+        self.client.setup().map_err(error)
+    }
+
+    fn answers_within(&self, within: Duration) -> bool {
+        self.answers(within)
     }
 
     fn task(&self, id: TaskId) -> Result<TaskPage, Error> {

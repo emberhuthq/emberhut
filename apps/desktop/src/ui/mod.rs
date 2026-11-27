@@ -38,6 +38,7 @@ mod scheduled;
 pub(crate) mod sessions;
 mod settings;
 mod settings_more;
+mod setup;
 mod share;
 mod sidebar;
 mod sidebar_agents;

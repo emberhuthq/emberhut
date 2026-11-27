@@ -40,6 +40,8 @@ pub(crate) struct ChromePane {
     /// The sheet's focus, and the sheet it was given to.
     pub(super) focus: FocusHandle,
     focused: Option<ChromeSheet>,
+    /// Only its sheets draw, over another page (the setup's "Show it your world").
+    sheets_only: bool,
 }
 
 impl ChromePane {
@@ -76,7 +78,16 @@ impl ChromePane {
             unpairing: false,
             focus: cx.focus_handle(),
             focused: None,
+            sheets_only: false,
         }
+    }
+
+    /// The same pane drawing only its sheets (a new profile's name, its link), to lay over
+    /// another page that fills the window.
+    #[must_use]
+    pub(crate) fn sheets_only(mut self) -> Self {
+        self.sheets_only = true;
+        self
     }
 
     /// Renames the open profile to the name typed, if it is a new one.
@@ -257,6 +268,12 @@ impl Render for ChromePane {
     fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         self.sync(window, cx);
         let p = pal(cx);
+        if self.sheets_only {
+            return div()
+                .size_full()
+                .relative()
+                .children(chrome_sheets::sheet(self, &p, cx));
+        }
         let store = self.store.read(cx);
         let profiles = store.chrome_profiles().to_vec();
         let links: Vec<ChromePairing> = store.state().map_or_default(|state| {
