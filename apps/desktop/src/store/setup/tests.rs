@@ -20,6 +20,13 @@ use crate::fixtures::state;
 use crate::store::gate::Gate;
 use crate::store::{Connected, Connector, Reconnect};
 
+/// What the step's lines call this computer here: macOS says "this Mac".
+const HERE_WORDS: &str = if cfg!(target_os = "macos") {
+    "this Mac"
+} else {
+    "this computer"
+};
+
 /// Emberhut on this computer as a test wants it: whether it can live here, what starting it,
 /// asking it for a code and keeping it lit answer (`None`: not the app's to keep), how often
 /// it was started and how it was asked to stay lit.
@@ -865,9 +872,9 @@ fn a_home_here_is_kept_lit_while_closed_and_from_login(cx: &mut TestAppContext) 
     );
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done(
-            "It lives on this computer and stays lit when the window is closed.".to_owned()
-        )
+        StepState::Done(format!(
+            "It lives on {HERE_WORDS} and stays lit when the window is closed."
+        ))
     );
     assert_eq!(open(&store, cx), Some(SetupStep::Light));
 
@@ -881,7 +888,7 @@ fn a_home_here_is_kept_lit_while_closed_and_from_login(cx: &mut TestAppContext) 
     assert_eq!(keeps.borrow().last(), Some(&KeepLit::default()));
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done("It lives on this computer while Emberhut is open.".to_owned())
+        StepState::Done(format!("It lives on {HERE_WORDS} while Emberhut is open."))
     );
     store.update(cx, Store::close_keep_sheet);
     assert!(!store.read_with(cx, |store, _| store.setup().shows_keep_sheet()));
@@ -902,7 +909,7 @@ fn a_home_here_that_cant_stay_lit_without_the_app_still_pairs(cx: &mut TestAppCo
     assert_eq!(open(&store, cx), Some(SetupStep::Light));
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done("It lives on this computer while Emberhut is open.".to_owned())
+        StepState::Done(format!("It lives on {HERE_WORDS} while Emberhut is open."))
     );
 
     // Turned on from the sheet, it says why it can't, and nothing changes.
@@ -930,7 +937,7 @@ fn a_home_that_isnt_the_apps_to_keep_has_no_change(cx: &mut TestAppContext) {
     assert_eq!(open(&store, cx), Some(SetupStep::Light));
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done("It lives on this computer.".to_owned())
+        StepState::Done(format!("It lives on {HERE_WORDS}."))
     );
     store.update(cx, Store::open_keep_sheet);
     store.read_with(cx, |store, _| {
