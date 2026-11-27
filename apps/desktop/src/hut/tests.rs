@@ -412,10 +412,10 @@ fn the_folders_are_the_systems_own() {
 fn a_database_path_with_a_space_is_one_url() {
     assert_eq!(
         database_url(Path::new(
-            "/Users/a/Library/Application Support/Emberhut/Hut/emberhut.db"
+            "/Users/ada/Library/Application Support/Emberhut/Hut/emberhut.db"
         ))
         .as_deref(),
-        Some("sqlite:///Users/a/Library/Application%20Support/Emberhut/Hut/emberhut.db")
+        Some("sqlite:///Users/ada/Library/Application%20Support/Emberhut/Hut/emberhut.db")
     );
     assert_eq!(
         database_url(Path::new("/a/100%?#/x.db")).as_deref(),
@@ -711,15 +711,15 @@ fn serve() -> Serve {
             "--listen",
             "127.0.0.1:18990",
             "--database-url",
-            "sqlite:///Users/a/Library/Application%20Support/Emberhut/Hut/emberhut.db",
+            "sqlite:///Users/ada/Library/Application%20Support/Emberhut/Hut/emberhut.db",
             "--secrets-dir",
-            "/Users/a/Library/Application Support/Emberhut/Hut/secrets",
+            "/Users/ada/Library/Application Support/Emberhut/Hut/secrets",
         ]
         .map(str::to_owned)
         .to_vec(),
-        path: OsString::from("/Users/a/.local/bin:/usr/bin:/bin"),
-        dir: PathBuf::from("/Users/a/Library/Application Support/Emberhut/Hut"),
-        log: PathBuf::from("/Users/a/Library/Logs/Emberhut/hut.log"),
+        path: OsString::from("/Users/ada/.local/bin:/usr/bin:/bin"),
+        dir: PathBuf::from("/Users/ada/Library/Application Support/Emberhut/Hut"),
+        log: PathBuf::from("/Users/ada/Library/Logs/Emberhut/hut.log"),
     }
 }
 
@@ -745,19 +745,19 @@ fn the_launch_agent_runs_the_server_from_the_bundle_at_login_and_keeps_it_alive(
     <string>--listen</string>
     <string>127.0.0.1:18990</string>
     <string>--database-url</string>
-    <string>sqlite:///Users/a/Library/Application%20Support/Emberhut/Hut/emberhut.db</string>
+    <string>sqlite:///Users/ada/Library/Application%20Support/Emberhut/Hut/emberhut.db</string>
     <string>--secrets-dir</string>
-    <string>/Users/a/Library/Application Support/Emberhut/Hut/secrets</string>
+    <string>/Users/ada/Library/Application Support/Emberhut/Hut/secrets</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/a/Library/Application Support/Emberhut/Hut</string>
+  <key>WorkingDirectory</key><string>/Users/ada/Library/Application Support/Emberhut/Hut</string>
   <key>EnvironmentVariables</key><dict>
-    <key>PATH</key><string>/Users/a/.local/bin:/usr/bin:/bin</string>
+    <key>PATH</key><string>/Users/ada/.local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>Umask</key><integer>63</integer>
-  <key>StandardOutPath</key><string>/Users/a/Library/Logs/Emberhut/hut.log</string>
-  <key>StandardErrorPath</key><string>/Users/a/Library/Logs/Emberhut/hut.log</string>
+  <key>StandardOutPath</key><string>/Users/ada/Library/Logs/Emberhut/hut.log</string>
+  <key>StandardErrorPath</key><string>/Users/ada/Library/Logs/Emberhut/hut.log</string>
 </dict>
 </plist>
 "#
@@ -793,9 +793,9 @@ fn the_systemd_unit_runs_the_server_and_restarts_it_when_it_fails() {
     ]
     .map(str::to_owned)
     .to_vec();
-    serve.path = OsString::from("/home/a/.local/bin:/usr/bin");
-    serve.dir = PathBuf::from("/home/a/.local/share/emberhut/hut");
-    serve.log = PathBuf::from("/home/a/.local/state/emberhut/hut.log");
+    serve.path = OsString::from("/home/ada/.local/bin:/usr/bin");
+    serve.dir = PathBuf::from("/home/ada/.local/share/emberhut/hut");
+    serve.log = PathBuf::from("/home/ada/.local/state/emberhut/hut.log");
     assert_eq!(
         systemd_unit(&serve),
         r#"[Unit]
@@ -804,13 +804,13 @@ Description=Emberhut hut: this computer's emberhut server, run for the Emberhut 
 [Service]
 Type=simple
 ExecStart="/opt/emberhut/emberhut-server" "serve" "--listen" "127.0.0.1:18991" "--secrets-dir" "/h/100%% \"$$x\""
-WorkingDirectory=/home/a/.local/share/emberhut/hut
-Environment="PATH=/home/a/.local/bin:/usr/bin"
+WorkingDirectory=/home/ada/.local/share/emberhut/hut
+Environment="PATH=/home/ada/.local/bin:/usr/bin"
 UMask=0077
 Restart=on-failure
 RestartSec=2
-StandardOutput=append:/home/a/.local/state/emberhut/hut.log
-StandardError=append:/home/a/.local/state/emberhut/hut.log
+StandardOutput=append:/home/ada/.local/state/emberhut/hut.log
+StandardError=append:/home/ada/.local/state/emberhut/hut.log
 
 [Install]
 WantedBy=default.target
