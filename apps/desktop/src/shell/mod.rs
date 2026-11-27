@@ -7,6 +7,7 @@
 mod kind;
 pub(crate) mod presence;
 pub(crate) mod restore;
+pub(crate) mod unseen;
 pub(crate) mod windows;
 
 use gpui_kit::{App, AsyncApp};

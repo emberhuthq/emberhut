@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::AppFiles;
 use crate::json_file::{self, Writes};
+use crate::shell::unseen;
 
 /// The file's name in the app's directory.
 const FILE: &str = "window.json";
@@ -274,25 +275,27 @@ impl Kept {
         Self::save(cx);
     }
 
-    /// Notes the main window's frame (kept in memory: see [`Kept::save`]).
+    /// Notes the main window's frame (kept in memory: see [`Kept::save`]). Not in an unseen
+    /// run, whose windows sit beside the displays: the next launch opens where the user left it.
     pub(crate) fn note_frame(cx: &mut App, bounds: WindowBounds) {
-        if cx.has_global::<Self>() {
+        if cx.has_global::<Self>() && !unseen::is_unseen(cx) {
             cx.global_mut::<Self>().prefs.frame = Some(Frame::of(bounds));
         }
     }
 
     /// Notes the frame of the window of its own called `name` (kept in memory: see
-    /// [`Kept::save`]).
+    /// [`Kept::save`]); not in an unseen run, as for [`Kept::note_frame`].
     pub(crate) fn note_own_window(cx: &mut App, name: &str, bounds: WindowBounds) {
-        if cx.has_global::<Self>() {
+        if cx.has_global::<Self>() && !unseen::is_unseen(cx) {
             let frames = &mut cx.global_mut::<Self>().prefs.own_windows.frames;
             frames.insert(name.to_owned(), Frame::of(bounds));
         }
     }
 
-    /// Notes which windows of their own are open, by name (kept in memory, for the quit).
+    /// Notes which windows of their own are open, by name (kept in memory, for the quit); not
+    /// in an unseen run, whose windows aren't the user's to reopen.
     pub(crate) fn note_open_windows(cx: &mut App, names: Vec<String>) {
-        if cx.has_global::<Self>() {
+        if cx.has_global::<Self>() && !unseen::is_unseen(cx) {
             cx.global_mut::<Self>().prefs.own_windows.open = names;
         }
     }
@@ -303,7 +306,12 @@ impl Kept {
             return;
         };
         let size = Some((width, height));
-        if !width.is_finite() || !height.is_finite() || kept.prefs.file_window == size {
+        // An unseen run's windows aren't the user's (as for `note_frame`).
+        if !width.is_finite()
+            || !height.is_finite()
+            || kept.prefs.file_window == size
+            || unseen::is_unseen(cx)
+        {
             return;
         }
         cx.global_mut::<Self>().prefs.file_window = size;

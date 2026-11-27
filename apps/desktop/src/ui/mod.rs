@@ -39,7 +39,7 @@ pub(crate) mod sessions;
 mod settings;
 mod settings_more;
 mod setup;
-mod share;
+pub(crate) mod share;
 mod sidebar;
 mod sidebar_agents;
 mod sidebar_ember;

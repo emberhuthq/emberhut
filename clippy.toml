@@ -23,3 +23,35 @@ reason = "use OpenApiRouter::routes with routes!, which puts the route in the do
 [[disallowed-methods]]
 path = "utoipa_axum::router::OpenApiRouter::route_service"
 reason = "use OpenApiRouter::routes with routes!, which puts the route in the document"
+
+# The desktop app opens every window through shell::unseen::open_window, and comes forward or
+# goes full screen only through its activate_app, bring_forward and toggle_fullscreen, so a run
+# no one watches (an unseen run) never shows a window or takes the keyboard from the person at
+# the computer.
+[[disallowed-methods]]
+path = "gpui_kit::open_window"
+reason = "open windows with shell::unseen::open_window, which keeps an unseen run's out of sight"
+
+[[disallowed-methods]]
+path = "gpui::App::open_window"
+reason = "open windows with shell::unseen::open_window, which keeps an unseen run's out of sight"
+
+[[disallowed-methods]]
+path = "gpui::AsyncApp::open_window"
+reason = "open windows with shell::unseen::open_window, which keeps an unseen run's out of sight"
+
+[[disallowed-methods]]
+path = "gpui::App::activate"
+reason = "use shell::unseen::activate_app, which leaves an unseen run behind the app in use"
+
+[[disallowed-methods]]
+path = "gpui::Window::activate_window"
+reason = "use shell::unseen::bring_forward, which leaves an unseen run's windows where they are"
+
+[[disallowed-methods]]
+path = "gpui::Window::toggle_fullscreen"
+reason = "use shell::unseen::toggle_fullscreen: full screen would put an unseen run's window on a display"
+
+[[disallowed-methods]]
+path = "gpui::Window::request_attention"
+reason = "an unseen run asks for no one's attention; add a helper in shell::unseen that skips it there"

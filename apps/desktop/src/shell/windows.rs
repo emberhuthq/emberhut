@@ -17,6 +17,7 @@ use gpui_kit::{
 };
 
 use super::WindowKind;
+use super::unseen;
 use crate::brand::{APP_ID, APP_NAME};
 use crate::prefs::{self, Kept};
 use crate::store::Store;
@@ -134,7 +135,7 @@ pub(crate) fn open_main(
         window_background: look::background_now(cx),
         ..WindowOptions::default()
     };
-    let (handle, view) = gpui_kit::open_window(options, cx, |window, cx| {
+    let (handle, view) = unseen::open_window(options, cx, |window, cx| {
         let page = store.read(cx).theme().page().clone();
         look::apply(&page, window, cx);
         // An answer still in its Undo window isn't lost to the app going to the background,
@@ -212,13 +213,13 @@ pub(crate) fn with_main(
         return;
     };
     let updated = handle.update(cx, |_, window, cx| {
-        window.activate_window();
+        unseen::bring_forward(window, cx);
         view.update(cx, |main, cx| f(main, window, cx));
     });
     if let Err(error) = updated {
         log::debug!("the main window closed before it could be used: {error}");
     }
-    cx.activate(true);
+    unseen::activate_app(cx);
 }
 
 /// A main window came to the front: it is the one links and menus go to.
@@ -258,10 +259,10 @@ pub(super) fn open_single_as(kind: WindowKind, focus: bool, cx: &mut App) -> boo
     let store = windows.store.clone();
     if let Some(handle) = open
         && handle
-            .update(cx, |_, window, _| window.activate_window())
+            .update(cx, |_, window, cx| unseen::bring_forward(window, cx))
             .is_ok()
     {
-        cx.activate(true);
+        unseen::activate_app(cx);
         return true;
     }
     let Some(view) = view else {
@@ -278,7 +279,7 @@ pub(super) fn open_single_as(kind: WindowKind, focus: bool, cx: &mut App) -> boo
         window_background: look::background_now(cx),
         ..WindowOptions::default()
     };
-    let opened = gpui_kit::open_window(options, cx, |window, cx| {
+    let opened = unseen::open_window(options, cx, |window, cx| {
         let page = store.read(cx).theme().page().clone();
         look::apply(&page, window, cx);
         let content = view(store.clone(), window, cx);
@@ -290,7 +291,7 @@ pub(super) fn open_single_as(kind: WindowKind, focus: bool, cx: &mut App) -> boo
                 windows.singles.insert(kind, handle);
             }
             if focus {
-                cx.activate(true);
+                unseen::activate_app(cx);
             }
             true
         }

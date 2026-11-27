@@ -256,14 +256,14 @@ impl FileViewer {
         if !self.windowed {
             self.done(window, cx);
         } else if window.is_fullscreen() {
-            window.toggle_fullscreen();
+            crate::shell::unseen::toggle_fullscreen(window, cx);
         }
     }
 
     /// ⌃⌘F: full screen, in a window of its own (the sheet moves to one first).
     fn full_screen(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) {
         if self.windowed {
-            window.toggle_fullscreen();
+            crate::shell::unseen::toggle_fullscreen(window, cx);
             return;
         }
         self.move_to_own_window(true, window, cx);

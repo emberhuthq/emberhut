@@ -323,6 +323,8 @@ GPUI and gpui-kit animation (a job's pulse, a room's working dot, the kit's spin
 | `--theme PRESET`, `--appearance light\|dark\|system` | show a theme without saving it (screenshots) |
 | `--background` | open without taking the keyboard focus from the app in front |
 | `--display N` | open on that display (0 is the first) |
+| `--unseen` | run unseen (see below), as `--drive`, `--bench` and `--self-check` always do |
+| `--on-screen` | in an unseen run, open the windows on a display, still without the focus: for a private display captured whole (Xvfb) |
 | `--opaque` | draw every surface opaque, without the sidebar's material (the "before" look) |
 | `--flaky` | debug builds only: the state poll fails as if the connection dropped, 6 s of every 20, to see what reconnects do |
 | `--task ID` | open that task's page, as a link to it in a message does |
@@ -335,6 +337,36 @@ GPUI and gpui-kit animation (a job's pulse, a room's working dot, the kit's spin
 | `--self-check` | start with fresh, empty files and no server; exit 0 once the window has drawn its first frame, 1 after a minute (a release's smoke run) |
 
 `emberhut-desktop --help` lists them all.
+
+### Unseen runs
+
+A run no one watches is unseen: one the automation drives (`--drive`, `--bench`), the smoke run
+(`--self-check`), or one asked for with `--unseen`. The person at the computer may be working
+while it runs, so in an unseen run every window the app opens (the main ones, the windows of
+their own, a file's window) opens without the focus and out of sight. The app never comes to the
+front and counts as in front all the same (rooms are read and polled as they would be), no
+window goes full screen, notifications aren't asked for, there is no app lock, and the windows'
+frames and which were open aren't kept for the next launch. If macOS can't be set up for this,
+the run stops with an error rather than show a window. Every window opens through
+`shell::unseen::open_window`, and `clippy.toml` refuses GPUI's own calls to open a window, bring
+the app or a window forward, or go full screen anywhere else.
+
+Out of sight differs by platform:
+
+- macOS: a window no display shows gets no frames (GPUI's display link follows the window's
+  screen), so each window stays on a display, below the desktop picture
+  (`kCGDesktopWindowLevel - 1`), with clicks going through it, hidden by Mission Control, out of
+  ⌘\` and the Window menu, without a shadow. It opens hidden and is ordered in only once it is
+  all of that, so it never shows at a normal level. GPUI's window classes say they are visible
+  (it stops drawing a window it thinks is covered), and GPUI's application class ignores every
+  call to activate it (the report's web view makes one too); an activity keeps App Nap off.
+  `screencapture -l WINDOW_ID` captures a window by its id, so screenshots still work.
+- X11 and Windows: each window is beside every display (left of the leftmost one), whatever
+  `--display` says (`--size` still sets its size). It draws as usual, but a grab of the whole
+  display (`ffmpeg -f x11grab`) doesn't show it: add `--on-screen` there, which keeps the
+  windows on a display, still without the focus.
+- Wayland, and X11 under a desktop's window manager: a client can't place its windows, nor keep
+  them from the focus, for sure. Run unseen runs on a private display (Xvfb) instead.
 
 ## Links
 
@@ -604,8 +636,9 @@ cargo run -p emberhut-desktop --release --features automation -- --bench start
 - `demo`: a tour of every screen, for a screen recording (stays open).
 
 `--drive FILE` replays each line appended to `FILE` into the window as GPUI events (keys through
-the window's bindings and the focused field, clicks through its hit-testing). With
-`--background` the app never comes to the front.
+the window's bindings and the focused field, clicks through its hit-testing). Both runs are
+unseen (see Unseen runs): the windows open beside the displays and the app never comes to the
+front.
 
 ```text
 page needs|tasks|machines|settings   room ID    open a page or a room
@@ -909,8 +942,8 @@ throughout, so the page keeps its place and its state.
 
 While the page has the keyboard focus, Esc goes to the page; the close button closes the panel,
 and the header's button brings an expanded report back.
-Opening a report brings Emberhut to the front (Wry activates the app when it makes a web view), and
-from the first report on, the window's titlebar has no separator line.
+Opening a report brings Emberhut to the front (Wry activates the app when it makes a web view;
+not in an unseen run), and from the first report on, the window's titlebar has no separator line.
 
 ### Checking the web view on a Mac
 
@@ -1052,7 +1085,7 @@ Each line passes when:
   30 s, and a link. Clicking the link while the picture loads opens it in the browser at once.
   After 15 s the log warns that the report hasn't finished loading.
 - `--background`: opening a report brings Emberhut to the front (Wry's activation, ADR 0006). This
-  is expected for now. Note it if it gets in the way.
+  is expected for now. Note it if it gets in the way. An unseen run (`--drive`) stays behind.
 
 ## Fonts and pictures
 

@@ -944,7 +944,7 @@ mod tests {
         cx.run_until_parked();
         assert_eq!(reading(&store, &cx), None, "it opened in the background");
 
-        cx.update(|window, _| window.activate_window());
+        cx.update(|window, cx| crate::shell::unseen::bring_forward(window, cx));
         cx.run_until_parked();
         assert_eq!(
             reading(&store, &cx),
@@ -1021,7 +1021,7 @@ mod tests {
         cx.simulate_visibility_change(WindowVisibility::Visible);
         assert_eq!(presence(&cx), Presence::Behind, "shown again");
 
-        cx.update(|window, _| window.activate_window());
+        cx.update(|window, cx| crate::shell::unseen::bring_forward(window, cx));
         cx.run_until_parked();
         assert_eq!(presence(&cx), Presence::Front, "brought to the front");
         cx.simulate_visibility_change(WindowVisibility::Hidden);

@@ -337,11 +337,12 @@ mod tests {
                 ..State::OPAQUE
             });
             let page = store.read(cx).theme().page().clone();
-            let (window, _) = gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
-                apply(&page, window, cx);
-                cx.new(|_| Blank)
-            })
-            .unwrap();
+            let (window, _) =
+                crate::shell::unseen::open_window(WindowOptions::default(), cx, |window, cx| {
+                    apply(&page, window, cx);
+                    cx.new(|_| Blank)
+                })
+                .unwrap();
             follow(window, store.clone(), cx);
             window
         })
@@ -386,7 +387,7 @@ mod tests {
         cx.update(|cx| {
             gpui_kit::init(cx);
             let page = store.read(cx).theme().page().clone();
-            gpui_kit::open_window(WindowOptions::default(), cx, |window, cx| {
+            crate::shell::unseen::open_window(WindowOptions::default(), cx, |window, cx| {
                 apply(&page, window, cx);
                 cx.new(|cx| {
                     keep(&store, window, cx);

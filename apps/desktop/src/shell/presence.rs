@@ -91,9 +91,17 @@ fn change(
     tell(store, cx);
 }
 
-/// Tells the store the sum.
+/// Tells the store the sum. In an unseen run no window is ever the active one (the app never
+/// comes forward), yet the run drives the app as someone in front of it would: with a window
+/// open the app counts as in front, so rooms are read, polls run and held answers wait as they
+/// do in front.
 fn tell(store: &Entity<Store>, cx: &mut App) {
-    let sum = cx.default_global::<Windows>().sum();
+    let windows = cx.default_global::<Windows>();
+    let open = !windows.0.is_empty();
+    let mut sum = windows.sum();
+    if open && super::unseen::is_unseen(cx) {
+        sum.active = true;
+    }
     store.update(cx, |store, cx| {
         store.set_window_visible(sum.visible);
         store.set_window_active(sum.active, cx);

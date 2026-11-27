@@ -2,16 +2,19 @@
 
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
 use emberhut_api::ids::{RoomId, TaskId};
 use gpui_kit::prelude::*;
-use gpui_kit::{Entity, TestAppContext, Window, div};
+use gpui_kit::{Bounds, Entity, Pixels, TestAppContext, Window, WindowBounds, div};
 
+use super::unseen::{self, Unseen};
 use super::windows::{self, Opening};
 use super::{WindowKind, go};
 use crate::backend::Backend;
 use crate::backend::fake::FakeBackend;
 use crate::links::Target;
+use crate::store::files::RemoteFile;
 use crate::store::presence::Presence;
 use crate::store::{Page, Store};
 use crate::ui::palette::Pal;
@@ -228,4 +231,149 @@ fn a_window_of_its_own_reopens_where_it_was_left_and_open_ones_reopen(cx: &mut T
     store.update(cx, |_, cx| cx.notify());
     cx.run_until_parked();
     assert_eq!(cx.update(|cx| cx.windows()).len(), 1, "and only once");
+}
+
+/// A window the app has open, as a test sees it.
+struct Opened {
+    /// Where it is.
+    bounds: Bounds<Pixels>,
+    /// Whether it is full screen.
+    full_screen: bool,
+}
+
+/// Opens every kind of window there is, as a run of the app may: the main window on the first
+/// display (as `--display 0` asks), each window of its own, each asked for again and the main
+/// window brought forward (as a link does), and a file in its own window, full screen once it
+/// has settled. What became of each.
+fn open_every_window(store: &Entity<Store>, cx: &mut TestAppContext) -> Vec<Opened> {
+    cx.update(|cx| {
+        for kind in WindowKind::ALL {
+            windows::register_view(kind, Rc::new(|_, _, cx| cx.new(|_| Blank).into()), cx);
+        }
+        let display = cx.displays().first().map(|display| display.id());
+        let size = gpui_kit::size(gpui_kit::px(1100.), gpui_kit::px(760.));
+        let opening = Opening {
+            bounds: Some(WindowBounds::Windowed(Bounds::centered(display, size, cx))),
+            display,
+            background: false,
+        };
+        windows::open_main(opening, cx).unwrap();
+        for kind in WindowKind::ALL {
+            assert!(windows::open_single(kind, cx), "{kind:?}");
+        }
+        for kind in WindowKind::ALL {
+            go(&Target::Window(kind), cx);
+        }
+        go(&Target::Chat(None), cx);
+        let file = RemoteFile::new("/uploads/plan.txt", "plan.txt");
+        crate::ui::viewer::own_window::open(store, file, true, cx);
+    });
+    // Past the file's window settling, when it goes full screen.
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    let opened = cx.update(|cx| cx.windows());
+    assert_eq!(
+        opened.len(),
+        1 + WindowKind::ALL.len() + 1,
+        "the main window, each of its own, the file's"
+    );
+    opened
+        .into_iter()
+        .map(|handle| {
+            cx.update(|cx| {
+                handle.update(cx, |_, window, _| Opened {
+                    bounds: window.bounds(),
+                    full_screen: window.is_fullscreen(),
+                })
+            })
+            .unwrap()
+        })
+        .collect()
+}
+
+/// The displays' bounds.
+fn displays(cx: &mut TestAppContext) -> Vec<Bounds<Pixels>> {
+    cx.update(|cx| {
+        cx.displays()
+            .iter()
+            .map(|display| display.bounds())
+            .collect()
+    })
+}
+
+/// Whether each of `opened` is on one of `displays`.
+fn all_on_a_display(opened: &[Opened], displays: &[Bounds<Pixels>]) -> bool {
+    opened.iter().all(|window| {
+        displays
+            .iter()
+            .any(|display| window.bounds.intersects(display))
+    })
+}
+
+/// In an unseen run no window comes forward or goes full screen, each opens without the focus,
+/// and (off the Mac, where a window out of sight is one beside the displays) none is on a
+/// display. On a Mac a window out of sight stays on a display, hidden until it is below the
+/// desktop: its options say hidden here, and `unseen`'s Mac test checks how it is kept.
+#[gpui_kit::test]
+fn in_an_unseen_run_no_window_shows_nor_comes_forward(cx: &mut TestAppContext) {
+    let store = setup(cx);
+    cx.update(|cx| unseen::mark(Unseen::OutOfSight, cx));
+    let displays = displays(cx);
+    assert!(!displays.is_empty(), "the test platform has a display");
+    let opened = open_every_window(&store, cx);
+    #[cfg(not(target_os = "macos"))]
+    for window in &opened {
+        for display in &displays {
+            assert!(
+                !window.bounds.intersects(display),
+                "{:?} is on {display:?}",
+                window.bounds
+            );
+        }
+    }
+    assert!(opened.iter().all(|window| !window.full_screen));
+    assert_eq!(
+        cx.update(|cx| cx.active_window()),
+        None,
+        "no window was brought forward"
+    );
+    let options = cx.update(|cx| unseen::options(gpui_kit::WindowOptions::default(), cx));
+    assert!(!options.focus, "every window opens without the focus");
+    #[cfg(target_os = "macos")]
+    assert!(!options.show, "hidden until it is below the desktop");
+    assert_eq!(
+        store.read_with(cx, |store, _| store.presence()),
+        Presence::Front,
+        "the run counts as in front, so rooms are read"
+    );
+}
+
+#[gpui_kit::test]
+fn in_a_normal_run_the_windows_are_on_a_display_and_come_forward(cx: &mut TestAppContext) {
+    let store = setup(cx);
+    let displays = displays(cx);
+    let opened = open_every_window(&store, cx);
+    assert!(all_on_a_display(&opened, &displays));
+    assert!(
+        opened.iter().any(|window| window.full_screen),
+        "the file's window went full screen"
+    );
+    assert!(
+        cx.update(|cx| cx.active_window()).is_some(),
+        "the main window came forward"
+    );
+    let options = cx.update(|cx| unseen::options(gpui_kit::WindowOptions::default(), cx));
+    assert!(options.focus && options.show);
+}
+
+#[gpui_kit::test]
+fn an_unseen_run_on_screen_stays_on_a_display_without_the_focus(cx: &mut TestAppContext) {
+    let store = setup(cx);
+    cx.update(|cx| unseen::mark(Unseen::OnScreen, cx));
+    let displays = displays(cx);
+    let opened = open_every_window(&store, cx);
+    assert!(all_on_a_display(&opened, &displays));
+    assert_eq!(cx.update(|cx| cx.active_window()), None);
+    let options = cx.update(|cx| unseen::options(gpui_kit::WindowOptions::default(), cx));
+    assert!(!options.focus && options.show);
 }

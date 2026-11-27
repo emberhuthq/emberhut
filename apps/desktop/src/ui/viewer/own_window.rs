@@ -11,6 +11,7 @@ use gpui_kit::{App, Bounds, Entity, TitlebarOptions, WindowBounds, WindowOptions
 use super::FileViewer;
 use crate::brand::APP_ID;
 use crate::prefs::Kept;
+use crate::shell::unseen;
 use crate::store::Store;
 use crate::store::files::RemoteFile;
 use crate::ui::look;
@@ -59,18 +60,19 @@ pub(crate) fn open(store: &Entity<Store>, file: RemoteFile, full_screen: bool, c
         ..WindowOptions::default()
     };
     let store = store.clone();
-    let opened = gpui_kit::open_window(options, cx, |window, cx| {
+    let opened = unseen::open_window(options, cx, |window, cx| {
         let page = store.read(cx).theme().page().clone();
         look::apply(&page, window, cx);
         cx.new(|cx| FileViewer::in_window(store.clone(), file, window, cx))
     });
     match opened {
         Ok((handle, _)) => {
-            cx.activate(true);
+            unseen::activate_app(cx);
             if full_screen {
                 cx.spawn(async move |cx| {
                     cx.background_executor().timer(SETTLE).await;
-                    if let Err(error) = handle.update(cx, |_, window, _| window.toggle_fullscreen())
+                    if let Err(error) =
+                        handle.update(cx, |_, window, cx| unseen::toggle_fullscreen(window, cx))
                     {
                         log::debug!("the file's window closed before full screen: {error}");
                     }

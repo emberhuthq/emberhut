@@ -15,7 +15,7 @@ use gpui_kit::{
 };
 
 use crate::brand::APP_NAME;
-use crate::shell::windows;
+use crate::shell::{unseen, windows};
 use crate::ui::calendar::OpenCalendar;
 use crate::ui::column::GoBack;
 use crate::ui::diary::{OpenDiary, OpenQuickNote};
@@ -86,7 +86,7 @@ pub(crate) fn install(cx: &mut App) {
     cx.on_action(|_: &Minimize, cx| with_window(cx, |window, _| window.minimize_window()));
     cx.on_action(|_: &Zoom, cx| with_window(cx, |window, _| window.zoom_window()));
     cx.on_action(|_: &ToggleFullScreen, cx| {
-        with_window(cx, |window, _| window.toggle_fullscreen());
+        with_window(cx, |window, cx| unseen::toggle_fullscreen(window, cx));
     });
     cx.on_action(|_: &NewWindow, cx| {
         if let Err(error) = windows::open_main(windows::Opening::default(), cx) {
@@ -267,11 +267,11 @@ fn bring_all_to_front(cx: &mut App) {
     let mut all = cx.windows();
     all.sort_by_key(|handle| Some(*handle) == front);
     for handle in all {
-        if let Err(error) = handle.update(cx, |_, window, _| window.activate_window()) {
+        if let Err(error) = handle.update(cx, |_, window, cx| unseen::bring_forward(window, cx)) {
             log::debug!("a window closed before it came forward: {error}");
         }
     }
-    cx.activate(true);
+    unseen::activate_app(cx);
 }
 
 /// Runs `f` on the active window (or the only one).

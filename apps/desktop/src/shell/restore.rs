@@ -8,7 +8,7 @@
 use gpui_kit::{App, Bounds, Global, Pixels, Subscription, WindowBounds, px, size};
 
 use super::WindowKind;
-use super::windows;
+use super::{unseen, windows};
 use crate::prefs::Kept;
 use crate::store::gate::Gate;
 
@@ -105,7 +105,7 @@ pub(crate) fn reopen(cx: &mut App) {
         open_behind(&kinds, cx);
         // The main windows opened first: the one in front stays there.
         if let Some(main) = windows::front_main(cx)
-            && let Err(error) = main.update(cx, |_, window, _| window.activate_window())
+            && let Err(error) = main.update(cx, |_, window, cx| unseen::bring_forward(window, cx))
         {
             log::debug!("the main window closed as the others reopened: {error}");
         }

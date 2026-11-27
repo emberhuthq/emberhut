@@ -7,6 +7,7 @@ use clap::{Parser, ValueEnum};
 use crate::links::{self, LinkError, Target};
 use crate::material::Look;
 use crate::shell::WindowKind;
+use crate::shell::unseen::Unseen;
 use crate::store::settings::SettingsPane;
 use crate::store::setup::SetupStep;
 use crate::store::{OpenReport, Page};
@@ -85,6 +86,17 @@ pub(crate) struct Cli {
     #[arg(long, value_name = "N")]
     pub(crate) display: Option<usize>,
 
+    /// Run unseen, as `--drive`, `--bench` and `--self-check` do: every window opens beside
+    /// the displays without the focus, the app never comes to the front, and there is no app
+    /// lock (see the README).
+    #[arg(long)]
+    pub(crate) unseen: bool,
+
+    /// In an unseen run, open the windows on a display (still without the focus): for a
+    /// private display that is captured whole, such as Xvfb.
+    #[arg(long)]
+    pub(crate) on_screen: bool,
+
     /// Draw every surface opaque, without the sidebar's material (the look before it).
     #[arg(long)]
     pub(crate) opaque: bool,
@@ -152,6 +164,22 @@ pub(crate) struct Cli {
 }
 
 impl Cli {
+    /// Whether this is an unseen run ([`crate::shell::unseen`]), and where its windows go: one
+    /// the automation drives (`--drive`, `--bench`), the smoke run (`--self-check`), or one
+    /// asked for (`--unseen`). None for a normal run.
+    #[must_use]
+    pub(crate) fn unseen(&self) -> Option<Unseen> {
+        #[cfg(feature = "automation")]
+        let automated = self.bench.is_some() || self.drive.is_some();
+        #[cfg(not(feature = "automation"))]
+        let automated = false;
+        (self.unseen || self.self_check || automated).then_some(if self.on_screen {
+            Unseen::OnScreen
+        } else {
+            Unseen::OutOfSight
+        })
+    }
+
     /// The look asked for: `--opaque`, or the material where it is allowed.
     #[must_use]
     pub(crate) fn look(&self) -> Look {
@@ -552,6 +580,42 @@ mod tests {
         assert_eq!(cli.appearance.map(Appearance::from), Some(Appearance::Dark));
         assert!(cli.sign_in);
         assert_eq!(cli.display, Some(1));
+    }
+
+    #[test]
+    fn the_automation_the_self_check_and_unseen_run_unseen() {
+        assert_eq!(parse(&[]).unwrap().unseen(), None, "a normal run");
+        assert_eq!(
+            parse(&["--background", "--display", "1", "--no-prompt"])
+                .unwrap()
+                .unseen(),
+            None,
+            "in the background, but seen"
+        );
+        assert_eq!(
+            parse(&["--on-screen"]).unwrap().unseen(),
+            None,
+            "only an unseen run's windows are placed"
+        );
+        for args in [&["--unseen"][..], &["--self-check"]] {
+            assert_eq!(
+                parse(args).unwrap().unseen(),
+                Some(Unseen::OutOfSight),
+                "{args:?}"
+            );
+        }
+        assert_eq!(
+            parse(&["--unseen", "--on-screen"]).unwrap().unseen(),
+            Some(Unseen::OnScreen)
+        );
+        #[cfg(feature = "automation")]
+        for args in [&["--drive", "/tmp/steps"][..], &["--bench", "start"]] {
+            assert_eq!(
+                parse(args).unwrap().unseen(),
+                Some(Unseen::OutOfSight),
+                "{args:?}"
+            );
+        }
     }
 
     #[test]
