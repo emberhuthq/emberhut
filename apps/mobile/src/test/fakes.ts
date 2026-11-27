@@ -81,7 +81,14 @@ const baseUrl = "http://emberhut.test:18990";
 
 /** The server address a paired test phone holds. */
 export function fixedAddress(): ServerAddress {
-  return { url: baseUrl, load: async () => baseUrl, save: async () => undefined };
+  return {
+    url: baseUrl,
+    speaksDialect: true,
+    load: async () => baseUrl,
+    save: async () => undefined,
+    setSpeaksDialect: async () => undefined,
+    clear: async () => undefined,
+  };
 }
 
 /** An API on a fake server, with a clock the test moves. */

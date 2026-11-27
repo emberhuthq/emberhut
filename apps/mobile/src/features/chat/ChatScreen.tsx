@@ -12,14 +12,14 @@ import { useOpenLink } from "@/navigation/links";
 import type { TabScreenProps } from "@/navigation/types";
 import { api, chatStore, prefsStore, talkStore } from "@/services";
 import { offlineReason } from "@/state/connection";
-import { useChat, useConnection, useLive, usePrefs, useTalk } from "@/state/hooks";
+import { useChat, useConnection, useFallback, useLive, usePrefs, useTalk } from "@/state/hooks";
 import { liveLine } from "@/state/live";
 import { useEmberhutState, useRoomLive } from "@/state/queries";
 import { queryKeys } from "@/state/query";
 import { delivered } from "@/state/talk";
 import { useTheme } from "@/theme";
 import { ErrorState, Icon, Loading, Screen, Text, useBarInsets, useSeeThrough } from "@/ui";
-import { HandoffBanner, OfflineBanner, PausedBanner } from "./Banners";
+import { FallbackBanner, HandoffBanner, OfflineBanner, PausedBanner } from "./Banners";
 import { ChatTitle } from "./ChatTitle";
 import { Composer } from "./Composer";
 import { MessageList } from "./MessageList";
@@ -39,6 +39,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
   const state = useEmberhutState(room);
   useRoomLive(room);
   const offline = useConnection(offlineReason);
+  const onFallback = useFallback((s) => s.using === "fallback");
   const data = state.data;
   // Just switched, the state on hand is the last room's until the next answer.
   const here = data !== undefined && (data.room === null || data.room === undefined || data.room === room);
@@ -161,6 +162,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
       >
         <View style={styles.accessory}>
           {here && data?.on === false && <PausedBanner onResume={() => settings.mutate({ on: true })} resuming={settings.isPending} />}
+          {onFallback && <FallbackBanner />}
           {offline && <OfflineBanner reason={offline} />}
           {handoff && <HandoffBanner line={handoff} onOpen={() => navigation.navigate("Browser")} />}
         </View>

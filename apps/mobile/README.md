@@ -60,6 +60,28 @@ Play's upload limit. `src/connect/` reads the link, the machine id and the encod
   the same machine, and an answer without a key no longer passes. Settings shows the id, to compare with the one the
   server prints. A server older than machine keys pairs as before, only on a first, typed pairing.
 
+## The fallback server
+
+The phone can keep a second server beside its own, with its own pairing: the fallback server, which the app goes to by
+itself when its server stops answering (`src/state/fallback.ts`).
+
+- **Health**: while the app is in front and on its server, `GET <server>/health` (no session) every 15 s; a 2xx within
+  4 s is an answer. After 3 failures in a row, every request goes to the fallback server with its session, and the chat
+  says so ("… isn't answering. You're on the fallback server") with Try again. At launch the server is checked at once,
+  and the app falls back when it doesn't answer after 2 quick retries. A launch always starts on the server.
+- **Going back** happens only when you tap Try again (the banner, or Settings) and the server answers. Never by itself: a
+  server that answers once after an outage may not stay up, and a switch under you mid-task loses less going one way.
+- **Setting it up**, Settings, Fallback server, both by pairing (a pairing link, scanned or pasted, or an address and a
+  code): _Move to a new server_ pairs with the new one and keeps the one the phone had, with its session as it is, as the
+  fallback; _Add a fallback server_ pairs one beside the server. Remove signs out of it. Signing out of Emberhut signs
+  out of both.
+- **Secure storage**: the fallback's address and session sit beside the server's, under `emberhut.fallback.*`
+  (`slotPrefix`, `src/api/server.ts`); the install id is one for both.
+- **The wire dialect** (next section) is spoken only to a server marked as speaking it. A server is marked so by
+  default, so a dialect build keeps talking to the server it was paired with as before; a new server paired with _Move to
+  a new server_ isn't, and the one kept as the fallback keeps its mark. In a dialect build, Settings has a switch for
+  each. A build without a dialect has nothing to rewrite either way.
+
 ## Building the app for a server that spells some wire words differently
 
 A build can carry a wire dialect: `EXPO_PUBLIC_EMBERHUT_WIRE_DIALECT` (see `env.example`) holds its JSON, and

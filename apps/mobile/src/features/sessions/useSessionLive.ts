@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useState } from "react";
 import { followSession, type SessionLiveEvent, type SessionTranscript } from "@/api";
 import { inBackground } from "@/log";
 import { api } from "@/services";
+import { useServerInUse } from "@/state/hooks";
 import { applyEvent, emptyView, loaded, type LiveView } from "./sessionLive";
 
 type Action = { type: "loaded"; transcript: SessionTranscript } | { type: "event"; event: SessionLiveEvent };
@@ -18,6 +19,7 @@ export function useSessionLive(id: string, agent: string | undefined) {
   const [connected, setConnected] = useState(false);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const server = useServerInUse();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,7 +39,7 @@ export function useSessionLive(id: string, agent: string | undefined) {
       })
       .catch(() => !controller.signal.aborted && setFailed(true));
     return () => controller.abort();
-  }, [id, agent, attempt]);
+  }, [id, agent, attempt, server]);
 
   const retry = useCallback(() => {
     setFailed(false);
