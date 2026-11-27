@@ -1,5 +1,5 @@
-//! `emberhut-server`: serves the emberhut API, prints a pairing code and its link (`emberhut-server pair`)
-//! or the machine's id (`emberhut-server id`), links the machine to an emberhut.com account
+//! `emberhut-server`: serves the emberhut API, prints a pairing code and its link (`emberhut-server pair`,
+//! or `pair --json` for a program) or the machine's id (`emberhut-server id`), links the machine to an emberhut.com account
 //! (`emberhut-server link`, `emberhut-server unlink`).
 //!
 //! Configuration comes from flags and `EMBERHUT_*` environment variables (`emberhut-server --help`).
@@ -24,7 +24,13 @@ async fn main() -> anyhow::Result<()> {
             let made = emberhut_server::make_pairing_code(&config)
                 .await
                 .with_context(|| format!("no pairing code was made in {}", config.database.url))?;
-            print_pairing(&made, &config.database.url).context("cannot print the pairing code")?;
+            if config.json {
+                let json = made.to_json(&config.database.url);
+                writeln!(std::io::stdout(), "{json}").context("cannot print the pairing code")?;
+            } else {
+                print_pairing(&made, &config.database.url)
+                    .context("cannot print the pairing code")?;
+            }
         }
         Command::Id(config) => {
             let id = emberhut_server::machine_id(&config).context("no machine id")?;

@@ -906,6 +906,10 @@ pub struct PairConfig {
     /// The address the person's devices reach this server at: a route in the link.
     #[arg(long = "public-url", env = "EMBERHUT_PUBLIC_URL")]
     pub public_url: Option<PublicUrl>,
+    /// Print one line of JSON for a program to read (`code`, `expiresAt`, `machine`,
+    /// `database`, `link`) instead of the code, its link and the QR code in words.
+    #[arg(long)]
+    pub json: bool,
 }
 
 /// `emberhut-server id`: the database the key is kept beside, and the key.
@@ -1262,6 +1266,11 @@ mod tests {
             "beside the database"
         );
         assert!(parse(&["--listen", "0.0.0.0:1", "pair"]).is_err());
+        assert!(!pair.json, "words unless asked");
+        let Command::Pair(json) = parse(&["pair", "--json"]).unwrap().into_command() else {
+            panic!("pair was asked for");
+        };
+        assert!(json.json);
     }
 
     #[test]

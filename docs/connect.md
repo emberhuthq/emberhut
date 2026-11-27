@@ -215,6 +215,10 @@ plain `http`, and relay routes through its sealed fetch (ADR 0008, section 6).
   (`https://emberhut.com/pair#id=…&code=…&route=…`, api.md's "The pairing link") and the link as a
   QR code drawn in the terminal. "Pair a device" on a signed-in device gets the same link from
   `POST /api/auth/pair/new` (`link`) and draws its QR code.
+- `emberhut-server pair --json` prints the same code as one line of JSON for a program on the
+  machine (the desktop app pairing with the hut it runs, ADR 0030): `{"code", "expiresAt",
+  "machine", "database", "link"}`, with `link` `null` when there is none. Logs go to stderr, so
+  stdout holds only that line.
 - `emberhut-server id` prints the machine's id, for comparing with what Connections shows after a
   typed pairing.
 - The machine's key is `machine.key` beside the database (`EMBERHUT_MACHINE_KEY` sets the path).

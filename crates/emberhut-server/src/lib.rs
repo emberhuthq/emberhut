@@ -1013,9 +1013,28 @@ pub async fn run(
 pub struct CommandLineCode {
     /// The code, and when it stops working.
     pub issued: IssuedCode,
+    /// The machine the code pairs with: its key's id.
+    pub machine: emberhut_identity::MachineId,
     /// The link that carries it, the machine's id and the configured routes; or why there is
     /// none (routes too long for a QR code), when the code still works typed.
     pub link: Result<emberhut_identity::PairingLink, emberhut_identity::PairingLinkError>,
+}
+
+impl CommandLineCode {
+    /// The code as `emberhut-server pair --json` prints it, for a program on this machine to
+    /// read (the desktop app pairing with the server it started): `code` as shown
+    /// (`ABCD-EFGH`), `expiresAt` (RFC 3339), `machine` (the machine's id), `database` (the
+    /// file the code was made in) and `link` (the pairing link, or `null` when there is none).
+    #[must_use]
+    pub fn to_json(&self, database: &emberhut_db::DatabaseUrl) -> serde_json::Value {
+        serde_json::json!({
+            "code": self.issued.code.to_string(),
+            "expiresAt": self.issued.expires_at.to_string(),
+            "machine": self.machine.to_string(),
+            "database": database.path().display().to_string(),
+            "link": self.link.as_ref().ok().map(emberhut_identity::PairingLink::to_url),
+        })
+    }
 }
 
 /// `link` as a QR code drawn in a terminal, two rows of modules to a line of half blocks, with
@@ -1073,7 +1092,11 @@ pub async fn make_pairing_code(config: &PairConfig) -> Result<CommandLineCode, R
     db.close().await?;
     let routes = services::advertise::configured_routes(config.listen, config.public_url.as_ref());
     let link = machine.pairing_link(&issued.code.to_string(), &routes);
-    Ok(CommandLineCode { issued, link })
+    Ok(CommandLineCode {
+        issued,
+        machine: machine.id(),
+        link,
+    })
 }
 
 /// This machine's id, for `emberhut-server id`: from its key beside the database `config` names
