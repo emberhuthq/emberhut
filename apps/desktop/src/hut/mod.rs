@@ -276,6 +276,22 @@ impl LocalHut {
         cx.background_spawn(async move { hut.status_now() })
     }
 
+    /// The address the hut was last lit at, as `hut.json` remembers it; `None` before it was
+    /// ever started here.
+    #[must_use]
+    pub(crate) fn remembered(&self) -> Option<ServerUrl> {
+        self.read_state().port.map(ServerUrl::loopback)
+    }
+
+    /// Whether this computer's hut answers now, at the address it was last lit at.
+    #[must_use]
+    pub(crate) fn answers_now(&self) -> bool {
+        let _busy = lock(&self.inner.busy);
+        self.read_state()
+            .port
+            .is_some_and(|port| self.who(port) == Who::Ours)
+    }
+
     /// [`LocalHut::start`], on this thread.
     ///
     /// # Errors

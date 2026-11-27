@@ -258,3 +258,27 @@ fn step_ones_change_opens_how_the_ember_stays_lit(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(!sheet(cx));
 }
+
+#[gpui_kit::test]
+fn a_hut_that_doesnt_start_again_shows_why_with_try_again(cx: &mut TestAppContext) {
+    use crate::store::setup::Relit;
+    let backend = Arc::new(
+        FakeBackend::new([])
+            .at("http://127.0.0.1:18990")
+            .with_session(),
+    );
+    let home = FakeHome::at("http://127.0.0.1:18990", None);
+    home.relights.borrow_mut().push_back(Relit::Failed(
+        "The hut stopped while it was starting.".to_owned(),
+    ));
+    let relit_at = std::rc::Rc::clone(&home.relit_at);
+    let (store, cx) = open_with(&backend, false, home, cx);
+    assert!(!shows(cx, "gate-hut-retry"), "connecting, as usual");
+    store.update(cx, Store::relight_home);
+    cx.run_until_parked();
+    assert!(shows(cx, "gate-hut-problem"));
+    cx.update(|window, cx| window.click("gate-hut-retry", cx));
+    cx.run_until_parked();
+    assert_eq!(relit_at.borrow().len(), 2);
+    assert!(!shows(cx, "gate-hut-retry"), "started: connecting again");
+}

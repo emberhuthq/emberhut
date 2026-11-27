@@ -41,7 +41,11 @@ the `emberhut-server` binary, starts it on `127.0.0.1:18990` (the next free port
 program has that one), makes a pairing code for this app with the server's own `pair --json`,
 and keeps it lit after the app closes or from login when asked. The setup's first step calls it
 through `store::setup::HutHome`; nothing starts until then. A hut that runs as the app's child
-is asked to stop (`SIGTERM`, not waited for) as the app quits.
+is asked to stop (`SIGTERM`, not waited for) as the app quits. At a later launch, when the
+app's server is the hut's address (`hut.json`'s port; `localhost` and `127.0.0.1` alike) and the
+hut doesn't answer, the app starts it again while the window shows Connecting; a start that
+fails shows the hut's words with Try again. Nothing starts when `EMBERHUT_URL` is set, for any
+other address, or before the setup first started the hut.
 
 - **The binary**: in the macOS bundle at `Emberhut.app/Contents/MacOS/emberhut-server` (put there
   by `cargo xtask bundle-macos`), else beside the app's executable (`target/<profile>/` for a

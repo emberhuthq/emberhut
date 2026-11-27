@@ -151,6 +151,13 @@ done line says it lives here while Emberhut is open. Then `pair_code` and the no
 with the two switches, each a `keep_lit`. Staying awake while plugged in isn't offered: the hut
 takes no power assertions.
 
+At every later launch the store asks the port to relight: when the app's server is the address
+`hut.json` remembers and the hut doesn't answer there as itself (it was the app's child, it
+crashed, or it was stopped), `start` lights it again while the window shows Connecting, and the
+poll goes at once once it answers (should it come up on another port, the app moves there as
+above). A start that fails replaces the spinner with the hut's message and Try again. Nothing
+starts when `EMBERHUT_URL` is set, for another address, or before the setup ever started it.
+
 For a test run on a real computer, a debug or automation build reads `EMBERHUT_HUT_PORT` (the
 first port, to keep off a default port another server uses) and `EMBERHUT_HUT_SERVICE=none`
 (no launch agent or unit is written or loaded; the hut is the app's child). A release build reads

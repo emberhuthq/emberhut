@@ -15,6 +15,7 @@ use crate::account::switch::is_loopback_host;
 use crate::backend::Backend;
 use crate::config::ServerUrl;
 use crate::hut::{KeepLit, LocalHut};
+use crate::store::sign_in::same_server;
 
 /// What the step says when Emberhut can't live on this computer through this build.
 pub(crate) const CANT_HERE: &str = "This build can't start Emberhut here yet.";
@@ -38,6 +39,26 @@ pub(crate) trait LocalHome {
     /// Keeps Emberhut here lit as `keep` says (while the app is closed, from login), or why it
     /// couldn't; `None` when it isn't this app's to keep (it runs by other means).
     fn keep_lit(&self, keep: KeepLit, cx: &mut App) -> Option<Task<Result<(), String>>>;
+
+    /// At launch: when `server` (the address the app talks to) is Emberhut here and it doesn't
+    /// answer (it ran as the app's child, or it stopped), it is started again. Nothing is done
+    /// for any other address, or a home that isn't this app's to start.
+    fn relight(&self, _server: &ServerUrl, _cx: &mut App) -> Task<Relit> {
+        Task::ready(Relit::NotHere)
+    }
+}
+
+/// What [`LocalHome::relight`] found.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Relit {
+    /// The address isn't Emberhut here (or nothing here is the app's to start).
+    NotHere,
+    /// It answers already.
+    Lit,
+    /// It was started, and answers at this address.
+    Started(ServerUrl),
+    /// It couldn't be started: why, in the hut's words.
+    Failed(String),
 }
 
 /// A build with no home on this computer: the step offers only another computer.
@@ -140,6 +161,26 @@ impl LocalHome for HutHome {
     fn keep_lit(&self, keep: KeepLit, cx: &mut App) -> Option<Task<Result<(), String>>> {
         Some(in_words(self.hut.keep_lit(keep, cx), cx))
     }
+
+    fn relight(&self, server: &ServerUrl, cx: &mut App) -> Task<Relit> {
+        let (hut, server) = (self.hut.clone(), server.clone());
+        cx.background_spawn(async move {
+            let ours = hut
+                .remembered()
+                .is_some_and(|address| same_server(&address, &server));
+            if !ours || !hut.available() {
+                return Relit::NotHere;
+            }
+            if hut.answers_now() {
+                return Relit::Lit;
+            }
+            log::info!("the app talks to the hut, which is out: starting it");
+            match hut.start_now() {
+                Ok(url) => Relit::Started(url),
+                Err(error) => Relit::Failed(error.to_string()),
+            }
+        })
+    }
 }
 
 /// Whether `server` is on this computer (a loopback address).
@@ -224,6 +265,62 @@ mod tests {
         };
         let kept = run(cx, |cx| home.keep_lit(keep, cx).expect("the app's to keep"));
         assert_eq!(kept, Ok(()));
+    }
+
+    #[gpui_kit::test]
+    fn the_hut_the_app_talks_to_is_started_again_when_it_is_out(cx: &mut gpui_kit::TestAppContext) {
+        use crate::hut::tests::{Os, Setup};
+        let here = |address: &str| ServerUrl::parse(address).expect("an address");
+        let computer = Setup::new(Os::Linux);
+        let home = HutHome::new(computer.hut());
+        assert_eq!(
+            run(cx, |cx| home.relight(&here("http://localhost:18990"), cx)),
+            Relit::NotHere,
+            "never started here: the first run's setup starts it, not a launch"
+        );
+        assert_eq!(computer.spawned(), 0);
+
+        let first = computer.hut();
+        first.start_now().unwrap();
+        first.let_go();
+        let home = HutHome::new(computer.hut());
+        assert_eq!(
+            run(cx, |cx| home
+                .relight(&here("https://ember.example.com"), cx)),
+            Relit::NotHere,
+            "another address: nothing starts"
+        );
+        assert_eq!(computer.spawned(), 1);
+        assert_eq!(
+            run(cx, |cx| home.relight(&here("http://localhost:18990"), cx)),
+            Relit::Started(here("http://127.0.0.1:18990"))
+        );
+        assert_eq!(computer.spawned(), 2);
+        assert_eq!(
+            run(cx, |cx| home.relight(&here("http://127.0.0.1:18990"), cx)),
+            Relit::Lit,
+            "it answers: nothing more starts"
+        );
+        assert_eq!(computer.spawned(), 2);
+    }
+
+    #[gpui_kit::test]
+    fn a_hut_that_doesnt_start_again_says_why(cx: &mut gpui_kit::TestAppContext) {
+        use crate::hut::tests::{Os, Setup};
+        let computer = Setup::new(Os::Linux);
+        let first = computer.hut();
+        first.start_now().unwrap();
+        first.let_go();
+        computer.exits_at_start();
+        let home = HutHome::new(computer.hut());
+        let server = ServerUrl::loopback(18990);
+        let Relit::Failed(said) = run(cx, |cx| home.relight(&server, cx)) else {
+            panic!("a hut that exits doesn't start");
+        };
+        assert!(
+            said.starts_with("The hut stopped while it was starting"),
+            "{said}"
+        );
     }
 
     #[gpui_kit::test]
