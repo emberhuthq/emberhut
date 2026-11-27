@@ -15,6 +15,8 @@ use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use crate::services::agent_provider::bridge::BridgeGrant;
+
 /// How long a stopped CLI's process group gets, after `SIGTERM`, before it is killed.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
@@ -37,6 +39,9 @@ pub struct Launch {
     pub env_remove_prefixed: Vec<String>,
     /// Where it runs; the server's directory when none.
     pub cwd: Option<PathBuf>,
+    /// Its `OpenAI` bridge token's grant, when it runs through the bridge: held while the CLI
+    /// runs, so the token is revoked once it has exited.
+    pub bridge: Option<BridgeGrant>,
 }
 
 impl Launch {
@@ -235,6 +240,7 @@ impl CliSpawner for ProcessSpawner {
         let exited = CancellationToken::new();
         let gone = exited.clone();
         let grace = self.grace;
+        let grant = launch.bridge.clone();
         tokio::spawn(async move {
             tokio::select! {
                 status = child.wait() => {
@@ -248,6 +254,8 @@ impl CliSpawner for ProcessSpawner {
                 }
                 () = stopping.cancelled() => stop_child(&mut child, group, grace).await,
             }
+            // The bridge's token lives as long as the CLI it was given to.
+            drop(grant);
             gone.cancel();
         });
         Ok(CliPipes {
@@ -335,6 +343,7 @@ mod tests {
             env_remove: Vec::new(),
             env_remove_prefixed: Vec::new(),
             cwd: None,
+            bridge: None,
         };
         assert_eq!(launch.flag("--model"), Some("opus"));
         assert_eq!(launch.flag("--mcp-config"), Some("{}"));
@@ -366,6 +375,7 @@ mod tests {
             env_remove: Vec::new(),
             env_remove_prefixed: Vec::new(),
             cwd: None,
+            bridge: None,
         };
         let error = ProcessSpawner::default().spawn(&launch).unwrap_err();
         assert_eq!(error.program, "/nonexistent/agent-cli");
@@ -381,6 +391,7 @@ mod tests {
             env_remove: Vec::new(),
             env_remove_prefixed: Vec::new(),
             cwd: None,
+            bridge: None,
         }
     }
 

@@ -65,6 +65,7 @@ mod messaging_fakes;
 mod messaging_guard;
 mod morning_brief;
 mod news_wakes;
+mod openai_bridge;
 mod openapi;
 mod outward;
 mod pairing;

@@ -41,7 +41,7 @@ const TEST: &str = paths::AGENT_PROVIDER_TEST;
 /// An Anthropic key the stand-in accepts.
 const ANTHROPIC_KEY: &str = "sk-ant-api03-good-key-0123456789abcdefWXYZ";
 /// Another provider's key it accepts, as a bearer token.
-const TOKEN: &str = "sk-or-v1-good-token-0123456789abcdefJKLM";
+pub(crate) const TOKEN: &str = "sk-or-v1-good-token-0123456789abcdefJKLM";
 /// A key of another provider's shape, which Anthropic's form refuses.
 const OPENAI_SHAPED: &str = "sk-proj-not-an-anthropic-one";
 /// A key it refuses, as a provider refuses a revoked one.
@@ -160,7 +160,7 @@ async fn stand_in(State(stand): State<Stand>, request: Request) -> Response {
 
 /// A CLI that answers every message with `Echo: <text>`; its session is `s-1`, or the one it
 /// resumes.
-fn echoing() -> Arc<FakeCli> {
+pub(crate) fn echoing() -> Arc<FakeCli> {
     FakeCli::new(|launch, line| {
         if !is_user(line) {
             return Vec::new();
@@ -172,7 +172,7 @@ fn echoing() -> Arc<FakeCli> {
 }
 
 /// Where `app` keeps the provider, as the runtime reads it.
-fn store_of(dir: &std::path::Path, db: &Database) -> ProviderStore {
+pub(crate) fn store_of(dir: &std::path::Path, db: &Database) -> ProviderStore {
     ProviderStore::new(Secrets::new(dir.join("secrets")), db.settings())
 }
 
@@ -210,25 +210,25 @@ async fn app_on(stand: &str, cli: &Arc<FakeCli>, accounts: &[(&str, &str)]) -> T
 }
 
 /// `PUT`s `body` as the agent's provider.
-async fn put(app: &TestApp, session: &Session, body: &Value) -> Answer {
+pub(crate) async fn put(app: &TestApp, session: &Session, body: &Value) -> Answer {
     app.call(Call::put(PROVIDER).token(session).json(body))
         .await
 }
 
 /// `POST`s `body` to the test route.
-async fn test(app: &TestApp, session: &Session, body: &Value) -> Answer {
+pub(crate) async fn test(app: &TestApp, session: &Session, body: &Value) -> Answer {
     app.call(Call::post(TEST).token(session).json(body)).await
 }
 
 /// What is saved now.
-async fn saved(app: &TestApp, session: &Session) -> AgentProvider {
+pub(crate) async fn saved(app: &TestApp, session: &Session) -> AgentProvider {
     let answer = app.call(Call::get(PROVIDER).token(session)).await;
     assert_eq!(answer.status, 200, "{}", answer.text);
     answer.read_as()
 }
 
 /// Says `text` in Main and waits for the answer.
-async fn talk(app: &TestApp, session: &Session, text: &str) {
+pub(crate) async fn talk(app: &TestApp, session: &Session, text: &str) {
     let said = app
         .call(
             Call::post(paths::TALK)
@@ -248,7 +248,7 @@ fn key_file(app: &TestApp, provider: &str) -> std::path::PathBuf {
 }
 
 /// The setup checklist's `provider` item.
-async fn provider_item(app: &TestApp, session: &Session) -> (SetupState, String) {
+pub(crate) async fn provider_item(app: &TestApp, session: &Session) -> (SetupState, String) {
     let page: SetupPage = app
         .call(Call::get(paths::SETUP).token(session))
         .await
@@ -799,15 +799,30 @@ pub(crate) async fn a_removed_provider_is_gone_and_no_longer_used() {
 }
 
 #[tokio::test]
-async fn an_openai_provider_is_saved_and_checked_but_not_run_on_yet() {
+async fn without_the_bridge_an_openai_provider_is_saved_and_checked_but_not_run_on() {
     let stand = Stand::default();
     let base = stand.serve().await;
     let cli = echoing();
     let app = app_on(&base, &cli, &[]).await;
     let session = app.sign_in().await;
+    let without_model = json!({ "provider": "openai", "apiKey": TOKEN,
+        "baseUrl": format!("{base}/v1") });
+    let listed: ProviderTest = test(&app, &session, &without_model).await.read_as();
+    assert_eq!(
+        listed.models.len(),
+        2,
+        "a test lists the models to choose from"
+    );
+    let refused = put(&app, &session, &without_model).await;
+    assert_eq!(refused.status, 400);
+    assert_eq!(
+        refused.json()["error"],
+        "OpenAI needs a model: choose one of its models."
+    );
     for (body, name) in [
         (
-            json!({ "provider": "openai", "apiKey": TOKEN, "baseUrl": format!("{base}/v1") }),
+            json!({ "provider": "openai", "apiKey": TOKEN, "baseUrl": format!("{base}/v1"),
+                "model": "model-a" }),
             "OpenAI",
         ),
         (
@@ -816,16 +831,17 @@ async fn an_openai_provider_is_saved_and_checked_but_not_run_on_yet() {
             "The OpenAI-compatible endpoint",
         ),
     ] {
-        let listed: ProviderTest = test(&app, &session, &body).await.read_as();
-        assert_eq!(listed.models.len(), 2);
         let now: AgentProvider = put(&app, &session, &body).await.read_as();
         assert!(now.key_set && now.checked_at.is_some());
-        assert!(!now.usable && !now.in_use, "{body}");
+        assert!(now.usable && !now.in_use, "{body}");
         assert_eq!(
             provider_item(&app, &session).await,
             (
                 SetupState::Off,
-                format!("{name} is saved, but it needs the OpenAI bridge, coming next.")
+                format!(
+                    "{name} is saved, but the OpenAI bridge it runs through isn't running on \
+                     this server."
+                )
             )
         );
     }

@@ -146,7 +146,7 @@ Behind the session gate (`SetupPage`). Every item once, in the order the apps sh
 | `id` | `ready` | otherwise |
 |---|---|---|
 | `agent` | `EMBERHUT_AGENT_COMMAND` is set | `off` |
-| `provider` | the agent runs on configured accounts, or on a saved provider it can run on (below) | `off` without an agent CLI, or when the saved provider needs the OpenAI bridge; `missing` with nothing saved, with `claude` saved and no account (only the CLI can tell whether it is signed in), or when the saved key's file is gone |
+| `provider` | the agent runs on configured accounts, or on a saved provider it can run on (below) | `off` without an agent CLI, or for `openai`/`openai-compatible` on a server without the OpenAI bridge; `missing` with nothing saved, with `claude` saved and no account (only the CLI can tell whether it is signed in), or when the saved key's file is gone |
 | `accounts` | a runner reports an enabled account that is logged in | `off` without a runner; `missing` with no account, or none logged in |
 | `devices` | a device is signed in | `missing` |
 | `push` | APNs or FCM is ready | `off` |
@@ -165,8 +165,9 @@ logged in only the CLI can tell (the runners report theirs).
 ## Agent provider
 
 What the agent thinks with, chosen from a signed-in device so an owner never needs a terminal:
-Claude Code (the agent CLI) on the owner's own Claude login, an Anthropic API key, or another
-provider Claude Code can reach through an Anthropic-compatible endpoint. Every route takes a
+Claude Code (the agent CLI) on the owner's own Claude login, an Anthropic API key, another
+provider Claude Code can reach through an Anthropic-compatible endpoint, or an `OpenAI`-style
+endpoint through the server's OpenAI bridge. Every route takes a
 signed-in device, in either auth mode (401 `signIn` otherwise), and no answer carries a key.
 
 | `provider` | `apiKey` | `baseUrl` | `model` | the agent CLI gets |
@@ -177,8 +178,8 @@ signed-in device, in either auth mode (401 `signIn` otherwise), and no answer ca
 | `openrouter` | needed | optional (`https://openrouter.ai/api`) | needed | `ANTHROPIC_BASE_URL=<base>`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` empty |
 | `ollama` | – | optional (`http://localhost:11434`) | needed | `ANTHROPIC_BASE_URL=<base>`, `ANTHROPIC_AUTH_TOKEN=ollama` |
 | `anthropic-compatible` | needed | needed | needed | `ANTHROPIC_BASE_URL=<base>`, `ANTHROPIC_AUTH_TOKEN` |
-| `openai` | needed | optional (`https://api.openai.com/v1`) | optional | nothing yet: needs the OpenAI bridge |
-| `openai-compatible` | optional | needed (`https://…/v1`) | optional | nothing yet: needs the OpenAI bridge |
+| `openai` | needed | optional (`https://api.openai.com/v1`) | needed | `ANTHROPIC_BASE_URL=<the bridge>`, `ANTHROPIC_AUTH_TOKEN=<a token of the launch's own>`, `ANTHROPIC_API_KEY` empty |
+| `openai-compatible` | optional | needed (`https://…/v1`) | needed | as `openai` |
 
 - **Models.** With a model (given, or the provider's default) the CLI's every model is mapped to
   it: `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`,
@@ -186,6 +187,12 @@ signed-in device, in either auth mode (401 `signIn` otherwise), and no answer ca
   `ANTHROPIC_DEFAULT_HAIKU_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL` to `fastModel` (or `model`).
   The launch's `--model` (`EMBERHUT_AGENT_MODEL`, a task's model) is dropped then. Without one,
   `claude` and `anthropic` keep the configured model.
+- **The OpenAI bridge.** `openai` and `openai-compatible` run through a bridge the server serves
+  on loopback only (ADR 0029): it speaks Anthropic's Messages API to the CLI and sends each
+  request on as `POST <base>/chat/completions` with the key as bearer. The CLI never gets the
+  key: each launch gets a token for the bridge alone, revoked once the CLI has exited. Thinking,
+  prompt caching and Anthropic's server tools are not available there; other models may use
+  Claude Code's tools less well than Claude.
 - **Only the saved provider.** Every launch of the CLI (a room's session, a configured agent's
   room, a worker, the guard's judge) gets these in its environment only, and none of the server's
   own `ANTHROPIC_*`, `CLAUDE_CODE_USE_BEDROCK`/`VERTEX`/`FOUNDRY` or `CLAUDE_CODE_SUBAGENT_MODEL`
@@ -209,7 +216,8 @@ What is saved (`AgentProvider`), without the key:
 `provider` is left out when nothing is saved; `keyHint` is the key's last four characters;
 `baseUrl`, `model` and `fastModel` are there when given; `checkedAt` is when the provider last
 accepted what is saved (left out for `claude`, and for a key put in the secrets folder by hand);
-`usable` says whether the agent can run on the provider today; `inUse` whether its sessions do now.
+`usable` is `true` for every saved provider (`openai` and `openai-compatible` run through the
+bridge); `inUse` says whether the agent's sessions run on it now.
 
 ### PUT /api/agent/provider
 

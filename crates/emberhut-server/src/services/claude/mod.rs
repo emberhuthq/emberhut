@@ -721,6 +721,7 @@ impl ClaudeAssistant {
                 || config.workdir.clone(),
                 |setup| Some(setup.folder.clone()),
             ),
+            bridge: None,
         };
         if let Some(provider) = provider {
             provider.apply(&mut launch);

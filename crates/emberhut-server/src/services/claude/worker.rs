@@ -234,6 +234,7 @@ impl WorkerConfig {
             } else {
                 self.workdir.clone()
             },
+            bridge: None,
         };
         if let Some(provider) = provider {
             provider.apply(&mut launch);

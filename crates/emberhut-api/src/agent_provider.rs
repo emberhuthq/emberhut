@@ -1,14 +1,13 @@
 //! `/api/agent/provider`: what the server's agent thinks with, chosen from a signed-in device
 //! (`docs/api.md`, "Agent provider"): Claude Code on the owner's own Claude login, an Anthropic
 //! API key, or another model provider (`DeepSeek`, `OpenRouter`, a local Ollama, any
-//! Anthropic-compatible endpoint; `OpenAI` and OpenAI-compatible endpoints are saved and checked,
-//! but the agent doesn't run on them yet).
+//! Anthropic-compatible endpoint, and `OpenAI` and OpenAI-compatible endpoints through the
+//! server's `OpenAI` bridge).
 //!
 //! A key goes one way: a device sends it, the server checks it with the provider and keeps it
 //! in its secrets folder, and no answer ever carries it back. What the apps read is which
 //! provider is saved, the key's last four characters, the base URL and model, when the provider
-//! last accepted them, and whether the agent runs on them. Not every provider can run the agent
-//! yet: [`AgentProvider::usable`] says which.
+//! last accepted them, and whether the agent runs on them ([`AgentProvider::in_use`]).
 
 use std::fmt;
 
@@ -34,10 +33,11 @@ open_enum! {
         Ollama = "ollama",
         /// Any endpoint that speaks Anthropic's Messages API: a base URL, a key and a model.
         AnthropicCompatible = "anthropic-compatible",
-        /// `OpenAI`'s API, with an API key: saved and checked, not run on yet.
+        /// `OpenAI`'s API, with an API key and a model, through the server's `OpenAI` bridge.
         OpenAi = "openai",
-        /// Any endpoint that speaks `OpenAI`'s API: a base URL, and a key when it needs one.
-        /// Saved and checked, not run on yet.
+        /// Any endpoint that speaks `OpenAI`'s Chat Completions API (vLLM, LM Studio, Groq,
+        /// Together...): a base URL, a model, and a key when it needs one; through the server's
+        /// `OpenAI` bridge.
         OpenAiCompatible = "openai-compatible",
     }
 }
@@ -67,8 +67,9 @@ pub struct ProviderRequest {
     #[cfg_attr(feature = "validate", garde(skip))]
     pub base_url: Option<String>,
     /// The model the agent runs on, as the provider names it: needed by `openrouter`,
-    /// `ollama` and `anthropic-compatible`; none: the provider's default (`deepseek-v4-pro`
-    /// for `deepseek`) or, for `claude` and `anthropic`, the server's.
+    /// `ollama`, `anthropic-compatible`, `openai` and `openai-compatible` (to save; a test
+    /// takes none); none: the provider's default (`deepseek-v4-pro` for `deepseek`) or, for
+    /// `claude` and `anthropic`, the server's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(skip))]
     pub model: Option<String>,
@@ -117,13 +118,13 @@ pub struct AgentProvider {
     /// (a key put in the secrets folder by hand, or `claude`, which only the CLI can check).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_at: Option<Timestamp>,
-    /// The agent can run on this provider today: every provider but `openai` and
-    /// `openai-compatible`, which are saved and checked but need a bridge the agent CLI
-    /// (Claude Code, which speaks Anthropic's API) doesn't have yet.
+    /// The agent can run on this provider: true for every provider this server knows
+    /// (`openai` and `openai-compatible` run through its `OpenAI` bridge), false when nothing is
+    /// saved. Kept for apps that read it.
     pub usable: bool,
-    /// The server's agent sessions run on it now: no when it isn't [`Self::usable`], when no
-    /// agent CLI is configured, or when the server's configured accounts
-    /// (`EMBERHUT_AGENT_ACCOUNTS`) are its credentials instead.
+    /// The server's agent sessions run on it now: no when no agent CLI is configured, when the
+    /// server's configured accounts (`EMBERHUT_AGENT_ACCOUNTS`) are its credentials instead,
+    /// or when what it needs isn't saved (its key's file removed, no model for a bridged one).
     pub in_use: bool,
 }
 

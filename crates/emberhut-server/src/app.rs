@@ -34,6 +34,7 @@ use crate::mcp::tokens::AgentTokens;
 use crate::routes;
 use crate::services::accounts::AccountService;
 use crate::services::activity::ActivityLog;
+use crate::services::agent_provider::bridge::BridgeAccess;
 use crate::services::agent_provider::{
     AgentLogin, AgentProviderService, NoProviderApi, ProviderApi, ProviderParts, ProviderStore,
 };
@@ -290,6 +291,9 @@ pub struct Dependencies {
     /// The model providers' APIs, which check a provider before it is saved for the agent
     /// (none by default: every check is unanswered).
     pub provider_api: Arc<dyn ProviderApi>,
+    /// The `OpenAI` bridge the agent CLI reaches `openai` and `openai-compatible` through (none by
+    /// default: those are saved but not run on).
+    pub agent_bridge: Option<BridgeAccess>,
 }
 
 /// How the server runs the assistant's workers: the CLI (none: no workers, and the
@@ -378,6 +382,7 @@ impl Default for Dependencies {
             approvals: ApprovalDeps::default(),
             agent_slack: Arc::new(NoAgentSlack),
             provider_api: Arc::new(NoProviderApi),
+            agent_bridge: None,
         }
     }
 }
@@ -432,6 +437,7 @@ impl AppState {
             approvals: approval_deps,
             agent_slack,
             provider_api,
+            agent_bridge,
         } = dependencies;
         let WorkerSetup {
             runtime: worker_runtime,
@@ -450,10 +456,13 @@ impl AppState {
             (secrets_dir.clone(), public_url.clone());
         let direct_scheme = direct_scheme(&public_url);
         let configured_public_url = approval_deps.public_url.clone();
-        let provider_store = ProviderStore::new(
+        let mut provider_store = ProviderStore::new(
             crate::services::messaging::secrets::Secrets::new(secrets_dir.clone()),
             db.settings(),
         );
+        if let Some(access) = agent_bridge {
+            provider_store = provider_store.with_bridge(access);
+        }
         private_files.extend(crate::services::transfer::beside_database(db.path()));
         let private_dir = secrets_dir.clone();
         let home_for_guard = home.clone();

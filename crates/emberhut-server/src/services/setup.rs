@@ -145,13 +145,16 @@ impl SetupService {
                  the server."
                     .to_owned(),
             ),
-            (AgentLogin::Saved, Some(provider)) if !provider.usable() => item(
-                State::Off,
-                format!(
-                    "{} is saved, but it needs the OpenAI bridge, coming next.",
-                    provider.name()
-                ),
-            ),
+            (AgentLogin::Saved, Some(provider)) if provider.bridged() && !service.bridges() => {
+                item(
+                    State::Off,
+                    format!(
+                        "{} is saved, but the OpenAI bridge it runs through isn't running on \
+                         this server.",
+                        provider.name()
+                    ),
+                )
+            }
             (AgentLogin::Saved, Some(Provider::Claude)) => item(
                 State::Missing,
                 "The agent runs on the agent CLI's own Claude login, which the server can't \
@@ -162,9 +165,23 @@ impl SetupService {
                 let model = saved
                     .model
                     .map_or_else(String::new, |model| format!(", on {model}"));
+                let through = if provider.bridged() {
+                    ", through the server's OpenAI bridge"
+                } else {
+                    ""
+                };
                 item(
                     State::Ready,
-                    format!("The agent runs on {}{model}.", saved_as(provider)),
+                    format!("The agent runs on {}{model}{through}.", saved_as(provider)),
+                )
+            }
+            (AgentLogin::Saved, Some(provider)) if provider.bridged() && saved.model.is_none() => {
+                item(
+                    State::Missing,
+                    format!(
+                        "{} needs a model: choose one of its models.",
+                        provider.name()
+                    ),
                 )
             }
             (AgentLogin::Saved, Some(provider)) => item(

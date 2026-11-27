@@ -32,3 +32,4 @@ accepted ADR are allowed; a changed decision still needs a new ADR. Format:
 | [0024](0024-mac-helper.md) | Emberhut Hands: the Mac helper as its own app, in Rust over objc2 | Proposed |
 | [0027](0027-agents-and-approvals.md) | Agents and approvals: configured assistants, one approval mechanism, and a fixed core | Proposed |
 | [0028](0028-agent-model-providers.md) | The agent's model provider: chosen from the apps, handed to the CLI in its environment | Proposed |
+| [0029](0029-openai-bridge.md) | The OpenAI bridge: Anthropic's Messages API on loopback, answered by a Chat Completions endpoint | Proposed |

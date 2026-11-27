@@ -1,6 +1,7 @@
 # 0028. The agent's model provider: chosen from the apps, handed to the CLI in its environment
 
-- Status: Proposed
+- Status: Proposed; `openai` and `openai-compatible` run through the bridge of
+  [ADR 0029](0029-openai-bridge.md)
 - Date: 2026-11-27
 - Amends: [ADR 0014](0014-agent-runtime-and-wake-rule.md)'s accounts (`EMBERHUT_AGENT_ACCOUNTS`),
   which stay the first choice
@@ -48,9 +49,11 @@ endpoint, set with `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`, its models w
 - **Accounts first.** While accounts are configured, each is its own login with failover between
   them, and a key in the environment would win over that login: the saved provider isn't used,
   and the apps are told so (`inUse: false`, and the setup checklist).
-- **Only what works is run.** `openai` and `openai-compatible` are saved and checked, but the CLI
-  gets nothing of them, and the setup checklist reports them `off`: they need a bridge from
-  Anthropic's API to `OpenAI`'s, a later change.
+- **Only what works is run.** `openai` and `openai-compatible` run through the server's OpenAI
+  bridge ([ADR 0029](0029-openai-bridge.md)), which speaks Anthropic's API to the CLI on
+  loopback and `OpenAI`'s to the endpoint; the CLI gets the bridge's address and a token of its
+  launch's own, never the provider's key. Without the bridge they are saved and checked only,
+  and the setup checklist reports them `off`.
 - **Another endpoint's errors are not a Claude account's.** On a provider with its own base URL,
   a rate-limit notice or an error result is never read as an account out of usage; the turn
   fails with the usual note.
@@ -65,8 +68,8 @@ endpoint, set with `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`, its models w
 - A new owner connects the agent from the apps' onboarding: pick a provider, paste a key (or
   choose a local Ollama and one of its models), and the next turn runs on it.
 - The setup checklist gains a `provider` item: `ready` on configured accounts or a saved provider
-  in use, `missing` when the owner can fix it from the apps, `off` without an agent CLI or for a
-  provider that needs the bridge.
+  in use, `missing` when the owner can fix it from the apps, `off` without an agent CLI (or for a
+  bridged provider on a server without the bridge).
 - Tests check each provider against a stand-in on loopback and read each launch's environment
   from the scripted spawner; none reaches a provider.
 - The checks follow the providers' public routes; a provider that moves them breaks its check,
