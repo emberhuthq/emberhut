@@ -126,6 +126,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
   return (
     <Screen padded={false} underBars>
       <MessageList
+        room={room}
         chat={chat}
         pending={pending}
         delivered={sent}

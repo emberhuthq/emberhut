@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -9,7 +10,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollViewProps,
 } from "react-native";
-import { KeyboardChatScrollView } from "react-native-keyboard-controller";
+import { KeyboardChatScrollView, KeyboardEvents } from "react-native-keyboard-controller";
 import type { ChatMsg, TaskStatus } from "@/api";
 import { inBackground } from "@/log";
 import type { Pending } from "@/state/talk";
@@ -18,6 +19,7 @@ import { ActionSheet, Button, Icon, Loading, Text, type SheetAction } from "@/ui
 import { copyText } from "@/ui/markdownParse";
 import { AssistantBubble, Stamp, UserBubble } from "./Bubbles";
 import { EventBatch } from "./EventBatch";
+import { fromNewest, isAway, isNewSend, newestOffset } from "./pinning";
 import { buildRows, type Row } from "./rows";
 import { Welcome } from "./Welcome";
 import { Working } from "./Working";
@@ -25,6 +27,8 @@ import { Working } from "./Working";
 type Item = Row | { kind: "pending"; key: "pending" } | { kind: "working"; key: "working" };
 
 export interface MessageListProps {
+  /** The room on screen: another one opens at its newest message. */
+  room: number;
   /** The room's messages, oldest first; undefined while a room never held is on its way. */
   chat: readonly ChatMsg[] | undefined;
   pending: Pending | undefined;
@@ -51,20 +55,96 @@ export interface MessageListProps {
 }
 
 /**
- * The conversation, newest at the bottom like Messages. Pinned to the newest unless you scrolled up to read; then what
- * Emberhut says shows as a pill instead of moving the page.
+ * The conversation, newest at the bottom like Messages. It opens at the newest message, and a send goes back to it.
+ * Pinned to the newest unless you scrolled up to read; then nothing moves the page, and a button (a pill saying so when
+ * Emberhut said something since) takes you back down.
  */
 export function MessageList(props: MessageListProps) {
-  const { chat, pending, delivered, working, doing, hasEarlier, onLoadEarlier, onLink, taskStatus, keyboardOffset, insets } = props;
+  const { room, chat, pending, delivered, working, doing, hasEarlier, onLoadEarlier, onLink, taskStatus, keyboardOffset, insets } = props;
   const { colors, spacing } = useTheme();
   const list = useRef<FlatList<Item>>(null);
   const [away, setAway] = useState(false);
   const [unseen, setUnseen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [menu, setMenu] = useState<ChatMsg | null>(null);
-  // The keyboard's share of the list's end (its inset there): the newest message sits that far past offset 0.
+  // The keyboard's share of the list's end (its inset there), and how far up from the newest you last were.
   const keyboardInset = useRef(0);
-  const toNewest = useCallback(() => list.current?.scrollToOffset({ offset: -keyboardInset.current, animated: true }), []);
+  const distance = useRef(0);
+  const toNewest = useCallback(
+    (animated = true) => list.current?.scrollToOffset({ offset: newestOffset(Platform.OS, keyboardInset.current), animated }),
+    [],
+  );
+
+  // Away or at the newest, from where you scrolled. Not from what the keyboard does: it moves the list by its height and
+  // back (on Android by scrolling it, and the last of those scroll events can be dropped by the throttle), but it keeps
+  // the newest where it was, so where you were before it moved is still where you are. Not from the way down to the
+  // newest either: that ends at the newest.
+  const held = useRef(false);
+  const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const judge = useCallback(() => {
+    const now = isAway(distance.current);
+    setAway(now);
+    if (!now) setUnseen(false);
+  }, []);
+  const settle = useCallback(() => {
+    clearTimeout(release.current);
+    held.current = false;
+    judge();
+  }, [judge]);
+  const hold = useCallback(
+    (ms: number) => {
+      held.current = true;
+      clearTimeout(release.current);
+      release.current = setTimeout(settle, ms);
+    },
+    [settle],
+  );
+  const onScrolled = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (held.current) return;
+      distance.current = fromNewest(Platform.OS, e.nativeEvent.contentOffset.y, keyboardInset.current);
+      judge();
+    },
+    [judge],
+  );
+  useEffect(() => {
+    const moving = () => hold(1000);
+    const subs = [
+      KeyboardEvents.addListener("keyboardWillShow", moving),
+      KeyboardEvents.addListener("keyboardWillHide", moving),
+      KeyboardEvents.addListener("keyboardDidShow", settle),
+      KeyboardEvents.addListener("keyboardDidHide", settle),
+    ];
+    return () => {
+      clearTimeout(release.current);
+      for (const sub of subs) sub.remove();
+    };
+  }, [hold, settle]);
+
+  // Down to the newest, at once: it counts as there from this render on, so what this render adds (your message on its
+  // way) is laid out at the newest instead of held where you were reading.
+  const [toGo, setToGo] = useState<{ animated: boolean } | null>(null);
+  const goNewest = (animated: boolean) => {
+    setAway(false);
+    setUnseen(false);
+    setToGo({ animated });
+  };
+  const [sentFor, setSentFor] = useState(pending);
+  if (pending !== sentFor) {
+    setSentFor(pending);
+    if (isNewSend(sentFor, pending)) goNewest(true);
+  }
+  const [shownRoom, setShownRoom] = useState(room);
+  if (room !== shownRoom) {
+    setShownRoom(room);
+    goNewest(false);
+  }
+  useEffect(() => {
+    if (!toGo) return;
+    distance.current = 0;
+    hold(toGo.animated ? 600 : 100);
+    toNewest(toGo.animated);
+  }, [toGo, hold, toNewest]);
 
   const rows = useMemo(() => buildRows(chat ?? []), [chat]);
   const items = useMemo<Item[]>(() => {
@@ -80,15 +160,14 @@ export function MessageList(props: MessageListProps) {
     if (latest !== seenLatest.current && away) setUnseen(true);
     seenLatest.current = latest;
   }, [latest, away]);
+  // At the newest, what arrives (a reply, Emberhut's step while it works) keeps the newest in view; away, it doesn't move.
+  const newest = items[0]?.key;
+  const followed = useRef(newest);
   useEffect(() => {
-    if (pending) toNewest();
-  }, [pending, toNewest]);
-
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const now = e.nativeEvent.contentOffset.y + keyboardInset.current > 120;
-    setAway(now);
-    if (!now) setUnseen(false);
-  }, []);
+    if (newest === followed.current) return;
+    followed.current = newest;
+    if (newest !== undefined && !away && !held.current) toNewest();
+  }, [newest, away, toNewest]);
 
   const earlier = async () => {
     setLoading(true);
@@ -196,7 +275,9 @@ export function MessageList(props: MessageListProps) {
         scrollIndicatorInsets={{ top: insets.bottom, bottom: insets.top }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        onScroll={onScroll}
+        onScroll={onScrolled}
+        onScrollEndDrag={onScrolled}
+        onMomentumScrollEnd={onScrolled}
         scrollEventThrottle={100}
         onScrollToIndexFailed={() => undefined}
         // Held in place only while you read further up; at the newest, what arrives pushes the rest up, above the keyboard.
@@ -222,20 +303,24 @@ export function MessageList(props: MessageListProps) {
           ) : undefined
         }
       />
-      {unseen && away && (
+      {away && (
         <Pressable
-          onPress={toNewest}
+          onPress={() => goNewest(true)}
           accessibilityRole="button"
-          accessibilityLabel="New messages: go to the newest"
+          accessibilityLabel={unseen ? "New messages: go to the newest" : "Go to the newest message"}
+          hitSlop={8}
           style={[
             styles.pill,
+            unseen ? styles.centre : [styles.round, { right: spacing.lg }],
             { bottom: insets.bottom + 12, backgroundColor: colors.surface, borderColor: colors.border, gap: spacing.xs },
           ]}
         >
-          <Icon name="arrow-down" size={16} color={colors.accent} />
-          <Text variant="footnote" weight="600">
-            New messages
-          </Text>
+          <Icon name="arrow-down" size={unseen ? 16 : 20} color={colors.accent} />
+          {unseen && (
+            <Text variant="footnote" weight="600">
+              New messages
+            </Text>
+          )}
         </Pressable>
       )}
       <ActionSheet visible={menu !== null} actions={actions} onClose={() => setMenu(null)} />
@@ -278,7 +363,6 @@ const styles = StyleSheet.create({
   note: { alignSelf: "flex-end" },
   pill: {
     position: "absolute",
-    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
@@ -287,4 +371,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     elevation: 3,
   },
+  centre: { alignSelf: "center" },
+  round: { width: 40, height: 40, paddingHorizontal: 0, paddingVertical: 0, justifyContent: "center" },
 });
