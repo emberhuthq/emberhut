@@ -131,6 +131,13 @@ the morning brief and the evening wrap (`emberhut_core::briefs`), worded for any
 brief also carries what each room said since the day before. A routine wakes Main once a day
 (an event with the key `routine:<local day>:<time>`).
 
+Two standing wakes sit beside the routines, each on until its setting is `false` (`set_routines`
+takes both): new messages in the owner's chats (`newsWakes`, ADR 0020), and meeting prep
+(`meetingPrep`, `services::meeting_prep`): every 10 minutes, each timed event on the calendar
+that starts in 35 to 80 minutes (focus time left out) gets one assistant task with a brief, to
+prepare the owner for it, which a worker picks up; the `prepped` setting keeps the last 100 by
+title and start.
+
 ### Rooms, files, alerts, chips and same-task memory
 
 - `room_send` stores a `room` event in the target room (`From the Main room: ...`); `rooms`

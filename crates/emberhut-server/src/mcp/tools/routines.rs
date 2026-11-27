@@ -18,6 +18,13 @@ pub(crate) struct SetRoutinesArgs {
     /// The quiet hours.
     #[garde(dive)]
     quiet: Option<QuietArg>,
+    /// Whether new messages in the owner's chats wake you (on until turned off).
+    #[garde(skip)]
+    news: Option<bool>,
+    /// Whether you get a task to prepare the owner about an hour before each meeting (on
+    /// until turned off).
+    #[garde(skip)]
+    meeting_prep: Option<bool>,
 }
 
 /// A routine: at `at` (`HH:MM`, server time) every day, what to do.
@@ -65,7 +72,8 @@ impl Tool for SetRoutines {
 
     fn description(&self) -> &'static str {
         "Change the owner's daily routines (each: at \"HH:MM\" server time, what to do) and/or \
-         quiet hours, when they ask."
+         quiet hours, and turn off or on the wakes for new messages (news) and meeting prep \
+         (meeting_prep), when they ask."
     }
 
     async fn call(
@@ -92,6 +100,21 @@ impl Tool for SetRoutines {
             .set(routines.as_deref(), quiet.as_ref())
             .await
             .map_err(ToolError::failed)?;
+        for (switch, on) in [
+            (&crate::services::messaging::news::NEWS_WAKES, args.news),
+            (
+                &crate::services::meeting_prep::MEETING_PREP,
+                args.meeting_prep,
+            ),
+        ] {
+            if let Some(on) = on {
+                ctx.app
+                    .routines()
+                    .set_switch(switch, on)
+                    .await
+                    .map_err(ToolError::failed)?;
+            }
+        }
         ctx.app
             .activity()
             .note("Routines updated")

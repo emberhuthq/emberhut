@@ -119,6 +119,17 @@ impl RoutineService {
         Ok(())
     }
 
+    /// Turns one of the assistant's standing wakes on or off: new messages
+    /// ([`crate::services::messaging::news::NEWS_WAKES`]) or meeting prep
+    /// ([`crate::services::meeting_prep::MEETING_PREP`]).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn set_switch(&self, switch: &SettingKey<bool>, on: bool) -> Result<(), DbError> {
+        self.settings.set(switch, &on).await
+    }
+
     /// Whether it is quiet hours now. None set (or unreadable times): never.
     ///
     /// # Errors

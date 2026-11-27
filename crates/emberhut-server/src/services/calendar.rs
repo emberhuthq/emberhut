@@ -413,6 +413,29 @@ impl CalendarService {
         })
     }
 
+    /// The events that start after `from` and before `to` (today's and tomorrow's, as the
+    /// Mac says now or as last seen), all-day ones left out, each with its `kind`.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn starting(
+        &self,
+        from: Timestamp,
+        to: Timestamp,
+    ) -> Result<Vec<Map<String, Value>>, DbError> {
+        let today = self.today();
+        let (events, _note) = self.events(today, next_day(today)).await?;
+        Ok(events
+            .into_iter()
+            .filter(|event| !truthy(event.get("allDay")))
+            .filter(|event| {
+                instant(&text_of(event.get("start")), &self.inner.zone)
+                    .is_some_and(|start| start > from && start < to)
+            })
+            .collect())
+    }
+
     /// The Mac's events for `from..=to`, read at most once a minute per range.
     async fn read_mac(&self, from: Date, to: Date) -> Result<Look, DbError> {
         let now = self.inner.clock.now();

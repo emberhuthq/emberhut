@@ -688,6 +688,9 @@ pub struct MessagingConfig {
     /// The assistant's WhatsApp number, to link.
     #[arg(long = "whatsapp-phone", env = "EMBERHUT_WHATSAPP_PHONE")]
     pub whatsapp_phone: Option<String>,
+    /// The owner's name: a group chat's message that mentions it wakes the assistant at once.
+    #[arg(long = "owner-name", env = "EMBERHUT_OWNER_NAME")]
+    pub owner_name: Option<String>,
 }
 
 /// Why a helper URL was not taken.

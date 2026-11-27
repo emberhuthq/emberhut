@@ -187,6 +187,12 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
             .clone()
             .keep_ticking(services::wake::TICK_EVERY, state.stopping().clone()),
     );
+    let prepping = tokio::spawn(
+        state
+            .meeting_prep()
+            .clone()
+            .keep_ticking(services::meeting_prep::TICK, state.stopping().clone()),
+    );
     let ticking = tokio::spawn(
         state
             .tasks()
@@ -257,6 +263,7 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
     polling.abort();
     ticking.abort();
     waking.abort();
+    prepping.abort();
     indexing.abort();
     looking.abort();
     calls_work.abort();
@@ -705,6 +712,7 @@ fn messaging(
         gmail_callback: settings.gmail_callback.clone(),
         wake_name: settings.whatsapp_name.clone(),
         owner_phone: settings.whatsapp_owner.clone(),
+        owner_name: settings.owner_name.clone(),
         assistant_phone: settings.whatsapp_phone.clone(),
         voice_max_seconds: settings.voice_max_seconds,
         ..MessagingDeps::default()

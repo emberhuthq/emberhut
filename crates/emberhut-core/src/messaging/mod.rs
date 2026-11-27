@@ -8,6 +8,7 @@
 //! after the owner's OK on that exact text.
 
 pub mod mail;
+pub mod news;
 pub mod slack;
 pub mod text;
 pub mod voice;

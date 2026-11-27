@@ -63,6 +63,7 @@ mod memory_settings;
 mod messaging_fakes;
 mod messaging_guard;
 mod morning_brief;
+mod news_wakes;
 mod openapi;
 mod outward;
 mod pairing;
