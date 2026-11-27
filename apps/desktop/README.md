@@ -273,7 +273,13 @@ the Mac's password (LocalAuthentication's device-owner check); the system's shee
 Back after more than 5 minutes with no window on screen, the app locks again, and while no
 window is on screen (hidden or minimised) the cover is up, so the Dock's and Mission Control's
 snapshots show nothing. A Mac with no password set opens without asking. Linux and Windows have
-no such check, so the app never locks there.
+no such check, so the app never locks there. A window counts as on screen from the moment it
+opens until the system says otherwise, or a second later when its visibility is read again from
+the system, so a window opening behind other apps (`--background`) isn't covered while the system
+is still working out whether it shows, and one that really opens out of sight (hidden, on another
+Space, on a sleeping display) is covered then. Touch ID or the password is asked for only once a
+window is known to show or the app is in front. An unseen run (see Command line) has no lock and
+no cover at all.
 
 ### Accessibility
 

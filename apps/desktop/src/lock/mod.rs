@@ -6,6 +6,8 @@
 //! stays locked, and the cover says so, with Unlock to try again.
 //!
 //! The lock is one for the whole app ([`Lock`], a global), as every window shows the same chat.
+//! An unseen run ([`crate::shell::unseen`]) has none: no one is there to unlock it, and its
+//! windows sit beside the displays, where they would count as out of sight.
 
 mod system;
 
@@ -133,7 +135,11 @@ impl Lock {
 }
 
 /// Sets up the lock at launch: locked unless `open`, or when this system has no way to ask.
+/// In an unseen run there is no lock at all, so no cover ever shows.
 pub(crate) fn install(open: bool, cx: &mut App) {
+    if crate::shell::unseen::is_unseen(cx) {
+        return;
+    }
     cx.set_global(Lock::at_launch(system::AVAILABLE, open));
 }
 
@@ -143,14 +149,17 @@ pub(crate) fn state(cx: &App) -> Lock {
     cx.try_global::<Lock>().copied().unwrap_or_default()
 }
 
-/// Whether any of the app's windows is on screen, as the windows say it (all of them summed).
-pub(crate) fn seen(visible: bool, cx: &mut App) {
+/// Whether any of the app's windows is on screen, as the windows say it (all of them summed);
+/// `surely`, whether that is known (a window is active, or the platform has told of one shown)
+/// rather than taken for granted as a window opens. The lock asks to unlock only when it is
+/// known, so a window opening out of sight doesn't bring up the system's sheet.
+pub(crate) fn seen(visible: bool, surely: bool, cx: &mut App) {
     let Some(lock) = cx.try_global::<Lock>().copied() else {
         return;
     };
     let mut next = lock;
     let ask = if visible {
-        next.show(Instant::now())
+        next.show(Instant::now()) && surely
     } else {
         next.hide(Instant::now());
         false
@@ -277,6 +286,35 @@ mod tests {
         lock.cant_ask(&CantAsk::NothingToAskWith);
         assert!(!lock.covered(), "no password set: nothing to ask with");
         assert!(!lock.couldnt_ask());
+    }
+
+    #[gpui_kit::test]
+    fn an_unseen_run_has_no_lock_and_no_cover(cx: &mut gpui_kit::TestAppContext) {
+        use crate::shell::unseen::{self, Unseen};
+
+        cx.update(|cx| {
+            unseen::mark(Unseen::OutOfSight, cx);
+            install(false, cx);
+            assert!(!state(cx).covered(), "not locked at launch");
+            seen(false, true, cx);
+            assert!(
+                !state(cx).covered(),
+                "nor covered with its windows out of sight"
+            );
+            unlock(cx);
+            assert!(!state(cx).covered());
+        });
+    }
+
+    #[gpui_kit::test]
+    fn a_normal_run_out_of_sight_is_covered(cx: &mut gpui_kit::TestAppContext) {
+        cx.update(|cx| {
+            install(true, cx);
+            seen(false, true, cx);
+            assert!(state(cx).covered());
+            seen(true, true, cx);
+            assert!(!state(cx).covered());
+        });
     }
 
     #[cfg(not(target_os = "macos"))]
