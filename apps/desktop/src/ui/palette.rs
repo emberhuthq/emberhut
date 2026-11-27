@@ -524,6 +524,26 @@ pub(crate) fn category_color(index: usize) -> Hsla {
     color(CATEGORIES[index % CATEGORIES.len()])
 }
 
+/// One appearance's ground and text for a page drawn outside GPUI, each `#RRGGBB`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WebColours {
+    /// The page's surface.
+    pub(crate) surface: String,
+    /// The body text.
+    pub(crate) text: String,
+}
+
+/// The page's surface and text in light, then in dark (a token that isn't a colour is grey):
+/// what a report's web view shows where the report has no background or text colour of its
+/// own.
+#[must_use]
+pub(crate) fn web_colours(page: &ThemePage) -> [WebColours; 2] {
+    [&page.tokens.light, &page.tokens.dark].map(|tokens| WebColours {
+        surface: format!("#{:06X}", hex(&tokens.surface)),
+        text: format!("#{:06X}", hex(&tokens.text)),
+    })
+}
+
 /// A calendar tone's colours, for the appearance on screen.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CalendarColors {

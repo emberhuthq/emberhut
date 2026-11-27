@@ -3,6 +3,8 @@
 
 use gpui_kit::{AnyElement, App, Window};
 
+use crate::ui::palette::WebColours;
+
 /// Why there is no web view.
 #[derive(Debug, thiserror::Error)]
 #[error("this platform has no web view")]
@@ -18,7 +20,12 @@ impl ReportWeb {
     /// # Errors
     ///
     /// Always.
-    pub(super) fn open(_html: &str, _window: &mut Window, _cx: &mut App) -> Result<Self, Error> {
+    pub(super) fn open(
+        _html: &str,
+        _colours: &[WebColours; 2],
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Result<Self, Error> {
         log::info!("the report shows as rich text: {Error}");
         Err(Error)
     }

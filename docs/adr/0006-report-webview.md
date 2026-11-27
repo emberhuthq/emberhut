@@ -128,7 +128,10 @@ a report that is loading or failed. Nothing is kept hidden. Resizing the panel o
 the window keeps the same view: gpui-webview sets the native view's frame from the element's
 layout on every frame it draws, so the view follows the panel's bounds. The page gets Emberhut's own
 light or dark appearance (gpui-webview's `set_theme`), so `prefers-color-scheme` follows Emberhut's
-choice rather than the system's.
+choice rather than the system's. After the policy goes a style with no weight (`:where(:root)`)
+giving the root Emberhut's surface and text in each appearance, so a page without colours of its
+own sits on the panel in its text rather than in WebKit's white and black (Wry's background colour
+does nothing on macOS). A preset change reaches an open page when it is next opened.
 
 ## Consequences
 

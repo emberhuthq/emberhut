@@ -20,6 +20,7 @@ use wry::{
 
 use super::policy::{NavigationPolicy, decide};
 use super::{WEB_VIEW_ENV, guard, sandbox, web_view_off};
+use crate::ui::palette::WebColours;
 
 /// How long a page may take to finish loading before the log says so: a page that never loads
 /// (or whose `WebKit` process died) stays blank, and this is the trace it leaves.
@@ -61,8 +62,13 @@ impl ReportWeb {
     /// # Errors
     ///
     /// When web views are off, or one can't be made.
-    pub(super) fn open(html: &str, window: &mut Window, cx: &mut App) -> Result<Self, Error> {
-        let made = Self::make(html, window, cx);
+    pub(super) fn open(
+        html: &str,
+        colours: &[WebColours; 2],
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<Self, Error> {
+        let made = Self::make(html, colours, window, cx);
         match &made {
             Ok(_) => {}
             Err(error @ Error::Off) => log::info!("the report shows as rich text: {error}"),
@@ -75,7 +81,12 @@ impl ReportWeb {
         made
     }
 
-    fn make(html: &str, window: &mut Window, cx: &mut App) -> Result<Self, Error> {
+    fn make(
+        html: &str,
+        colours: &[WebColours; 2],
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<Self, Error> {
         if web_view_off(std::env::var_os(WEB_VIEW_ENV).as_deref()) {
             return Err(Error::Off);
         }
@@ -86,7 +97,7 @@ impl ReportWeb {
         let (links, to_open) = smol::channel::unbounded::<String>();
         let builder = WebViewBuilder::new()
             .with_webview_configuration(configuration(main_thread))
-            .with_html(sandbox::sandboxed(html))
+            .with_html(sandbox::sandboxed(html, colours))
             // In every frame, so a frame the page makes gets it too.
             .with_initialization_script_for_main_only(guard::GUARD, false)
             .with_autoplay(false)
