@@ -18,7 +18,7 @@ use emberhut_db::{DbError, EventStore, RoomStore, SettingKey, SettingStore};
 use jiff::{SignedDuration, Timestamp};
 use tokio_util::sync::CancellationToken;
 
-use crate::convert::{room_to_api, timestamp_to_api};
+use crate::convert::{room_from_api, room_to_api, timestamp_to_api};
 use crate::services::activity::ActivityLog;
 use crate::services::rooms::RoomsService;
 use crate::services::routines::RoutineService;
@@ -39,6 +39,27 @@ pub const MAX_CHECKINS: usize = 20;
 
 /// How often the server looks for what should wake the assistant.
 pub const TICK_EVERY: Duration = Duration::from_secs(30);
+
+/// Whose check-ins and watches a change reaches: every room's (the owner's rooms), or one
+/// room's (a configured agent's room, which reaches only what it scheduled itself).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WakeScope {
+    /// Every room's.
+    Every,
+    /// Only what this room scheduled.
+    Room(RoomId),
+}
+
+impl WakeScope {
+    /// Whether it reaches a check-in or watch scheduled by `room` (as stored: none for Main).
+    #[must_use]
+    pub fn reaches(self, room: Option<emberhut_api::ids::RoomId>) -> bool {
+        match self {
+            Self::Every => true,
+            Self::Room(own) => room.map_or(RoomId::MAIN, room_from_api) == own,
+        }
+    }
+}
 
 /// Why the wake rule could not be applied.
 #[derive(Debug, thiserror::Error)]
@@ -304,16 +325,17 @@ impl WakeService {
         Ok(at)
     }
 
-    /// Cancels the check-ins at `at`; whether there was one.
+    /// Cancels the check-ins at `at` that `scope` reaches; whether there was one. Another
+    /// room's at the same time stay when `scope` is one room.
     ///
     /// # Errors
     ///
     /// [`DbError`].
-    pub async fn cancel_checkin(&self, at: &str) -> Result<bool, DbError> {
+    pub async fn cancel_checkin(&self, at: &str, scope: WakeScope) -> Result<bool, DbError> {
         let _writing = self.inner.writing.lock().await;
         let mut checkins = self.checkins().await?;
         let before = checkins.len();
-        checkins.retain(|checkin| checkin.at.as_str() != at);
+        checkins.retain(|checkin| checkin.at.as_str() != at || !scope.reaches(checkin.room));
         self.inner.settings.set(&CHECKINS, &checkins).await?;
         Ok(checkins.len() < before)
     }
@@ -379,17 +401,18 @@ impl WakeService {
         Ok(id)
     }
 
-    /// Notes what watch `id` last saw.
+    /// Notes what watch `id` last saw, when `scope` reaches it.
     ///
     /// # Errors
     ///
-    /// [`WakeError::NoWatch`] and [`WakeError::Database`].
-    pub async fn note_watch(&self, id: i64, note: &str) -> Result<(), WakeError> {
+    /// [`WakeError::NoWatch`] (also for a watch `scope` doesn't reach) and
+    /// [`WakeError::Database`].
+    pub async fn note_watch(&self, id: i64, note: &str, scope: WakeScope) -> Result<(), WakeError> {
         let _writing = self.inner.writing.lock().await;
         let mut watches = self.watches().await?;
         let watch = watches
             .iter_mut()
-            .find(|watch| watch.id == id)
+            .find(|watch| watch.id == id && scope.reaches(watch.room))
             .ok_or(WakeError::NoWatch(id))?;
         note.clone_into(&mut watch.note);
         watch.note_at = Some(timestamp_to_api(self.now()));
@@ -397,17 +420,17 @@ impl WakeService {
         Ok(())
     }
 
-    /// Stops watch `id`; the watch, if there was one.
+    /// Stops watch `id` when `scope` reaches it; the watch, if there was one.
     ///
     /// # Errors
     ///
     /// [`DbError`].
-    pub async fn stop_watch(&self, id: i64) -> Result<Option<Watch>, DbError> {
+    pub async fn stop_watch(&self, id: i64, scope: WakeScope) -> Result<Option<Watch>, DbError> {
         let _writing = self.inner.writing.lock().await;
         let mut watches = self.watches().await?;
         let stopped = watches
             .iter()
-            .position(|watch| watch.id == id)
+            .position(|watch| watch.id == id && scope.reaches(watch.room))
             .map(|at| watches.remove(at));
         self.save_watches(watches).await?;
         if let Some(watch) = &stopped {

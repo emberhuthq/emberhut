@@ -810,3 +810,108 @@ async fn a_direct_message_is_answered_with_its_own_workspaces_bot() {
         "the DM's own workspace's bot"
     );
 }
+
+#[tokio::test]
+async fn an_agent_sees_and_changes_only_its_own_check_ins_and_watches() {
+    use emberhut_api::wake::{Checkin, Watch};
+    use emberhut_server::services::wake::NewWatch;
+
+    let desk = AgentDesk::new(&[
+        "wake_me_at",
+        "list_checkins",
+        "cancel_checkin",
+        "watch",
+        "watch_note",
+        "list_watches",
+        "stop_watch",
+    ])
+    .await;
+    let wake = desk.app.state.wake();
+    // The owner's, in Main: a check-in at the same moment as the agent's, and a watch.
+    let owners_at = wake
+        .wake_me_at(30, "the owner's own look", RoomId::MAIN)
+        .await
+        .unwrap();
+    let new_watch = |title: &str| NewWatch {
+        title: title.to_owned(),
+        thread: None,
+        what: "the release build".to_owned(),
+        every_minutes: 30.0,
+        hours: 24.0,
+        note: String::new(),
+    };
+    let owners_watch = wake
+        .add_watch(new_watch("the owner's build"), RoomId::MAIN)
+        .await
+        .unwrap();
+    // The agent's own.
+    let scheduled = desk
+        .call(
+            "wake_me_at",
+            json!({ "minutes": 30, "why": "is the deck done?" }),
+        )
+        .await;
+    assert_eq!(
+        text(&scheduled),
+        format!("Check-in at {}.", owners_at.as_str())
+    );
+    let watched = desk
+        .call(
+            "watch",
+            json!({ "title": "the deck", "what": "its worker's notes", "every_minutes": 30 }),
+        )
+        .await;
+    let own_watch = owners_watch + 1;
+    assert!(
+        text(&watched).starts_with(&format!("Watch #{own_watch} started")),
+        "{watched:?}"
+    );
+
+    let listed: Vec<Checkin> =
+        serde_json::from_str(text(&desk.call("list_checkins", json!({})).await)).unwrap();
+    assert_eq!(
+        listed.iter().map(|c| c.why.as_str()).collect::<Vec<_>>(),
+        ["is the deck done?"]
+    );
+    let watches: Vec<Watch> =
+        serde_json::from_str(text(&desk.call("list_watches", json!({})).await)).unwrap();
+    assert_eq!(
+        watches.iter().map(|w| w.id).collect::<Vec<_>>(),
+        [own_watch]
+    );
+
+    // The owner's watch is no watch of the agent's: not noted, not stopped.
+    let noted = desk
+        .call(
+            "watch_note",
+            json!({ "id": owners_watch, "note": "looks done" }),
+        )
+        .await;
+    assert!(text(&noted).contains("no watch"), "{noted:?}");
+    let stopped = desk.call("stop_watch", json!({ "id": owners_watch })).await;
+    assert_eq!(text(&stopped), "No such watch.");
+    // Cancelling at that moment cancels the agent's check-in only.
+    let cancelled = desk
+        .call("cancel_checkin", json!({ "at": owners_at.as_str() }))
+        .await;
+    assert_eq!(text(&cancelled), "Cancelled.");
+    let left = wake.checkins().await.unwrap();
+    assert_eq!(
+        left.iter().map(|c| c.why.as_str()).collect::<Vec<_>>(),
+        ["the owner's own look"]
+    );
+    assert_eq!(
+        text(&desk.call("stop_watch", json!({ "id": own_watch })).await),
+        "Stopped."
+    );
+    let all = wake.watches().await.unwrap();
+    assert_eq!(all.iter().map(|w| w.id).collect::<Vec<_>>(), [owners_watch]);
+    assert_eq!(all[0].note, "", "the owner's watch was not noted");
+
+    // Main still reaches every room's.
+    let main: Vec<Checkin> = serde_json::from_str(text(
+        &desk.call_in(RoomId::MAIN, "list_checkins", json!({})).await,
+    ))
+    .unwrap();
+    assert_eq!(main.len(), 1);
+}

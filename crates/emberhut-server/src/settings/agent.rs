@@ -6,6 +6,7 @@
 use serde_json::Value;
 
 use super::{Action, ActionContext, ActionError, Body};
+use crate::services::wake::WakeScope;
 
 /// `{ on: bool }`: pause (`false`: every room's turn stops, nothing wakes the assistant) or
 /// resume.
@@ -82,7 +83,7 @@ impl Action for CancelCheckin {
         };
         ctx.app
             .wake()
-            .cancel_checkin(at)
+            .cancel_checkin(at, WakeScope::Every)
             .await
             .map(drop)
             .map_err(ActionError::failed)
@@ -104,7 +105,7 @@ impl Action for StopWatch {
         };
         ctx.app
             .wake()
-            .stop_watch(id)
+            .stop_watch(id, WakeScope::Every)
             .await
             .map(drop)
             .map_err(ActionError::failed)

@@ -32,8 +32,18 @@ pub(crate) const AGENT_TOOLS: [&str; 9] = [
 ];
 
 /// The room tools an agent may list that act only in the room that called: its check-ins and
-/// watches, and a file shown in its room.
-pub(crate) const IN_ITS_ROOM: [&str; 3] = ["wake_me_at", "watch", "send_file"];
+/// watches (listed, cancelled, noted and stopped only when its room made them), and a file
+/// shown in its room.
+pub(crate) const IN_ITS_ROOM: [&str; 8] = [
+    "wake_me_at",
+    "list_checkins",
+    "cancel_checkin",
+    "watch",
+    "watch_note",
+    "list_watches",
+    "stop_watch",
+    "send_file",
+];
 
 /// The task tools an agent may list, each scoped to the tasks made in its room.
 pub(crate) const ITS_TASKS: [&str; 5] = [

@@ -84,9 +84,11 @@ What an agent has besides, each its own table so it is queried and changed row b
   owner (`slack_send`, `whatsapp_send`, the browser's and the Mac's tools, `messages_*`, `gmail_*`,
   `health`, `screen_time`, `calendar`) are refused as server tools for any agent but the default, at
   write time and again when its tool set is built. Of the server tools it lists, only those that act
-  for it alone are served: the ones that act in its own room (`wake_me_at`, `watch`, `send_file`)
-  and its task tools, scoped to the tasks made in its room (`tasks`, `task_create`, `task_send`,
-  `task_stop`, `task_cancel`). A tool that reads or changes the owner's own things (their messages,
+  for it alone are served: the ones that act in its own room (`send_file`, and its check-ins and
+  watches: `wake_me_at`, `list_checkins`, `cancel_checkin`, `watch`, `watch_note`,
+  `list_watches`, `stop_watch`, which list, cancel, note and stop only what its room scheduled;
+  another room's at the same moment stay) and its task tools, scoped to the tasks made in its room
+  (`tasks`, `task_create`, `task_send`, `task_stop`, `task_cancel`). A tool that reads or changes the owner's own things (their messages,
   plan, notes, other rooms, every task, recall over everything) is not served to it, and the server
   logs that it was listed.
 - **Accounts** (`agent_accounts`): `label` and `secret` (the secret file's name). The server
