@@ -1,4 +1,4 @@
-# Emberhut by Symploc
+# Emberhut
 
 **Emberhut** is an open-source personal assistant you run yourself: a desktop app, **Emberhut**,
 and the server it talks to, both written in Rust. Website: [emberhut.com](https://emberhut.com).
