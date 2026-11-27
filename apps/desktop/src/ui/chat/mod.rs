@@ -475,6 +475,8 @@ fn runs(rows: &[usize]) -> Vec<Range<usize>> {
 }
 
 #[cfg(test)]
+mod ask_width;
+#[cfg(test)]
 mod picture_layout;
 #[cfg(test)]
 mod reflow;
