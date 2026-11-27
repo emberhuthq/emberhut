@@ -54,7 +54,7 @@ use self::width::Space;
 pub(crate) use self::width::{MIN_CHAT, MIN_PANEL};
 use super::a11y::Accessible as _;
 use super::files::actions::FileAction;
-use super::palette::pal;
+use super::palette::{self, pal};
 use super::toast;
 use super::widgets::icon;
 use super::window::MainWindow;
@@ -117,7 +117,10 @@ pub(crate) fn panel(
         .as_ref()
         .and_then(|(report, _)| store.server().link(&report.path));
     let page = sync(&mut this.report_body.slot, open.as_ref(), |html| {
-        ReportWeb::open(html, window, cx)
+        // The theme's colours as the page is made: an appearance change follows in the page
+        // (its style picks by prefers-color-scheme), a preset change on its next opening.
+        let colours = palette::web_colours(this.store.read(cx).theme().page());
+        ReportWeb::open(html, &colours, window, cx)
     })
     .and_then(Result::ok)
     .map(|page| {

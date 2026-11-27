@@ -966,7 +966,9 @@ Each line passes when:
   within 4 s: the toast with Undo shows under the page, not hidden behind it.
 - Appearance: with macOS in Light, set Emberhut to Dark in Settings. A report that styles
   `@media (prefers-color-scheme: dark)` shows dark, and switching Emberhut back to Light turns it
-  light without reopening it. The page doesn't flash white when it opens in Dark.
+  light without reopening it. The page doesn't flash white when it opens in Dark. A report with
+  no colours of its own sits on the panel's surface in the theme's text in both, with no white
+  behind it and no black text in Dark.
 - A slow picture: `slow.html` is a page with an https picture from a server that answers after
   30 s, and a link. Clicking the link while the picture loads opens it in the browser at once.
   After 15 s the log warns that the report hasn't finished loading.
