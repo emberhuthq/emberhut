@@ -27,14 +27,21 @@ An address must start with `http://` or `https://`; one that doesn't is skipped 
 When neither names one and this device has no session, the app opens on the first-run setup
 (see "Setting up your ember") instead of waiting on a server that may not be there.
 
+The setup's "Here, on this computer" may find the hut on another port than the app talks to
+(another program had `18990`): it then writes the hut's address to `config.json`'s `server`
+(the file's other keys kept, its `dialect` dropped) and moves the running app to it, with no
+restart. `localhost` and `127.0.0.1` on one port are one address, so that is no move. When
+`EMBERHUT_URL` is set it wins: the app stays where the variable says, and the step says so.
+
 ### The hut on this computer
 
 The app can run the server itself, on this computer, so a new person needs no terminal: the
 hut (`src/hut/`, [ADR 0030](../../docs/adr/0030-the-hut-inside-the-app.md)). `LocalHut` finds
 the `emberhut-server` binary, starts it on `127.0.0.1:18990` (the next free port when another
 program has that one), makes a pairing code for this app with the server's own `pair --json`,
-and keeps it lit after the app closes or from login when asked. The onboarding calls it; nothing
-starts until then.
+and keeps it lit after the app closes or from login when asked. The setup's first step calls it
+through `store::setup::HutHome`; nothing starts until then. A hut that runs as the app's child
+is asked to stop (`SIGTERM`, not waited for) as the app quits.
 
 - **The binary**: in the macOS bundle at `Emberhut.app/Contents/MacOS/emberhut-server` (put there
   by `cargo xtask bundle-macos`), else beside the app's executable (`target/<profile>/` for a
@@ -51,6 +58,11 @@ starts until then.
 - **The real run**: `hut::real_tests` starts a built server through `LocalHut`, pairs with its
   code over `POST /api/auth/pair` and stops it. It is ignored by default and refuses a `HOME`
   outside the temporary folder; its module says how to run it with `env -i`.
+- **Test runs on a real computer** (debug and automation builds only; a release build ignores
+  both): `EMBERHUT_HUT_PORT=18995` makes that the hut's first port, to keep off a default port
+  another server uses; `EMBERHUT_HUT_SERVICE=none` leaves launchd and systemd out, so no launch
+  agent or unit is ever written or loaded: the hut is then the app's child, and keeping it lit
+  without the app is refused in words.
 
 ### A fallback server
 
@@ -101,7 +113,8 @@ overwritten with a mark that every later read takes for no item at all.
 | Linux | `$XDG_CONFIG_HOME/emberhut` (usually `~/.config/emberhut`) |
 | Windows | `%APPDATA%\emberhut` |
 
-- `config.json`: your settings: the server, and the fallback server (see above).
+- `config.json`: your settings: the server, and the fallback server (see above). The setup
+  writes `server` when it moves the app to the hut on this computer.
 - `session.json`: this device's session, kept by `emberhut-client` (readable by you only). On
   macOS the session lives in the Keychain instead (a generic password of `com.emberhut.desktop`
   per server, never synced); a `session.json` from an earlier launch moves into it once. As
@@ -162,10 +175,18 @@ first two get it going; the other three are optional and say so.
 1. **Give your ember a home.** Here, on this computer (recommended), or on another computer
    already set up. Another computer opens the pairing form ("Find your ember"), which pairs with
    the address the app talks to. Here goes through a port, `store::setup::LocalHome`: whether
-   Emberhut can live on this computer, starting it, and a pairing code from it. The app wires
-   its implementation in `app.rs`; until it can start Emberhut itself, `DevHome` uses one already
-   answering at the app's address (on this computer) and asks for its code, and otherwise says
-   "This build can't start Emberhut here yet." beside the other computer's form.
+   Emberhut can live on this computer, starting it, keeping it lit, and a pairing code from it.
+   `app.rs` wires `HutHome` (the hut, above) when the app finds its server binary, else
+   `DevHome`, which uses one already answering at the app's address and asks for its code. With
+   the hut, Continue starts it, moves the app to its address when that differs (see "Which
+   server"; `Store::switch_server` stops the poll, swaps the backend and starts the poll again),
+   keeps it lit while the window is closed and from login, and pairs with a code the hut makes
+   through the same sign-in a typed code takes: the user types nothing, and "Light it" opens.
+   The done line says "It lives on this computer and stays lit when the window is closed." with
+   Change, a sheet with the two switches; where the system can't keep it lit without the app it
+   says it lives here while Emberhut is open. When nothing can live here, the step says "This
+   build can't start Emberhut here yet." beside the other computer's form; a hut that fails to
+   start says why in the hut's words.
 2. **Light it.** The provider picker of Settings › Your ember, opened as the step shows (so a
    local Ollama is looked for). A save that goes through finishes the step.
 3. **Let it reach you.** A pairing code made as the step opens, as a QR code (Settings ›

@@ -102,11 +102,11 @@ service manager, which runs the same command line:
   --user stop`; both switches off is `disable`, `stop`, removing the unit and `daemon-reload`.
 - **Otherwise, the app's child.** Its output goes to the log. The app stops it (`SIGTERM`, which
   the server shuts down cleanly on; killed if it hasn't stopped in 15 s) when the hut is moved to
-  a service, stopped, or the `LocalHut` is dropped, and the app calls `stop` as it quits (wired
-  with the onboarding). A child left by
-  a crash keeps running and is found and reused by the next start, and its remembered process is
-  what `stop` then ends (only once it answers as this hut). Keeping it lit without the app on a
-  system with neither launchd nor systemd is refused, in words.
+  a service, stopped, or the `LocalHut` is dropped; as the app quits it sends the child
+  `SIGTERM` and doesn't wait (`let_go`), so the quit isn't held up. A child left by a crash keeps
+  running and is found and reused by the next start, and its remembered process is what `stop`
+  then ends (only once it answers as this hut). Keeping it lit without the app on a system with
+  neither launchd nor systemd is refused, in words.
 
 ### Upgrades
 
@@ -127,6 +127,35 @@ the hut's paths (constructor injection; the tests use fakes and a temporary home
 the background executor that runs one at a time. Errors are `HutError`, whose messages are
 written to be shown as they are. The onboarding builds on it; there is no other UI.
 
+### The onboarding
+
+The first-run setup's first step reaches the hut through its own port, `store::setup::LocalHome`,
+so the store doesn't depend on processes: `HutHome` adapts `LocalHut` to it (in the store's
+setup module, which depends on the hut and not the other way round), with each `HutError` as its
+message and the hut's code handed over, so the person types nothing. `app.rs` builds it with
+`LocalHut::system` when the server binary is found, else the setup keeps `DevHome` (a server
+already answering at the app's address, its code typed).
+
+"Here, on this computer" then runs: `start`; when the hut answers at another address than the
+app talks to (its port was taken), the app moves there as it runs: the address is written to
+`config.json`'s `server` (other keys kept), a backend for it is made as the launch made the first,
+and `Store::switch_server` stops the state poll, swaps the backend and the chats' cache, drops
+what the old server said, points the live stream at the new one and starts the poll again. The
+loops that fetch now and then take the store's backend at each round and follow by themselves,
+as does the account's "Add this computer". `localhost` and `127.0.0.1` on one port are the same
+address, so no move. `EMBERHUT_URL` wins, as it does at launch: the app doesn't move, and the
+step says so. Then `keep_lit` with both switches on, as the step promises it stays lit when the
+window is closed; where it can't (no service manager), the hut stays the app's child and the
+done line says it lives here while Emberhut is open. Then `pair_code` and the normal
+`POST /api/auth/pair` of a typed code, and "Light it" opens. The done line's Change opens a sheet
+with the two switches, each a `keep_lit`. Staying awake while plugged in isn't offered: the hut
+takes no power assertions.
+
+For a test run on a real computer, a debug or automation build reads `EMBERHUT_HUT_PORT` (the
+first port, to keep off a default port another server uses) and `EMBERHUT_HUT_SERVICE=none`
+(no launch agent or unit is written or loaded; the hut is the app's child). A release build reads
+neither.
+
 ## Consequences
 
 - The macOS bundle grows by the server's binary, and `bundle-macos` builds a second package
@@ -146,4 +175,6 @@ The bundle, its signing, the launch agent and `launchctl` are macOS only: they a
 from Linux and their plist and commands are tested against a fake spawner, but loading the agent,
 its `RunAtLoad`/`KeepAlive` behaviour across logins and the signed nested binary's notarization
 need a real Mac. Linux's systemd unit is likewise tested by its text and the commands issued; the
-child process path runs for real in an ignored test (`hut::real_tests`).
+child process path runs for real in an ignored test (`hut::real_tests`), and the whole first step
+(start on a moved port, the move, the pairing, "Light it") was run for real on Linux with the
+service manager left out.
