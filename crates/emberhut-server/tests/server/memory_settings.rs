@@ -1,5 +1,5 @@
-//! `POST /api/settings`' "About you" actions: `factSet`, `personSet`, `factDrop` and
-//! `trialDrop`, and the `fact` events that tell the assistant.
+//! `POST /api/settings`' "About you" actions: `factSet`, `personSet`, `factDrop`, `trialDrop`
+//! and `trialKeep`, and the `fact` events that tell the assistant.
 #![expect(
     clippy::unwrap_used,
     reason = "the test helpers here: a failure fails the test that called them"
@@ -195,6 +195,79 @@ async fn the_owner_drops_a_rule_on_trial() {
         .await
         .read_as();
     assert_eq!(page.trials, [] as [emberhut_api::facts::Trial; 0]);
+    let review = app.call_tool("trial_drop", json!({ "id": 1 })).await;
+    assert!(text(&review).starts_with("No trial rule T1 is running"));
+}
+
+#[tokio::test]
+async fn the_owner_keeps_a_rule_on_trial_before_the_review() {
+    let app = TestApp::new().await;
+    let session = app.sign_in().await;
+    app.call_tool(
+        "correction_log",
+        json!({
+            "said": "the reel is too short",
+            "wrong": "I cut it to 20 seconds",
+            "lesson": "Story reels run at least 60 seconds.",
+            "lesson_to_user": "Story reels run at least 60 seconds; I check each cut's length before showing you."
+        }),
+    )
+    .await;
+    let page: FactsPage = app
+        .call(Call::get(paths::FACTS).token(&session))
+        .await
+        .read_as();
+    assert_eq!(
+        page.trials[0].lesson.as_deref(),
+        Some("Story reels run at least 60 seconds; I check each cut's length before showing you.")
+    );
+
+    for ignored in [json!({ "trialKeep": "1" }), json!({ "trialKeep": 99 })] {
+        let answer = app
+            .call(Call::post(paths::SETTINGS).token(&session).json(&ignored))
+            .await;
+        assert_eq!(answer.status, 200, "{}", answer.text);
+    }
+    assert_eq!(app.state.learning().trials().await.unwrap().len(), 1);
+    assert_eq!(
+        app.state.learning().lessons().await.unwrap(),
+        [] as [emberhut_core::memory::learning::Lesson; 0]
+    );
+
+    let answer = app
+        .call(
+            Call::post(paths::SETTINGS)
+                .token(&session)
+                .json(&json!({ "trialKeep": 1 })),
+        )
+        .await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    let page: FactsPage = app
+        .call(Call::get(paths::FACTS).token(&session))
+        .await
+        .read_as();
+    assert_eq!(page.trials, [] as [emberhut_api::facts::Trial; 0]);
+    assert_eq!(page.lessons.len(), 1);
+    assert_eq!(page.lessons[0].text, "Story reels run at least 60 seconds.");
+    let db = Database::connect(&app.url).await.unwrap();
+    assert_eq!(
+        db.corrections().trial_end(1).await.unwrap(),
+        Some(emberhut_db::TrialEnd::Kept(Some(page.lessons[0].id.get())))
+    );
+
+    let again = app
+        .call(
+            Call::post(paths::SETTINGS)
+                .token(&session)
+                .json(&json!({ "trialKeep": 1 })),
+        )
+        .await;
+    assert_eq!(again.status, 200);
+    assert_eq!(
+        app.state.learning().lessons().await.unwrap().len(),
+        1,
+        "kept once"
+    );
     let review = app.call_tool("trial_drop", json!({ "id": 1 })).await;
     assert!(text(&review).starts_with("No trial rule T1 is running"));
 }

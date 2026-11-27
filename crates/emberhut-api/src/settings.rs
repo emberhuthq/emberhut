@@ -20,8 +20,9 @@
 //! category it doesn't know; a text too long) with 400 and an [`crate::error::ErrorBody`] with
 //! `ok: false`. Not every action can be refused that way: pausing or resuming, stopping a
 //! room's answer, cancelling a check-in, stopping a watch or a job are done before the checked
-//! part and answer 200 whatever came of them, and dropping a rule that isn't there is a 200
-//! too. A client that must know reads the state after.
+//! part and answer 200 whatever came of them, and keeping or dropping a rule that isn't on
+//! trial is a 200 too. A client that must know reads the state after: a server older than
+//! `trialKeep` also answers 200 to it and leaves the rule on trial.
 
 use serde::{Deserialize, Serialize};
 
@@ -98,6 +99,9 @@ pub enum SettingsAction {
     FactDrop(FactId),
     /// Drop a rule on trial: `{ trialDrop }`.
     TrialDrop(TrialId),
+    /// Keep a rule on trial now, as a standing rule, without waiting for the weekly review:
+    /// `{ trialKeep }`.
+    TrialKeep(TrialId),
     /// Mark one of a post's drafted replies as posted: `{ xPosted, option }` (the option's
     /// index, from 0). Its task is done with it.
     XPosted {
@@ -358,6 +362,10 @@ pub struct SettingsRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(dive))]
     pub trial_drop: Option<TrialId>,
+    /// The rule on trial to keep now, as a standing rule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(dive))]
+    pub trial_keep: Option<TrialId>,
     /// The drafted replies one of which was posted (with `option`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(dive))]
@@ -507,6 +515,10 @@ impl From<SettingsAction> for SettingsRequest {
                 trial_drop: Some(trial),
                 ..none
             },
+            SettingsAction::TrialKeep(trial) => Self {
+                trial_keep: Some(trial),
+                ..none
+            },
             SettingsAction::XPosted { artifact, option } => Self {
                 x_posted: Some(artifact),
                 option: Some(option),
@@ -552,6 +564,10 @@ mod tests {
         assert_eq!(
             wire(SettingsAction::TrialDrop(TrialId::new(9))),
             r#"{"trialDrop":9}"#
+        );
+        assert_eq!(
+            wire(SettingsAction::TrialKeep(TrialId::new(9))),
+            r#"{"trialKeep":9}"#
         );
     }
 

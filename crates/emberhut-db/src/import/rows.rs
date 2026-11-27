@@ -400,6 +400,8 @@ imported! {
         trial_at: Option<i64>,
         /// The standing rule it became.
         rule: Option<i64>,
+        /// The lesson as one short line to the owner.
+        lesson_to_owner: Option<String>,
     }
 }
 

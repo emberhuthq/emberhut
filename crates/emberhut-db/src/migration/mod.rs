@@ -30,6 +30,7 @@ mod m20261126_000018_import_archive;
 mod m20261126_000019_import_links;
 mod m20261127_000001_agents_and_approvals;
 mod m20261127_000002_agent_worker_shell;
+mod m20261127_000003_correction_lesson_to_owner;
 
 /// Every migration of the server's database.
 #[derive(Debug)]
@@ -60,6 +61,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261126_000019_import_links::Migration),
             Box::new(m20261127_000001_agents_and_approvals::Migration),
             Box::new(m20261127_000002_agent_worker_shell::Migration),
+            Box::new(m20261127_000003_correction_lesson_to_owner::Migration),
         ]
     }
 }

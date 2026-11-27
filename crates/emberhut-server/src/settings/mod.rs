@@ -56,6 +56,7 @@ fn actions() -> Vec<Box<dyn AnyAction>> {
         action(memory::PersonSet),
         action(memory::FactDrop),
         action(memory::TrialDrop),
+        action(memory::TrialKeep),
         action(jobs::StopTask),
         action(workers::TaskStop),
     ]
@@ -84,6 +85,7 @@ pub(crate) const ORDER: &[&str] = &[
     "personSet",
     "factDrop",
     "trialDrop",
+    "trialKeep",
     "taskStop",
     "taskCreate",
     "projectSet",

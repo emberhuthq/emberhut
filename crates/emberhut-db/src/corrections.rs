@@ -49,6 +49,7 @@ impl CorrectionStore {
             said: Set(new.said),
             wrong: Set(new.wrong),
             lesson: Set(new.lesson),
+            lesson_to_owner: Set(new.lesson_to_owner),
             source: Set(new.source.as_str().to_owned()),
             ..Default::default()
         }
@@ -111,15 +112,20 @@ impl CorrectionStore {
             .await
     }
 
-    /// Ends the trial of correction `id` as kept, by the review, as standing rule `rule`.
-    /// `false` when there is no such correction.
+    /// Ends the trial of correction `id` as kept by `by` (the review, or the owner before it),
+    /// as standing rule `rule`. `false` when there is no such correction.
     ///
     /// # Errors
     ///
     /// [`DbError::Query`].
-    pub async fn keep_trial(&self, id: i64, rule: i64, now: Timestamp) -> Result<bool, DbError> {
-        self.end_trial(id, KEPT, TrialJudge::Review, Some(rule), now, None)
-            .await
+    pub async fn keep_trial(
+        &self,
+        id: i64,
+        rule: i64,
+        by: TrialJudge,
+        now: Timestamp,
+    ) -> Result<bool, DbError> {
+        self.end_trial(id, KEPT, by, Some(rule), now, None).await
     }
 
     async fn end_trial(
@@ -182,6 +188,7 @@ fn from_row(row: correction::Model) -> Result<Correction, DbError> {
         said: row.said,
         wrong: row.wrong,
         lesson: row.lesson,
+        lesson_to_owner: row.lesson_to_owner,
         source: row.source,
     })
 }

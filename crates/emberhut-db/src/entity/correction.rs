@@ -33,6 +33,8 @@ pub(crate) struct Model {
     pub(crate) trial_at: Option<i64>,
     /// The standing rule it became, when kept.
     pub(crate) rule: Option<i64>,
+    /// The lesson as one short line to the owner, in the second person, for the app.
+    pub(crate) lesson_to_owner: Option<String>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -34,6 +34,8 @@ pub struct LogCorrection {
     pub wrong: String,
     /// The rule that would have avoided it.
     pub lesson: Option<String>,
+    /// The same lesson as one short line to the owner, in the second person, for the app.
+    pub lesson_to_owner: Option<String>,
     /// When it happened (an ISO instant); none or unreadable: now.
     pub at: Option<String>,
 }
@@ -80,6 +82,7 @@ impl LearningService {
                 said: correction.said,
                 wrong: correction.wrong,
                 lesson: correction.lesson,
+                lesson_to_owner: correction.lesson_to_owner,
                 source: CorrectionSource::Assistant,
                 at,
             })
@@ -152,6 +155,39 @@ impl LearningService {
         text: &str,
         trial: Option<i64>,
     ) -> Result<i64, DbError> {
+        self.keep_rule(id, text, trial.map(|trial| (trial, TrialJudge::Review)))
+            .await
+    }
+
+    /// Keeps trial rule `id` now, as `by` decided, before the weekly review: its lesson becomes
+    /// a new standing rule, as worded. The standing rule's number; none when no such trial runs
+    /// (it was kept, dropped, or its days are over).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn keep_trial(&self, id: i64, by: TrialJudge) -> Result<Option<i64>, DbError> {
+        let Some(trial) = self
+            .trials()
+            .await?
+            .into_iter()
+            .find(|trial| trial.id == id)
+        else {
+            return Ok(None);
+        };
+        self.keep_rule(None, &trial.text, Some((id, by)))
+            .await
+            .map(Some)
+    }
+
+    /// Keeps standing rule `id` (none: a new one) as `text`; with `trial`, that trial ends as
+    /// kept, as this rule, by whoever kept it. Its number.
+    async fn keep_rule(
+        &self,
+        id: Option<i64>,
+        text: &str,
+        trial: Option<(i64, TrialJudge)>,
+    ) -> Result<i64, DbError> {
         let now = self.clock.now();
         let mut stored = self.stored_lessons().await?;
         let id = id.unwrap_or_else(|| next_lesson_id(stored.iter().map(|lesson| lesson.id)));
@@ -163,8 +199,8 @@ impl LearningService {
         });
         stored.sort_by_key(|lesson| lesson.id);
         self.settings.set(&LESSONS, &stored).await?;
-        if let Some(trial) = trial {
-            self.corrections.keep_trial(trial, id, now).await?;
+        if let Some((trial, by)) = trial {
+            self.corrections.keep_trial(trial, id, by, now).await?;
         }
         Ok(id)
     }
