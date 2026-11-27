@@ -279,6 +279,12 @@ impl AppFiles {
         self.dir.join("layout.json")
     }
 
+    /// `setup.json`: how the first-run setup ended, so it doesn't show again.
+    #[must_use]
+    pub(crate) fn setup(&self) -> PathBuf {
+        self.dir.join("setup.json")
+    }
+
     /// `filters.json`: the lists' filters picked on this device (the Tasks list's).
     #[must_use]
     pub(crate) fn filters(&self) -> PathBuf {

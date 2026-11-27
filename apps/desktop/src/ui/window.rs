@@ -18,6 +18,7 @@ use super::pairing::PairingForm;
 use super::palette::{Pal, pal};
 use super::pause::PauseSheet;
 use super::settings::{OpenAgentRoom, SettingsView};
+use super::setup::SetupView;
 use super::spotlight::{OpenSpotlight, SpotlightView};
 use super::task_page::{self, TaskView};
 use super::tasks::TasksView;
@@ -206,6 +207,8 @@ pub(crate) struct MainWindow {
     pub(super) chat: Entity<ChatView>,
     settings: Entity<SettingsView>,
     pairing: Entity<PairingForm>,
+    /// The first-run setup, in the window's place while the gate says so.
+    setup: Entity<SetupView>,
     pub(super) sidebar_open: bool,
     pub(super) more_open: bool,
     /// Whether Recent sessions is unfolded.
@@ -260,6 +263,7 @@ impl MainWindow {
         let pairing = cx.new(|cx| PairingForm::new(store.clone(), window, cx));
         let chat = cx.new(|cx| ChatView::new(store.clone(), window, cx));
         let settings = cx.new(|cx| SettingsView::new(store.clone(), pairing.clone(), window, cx));
+        let setup = cx.new(|cx| SetupView::new(store.clone(), window, cx));
         let pause = cx.new(|cx| PauseSheet::new(store.clone(), window, cx));
         let tasks = cx.new(|cx| TasksView::new(store.clone(), window, cx));
         let task_page = cx.new(|cx| TaskView::new(store.clone(), column.clone(), window, cx));
@@ -320,6 +324,7 @@ impl MainWindow {
             chat,
             settings,
             pairing,
+            setup,
             sidebar_open: true,
             more_open: kept.more_open,
             sessions_open: kept.sessions_open,
@@ -557,6 +562,7 @@ impl MainWindow {
         let p = pal(cx);
         let store = self.store.read(cx);
         match store.gate() {
+            Gate::Setup => return self.setup.clone().into_any_element(),
             Gate::NotYourDevice => {
                 return gate::not_your_device(store.server().as_str(), &p).into_any_element();
             }
@@ -789,8 +795,8 @@ impl Render for MainWindow {
         {
             window.focus(&self.focus, cx);
         }
-        // Behind the gate (not this device, sign-in, connecting) the window shows only its
-        // screen: no sidebar, no report.
+        // Behind the gate (the setup, not this device, sign-in, connecting) the window shows
+        // only its screen: no sidebar, no report.
         let open = self.store.read(cx).gate() == Gate::Open;
         let panel = if open {
             report::panel(self, window, cx)

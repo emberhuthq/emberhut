@@ -63,6 +63,7 @@ pub(crate) mod scheduled;
 mod sending;
 pub(crate) mod sessions;
 pub(crate) mod settings;
+pub(crate) mod setup;
 mod sign_in;
 pub(crate) mod spotlight;
 pub(crate) mod status;
@@ -78,6 +79,7 @@ mod view_file;
 pub(crate) mod working;
 pub(crate) mod x_posts;
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::AppContext as _;
@@ -289,19 +291,23 @@ pub(crate) struct Store {
     primary_retry: fallback::Retry,
     /// What the ember thinks with, and the picker that chooses it.
     credentials: credentials::Credentials,
+    /// The first-run setup.
+    setup: setup::Setup,
 }
 
 impl Store {
     /// The store for `backend`, opening in `room`, with its loops started: the poll, the live
-    /// stream and the machines.
+    /// stream and the machines. `home` is Emberhut on this computer, for the setup.
     pub(crate) fn new(
         backend: Arc<dyn Backend>,
         files: Option<AppFiles>,
         theme: ThemeState,
         room: RoomId,
+        home: Rc<dyn setup::LocalHome>,
         cx: &mut Context<'_, Self>,
     ) -> Self {
         let mut store = Self::idle(backend, files, theme, room);
+        store.setup.set_home(home);
         store.start_poll(cx);
         store.start_live(cx);
         store.start_machines(cx);
@@ -332,6 +338,7 @@ impl Store {
         let working = working::WorkingData::default();
         let browser = browser::BrowserWork::new(files.as_ref());
         let diary = diary::DiaryData::load(files.as_ref());
+        let setup = setup::Setup::load(files.as_ref());
         Self {
             backend,
             files,
@@ -398,6 +405,7 @@ impl Store {
             approvals: approvals::ApprovalsFeed::default(),
             primary_retry: fallback::Retry::default(),
             credentials: credentials::Credentials::default(),
+            setup,
         }
     }
 
@@ -405,6 +413,19 @@ impl Store {
     #[cfg(test)]
     pub(crate) fn for_tests(backend: Arc<dyn Backend>) -> Self {
         Self::idle(backend, None, ThemeState::load(None), RoomId::MAIN)
+    }
+
+    /// A store over `backend` with nothing running, its files in `files` and `home` as
+    /// Emberhut on this computer, for the setup's tests.
+    #[cfg(test)]
+    pub(crate) fn for_setup_tests(
+        backend: Arc<dyn Backend>,
+        files: Option<AppFiles>,
+        home: Rc<dyn setup::LocalHome>,
+    ) -> Self {
+        let mut store = Self::idle(backend, files, ThemeState::load(None), RoomId::MAIN);
+        store.setup.set_home(home);
+        store
     }
 
     /// The server ends the session, as the state poll learns it (for the views' tests).

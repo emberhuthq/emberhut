@@ -233,6 +233,7 @@ impl Store {
                 self.let_in();
                 self.take_fresh(room, fresh, asked, cx);
                 self.mark_read(cx);
+                self.setup_state_came(cx);
                 false
             }
             Ok(StateReply::SignInRequired) | Err(Error::SignInRequired) => {

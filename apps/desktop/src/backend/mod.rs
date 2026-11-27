@@ -56,6 +56,7 @@ use emberhut_api::runner::new_session::{
 use emberhut_api::runner::transcript::{SessionLive, StepsQuery, Transcript};
 use emberhut_api::scheduled::ScheduledPage;
 use emberhut_api::settings::SettingsAction;
+use emberhut_api::setup::SetupPage;
 use emberhut_api::state::State;
 use emberhut_api::switches::{SwitchAction, SwitchPage};
 use emberhut_api::talk::{TalkReply, TalkRequest};
@@ -298,6 +299,18 @@ pub(crate) trait Backend: Send + Sync {
     ///
     /// As [`Backend::agent_provider`].
     fn forget_agent_provider(&self) -> Result<AgentProvider, Error>;
+
+    /// What the server has set up, item by item (`GET /api/setup`): whether the ember is lit,
+    /// and which of its connections are.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`]; [`Error::Refused`] 404 from a server without the route.
+    fn setup(&self) -> Result<SetupPage, Error>;
+
+    /// Whether the server answers its health check within `within` (it blocks that long at
+    /// most): whether an ember lives at its address at all.
+    fn answers_within(&self, within: Duration) -> bool;
 
     /// Stops the answer the assistant is writing in `room` now (its background work goes on).
     ///

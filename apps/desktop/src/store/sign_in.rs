@@ -67,6 +67,9 @@ impl Store {
                     store.signed_in();
                 }
                 done(outcome, cx);
+                if store.is_signed_in() {
+                    store.setup_signed_in(cx);
+                }
                 cx.notify();
             });
         })

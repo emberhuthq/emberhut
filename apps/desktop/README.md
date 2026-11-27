@@ -24,6 +24,8 @@ The first of these that is set:
 3. `http://localhost:18990`, a server on this machine (the server's default port).
 
 An address must start with `http://` or `https://`; one that doesn't is skipped with a warning.
+When neither names one and this device has no session, the app opens on the first-run setup
+(see "Setting up your ember") instead of waiting on a server that may not be there.
 
 ### A fallback server
 
@@ -87,6 +89,8 @@ overwritten with a mark that every later read takes for no item at all.
   screenshot runs set `EMBERHUT_TEST=1`. A user with no default keychain (a `HOME` of its own,
   say) keeps the session in `session.json` instead, as macOS would otherwise ask, in a dialog,
   to make one.
+- `setup.json`: how the first-run setup ended (`finished`, or `skipped` when "Light it" was put
+  off), so it doesn't show again.
 - `theme.json`: the last theme the server sent, so the app starts in your colours offline.
 - `fallback.json`: that the app is on the fallback server, and for which server (see above).
 - `layout.json`: the report panel's width, as a share of the window, so it opens as you left it.
@@ -123,6 +127,44 @@ real name in a folder of its own address, so a file opened again comes at once; 
 used for a day is cleared out at the next launch. Like every file here they are yours only
 (0700 folders, 0600 files, on Unix), and the server's folder is removed when this device is
 signed out or the server refuses it. The system may clear it; the server has it all.
+
+### Setting up your ember
+
+The first time, the window shows "Set up your ember" instead of the app: the ember on the left,
+asleep and grey, and five steps on the right, each with a short name and one plain line. The
+first two get it going; the other three are optional and say so.
+
+1. **Give your ember a home.** Here, on this computer (recommended), or on another computer
+   already set up. Another computer opens the pairing form ("Find your ember"), which pairs with
+   the address the app talks to. Here goes through a port, `store::setup::LocalHome`: whether
+   Emberhut can live on this computer, starting it, and a pairing code from it. The app wires
+   its implementation in `app.rs`; until it can start Emberhut itself, `DevHome` uses one already
+   answering at the app's address (on this computer) and asks for its code, and otherwise says
+   "This build can't start Emberhut here yet." beside the other computer's form.
+2. **Light it.** The provider picker of Settings › Your ember, opened as the step shows (so a
+   local Ollama is looked for). A save that goes through finishes the step.
+3. **Let it reach you.** A pairing code made as the step opens, as a QR code (Settings ›
+   Devices' Pair another device). A device that signs in while it shows finishes it.
+4. **Show it your world.** Calendar, Gmail, Slack and Chrome, each as `GET /api/setup` says
+   (`mac`, `gmail`, `slack`, `chrome`). Chrome's Connect opens the Chrome profiles' sheet for a
+   new profile; the others can't be connected from the setup yet and say they wait in Settings ›
+   Connections.
+5. **Share your ember.** Where sharing is (Settings › Sharing, an early preview), and Done.
+
+Then "Your ember is lit." sums up what it is now, with Say hello (Main) and Share your ember
+(Settings › Sharing). The ember glows a little more with each step done: a spark once it has a
+home, lit once it thinks, warmer once it can reach you or see your world, brightest at the end.
+Its glow breathes slowly, and holds still under Reduce Motion.
+
+The setup shows on a fresh install (no server named, no session), and for a device signed in to
+an ember that isn't lit: `GET /api/setup`'s `provider` is `missing` or `off`, read once a launch
+(a server without the route is taken as lit). Then it opens on "Light it", the home step done.
+Once it shows, it stays until it ends: Say hello, or Later on "Light it". How it ended is kept in
+`setup.json` and it never shows again; an ember that isn't lit after that gets a quiet line at
+the top of the chat with Light it, which opens the picker in Settings.
+
+Where the setup begins is one constant, `store::setup::DIRECTION`, read by `first_screen`:
+`HomeFirst` (built); `AccountFirst` and `ShowFirst` begin as it does until they are built.
 
 ### Signing in
 
@@ -252,6 +294,7 @@ GPUI and gpui-kit animation (a job's pulse, a room's working dot, the kit's spin
 | `--no-prompt` | don't ask to show notifications at launch, and open without the app lock (macOS) |
 | `--report NAME=PATH` | open a report from the server beside the page |
 | `--sign-in` | show the sign-in screen whatever the server says (screenshots) |
+| `--setup [home\|light\|reach\|world\|share\|lit]` | show the first-run setup on that step (home when none is named), or its "lit" screen, whatever the server says (screenshots) |
 | `--theme PRESET`, `--appearance light\|dark\|system` | show a theme without saving it (screenshots) |
 | `--background` | open without taking the keyboard focus from the app in front |
 | `--display N` | open on that display (0 is the first) |
@@ -460,8 +503,11 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `material/alpha.rs` | how translucent the sidebar may be for its text to keep its contrast over any backdrop |
 | `ui/look.rs` | the one place the palette and the material are put on the window |
 | `ui/sign_in.rs` | the sign-in screen and its hint about pairing codes (`PAIRING_HINT`) |
+| `store/setup.rs` | the first-run setup: when it shows (the gate's `Setup`), its steps and the ember's glow, how it ended (`setup.json`), the direction it begins in |
+| `store/setup/home.rs` | `LocalHome`, the port for Emberhut on this computer, and this build's implementations |
+| `ui/setup/` | the setup's view: the ember and its glow, the ladder of steps, the "lit" screen, the quiet line over the chat |
 | `store/sign_in.rs` | pairing with a code or a pasted link: which servers a link's code may go to |
-| `ui/qr.rs` | a pairing link drawn as a QR code |
+| `ui/qr.rs` | a pairing link drawn as a QR code, and the one drawn for the code shown (`PairingQr`) |
 | `account/switch.rs` | whether this build has the account, from its build-time settings |
 | `account/device_grant.rs` | the device grant's polls: the interval, `slow_down`, `expires_in` |
 | `account/pkce.rs` | the sign-in window's PKCE verifier, `state`, authorization URL and callback |

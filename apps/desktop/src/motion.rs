@@ -48,6 +48,12 @@ pub(crate) fn follow(cx: &mut App) {
     .detach();
 }
 
+/// Holds the app still as Reduce Motion does, or lets it move again (the views' tests).
+#[cfg(test)]
+pub(crate) fn reduce_for_tests(reduce: bool, cx: &mut App) {
+    hold_still(reduce, cx);
+}
+
 /// Makes everything that moves on its own hold still (or move again): the app's own marks,
 /// which read [`reduced`], and every animation GPUI and gpui-kit draw (a job's pulse, a room's
 /// working dot, the kit's spinners), which stand at their first frame while
