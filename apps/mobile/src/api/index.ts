@@ -38,8 +38,25 @@ export function createApi(http: EmberhutHttp) {
 export type EmberhutApi = ReturnType<typeof createApi>;
 
 export { agentEvent, agentStep } from "./agentSteps";
-export { AuthSession, type AuthEvent, type KeptMachine, type PairOptions, type PairOutcome, type SecureStorage } from "./auth";
-export { checkServerAddress, createServerAddress, serverUrlFrom, type AddressCheck, type ServerAddress } from "./server";
+export {
+  AuthSession,
+  type AuthEvent,
+  type KeptMachine,
+  type KeptSession,
+  type PairOptions,
+  type PairOutcome,
+  type SecureStorage,
+} from "./auth";
+export {
+  checkServerAddress,
+  createServerAddress,
+  serverUrlFrom,
+  slotPrefix,
+  type AddressCheck,
+  type ServerAddress,
+  type Slot,
+} from "./server";
+export { createHealthCheck, healthTimeoutMs, type HealthCheck } from "./health";
 export { ApiError, StorageError } from "./errors";
 export { isServerPath, type Fetch, type UploadFile } from "./fetch";
 export {
@@ -54,7 +71,8 @@ export {
   type Dialect,
   type DialectTable,
 } from "./dialect";
-export { EmberhutHttp } from "./http";
+export { EmberhutHttp, type RequestAuth } from "./http";
+export { createServerHttp, type ServerHttpOptions, type ServerPlace } from "./places";
 export { createReach, firstReachable, type Reach, type RouteAnswer } from "./reach";
 export {
   ASSISTANT,

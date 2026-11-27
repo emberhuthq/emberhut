@@ -1,4 +1,8 @@
 import { Pressable, StyleSheet, View } from "react-native";
+import { hostOf } from "@/features/settings/servers";
+import { inBackground } from "@/log";
+import { fallbackStore } from "@/services";
+import { useFallback, useSession } from "@/state/hooks";
 import { useTheme } from "@/theme";
 import { Button, Icon, Text, type IconName } from "@/ui";
 
@@ -61,6 +65,28 @@ export function OfflineBanner({ reason }: { reason: string }) {
       color={colors.warning}
       title={reason}
       detail="Showing what Emberhut said last. It tries again every second."
+    />
+  );
+}
+
+/**
+ * On the fallback server: the server stopped answering, so requests go to the fallback server until Try again finds the
+ * server answering (the app never goes back by itself).
+ */
+export function FallbackBanner() {
+  const { colors } = useTheme();
+  const server = useSession((s) => s.serverUrl);
+  const fallback = useSession((s) => s.fallback?.url);
+  const checking = useFallback((s) => s.checking);
+  const stillDown = useFallback((s) => s.stillDown);
+  const tryAgain = () => inBackground(fallbackStore.getState().tryAgain(), "FallbackBanner: tryAgain");
+  return (
+    <Banner
+      icon="swap-horizontal"
+      color={colors.warning}
+      title={`${server ? hostOf(server) : "Your server"} isn't answering`}
+      detail={`You're on the fallback server${fallback ? `, ${hostOf(fallback)}` : ""}.${stillDown ? " Still no answer: try again later." : ""}`}
+      action={<Button label="Try again" onPress={tryAgain} loading={checking} />}
     />
   );
 }

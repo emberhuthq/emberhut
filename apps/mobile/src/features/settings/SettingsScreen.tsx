@@ -9,6 +9,7 @@ import { Button, ListRow, Screen, Section, usePullRefresh } from "@/ui";
 import { Appearance } from "./Appearance";
 import { Devices, PairAnother } from "./Devices";
 import { Environments } from "./Environments";
+import { FallbackServer } from "./FallbackServer";
 import { PushRow } from "./PushRow";
 import { Switches } from "./Switches";
 
@@ -56,6 +57,7 @@ export function SettingsScreen() {
         />
         <ListRow key="version" icon="information-circle-outline" title="App version" subtitle={build ? `${version} (${build})` : version} />
       </Section>
+      {signedIn ? <FallbackServer /> : null}
       <Devices auth={state.data?.auth} />
       {signedIn ? <PairAnother /> : null}
       <Switches />

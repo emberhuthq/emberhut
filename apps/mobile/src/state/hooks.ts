@@ -4,6 +4,7 @@ import {
   actionsStore,
   chatStore,
   connectionStore,
+  fallbackStore,
   liveStore,
   prefsStore,
   pushStore,
@@ -14,6 +15,7 @@ import {
 import type { ActionsState } from "./actions";
 import type { ChatState } from "./chat";
 import type { ConnectionState } from "./connection";
+import type { FallbackState } from "./fallback";
 import type { LiveState } from "./live";
 import type { PrefsState } from "./prefs";
 import type { SessionState } from "./session";
@@ -25,6 +27,9 @@ export const usePrefs = <T>(select: (s: PrefsState) => T): T => useStore(prefsSt
 export const useChat = <T>(select: (s: ChatState) => T): T => useStore(chatStore, select);
 export const useLive = <T>(select: (s: LiveState) => T): T => useStore(liveStore, select);
 export const useConnection = <T>(select: (s: ConnectionState) => T): T => useStore(connectionStore, select);
+export const useFallback = <T>(select: (s: FallbackState) => T): T => useStore(fallbackStore, select);
+/** The server requests go to now: a live stream opened on one is opened again on the other when it changes. */
+export const useServerInUse = () => useFallback((s) => s.using);
 export const useActions = <T>(select: (s: ActionsState) => T): T => useStore(actionsStore, select);
 export const usePush = <T>(select: (s: PushState) => T): T => useStore(pushStore, select);
 export const useTalk = <T>(select: (s: TalkState) => T): T => useStore(talkStore, select);

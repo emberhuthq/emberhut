@@ -39,6 +39,13 @@ export interface KeptMachine extends MachineKey {
   url: string;
 }
 
+/** A session as secure storage keeps it, to move from one server's place to the other's (src/api/server.ts, Slot). */
+export interface KeptSession {
+  refresh: string;
+  device: number | null;
+  machine: KeptMachine | null;
+}
+
 export interface AuthSessionOptions {
   /** The server, as it is now: it's typed in at pairing. */
   baseUrl: () => string;
@@ -48,9 +55,19 @@ export interface AuthSessionOptions {
   now?: () => number;
   /** Where a failure with no caller to tell goes (the app's log); dropped when unset. */
   log?: (where: string, cause: unknown) => void;
+  /**
+   * The prefix of the keys this session is kept under (slotPrefix in src/api/server.ts): this phone's server's by default.
+   * The install id is the phone's own, one for every server.
+   */
+  prefix?: string;
 }
 
-const keys = { refresh: "emberhut.refresh", install: "emberhut.install", device: "emberhut.device", machine: "emberhut.machine" } as const;
+const sessionKeys = (prefix = "emberhut.") => ({
+  refresh: `${prefix}refresh`,
+  install: "emberhut.install",
+  device: `${prefix}device`,
+  machine: `${prefix}machine`,
+});
 /** Renew this long before the access token runs out. */
 const margin = 60_000;
 /** When the server gives no expiry: a bit under its one hour. */
@@ -74,12 +91,14 @@ export class AuthSession {
   private loaded: Promise<void> | null = null;
   private readonly listeners = new Set<(event: AuthEvent) => void>();
   private readonly now: () => number;
+  private readonly keys: ReturnType<typeof sessionKeys>;
   device: number | null = null;
   /** The machine's key, pinned at pairing; null before, or after pairing with a server that predates machine keys. */
   machine: KeptMachine | null = null;
 
   constructor(private readonly options: AuthSessionOptions) {
     this.now = options.now ?? Date.now;
+    this.keys = sessionKeys(options.prefix);
   }
 
   /** Reads what secure storage holds, once; a read that fails throws StorageError, and the next call reads again. */
@@ -94,14 +113,22 @@ export class AuthSession {
     return loading;
   }
 
+  /** Forgets what is held in memory and reads secure storage again. */
+  reload(): Promise<void> {
+    this.dropTokens();
+    this.machine = null;
+    this.loaded = null;
+    return this.load();
+  }
+
   private async read(): Promise<void> {
     const { storage } = this.options;
     try {
       const [refresh, install, device, machine] = await Promise.all([
-        storage.getItem(keys.refresh),
-        storage.getItem(keys.install),
-        storage.getItem(keys.device),
-        storage.getItem(keys.machine),
+        storage.getItem(this.keys.refresh),
+        storage.getItem(this.keys.install),
+        storage.getItem(this.keys.device),
+        storage.getItem(this.keys.machine),
       ]);
       this.refresh = refresh;
       this.install = install;
@@ -144,7 +171,7 @@ export class AuthSession {
     if (this.install === null) {
       const made = this.options.newId();
       try {
-        await this.options.storage.setItem(keys.install, made);
+        await this.options.storage.setItem(this.keys.install, made);
       } catch (cause) {
         throw new StorageError("Couldn't save this phone's install id", { cause });
       }
@@ -200,6 +227,42 @@ export class AuthSession {
     }
     this.emit({ kind: "signedIn", device: this.device });
     return { ok: true };
+  }
+
+  /**
+   * The session as it is now, once a renewal in flight has settled (a renewal turns the refresh token over); null without
+   * one. For moving it to the other server's place (`adopt`).
+   */
+  async snapshot(): Promise<KeptSession | null> {
+    await this.load();
+    await this.renewing;
+    return this.refresh === null ? null : { refresh: this.refresh, device: this.device, machine: this.machine };
+  }
+
+  /** Keeps `session` as this one, in secure storage and then in memory: a session moved here from the other server's place. */
+  async adopt(session: KeptSession): Promise<void> {
+    const { storage } = this.options;
+    try {
+      await storage.setItem(this.keys.refresh, session.refresh);
+      if (session.device === null) await storage.deleteItem(this.keys.device);
+      else await storage.setItem(this.keys.device, String(session.device));
+      if (session.machine === null) await storage.deleteItem(this.keys.machine);
+      else await storage.setItem(this.keys.machine, JSON.stringify(session.machine));
+    } catch (cause) {
+      throw new StorageError("Couldn't save the sign-in on this phone", { cause });
+    }
+    this.access = null;
+    this.accessUntil = 0;
+    this.refresh = session.refresh;
+    this.device = session.device;
+    this.machine = session.machine;
+  }
+
+  /** Forgets the session and the machine's pinned key, with no event: a fallback server that was removed. */
+  async clear(): Promise<void> {
+    await this.forget();
+    await this.options.storage.deleteItem(this.keys.machine);
+    this.machine = null;
   }
 
   /** Forgets the session on this device. Revoking it on the server first is the caller's (POST /api/settings authRevoke). */
@@ -271,8 +334,8 @@ export class AuthSession {
     if (tokens.refresh) this.refresh = tokens.refresh;
     if (tokens.device !== undefined) this.device = tokens.device;
     try {
-      if (tokens.refresh) await storage.setItem(keys.refresh, tokens.refresh);
-      if (tokens.device !== undefined) await storage.setItem(keys.device, String(tokens.device));
+      if (tokens.refresh) await storage.setItem(this.keys.refresh, tokens.refresh);
+      if (tokens.device !== undefined) await storage.setItem(this.keys.device, String(tokens.device));
     } catch (cause) {
       throw new StorageError("Couldn't save the sign-in on this phone", { cause });
     }
@@ -281,8 +344,8 @@ export class AuthSession {
   /** Pins the machine's key (or forgets it, for a server that has none); held only once secure storage has it. */
   private async keepMachine(machine: KeptMachine | null): Promise<void> {
     try {
-      if (machine === null) await this.options.storage.deleteItem(keys.machine);
-      else await this.options.storage.setItem(keys.machine, JSON.stringify(machine));
+      if (machine === null) await this.options.storage.deleteItem(this.keys.machine);
+      else await this.options.storage.setItem(this.keys.machine, JSON.stringify(machine));
     } catch (cause) {
       throw new StorageError("Couldn't save the sign-in on this phone", { cause });
     }
@@ -298,7 +361,7 @@ export class AuthSession {
 
   private async forget(): Promise<void> {
     this.dropTokens();
-    await Promise.all([this.options.storage.deleteItem(keys.refresh), this.options.storage.deleteItem(keys.device)]);
+    await Promise.all([this.options.storage.deleteItem(this.keys.refresh), this.options.storage.deleteItem(this.keys.device)]);
   }
 
   private async post(

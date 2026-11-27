@@ -11,7 +11,7 @@ import { UndoToast } from "@/features/needsYou/UndoToast";
 import { inBackground } from "@/log";
 import { RootStack, linking } from "@/navigation/RootStack";
 import { navigationTheme } from "@/navigation/theme";
-import { actionsStore, pushStore, sessionStore } from "@/services";
+import { actionsStore, fallbackStore, pushStore, sessionStore } from "@/services";
 import { followAppFocus } from "@/state/appFocus";
 import { usePrefs, useSession } from "@/state/hooks";
 import { queryClient } from "@/state/query";
@@ -21,8 +21,11 @@ import { reduceTransparencyStore } from "@/ui";
 
 followAppFocus();
 inBackground(sessionStore.getState().start(), "App: start");
+// The server's health is checked only while the app is in front (src/state/fallback.ts).
+fallbackStore.getState().foreground(AppState.currentState === "active");
 // Leaving the app sends a held action at once instead of after its undo window; coming back registers push if it wasn't.
 AppState.addEventListener("change", (state) => {
+  fallbackStore.getState().foreground(state === "active");
   if (state !== "active") actionsStore.getState().flush();
   else if (!pushStore.getState().registered) inBackground(pushStore.getState().sync(), "App: sync");
 });

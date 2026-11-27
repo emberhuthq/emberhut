@@ -4,7 +4,7 @@ import { AppState } from "react-native";
 import { ApiError, followRoomLive, type ApprovalsQuery, type EmberhutState, type SettingsChange, type TasksQuery } from "@/api";
 import { inBackground } from "@/log";
 import { api, chatStore, connectionStore, liveStore, themeStore } from "@/services";
-import { usePrefs, useSession } from "./hooks";
+import { usePrefs, useServerInUse, useSession } from "./hooks";
 import { queryKeys } from "./query";
 
 const pollMs = 3_000;
@@ -158,6 +158,7 @@ export function useApplySettings() {
 export function useRoomLive(room: number) {
   const client = useQueryClient();
   const ready = useSession((s) => s.status !== "starting" && s.serverUrl !== null);
+  const server = useServerInUse();
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
@@ -184,5 +185,5 @@ export function useRoomLive(room: number) {
       "useRoomLive: follow",
     );
     return () => controller.abort();
-  }, [client, room, ready]);
+  }, [client, room, ready, server]);
 }

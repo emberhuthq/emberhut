@@ -19,14 +19,20 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
+/** What requests need of a session: an AuthSession, or one standing for whichever server is in use. */
+export type RequestAuth = Pick<AuthSession, "accessToken" | "currentAccess" | "noteResponse">;
+
 export interface EmberhutHttpOptions {
-  /** The server, as it is now: it's typed in at pairing. */
+  /** The server, as it is now: it's typed in at pairing, and may be the fallback server while the server is down. */
   baseUrl: () => string;
   fetch: Fetch;
-  auth: AuthSession;
+  auth: RequestAuth;
   uploadFile?: UploadFile;
-  /** How the server spells the wire words: this build's dialect by default (src/api/dialect.ts). */
-  dialect?: Dialect;
+  /**
+   * How the server spells the wire words: this build's dialect by default (src/api/dialect.ts). A function is asked at
+   * each request: the server in use may change, and only one that speaks the dialect is spoken to in it.
+   */
+  dialect?: Dialect | (() => Dialect);
 }
 
 /** Requests to Emberhut's server with this device's session. */
@@ -39,7 +45,8 @@ export class EmberhutHttp {
 
   /** The wire words' spelling on this server: answers are read through it, requests written through it. */
   get dialect(): Dialect {
-    return this.options.dialect ?? dialect;
+    const given = this.options.dialect;
+    return typeof given === "function" ? given() : (given ?? dialect);
   }
 
   url(path: string, query?: Query): string {

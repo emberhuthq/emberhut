@@ -17,6 +17,8 @@ export type TabParamList = {
 
 export type RootStackParamList = {
   SignIn: undefined;
+  /** Pairing with another server: a new one, this one kept as the fallback ("switch"), or a fallback server. */
+  AddServer: { role: "switch" | "fallback" };
   /** The emberhut.com account: sign in, its machines (only in builds with the account on). */
   Account: undefined;
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
