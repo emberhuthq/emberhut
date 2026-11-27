@@ -23,13 +23,14 @@ open_enum! {
 }
 
 /// The preset a choice starts from when none was made.
-pub const DEFAULT_PRESET: &str = "blue";
+pub const DEFAULT_PRESET: &str = "paper";
 
-/// A theme choice: a preset (its accent family), an appearance, and an optional custom accent.
+/// A theme choice: a preset (its accent family on its neutrals), an appearance, and an optional
+/// custom accent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ThemeChoice {
-    /// The preset's id (`blue`, `graphite`, `teal`, ...).
+    /// The preset's id (`paper`, `graphite`, `blue`, ...).
     pub preset: String,
     /// Light, dark or system.
     pub appearance: Appearance,
@@ -40,7 +41,7 @@ pub struct ThemeChoice {
 }
 
 impl Default for ThemeChoice {
-    /// The server's default: the blue preset, following the system, never set.
+    /// The server's default: the paper preset, following the system, never set.
     fn default() -> Self {
         Self {
             preset: DEFAULT_PRESET.to_owned(),
@@ -293,7 +294,7 @@ mod tests {
     #[test]
     fn the_default_choice_is_the_servers() {
         let choice = ThemeChoice::default();
-        assert_eq!(choice.preset, "blue");
+        assert_eq!(choice.preset, "paper");
         assert_eq!(choice.appearance, Appearance::System);
         assert_eq!(Appearance::default(), Appearance::System);
     }

@@ -86,7 +86,7 @@ pub(crate) async fn initialize_then_list_then_call_a_tool() {
     let read = app.call_tool("theme", json!({})).await;
     assert_eq!(read.is_error, None);
     let read: Value = serde_json::from_str(text(&read)).unwrap();
-    assert_eq!(read["choice"]["preset"], "blue");
+    assert_eq!(read["choice"]["preset"], "paper");
     assert_eq!(read["aa"], true);
 
     let changed = app
@@ -128,7 +128,7 @@ pub(crate) async fn a_tool_that_isnt_there_or_bad_arguments_are_error_results() 
     assert_eq!(refused.is_error, Some(true));
     assert_eq!(
         text(&refused),
-        "preset: one of graphite, blue, teal, green, orange, rose, purple"
+        "preset: one of paper, graphite, blue, teal, green, orange, rose, purple"
     );
 
     // tools/call without a name is not a call.

@@ -13,7 +13,8 @@ pub(crate) struct Theme;
 /// `theme`'s arguments: each one given changes, the rest stay; none given reads the choice.
 #[derive(Clone, Debug, Default, Deserialize, utoipa::ToSchema, garde::Validate)]
 pub(crate) struct ThemeArgs {
-    /// The preset (accent family): graphite, blue, teal, green, orange, rose or purple.
+    /// The preset (accent family): paper (the default), graphite, blue, teal, green, orange,
+    /// rose or purple.
     #[garde(length(max = 32))]
     preset: Option<String>,
     /// Light, dark, or as the system is.

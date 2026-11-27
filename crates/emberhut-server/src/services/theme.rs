@@ -60,7 +60,8 @@ impl ThemeService {
         }
     }
 
-    /// The choice: the one last saved, or the default (blue, as the system is, never set).
+    /// The choice: the one last saved, or the default (paper, as the system is, never set). A
+    /// saved choice names its preset, so changing the default leaves it as it was.
     ///
     /// # Errors
     ///
