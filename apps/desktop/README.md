@@ -597,10 +597,9 @@ faint one, which never had it. Selected rows are filled with an opaque token.
 
 An alpha above 0.96 counts as no material: the glass would be too faint to see, so the sidebar
 is opaque and the window isn't blurred for it. With the server's presets light mode works out
-at 0.98 to 0.99, and at 1 with paper (the accent and "running" are close to AA, so a dark window
-behind a light-mode app leaves no room) and so stays opaque; dark mode works out at 0.93, 0.94
-with paper, and has the material. A
-light theme with stronger colours gets real glass. Hiding the sidebar (⌃⌘S) turns the blur off
+at 1 (each has an ink a hair above AA, its faint text or paper's ember and green, so a dark
+window behind a light-mode app leaves no room) and so stays opaque; dark mode works out at 0.94
+and has the material. A light theme with stronger colours gets real glass. Hiding the sidebar (⌃⌘S) turns the blur off
 too, since nothing translucent is left.
 
 Every surface is opaque when macOS's Reduce Transparency is on (System Settings › Accessibility

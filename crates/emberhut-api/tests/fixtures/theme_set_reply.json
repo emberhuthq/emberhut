@@ -18,10 +18,10 @@
       "border": "#D9DCE1",
       "text": "#14171C",
       "muted": "#5B6270",
-      "faint": "#8A909B",
-      "success": "#15803D",
-      "warn": "#C2410C",
-      "danger": "#DC2626",
+      "faint": "#646B76",
+      "success": "#166534",
+      "warn": "#985A00",
+      "danger": "#B91C1C",
       "info": "#0E7490"
     },
     "dark": {
@@ -34,9 +34,9 @@
       "border": "#2C3036",
       "text": "#E9EBEE",
       "muted": "#9BA1AB",
-      "faint": "#6B717B",
+      "faint": "#8D939D",
       "success": "#4ADE80",
-      "warn": "#FB923C",
+      "warn": "#FACC15",
       "danger": "#F87171",
       "info": "#22D3EE"
     }
@@ -108,11 +108,11 @@
         "border": "#D9DCE1",
         "text": "#14171C",
         "muted": "#5B6270",
-        "faint": "#8A909B",
-        "success": "#15803D",
-        "warn": "#C2410C",
-        "danger": "#DC2626",
-        "info": "#2563EB"
+        "faint": "#646B76",
+        "success": "#166534",
+        "warn": "#985A00",
+        "danger": "#B91C1C",
+        "info": "#1D4ED8"
       },
       "dark": {
         "accent": "#D1D5DB",
@@ -124,9 +124,9 @@
         "border": "#2C3036",
         "text": "#E9EBEE",
         "muted": "#9BA1AB",
-        "faint": "#6B717B",
+        "faint": "#8D939D",
         "success": "#4ADE80",
-        "warn": "#FB923C",
+        "warn": "#FACC15",
         "danger": "#F87171",
         "info": "#60A5FA"
       }
@@ -144,10 +144,10 @@
         "border": "#D9DCE1",
         "text": "#14171C",
         "muted": "#5B6270",
-        "faint": "#8A909B",
-        "success": "#15803D",
-        "warn": "#C2410C",
-        "danger": "#DC2626",
+        "faint": "#646B76",
+        "success": "#166534",
+        "warn": "#985A00",
+        "danger": "#B91C1C",
         "info": "#0E7490"
       },
       "dark": {
@@ -160,9 +160,9 @@
         "border": "#2C3036",
         "text": "#E9EBEE",
         "muted": "#9BA1AB",
-        "faint": "#6B717B",
+        "faint": "#8D939D",
         "success": "#4ADE80",
-        "warn": "#FB923C",
+        "warn": "#FACC15",
         "danger": "#F87171",
         "info": "#22D3EE"
       }

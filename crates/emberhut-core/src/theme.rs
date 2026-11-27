@@ -80,7 +80,7 @@ pub const PRESETS: [Preset; 8] = [
     preset("teal", "Teal", "#0F766E", "#2DD4BF"),
     preset("green", "Green", "#15803D", "#4ADE80"),
     preset("orange", "Orange", "#C2410C", "#FB923C"),
-    preset("rose", "Rose", "#BE123C", "#FB7185"),
+    preset("rose", "Rose", "#BE185D", "#FB7EA8"),
     preset("purple", "Purple", "#7C3AED", "#A78BFA"),
 ];
 
@@ -256,11 +256,11 @@ const LIGHT: Neutrals = Neutrals {
     border: "#D9DCE1",
     text: "#14171C",
     muted: "#5B6270",
-    faint: "#8A909B",
-    success: "#15803D",
-    warn: "#C2410C",
-    danger: "#DC2626",
-    blue: "#2563EB",
+    faint: "#646B76",
+    success: "#166534",
+    warn: "#985A00",
+    danger: "#B91C1C",
+    blue: "#1D4ED8",
     cyan: "#0E7490",
     on_light: "#FFFFFF",
     on_dark: "#0B0D10",
@@ -273,9 +273,9 @@ const DARK: Neutrals = Neutrals {
     border: "#2C3036",
     text: "#E9EBEE",
     muted: "#9BA1AB",
-    faint: "#6B717B",
+    faint: "#8D939D",
     success: "#4ADE80",
-    warn: "#FB923C",
+    warn: "#FACC15",
     danger: "#F87171",
     blue: "#60A5FA",
     cyan: "#22D3EE",
@@ -594,38 +594,54 @@ mod tests {
     }
 
     #[test]
-    fn every_paper_text_level_reads_aa_on_every_ground() {
-        for dark in [false, true] {
-            for custom in [None, Some("#2563EB")] {
-                let (p, _) = resolve("paper", custom, dark);
-                let grounds = [
-                    ("background", &p.background),
-                    ("surface", &p.surface),
-                    ("surfaceRaised", &p.surface_raised),
-                ];
-                let inks = [
-                    ("text", &p.text),
-                    ("muted", &p.muted),
-                    ("faint", &p.faint),
-                    ("success", &p.success),
-                    ("warn", &p.warn),
-                    ("danger", &p.danger),
-                    ("info", &p.info),
-                ];
-                for (ground_name, ground) in grounds {
-                    for (ink_name, ink) in inks {
-                        let r = ratio(ink, ground);
-                        assert!(
-                            r >= AA,
-                            "dark={dark} {custom:?} {ink_name} {ink} on {ground_name} {ground}: \
-                             {r:.2}"
-                        );
-                    }
+    fn every_presets_text_levels_read_aa_on_every_ground() {
+        for preset in PRESETS.iter().map(|p| p.id) {
+            for dark in [false, true] {
+                for custom in [None, Some("#2563EB")] {
+                    every_text_level_reads_aa(preset, custom, dark);
                 }
-                assert!(ratio(&p.on_accent, &p.accent) >= AA, "dark={dark}");
-                assert!(ratio(&p.text, &p.accent_soft) >= AA, "dark={dark}");
             }
         }
+    }
+
+    /// Every text level and status colour of `preset` reads AA on all three grounds, and text
+    /// reads AA on the accent and on its soft tint.
+    fn every_text_level_reads_aa(preset: &str, custom: Option<&str>, dark: bool) {
+        let (p, _) = resolve(preset, custom, dark);
+        let grounds = [
+            ("background", &p.background),
+            ("surface", &p.surface),
+            ("surfaceRaised", &p.surface_raised),
+        ];
+        let inks = [
+            ("text", &p.text),
+            ("muted", &p.muted),
+            ("faint", &p.faint),
+            ("success", &p.success),
+            ("warn", &p.warn),
+            ("danger", &p.danger),
+            ("info", &p.info),
+        ];
+        for (ground_name, ground) in grounds {
+            for (ink_name, ink) in inks {
+                let r = ratio(ink, ground);
+                assert!(
+                    r >= AA,
+                    "{preset} dark={dark} {custom:?} {ink_name} {ink} on {ground_name} {ground}: \
+                     {r:.2}"
+                );
+            }
+        }
+        let on_accent = ratio(&p.on_accent, &p.accent);
+        assert!(
+            on_accent >= AA,
+            "{preset} dark={dark} {custom:?} on accent: {on_accent:.2}"
+        );
+        let on_soft = ratio(&p.text, &p.accent_soft);
+        assert!(
+            on_soft >= AA,
+            "{preset} dark={dark} {custom:?} text on soft: {on_soft:.2}"
+        );
     }
 
     #[test]
@@ -643,7 +659,10 @@ mod tests {
         assert_eq!(contrast.asked, "#FFFF00");
         assert_ne!(light.accent, "#FFFF00");
         assert!(ratio(&light.accent, LIGHT.background) >= AA);
-        assert_eq!(light.info, "#2563EB", "yellow is not blue: running is blue");
+        assert_eq!(
+            light.info, LIGHT.blue,
+            "yellow is not blue: running is blue"
+        );
     }
 
     #[test]
