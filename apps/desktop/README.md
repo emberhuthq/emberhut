@@ -27,6 +27,31 @@ An address must start with `http://` or `https://`; one that doesn't is skipped 
 When neither names one and this device has no session, the app opens on the first-run setup
 (see "Setting up your ember") instead of waiting on a server that may not be there.
 
+### The hut on this computer
+
+The app can run the server itself, on this computer, so a new person needs no terminal: the
+hut (`src/hut/`, [ADR 0030](../../docs/adr/0030-the-hut-inside-the-app.md)). `LocalHut` finds
+the `emberhut-server` binary, starts it on `127.0.0.1:18990` (the next free port when another
+program has that one), makes a pairing code for this app with the server's own `pair --json`,
+and keeps it lit after the app closes or from login when asked. The onboarding calls it; nothing
+starts until then.
+
+- **The binary**: in the macOS bundle at `Emberhut.app/Contents/MacOS/emberhut-server` (put there
+  by `cargo xtask bundle-macos`), else beside the app's executable (`target/<profile>/` for a
+  build from source: `cargo build -p emberhut-server` next to the app), else the file
+  `EMBERHUT_SERVER_BIN` names. On Linux there is no bundle: use one of the last two.
+- **Its files**: `~/Library/Application Support/Emberhut/Hut/` on macOS,
+  `$XDG_DATA_HOME/emberhut/hut/` (`~/.local/share/emberhut/hut/`) elsewhere: `emberhut.db`,
+  `machine.key`, `secrets/` and `hut.json` (its port, the server build it last started, how it
+  stays lit), all owner-only. Its log: `~/Library/Logs/Emberhut/hut.log`, or
+  `$XDG_STATE_HOME/emberhut/hut.log`.
+- **Keeping it lit**: the launch agent `com.emberhut.hut` on macOS, the systemd user unit
+  `emberhut-hut.service` on Linux, else the app's child. A newer server in the app (an update)
+  restarts the hut once.
+- **The real run**: `hut::real_tests` starts a built server through `LocalHut`, pairs with its
+  code over `POST /api/auth/pair` and stops it. It is ignored by default and refuses a `HOME`
+  outside the temporary folder; its module says how to run it with `env -i`.
+
 ### A fallback server
 
 `config.json` can name a fallback server, which the app turns to by itself when the server
@@ -598,9 +623,12 @@ quit
 
 ## The macOS app
 
-On a Mac with the Xcode command line tools, `cargo xtask bundle-macos` builds `emberhut-desktop` (release profile, 4 jobs,
-low priority) and writes `target/bundle/Emberhut.app` (bundle id `com.emberhut.desktop`) and
-`target/bundle/Emberhut-<version>-macos-<arch>.zip`. Without a signing identity the app is signed
+On a Mac with the Xcode command line tools, `cargo xtask bundle-macos` builds `emberhut-desktop` and
+the hut's `emberhut-server` in one cargo run (release profile, 4 jobs, low priority) and writes
+`target/bundle/Emberhut.app` (bundle id `com.emberhut.desktop`, the server in `Contents/MacOS`
+beside the app and signed first) and `target/bundle/Emberhut-<version>-macos-<arch>.zip`.
+`--no-hut` leaves the server out, for a quicker build of an app that only talks to a server
+elsewhere. Without a signing identity the app is signed
 ad hoc and runs only on the Mac that built it. To hand it out, sign it with your Developer ID and
 notarize it:
 
