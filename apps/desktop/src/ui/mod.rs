@@ -10,6 +10,7 @@ mod controls;
 pub(crate) mod dark;
 pub(crate) mod diary;
 mod edge;
+mod ember;
 mod fallback_bar;
 mod files;
 mod gate;

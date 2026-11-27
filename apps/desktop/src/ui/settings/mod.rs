@@ -1,4 +1,5 @@
-//! Settings: one page of rows and sections (Appearance, the MCP servers and skills with their
+//! Settings: one page of rows and sections (Appearance, what the ember thinks with, the MCP
+//! servers and skills with their
 //! switches, the data sources, where the assistant works, what it knows about the user, sign-in,
 //! the devices, the server and the archived rooms), and the pages its rows open, each in its own
 //! module.
@@ -19,6 +20,7 @@ mod updates;
 mod usage;
 
 use emberhut_identity::PairingLink;
+use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
 use gpui_kit::prelude::*;
 use gpui_kit::{AnyElement, Div, Entity, FocusHandle, Window, div, px};
@@ -28,11 +30,13 @@ use self::appearance::AppearancePane;
 use self::chrome::ChromePane;
 use self::parts::{nav_row, page_body, problem_line, section};
 use super::column;
+use super::ember::credentials::CredentialsView;
 use super::pairing::PairingForm;
 use super::palette::{Pal, category_color, pal};
 use super::qr::Qr;
 use super::settings_more;
 use super::widgets::{group, page_head};
+use crate::store::credentials::{not_in_use, saved_line};
 use crate::store::devices::NewCode;
 use crate::store::settings::SettingsPane;
 use crate::store::settings::about::TITLE as ABOUT_TITLE;
@@ -48,6 +52,7 @@ pub(crate) struct SettingsView {
     appearance: Entity<AppearancePane>,
     about: Entity<AboutPane>,
     chrome: Entity<ChromePane>,
+    credentials: Entity<CredentialsView>,
     /// The account's sign-in sheet's focus.
     account_sheet: FocusHandle,
     /// The pairing link last drawn as a QR code, for which display scale, and its picture.
@@ -69,12 +74,26 @@ impl SettingsView {
         let appearance = cx.new(|cx| AppearancePane::new(store.clone(), window, cx));
         let about = cx.new(|cx| AboutPane::new(store.clone(), window, cx));
         let chrome = cx.new(|cx| ChromePane::new(store.clone(), window, cx));
+        // Once a provider is saved, back to Settings.
+        let credentials = cx.new(|cx| {
+            CredentialsView::new(
+                store.clone(),
+                |window, cx| {
+                    if let Some(column) = column::of(window, cx) {
+                        column.update(cx, column::Column::back);
+                    }
+                },
+                window,
+                cx,
+            )
+        });
         Self {
             store,
             pairing,
             appearance,
             about,
             chrome,
+            credentials,
             account_sheet: cx.focus_handle(),
             qr: None,
         }
@@ -96,6 +115,10 @@ impl SettingsView {
                 ("Chrome profiles", self.chrome.clone().into_any_element())
             }
             SettingsPane::AboutYou => (ABOUT_TITLE, self.about.clone().into_any_element()),
+            SettingsPane::Credentials => (
+                "What your ember thinks with",
+                self.credentials.clone().into_any_element(),
+            ),
         };
         div()
             .size_full()
@@ -141,6 +164,7 @@ impl SettingsView {
         let metrics = metrics_line(store.metrics());
         let filter = store.settings_filter();
         let (chrome_health, machines_health) = (profiles.health, machines.1);
+        let thinks_with = thinks_with_row(store, p);
         let appearance = nav_row(
             "appearance-row",
             p,
@@ -204,6 +228,7 @@ impl SettingsView {
             section(p, "Your ember", None, vec![about.into_any_element()], None).into_any_element(),
         );
         parts.push(usage::card(&self.store, p, cx).into_any_element());
+        parts.push(section(p, "Your ember", None, vec![thinks_with], None).into_any_element());
         parts.push(
             group(p, "SIGN IN")
                 .child(self.pairing.clone())
@@ -296,6 +321,38 @@ fn same_code(a: &str, b: &str) -> bool {
     plain(a) == plain(b)
 }
 
+/// The row of what the ember thinks with: the provider saved, its model and key, in the colour
+/// of whether the ember runs on it now; it opens the picker.
+fn thinks_with_row(store: &Store, p: &Pal) -> AnyElement {
+    let picker = store.credentials();
+    let (status, health, detail) = match picker.saved() {
+        None if picker.read_problem().is_some() => {
+            ("Couldn't read it".to_owned(), Health::Warn, String::new())
+        }
+        None => ("Reading…".to_owned(), Health::Off, String::new()),
+        Some(saved) => {
+            let health = match (&saved.provider, not_in_use(saved)) {
+                (None, _) => Health::Off,
+                (Some(_), Some(_)) => Health::Warn,
+                (Some(_), None) => Health::Fine,
+            };
+            let detail = not_in_use(saved).unwrap_or_default().to_owned();
+            (saved_line(saved), health, detail)
+        }
+    };
+    nav_row(
+        "credentials-row",
+        p,
+        (IconName::Brain, category_color(2)),
+        "What your ember thinks with",
+        (status, health),
+        &detail,
+    )
+    .on_click(SettingsView::opens(SettingsPane::Credentials))
+    .test_support()
+    .into_any_element()
+}
+
 /// The poll's numbers, for the Server group.
 fn metrics_line(metrics: &Metrics) -> String {
     format!(
@@ -311,6 +368,9 @@ fn metrics_line(metrics: &Metrics) -> String {
 mod tests {
     use std::sync::Arc;
 
+    use emberhut_api::agent_provider::{
+        AgentProvider, ProviderKind, ProviderModel, ProviderRequest, ProviderTest,
+    };
     use emberhut_api::chrome::ChromeAction;
     use emberhut_api::facts::{FactCategory, FactsPage};
     use emberhut_api::ids::{ChromeProfileId, FactId, TrialId};
@@ -725,6 +785,145 @@ mod tests {
             forget.right() <= fact.right() && forget.size.width > px(0.),
             "Forget stays in its row: {forget:?} in {fact:?}"
         );
+    }
+
+    #[gpui_kit::test]
+    fn the_thinks_with_pane_tests_a_key_then_uses_it(cx: &mut TestAppContext) {
+        let pane = SettingsPane::Credentials;
+        let (backend, store, view, mut cx) = open_settings_view(cx, Some(pane));
+        let model = |id: &str, name: Option<&str>| ProviderModel {
+            id: id.to_owned(),
+            name: name.map(str::to_owned),
+        };
+        backend.provider.push_test(Ok(ProviderTest {
+            checked: true,
+            models: vec![
+                model("example-model-a", None),
+                model("example-model-b", Some("Example B")),
+            ],
+        }));
+        store.update(&mut cx, |store, cx| {
+            store.show_in_test_column(Some(Page::SettingsPane(pane)), cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(backend.calls(), [Call::AgentProvider], "read as it opens");
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.click("provider-openai", cx);
+        });
+        cx.run_until_parked();
+        let picked = |cx: &VisualTestContext| {
+            store.read_with(cx, |store, _| store.credentials().picked().cloned())
+        };
+        assert_eq!(picked(&cx), None, "coming next: not picked");
+        cx.update(|window, cx| window.click("provider-anthropic", cx));
+        cx.run_until_parked();
+        assert_eq!(picked(&cx), Some(ProviderKind::Anthropic));
+
+        let key = "sk-ant-example-key-0000";
+        let field = view.read_with(&cx, |view, cx| view.credentials.read(cx).key.clone());
+        type_in(&field, key, &mut cx);
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.click("provider-test", cx);
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            assert!(window.try_find("provider-works").is_some(), "It works");
+            window.click(("provider-model", 1_usize), cx);
+            window.render_frame(cx);
+            window.click("provider-use", cx);
+        });
+        cx.run_until_parked();
+        let sent = |model: Option<&str>| ProviderRequest {
+            provider: ProviderKind::Anthropic,
+            api_key: Some(key.to_owned()),
+            base_url: None,
+            model: model.map(str::to_owned),
+            fast_model: None,
+        };
+        assert_eq!(
+            backend.calls(),
+            [
+                Call::AgentProvider,
+                Call::TestAgentProvider(sent(None)),
+                Call::SaveAgentProvider(sent(Some("example-model-b"))),
+            ]
+        );
+        let left = field.read_with(&cx, |input, _| input.value().to_string());
+        assert_eq!(left, "", "the key is gone from the field once saved");
+        store.read_with(&cx, |store, _| {
+            assert_eq!(store.credentials().saves(), 1);
+            assert!(!store.credentials().has_key());
+        });
+    }
+
+    /// What a server answers with a `DeepSeek` key saved.
+    fn deepseek_saved() -> AgentProvider {
+        AgentProvider {
+            provider: Some(ProviderKind::DeepSeek),
+            key_set: true,
+            key_hint: Some("0000".to_owned()),
+            usable: true,
+            ..AgentProvider::NONE
+        }
+    }
+
+    /// Draws the window in the light appearance, then the dark, finding `ids` in each.
+    fn draws_light_and_dark(cx: &mut VisualTestContext, ids: &[&'static str]) {
+        for dark in [false, true] {
+            cx.update(|window, cx| {
+                cx.set_global(Pal::new(&crate::theme::built_in(), dark));
+                window.render_frame(cx);
+                for id in ids {
+                    assert!(window.try_find(*id).is_some(), "{id}, dark: {dark}");
+                }
+            });
+        }
+    }
+
+    #[gpui_kit::test]
+    fn the_thinks_with_row_shows_what_is_saved(cx: &mut TestAppContext) {
+        let (backend, store, mut cx) = open_settings(cx);
+        backend.provider.push_status(Ok(deepseek_saved()));
+        store.update(&mut cx, |store, cx| {
+            store.show_in_test_column(Some(Page::Settings), cx);
+        });
+        cx.run_until_parked();
+        draws_light_and_dark(&mut cx, &["credentials-row"]);
+        let line = store.read_with(&cx, |store, _| store.credentials().saved().map(saved_line));
+        assert_eq!(line.as_deref(), Some("DeepSeek · key ending 0000"));
+    }
+
+    #[gpui_kit::test]
+    fn the_thinks_with_pane_opens_on_the_saved_provider(cx: &mut TestAppContext) {
+        let pane = SettingsPane::Credentials;
+        let (backend, store, _, mut cx) = open_settings_view(cx, Some(pane));
+        let mut saved = deepseek_saved();
+        saved.in_use = false;
+        backend.provider.push_status(Ok(saved));
+        store.update(&mut cx, |store, cx| {
+            store.show_in_test_column(Some(Page::SettingsPane(pane)), cx);
+        });
+        cx.run_until_parked();
+        draws_light_and_dark(
+            &mut cx,
+            &[
+                "provider-anthropic",
+                "provider-openai-compatible",
+                "provider-test",
+                "provider-forget",
+                "provider-not-in-use",
+            ],
+        );
+        cx.update(|window, cx| {
+            window.click("provider-forget", cx);
+            window.render_frame(cx);
+            window.click("provider-forget-confirm", cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(backend.calls().last(), Some(&Call::ForgetAgentProvider));
     }
 
     #[gpui_kit::test]
