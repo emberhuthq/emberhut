@@ -423,8 +423,9 @@ mod tests {
         events
     }
 
-    /// Events as `name data` lines without the data's `type`, to compare whole.
-    fn lines(events: &[Event]) -> Vec<String> {
+    /// Events as their name and their data without its `type`, to compare whole. Data is
+    /// compared as JSON values, so the order of an object's keys doesn't matter.
+    fn lines(events: &[Event]) -> Vec<(String, Value)> {
         events
             .iter()
             .map(|event| {
@@ -432,7 +433,19 @@ mod tests {
                 if let Value::Object(fields) = &mut data {
                     assert_eq!(fields.remove("type"), Some(json!(event.name)));
                 }
-                format!("{} {data}", event.name)
+                (event.name.to_owned(), data)
+            })
+            .collect()
+    }
+
+    /// `name data` lines, as [`lines`] gives them.
+    fn parsed(expected: &[&str]) -> Vec<(String, Value)> {
+        expected
+            .iter()
+            .map(|line| {
+                let (name, data) = line.split_once(' ').expect("a name and its data");
+                let data = serde_json::from_str(data).expect("the data is JSON");
+                (name.to_owned(), data)
             })
             .collect()
     }
@@ -479,7 +492,7 @@ mod tests {
             "data: [DONE]\n\n".to_owned(),
         ]
         .concat();
-        let expected = vec![
+        let expected = parsed(&[
             r#"message_start {"message":{"content":[],"id":"msg_t","model":"gpt-test","role":"assistant","stop_reason":null,"stop_sequence":null,"type":"message","usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":0,"output_tokens":0}}}"#,
             "ping {}",
             r#"content_block_start {"content_block":{"text":"","type":"text"},"index":0}"#,
@@ -488,7 +501,7 @@ mod tests {
             r#"content_block_stop {"index":0}"#,
             r#"message_delta {"delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"input_tokens":11,"output_tokens":2}}"#,
             "message_stop {}",
-        ];
+        ]);
         // Whole, and cut into pieces of every size a network might.
         for step in [stream.len(), 1, 7, 64] {
             assert_eq!(lines(&events(&stream, step)), expected, "step {step}");
@@ -702,10 +715,15 @@ mod tests {
 
     #[test]
     fn an_event_is_written_with_its_name_and_data() {
-        let event = Event::error("api_error", "no");
+        let sse = Event::error("api_error", "no").to_sse();
+        let data = sse
+            .strip_prefix("event: error\ndata: ")
+            .and_then(|rest| rest.strip_suffix("\n\n"))
+            .expect("one named event with one data line");
+        assert!(!data.contains('\n'), "the data is one line");
         assert_eq!(
-            event.to_sse(),
-            "event: error\ndata: {\"error\":{\"message\":\"no\",\"type\":\"api_error\"},\"type\":\"error\"}\n\n"
+            serde_json::from_str::<Value>(data).expect("the data is JSON"),
+            json!({ "type": "error", "error": { "type": "api_error", "message": "no" } })
         );
     }
 }
