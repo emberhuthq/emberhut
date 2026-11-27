@@ -53,6 +53,7 @@ pub(crate) async fn a_bare_server_says_what_it_lacks_and_only_to_a_signed_in_dev
         states(&page),
         [
             ("agent", "off"),
+            ("provider", "off"),
             ("accounts", "off"),
             ("devices", "ready"),
             ("push", "off"),
@@ -164,6 +165,8 @@ pub(crate) async fn a_set_up_server_reads_ready_and_says_what_fails() {
         states(&page),
         [
             ("agent", "ready"),
+            // No account is configured, and no model provider saved.
+            ("provider", "missing"),
             ("accounts", "ready"),
             ("devices", "ready"),
             ("push", "ready"),

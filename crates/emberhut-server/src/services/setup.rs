@@ -6,13 +6,16 @@
 //! everything else is the server's configuration, its secrets folder and its tables. What the
 //! server can't know isn't an item: whether the machine is linked to an account is the
 //! account directory's to say (`GET /v1/machines`), and whether the agent CLI's own accounts
-//! are logged in only the CLI can tell, so only the runners' reports of theirs are read.
+//! are logged in only the CLI can tell, so only the runners' reports of theirs are read. The
+//! saved model provider is read as saved: it was checked when it was saved, and is not checked
+//! again here.
 
 use emberhut_api::setup::{SetupItem, SetupItemId as Id, SetupPage, SetupState as State};
 use emberhut_core::messaging::mail::{CLIENT_ID_SECRET, CLIENT_SECRET_SECRET};
 use emberhut_db::DbError;
 
 use crate::services::accounts::AccountService;
+use crate::services::agent_provider::{AgentLogin, AgentProviderService, Provider};
 use crate::services::auth::{AuthError, AuthService};
 use crate::services::chrome::ChromeService;
 use crate::services::mac::{MacError, MacService};
@@ -37,6 +40,8 @@ pub enum SetupError {
 pub struct SetupParts {
     /// An agent CLI is configured (`EMBERHUT_AGENT_COMMAND`).
     pub agent: bool,
+    /// What the agent thinks with.
+    pub provider: AgentProviderService,
     /// The public address the server's links point at, when one is configured.
     pub public_url: Option<String>,
     /// The sessions: the devices signed in.
@@ -80,6 +85,7 @@ impl SetupService {
         let (mac, accounts) = tokio::join!(self.mac(), self.accounts());
         let items = vec![
             self.agent(),
+            self.provider().await?,
             accounts?,
             self.devices().await?,
             self.push().await,
@@ -107,6 +113,65 @@ impl SetupService {
                 "EMBERHUT_AGENT_COMMAND isn't set: the assistant answers nothing.",
             )
         }
+    }
+
+    async fn provider(&self) -> Result<SetupItem, SetupError> {
+        let service = &self.parts.provider;
+        // No part of a key is shown here: the checklist is read in report mode too.
+        let saved = service.status().await?;
+        let provider = saved.provider.as_ref().and_then(Provider::of);
+        let item = |state, detail: String| SetupItem::new(Id::Provider, state, detail);
+        Ok(match (service.login(), provider) {
+            (AgentLogin::Off, _) => item(
+                State::Off,
+                "EMBERHUT_AGENT_COMMAND isn't set: there is no agent to connect to a model."
+                    .to_owned(),
+            ),
+            (AgentLogin::Accounts(accounts), provider) => {
+                let mut detail = format!(
+                    "The agent runs on {} (EMBERHUT_AGENT_ACCOUNTS).",
+                    count(accounts, "configured account", "configured accounts")
+                );
+                if let Some(provider) = provider {
+                    detail.push_str(" The provider saved from the apps (");
+                    detail.push_str(provider.kind().as_str());
+                    detail.push_str(") isn't used while they are.");
+                }
+                item(State::Ready, detail)
+            }
+            (AgentLogin::Saved, None) => item(
+                State::Missing,
+                "No model provider is saved: choose one, or sign the agent CLI in to Claude on \
+                 the server."
+                    .to_owned(),
+            ),
+            (AgentLogin::Saved, Some(provider)) if !provider.usable() => item(
+                State::Off,
+                format!(
+                    "{} is saved, but it needs the OpenAI bridge, coming next.",
+                    provider.name()
+                ),
+            ),
+            (AgentLogin::Saved, Some(Provider::Claude)) => item(
+                State::Missing,
+                "The agent runs on the agent CLI's own Claude login, which the server can't \
+                 check: sign it in on the server, or choose another provider."
+                    .to_owned(),
+            ),
+            (AgentLogin::Saved, Some(provider)) if saved.in_use => {
+                let model = saved
+                    .model
+                    .map_or_else(String::new, |model| format!(", on {model}"));
+                item(
+                    State::Ready,
+                    format!("The agent runs on {}{model}.", saved_as(provider)),
+                )
+            }
+            (AgentLogin::Saved, Some(provider)) => item(
+                State::Missing,
+                format!("{}'s key isn't saved: save it again.", provider.name()),
+            ),
+        })
     }
 
     async fn accounts(&self) -> Result<SetupItem, SetupError> {
@@ -305,6 +370,17 @@ impl SetupService {
                 connection.state
             ),
         )
+    }
+}
+
+/// How the checklist names a saved provider: `the saved Anthropic API key`, `DeepSeek`.
+fn saved_as(provider: Provider) -> String {
+    match provider {
+        Provider::Anthropic => "the saved Anthropic API key".to_owned(),
+        Provider::Claude => "the agent CLI's own Claude login".to_owned(),
+        Provider::AnthropicCompatible => "the Anthropic-compatible endpoint".to_owned(),
+        Provider::OpenAiCompatible => "the OpenAI-compatible endpoint".to_owned(),
+        other => other.name().to_owned(),
     }
 }
 

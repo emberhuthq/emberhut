@@ -1308,6 +1308,226 @@
         ]
       }
     },
+    "/api/agent/provider": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "The provider saved, its key's last four characters, its base URL and models, when it last\naccepted them, whether the agent can run on it, and whether it does now.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "What is saved, without the key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentProvider"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Checks a provider (one request that needs the key, within 15 s; none for `claude`) and,\nonce it passes, saves it in place of whatever was saved, another provider's key removed.\nThe agent's sessions run on it from their next turn while no accounts are configured.",
+        "operationId": "save",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Checked and saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentProvider"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not what the provider takes (a key, base URL or model missing or malformed); nothing was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The provider refused the key, or is too old to run the agent; nothing was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The provider didn't answer the check; nothing was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Removes the saved provider and its key: the agent's next sessions run on the agent CLI's own\nlogin.",
+        "operationId": "remove",
+        "responses": {
+          "200": {
+            "description": "Nothing is saved now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentProvider"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/agent/provider/test": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Checks a provider as `PUT` does and lists its models, saving nothing: for choosing a model,\nand for finding a local Ollama.",
+        "operationId": "test",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "It let the server in; its models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not what the provider takes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The provider refused the key, or is too old to run the agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The provider didn't answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/devices": {
       "post": {
         "tags": [
@@ -8898,6 +9118,79 @@
               "$ref": "#/components/schemas/Policy"
             },
             "description": "Its policies, by kind; a kind without one is the owner's."
+          }
+        }
+      },
+      "AgentProvider": {
+        "type": "object",
+        "description": "What the server holds of the agent's provider, without the key: the answer of `GET`, `PUT`\nand `DELETE /api/agent/provider`.",
+        "required": [
+          "keySet",
+          "usable",
+          "inUse"
+        ],
+        "properties": {
+          "provider": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderKind",
+                "description": "The provider saved; left out when none is (the agent CLI runs on its own login)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keySet": {
+            "type": "boolean",
+            "description": "A key is saved for it."
+          },
+          "keyHint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The saved key's last four characters, to tell keys apart; only when one is saved."
+          },
+          "baseUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The base URL saved, when one was given."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model saved, when one was given."
+          },
+          "fastModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model for quick side calls saved, when one was given."
+          },
+          "checkedAt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When the provider last accepted what is saved; left out when the server didn't check it\n(a key put in the secrets folder by hand, or `claude`, which only the CLI can check)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usable": {
+            "type": "boolean",
+            "description": "The agent can run on this provider today: every provider but `openai` and\n`openai-compatible`, which are saved and checked but need a bridge the agent CLI\n(Claude Code, which speaks Anthropic's API) doesn't have yet."
+          },
+          "inUse": {
+            "type": "boolean",
+            "description": "The server's agent sessions run on it now: no when it isn't [`Self::usable`], when no\nagent CLI is configured, or when the server's configured accounts\n(`EMBERHUT_AGENT_ACCOUNTS`) are its credentials instead."
           }
         }
       },
@@ -17128,6 +17421,102 @@
           "done"
         ]
       },
+      "ProviderKind": {
+        "type": "string",
+        "description": "One of: claude, anthropic, deepseek, openrouter, ollama, anthropic-compatible, openai, openai-compatible. A newer server may send another word; clients keep it as it is.",
+        "examples": [
+          "claude",
+          "anthropic",
+          "deepseek",
+          "openrouter",
+          "ollama",
+          "anthropic-compatible",
+          "openai",
+          "openai-compatible"
+        ]
+      },
+      "ProviderModel": {
+        "type": "object",
+        "description": "One model a provider offers.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id, as a request names it."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its name for people, when the provider gives one."
+          }
+        }
+      },
+      "ProviderRequest": {
+        "type": "object",
+        "description": "`PUT /api/agent/provider` and `POST /api/agent/provider/test`: a provider and what it needs.\nIts `Debug` leaves the key out.",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderKind",
+            "description": "The provider."
+          },
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its API key: needed by `anthropic`, `deepseek`, `openrouter`, `anthropic-compatible`\nand `openai`, optional for `openai-compatible`, not taken by `claude` and `ollama`.\nSurrounding whitespace is ignored."
+          },
+          "baseUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where its API is: needed by `anthropic-compatible` (what the agent CLI is pointed at)\nand `openai-compatible` (`https://…/v1`); for `deepseek` (`https://api.deepseek.com`),\n`openrouter` (`https://openrouter.ai/api`), `ollama` (`http://localhost:11434`) and\n`openai` (`https://api.openai.com/v1`) in place of their usual address; not taken by\n`claude` and `anthropic`."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model the agent runs on, as the provider names it: needed by `openrouter`,\n`ollama` and `anthropic-compatible`; none: the provider's default (`deepseek-v4-pro`\nfor `deepseek`) or, for `claude` and `anthropic`, the server's."
+          },
+          "fastModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model for quick side calls (titles, summaries, the guard's judge); none: the\nprovider's default (`deepseek-v4-flash` for `deepseek`) or `model`."
+          }
+        }
+      },
+      "ProviderTest": {
+        "type": "object",
+        "description": "`POST /api/agent/provider/test`'s answer: the provider accepted what was sent (nothing is\nsaved), and the models it lists.",
+        "required": [
+          "checked",
+          "models"
+        ],
+        "properties": {
+          "checked": {
+            "type": "boolean",
+            "description": "The provider was asked: no for `claude`, which only the agent CLI itself can check."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderModel"
+            },
+            "description": "The models it lists, as it lists them; empty when it lists none or wasn't asked."
+          }
+        }
+      },
       "PushRegistration": {
         "type": "object",
         "description": "`POST /api/devices`: a phone's push address.",
@@ -18728,9 +19117,10 @@
       },
       "SetupItemId": {
         "type": "string",
-        "description": "One of: agent, accounts, devices, push, public-url, mac, chrome, gmail, slack, whatsapp. A newer server may send another word; clients keep it as it is.",
+        "description": "One of: agent, provider, accounts, devices, push, public-url, mac, chrome, gmail, slack, whatsapp. A newer server may send another word; clients keep it as it is.",
         "examples": [
           "agent",
+          "provider",
           "accounts",
           "devices",
           "push",
@@ -22547,6 +22937,10 @@
     {
       "name": "setup",
       "description": "What the server has set up, for the apps' onboarding"
+    },
+    {
+      "name": "agent",
+      "description": "The model provider the agent runs on"
     },
     {
       "name": "connect",

@@ -66,8 +66,12 @@ pub(crate) fn http_client() -> reqwest::Client {
         .build()
         .unwrap()
 }
-/// Makes an app's assistant over its database and clock.
-type AgentMaker<'a> = Box<dyn FnOnce(&Database, Arc<ManualClock>) -> Arc<dyn Assistant> + 'a>;
+/// Makes an app's assistant over its database and clock, given the app's own directory.
+type AgentMaker<'a> =
+    Box<dyn FnOnce(&Database, Arc<ManualClock>, &std::path::Path) -> Arc<dyn Assistant> + 'a>;
+
+/// Changes an app's dependencies, given the default ones and the app's own directory.
+type Change<'a> = Box<dyn FnOnce(Dependencies, &std::path::Path) -> Dependencies + 'a>;
 
 /// How long a test request may take before the app answers 503: well above any route's real
 /// time, so a machine busy with other builds doesn't turn a slow answer into a failure (the
@@ -165,7 +169,7 @@ impl TestApp {
     /// A new app in `mode` that pushes through `push`. Its secrets directory is in the app's
     /// own directory.
     pub(crate) async fn with_push(mode: AuthMode, push: PushSenders) -> Self {
-        Self::build(mode, push, None).await
+        Self::build(mode, push, None, None).await
     }
 
     /// A new app whose assistant `agent` makes, over the app's database and clock (the
@@ -176,12 +180,34 @@ impl TestApp {
         Self::build(
             AuthMode::Enforce,
             PushSenders::default(),
-            Some(Box::new(agent)),
+            Some(Box::new(move |db, clock, _| agent(db, clock))),
+            None,
         )
         .await
     }
 
-    async fn build(mode: AuthMode, push: PushSenders, agent: Option<AgentMaker<'_>>) -> Self {
+    /// A new app whose assistant `agent` makes, over the app's database and clock and given
+    /// the app's own directory (its secrets folder is `secrets` there), and whose dependencies
+    /// `change` sets.
+    pub(crate) async fn with_agent_and(
+        agent: impl FnOnce(&Database, Arc<ManualClock>, &std::path::Path) -> Arc<dyn Assistant>,
+        change: impl FnOnce(Dependencies, &std::path::Path) -> Dependencies,
+    ) -> Self {
+        Self::build(
+            AuthMode::Enforce,
+            PushSenders::default(),
+            Some(Box::new(agent)),
+            Some(Box::new(change)),
+        )
+        .await
+    }
+
+    async fn build(
+        mode: AuthMode,
+        push: PushSenders,
+        agent: Option<AgentMaker<'_>>,
+        change: Option<Change<'_>>,
+    ) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
             .parse()
@@ -193,7 +219,7 @@ impl TestApp {
         let coding_app = Arc::new(FakeCodingApp::default());
         let task_workers = Arc::new(FakeTaskWorkers::default());
         let answering: Arc<dyn Assistant> = match agent {
-            Some(agent) => agent(&db, Arc::clone(&clock)),
+            Some(agent) => agent(&db, Arc::clone(&clock), dir.path()),
             None => Arc::clone(&assistant) as _,
         };
         let runners = Arc::new(FakeRunner::default());
@@ -235,6 +261,10 @@ impl TestApp {
             family_directory: Arc::new(FakeFamily::default()),
             ..Dependencies::default()
         };
+        let dependencies = match change {
+            Some(change) => change(dependencies, dir.path()),
+            None => dependencies,
+        };
         let state = AppState::new(&db, dependencies, mode);
         Self {
             clock,
@@ -262,74 +292,7 @@ impl TestApp {
         mode: AuthMode,
         change: impl FnOnce(Dependencies, &std::path::Path) -> Dependencies,
     ) -> Self {
-        let dir = tempfile::tempdir().unwrap();
-        let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
-            .parse()
-            .unwrap();
-        let db = Database::connect(&url).await.unwrap();
-        let clock = Arc::new(ManualClock::new(Timestamp::now()));
-        let assistant = Arc::new(Scripted::default());
-        let mac = Arc::new(FakeMac::default());
-        let coding_app = Arc::new(FakeCodingApp::default());
-        let task_workers = Arc::new(FakeTaskWorkers::default());
-        let runners = Arc::new(FakeRunner::default());
-        let workers = Arc::new(FakeWorkers::default());
-        let browser = Arc::new(FakeBrowser::default());
-        let desk = Arc::new(FakeDesk::default());
-        let party_model = Arc::new(FakeModel::default());
-        let dark_cloud = Arc::new(FakeModel::default());
-        let dark_local = Arc::new(FakeModel::default());
-        let dependencies = Dependencies {
-            clock: Arc::clone(&clock) as _,
-            random: Arc::new(OsRandom),
-            assistant: Arc::clone(&assistant) as _,
-            secrets_dir: dir.path().join("secrets"),
-            mac: Arc::clone(&mac) as _,
-            coding_app: Arc::clone(&coding_app) as _,
-            workers: Arc::clone(&task_workers) as _,
-            thumbnailer: Arc::new(FakeThumbs),
-            runners: Arc::clone(&runners) as _,
-            home: Some(dir.path().join("home")),
-            runner_mcp: Some(dir.path().join("runner-mcp.json")),
-            worker_sessions: Arc::clone(&workers) as _,
-            assistant_tasks: Arc::clone(&workers) as _,
-            private_files: PRIVATE_FILES
-                .iter()
-                .map(|name| dir.path().join(name))
-                .collect(),
-            browser: Arc::clone(&browser) as _,
-            desk: Arc::clone(&desk) as _,
-            chrome_extension_zip: Some(dir.path().join("extension.zip")),
-            browser_view: Some("https://view.example.test/".to_owned()),
-            party_model: Arc::clone(&party_model) as _,
-            dark: DarkModels {
-                cloud: Arc::clone(&dark_cloud) as _,
-                cloud_label: "Cloud".to_owned(),
-                local: Some((Arc::clone(&dark_local) as _, "Local".to_owned())),
-            },
-            family_directory: Arc::new(FakeFamily::default()),
-            ..Dependencies::default()
-        };
-        let dependencies = change(dependencies, dir.path());
-        let state = AppState::new(&db, dependencies, mode);
-        Self {
-            clock,
-            state,
-            url,
-            assistant,
-            mac,
-            coding_app,
-            task_workers,
-            runners,
-            workers,
-            root: dir.path().to_path_buf(),
-            browser,
-            desk,
-            party_model,
-            dark_cloud,
-            dark_local,
-            _dir: dir,
-        }
+        Self::build(mode, PushSenders::default(), None, Some(Box::new(change))).await
     }
 
     /// A new app that enforces sign-in, whose Mac (its recorder and calendars) and calls,

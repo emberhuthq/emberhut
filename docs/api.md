@@ -146,6 +146,7 @@ Behind the session gate (`SetupPage`). Every item once, in the order the apps sh
 | `id` | `ready` | otherwise |
 |---|---|---|
 | `agent` | `EMBERHUT_AGENT_COMMAND` is set | `off` |
+| `provider` | the agent runs on configured accounts, or on a saved provider it can run on (below) | `off` without an agent CLI, or when the saved provider needs the OpenAI bridge; `missing` with nothing saved, with `claude` saved and no account (only the CLI can tell whether it is signed in), or when the saved key's file is gone |
 | `accounts` | a runner reports an enabled account that is logged in | `off` without a runner; `missing` with no account, or none logged in |
 | `devices` | a device is signed in | `missing` |
 | `push` | APNs or FCM is ready | `off` |
@@ -160,6 +161,91 @@ Nothing is started to answer: no CLI is run, and only the Mac helper is asked an
 server can't know isn't an item: whether the machine is linked to an account is the account
 directory's to say (directory.md's `GET /v1/machines`), and whether the server's own agent CLI is
 logged in only the CLI can tell (the runners report theirs).
+
+## Agent provider
+
+What the agent thinks with, chosen from a signed-in device so an owner never needs a terminal:
+Claude Code (the agent CLI) on the owner's own Claude login, an Anthropic API key, or another
+provider Claude Code can reach through an Anthropic-compatible endpoint. Every route takes a
+signed-in device, in either auth mode (401 `signIn` otherwise), and no answer carries a key.
+
+| `provider` | `apiKey` | `baseUrl` | `model` | the agent CLI gets |
+|---|---|---|---|---|
+| `claude` | – | – | optional | its own login |
+| `anthropic` | needed (`sk-ant-…`) | – | optional | `ANTHROPIC_API_KEY` |
+| `deepseek` | needed | optional (`https://api.deepseek.com`) | optional (`deepseek-v4-pro`, quick: `deepseek-v4-flash`) | `ANTHROPIC_BASE_URL=<base>/anthropic`, `ANTHROPIC_AUTH_TOKEN` |
+| `openrouter` | needed | optional (`https://openrouter.ai/api`) | needed | `ANTHROPIC_BASE_URL=<base>`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` empty |
+| `ollama` | – | optional (`http://localhost:11434`) | needed | `ANTHROPIC_BASE_URL=<base>`, `ANTHROPIC_AUTH_TOKEN=ollama` |
+| `anthropic-compatible` | needed | needed | needed | `ANTHROPIC_BASE_URL=<base>`, `ANTHROPIC_AUTH_TOKEN` |
+| `openai` | needed | optional (`https://api.openai.com/v1`) | optional | nothing yet: needs the OpenAI bridge |
+| `openai-compatible` | optional | needed (`https://…/v1`) | optional | nothing yet: needs the OpenAI bridge |
+
+- **Models.** With a model (given, or the provider's default) the CLI's every model is mapped to
+  it: `ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`,
+  `ANTHROPIC_DEFAULT_FABLE_MODEL` and `CLAUDE_CODE_SUBAGENT_MODEL` to `model`;
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL` to `fastModel` (or `model`).
+  The launch's `--model` (`EMBERHUT_AGENT_MODEL`, a task's model) is dropped then. Without one,
+  `claude` and `anthropic` keep the configured model.
+- **Only the saved provider.** Every launch of the CLI (a room's session, a configured agent's
+  room, a worker, the guard's judge) gets these in its environment only, and none of the server's
+  own `ANTHROPIC_*`, `CLAUDE_CODE_USE_BEDROCK`/`VERTEX`/`FOUNDRY` or `CLAUDE_CODE_SUBAGENT_MODEL`
+  (nor `CLAUDE_CODE_OAUTH_TOKEN`, but for `claude`). With nothing saved the environment is left
+  as it is. A session started on another provider is restarted on the new one at its next turn,
+  on the same conversation.
+- **Accounts first.** While `EMBERHUT_AGENT_ACCOUNTS` configures accounts (each a CLI login, with
+  failover between them), the saved provider isn't used: `inUse` is `false`.
+- **Errors elsewhere.** On another endpoint than Anthropic's, a turn's error fails the turn; it is
+  never read as a Claude account's usage limit.
+- **Runners** on other machines keep their own credentials: nothing saved here is sent to them.
+
+### GET /api/agent/provider
+
+What is saved (`AgentProvider`), without the key:
+
+```json
+{ "provider": "deepseek", "keySet": true, "keyHint": "x7Qa", "checkedAt": "<instant>", "usable": true, "inUse": true }
+```
+
+`provider` is left out when nothing is saved; `keyHint` is the key's last four characters;
+`baseUrl`, `model` and `fastModel` are there when given; `checkedAt` is when the provider last
+accepted what is saved (left out for `claude`, and for a key put in the secrets folder by hand);
+`usable` says whether the agent can run on the provider today; `inUse` whether its sessions do now.
+
+### PUT /api/agent/provider
+
+`ProviderRequest`: `{ "provider": "openrouter", "apiKey": "sk-or-…", "model": "z-ai/glm-5", "fastModel": "z-ai/glm-5-air" }`.
+The provider is checked first, as the test below does, and only what passes is saved: the key in
+the secrets folder (`agent-<provider>-key`, the server's user's only), the rest in the settings.
+One provider is saved at a time: the others' keys are removed. 200 is the `AgentProvider` saved.
+
+| Status | When (nothing is saved) |
+|---|---|
+| 400 | the provider isn't known, or doesn't take what was sent: a key, base URL or model missing or malformed, the sentence says which |
+| 422 | the provider refused the key, or is too old to run the agent (Ollama before 0.14) |
+| 502 | the provider didn't answer within 15 s, or not with a model list |
+
+### DELETE /api/agent/provider
+
+Removes what is saved and every key: the agent CLI runs on its own login again. 200 is
+`{ "keySet": false, "usable": false, "inUse": false }`, also when nothing was saved.
+
+### POST /api/agent/provider/test
+
+The same body and refusals as `PUT`, but nothing is saved and a model isn't needed: for choosing
+a model, and for finding a local Ollama. 200 is `ProviderTest`:
+
+```json
+{ "checked": true, "models": [ { "id": "qwen3-coder:latest" }, { "id": "claude-opus-5-5", "name": "Claude Opus 5.5" } ] }
+```
+
+| `provider` | asked |
+|---|---|
+| `anthropic` | `GET <EMBERHUT_ANTHROPIC_URL>/v1/models` with `x-api-key` and `anthropic-version: 2023-06-01` |
+| `anthropic-compatible` | `GET <base>/v1/models` with the key as bearer (a 404: no list, nothing refused) |
+| `deepseek`, `openai`, `openai-compatible` | `GET <base>/models` with the key as bearer |
+| `openrouter` | `GET <base>/v1/key` with the key as bearer, then `GET <base>/v1/models` |
+| `ollama` | `GET <base>/api/version` (0.14 or later), then `GET <base>/api/tags` |
+| `claude` | nothing (`checked: false`): only the CLI can check its own login |
 
 ## The state
 

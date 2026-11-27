@@ -29,6 +29,7 @@ use emberhut_core::pairing::PairingRefusal;
 use jiff::SignedDuration;
 
 pub use crate::extract::Invalid;
+use crate::services::agent_provider::ProviderError;
 use crate::services::auth::AuthError;
 use crate::services::backup::BackupError;
 use crate::services::mac::MacError;
@@ -96,6 +97,10 @@ pub enum ApiError {
     /// A backup could not start (500).
     #[error(transparent)]
     Backup(#[from] BackupError),
+    /// The agent's model provider was not taken: not what it takes (400), its key refused
+    /// (422), or not checked because it didn't answer (502); or it could not be kept (500).
+    #[error(transparent)]
+    Provider(#[from] ProviderError),
 }
 
 impl ApiError {
@@ -114,7 +119,10 @@ impl ApiError {
             | Self::Invalid(_)
             | Self::InvalidSignIn(_)
             | Self::Mac(_)
-            | Self::Talk(TalkError::Blank) => StatusCode::BAD_REQUEST,
+            | Self::Talk(TalkError::Blank)
+            | Self::Provider(ProviderError::Malformed(_)) => StatusCode::BAD_REQUEST,
+            Self::Provider(ProviderError::Refused(_)) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Provider(ProviderError::Unreachable { .. }) => StatusCode::BAD_GATEWAY,
             Self::Talk(TalkError::Busy) => StatusCode::TOO_MANY_REQUESTS,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Timeout
@@ -132,7 +140,8 @@ impl ApiError {
             | Self::State(_)
             | Self::Talk(_)
             | Self::Encode(_)
-            | Self::Backup(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | Self::Backup(_)
+            | Self::Provider(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -175,13 +184,24 @@ impl ApiError {
             Self::Backup(BackupError::Busy) => {
                 "A backup is being made already. Try again when it is done."
             }
+            Self::Provider(ProviderError::Malformed(why) | ProviderError::Refused(why)) => {
+                return why.clone().into();
+            }
+            Self::Provider(ProviderError::Unreachable { provider, .. }) => {
+                return format!(
+                    "{provider} couldn't be reached to check it, so nothing was saved. Check \
+                     the address, or try again in a moment."
+                )
+                .into();
+            }
             Self::Internal
             | Self::Auth(_)
             | Self::Pairing(_)
             | Self::State(_)
             | Self::Talk(_)
             | Self::Encode(_)
-            | Self::Backup(_) => FAULT,
+            | Self::Backup(_)
+            | Self::Provider(_) => FAULT,
         })
     }
 
@@ -376,6 +396,39 @@ mod tests {
             body,
             json!({ "error": "The server is restarting. Try again in a moment." })
         );
+    }
+
+    #[tokio::test]
+    async fn a_provider_not_taken_says_why_in_words() {
+        for (error, status, said) in [
+            (
+                ProviderError::Malformed("Anthropic needs an API key.".to_owned()),
+                StatusCode::BAD_REQUEST,
+                "Anthropic needs an API key.",
+            ),
+            (
+                ProviderError::Refused("OpenAI didn't accept that key.".to_owned()),
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "OpenAI didn't accept that key.",
+            ),
+            (
+                ProviderError::Unreachable {
+                    provider: "Ollama",
+                    why: "connection refused at 127.0.0.1:11434".to_owned(),
+                },
+                StatusCode::BAD_GATEWAY,
+                "Ollama couldn't be reached to check it, so nothing was saved. Check the \
+                 address, or try again in a moment.",
+            ),
+        ] {
+            let (got, _, body) = answer(error.into()).await;
+            assert_eq!(got, status);
+            assert_eq!(body, json!({ "error": said }), "the cause stays in the log");
+        }
+        let storage = ProviderError::Storage(std::io::Error::other("disk full"));
+        let (got, _, body) = answer(storage.into()).await;
+        assert_eq!(got, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body, json!({ "error": FAULT }));
     }
 
     #[tokio::test]

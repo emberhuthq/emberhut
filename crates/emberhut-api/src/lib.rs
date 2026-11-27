@@ -39,6 +39,7 @@
 //! ```
 
 pub mod accounts;
+pub mod agent_provider;
 pub mod agents;
 pub mod answers;
 pub mod approvals;

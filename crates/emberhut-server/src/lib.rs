@@ -404,8 +404,8 @@ async fn dependencies(config: &ServeConfig, db: &Database) -> Result<Dependencie
             ..PersonalDependencies::default()
         },
         messaging: messaging(config, http.clone())?,
-        guard: guard_deps(config),
-        worker_setup: worker_setup(config),
+        guard: guard_deps(config, db),
+        worker_setup: worker_setup(config, db),
         browser: browser_engine(&config.browser, http.clone()),
         browser_view: config.browser.view.clone(),
         browser_home: config.browser.home.clone(),
@@ -427,6 +427,10 @@ async fn dependencies(config: &ServeConfig, db: &Database) -> Result<Dependencie
             services::messaging::web::WebClient::new(http.clone()),
             &config.messaging.slack_api,
         )),
+        provider_api: Arc::new(services::agent_provider::HttpProviderApi::new(
+            services::messaging::web::WebClient::new(http.clone()),
+            &config.agent.anthropic_url,
+        )),
         ..Dependencies::default()
     })
 }
@@ -447,6 +451,15 @@ fn approval_deps(
             .as_ref()
             .map(|url| url.as_str().to_owned()),
     }
+}
+
+/// Where the model provider the server's own agent sessions run on is saved (`PUT
+/// /api/agent/provider`): its key in the secrets folder, the rest in the settings.
+fn agent_provider(config: &ServeConfig, db: &Database) -> services::agent_provider::ProviderStore {
+    services::agent_provider::ProviderStore::new(
+        services::messaging::secrets::Secrets::new(config.secrets_dir.clone()),
+        db.settings(),
+    )
 }
 
 /// The agent CLI's accounts as the configuration gives them (`ID` or `ID=CONFIG_DIR`).
@@ -485,7 +498,7 @@ fn local_url(config: &ServeConfig, path: &str) -> String {
 
 /// How the workers run: with the agent CLI when it is configured (none otherwise), and the
 /// ultra runs' caps.
-fn worker_setup(config: &ServeConfig) -> app::WorkerSetup {
+fn worker_setup(config: &ServeConfig, db: &Database) -> app::WorkerSetup {
     let workers = &config.workers;
     let runtime = config
         .agent
@@ -513,6 +526,7 @@ fn worker_setup(config: &ServeConfig) -> app::WorkerSetup {
                 mcp_url: local_url(config, emberhut_api::paths::MCP_WORKER),
                 gate_url: local_url(config, emberhut_api::paths::ULTRA_GATE),
                 workdir: config.agent.workdir.clone(),
+                provider: Some(agent_provider(config, db)),
             },
         });
     app::WorkerSetup {
@@ -530,23 +544,30 @@ fn worker_setup(config: &ServeConfig) -> app::WorkerSetup {
 
 /// The guard rails' setup: the repositories always let through, the people messaged without
 /// an OK per text, and the ask guard's judge (the agent CLI, unless turned off).
-fn guard_deps(config: &ServeConfig) -> app::GuardDeps {
+fn guard_deps(config: &ServeConfig, db: &Database) -> app::GuardDeps {
     let workers = &config.workers;
     let judge: Arc<dyn services::guard::Judge> = match &config.agent.command {
         Some(_) if workers.ask_guard_model.as_deref() == Some("off") => {
             Arc::new(services::guard::NoJudge)
         }
-        Some(command) => Arc::new(services::claude::judge::CliJudge::new(
-            Arc::new(services::claude::ProcessSpawner::default()),
-            command.clone(),
-            workers
-                .ask_guard_model
-                .clone()
-                .or_else(|| config.agent.model.clone()),
-            agent_accounts(config)
-                .into_iter()
-                .find_map(|a| a.config_dir),
-        )),
+        Some(command) => {
+            let accounts = agent_accounts(config);
+            let judge = services::claude::judge::CliJudge::new(
+                Arc::new(services::claude::ProcessSpawner::default()),
+                command.clone(),
+                workers
+                    .ask_guard_model
+                    .clone()
+                    .or_else(|| config.agent.model.clone()),
+                accounts.iter().find_map(|a| a.config_dir.clone()),
+            );
+            // As the sessions: the saved provider only while no account is configured.
+            Arc::new(if accounts.is_empty() {
+                judge.with_provider(agent_provider(config, db))
+            } else {
+                judge
+            })
+        }
         None => Arc::new(services::guard::NoJudge),
     };
     app::GuardDeps {
@@ -661,6 +682,7 @@ fn assistant(
             Arc::clone(clock),
         ))
         .with_accounts(db.prefs())
+        .with_provider(agent_provider(config, db))
         .with_agents(services::claude::AgentRooms::new(
             db.agents(),
             config.secrets_dir.clone(),

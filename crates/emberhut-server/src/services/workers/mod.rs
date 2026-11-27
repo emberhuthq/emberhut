@@ -430,6 +430,8 @@ How you work:
                 "this server runs no workers".to_owned(),
             ));
         };
+        // Read before anything is reserved or begun: a failure here changes nothing.
+        let provider = runtime.config.session_provider().await?;
         let Some(slot) = self.reserve(id) else {
             return Ok(());
         };
@@ -488,6 +490,7 @@ How you work:
                 agent,
             },
             token.as_str(),
+            provider.as_ref(),
         );
         let cli = WorkerSession::start(runtime.spawner.as_ref(), &launch, &brief)
             .map_err(|error| WorkerError::Refused(error.to_string()))?;

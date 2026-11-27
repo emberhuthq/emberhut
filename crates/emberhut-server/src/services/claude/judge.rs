@@ -1,6 +1,7 @@
 //! The ask guard's judge model through the agent CLI: one turn with no tools and no MCP
 //! servers, its instructions after the CLI's own system prompt, its answer's text out. Run on
-//! the first configured account; given a minute.
+//! the first configured account, or on the model provider the owner saved when none is
+//! configured; given a minute.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use futures_util::future::BoxFuture;
 
 use super::cli::{CliSpawner, Launch};
 use super::stream::{self, Said};
+use crate::services::agent_provider::{ProviderEnv, ProviderStore};
 use crate::services::guard::Judge;
 
 /// How long the judge may take.
@@ -22,6 +24,7 @@ pub struct CliJudge {
     command: PathBuf,
     model: Option<String>,
     config_dir: Option<PathBuf>,
+    provider: Option<ProviderStore>,
 }
 
 impl CliJudge {
@@ -39,10 +42,19 @@ impl CliJudge {
             command,
             model,
             config_dir,
+            provider: None,
         }
     }
 
-    fn launch(&self) -> Launch {
+    /// Runs the judge on the model provider saved in `store` (read at each judgement): for a
+    /// server that configures no accounts.
+    #[must_use]
+    pub fn with_provider(mut self, store: ProviderStore) -> Self {
+        self.provider = Some(store);
+        self
+    }
+
+    fn launch(&self, provider: Option<&ProviderEnv>) -> Launch {
         let mut args: Vec<String> = [
             "--output-format",
             "stream-json",
@@ -62,20 +74,35 @@ impl CliJudge {
         if let Some(dir) = &self.config_dir {
             env.push(("CLAUDE_CONFIG_DIR".to_owned(), dir.display().to_string()));
         }
-        Launch {
+        let mut launch = Launch {
             program: self.command.clone(),
             args,
             env,
             env_remove: vec!["CLAUDECODE".to_owned()],
+            env_remove_prefixed: Vec::new(),
             cwd: None,
+        };
+        if let Some(provider) = provider {
+            provider.apply(&mut launch);
         }
+        launch
     }
 }
 
 impl Judge for CliJudge {
     fn judge<'a>(&'a self, rules: &'a str, prompt: &'a str) -> BoxFuture<'a, Option<String>> {
         Box::pin(async move {
-            let mut pipes = match self.spawner.spawn(&self.launch()) {
+            let provider = match &self.provider {
+                Some(store) => match store.env(&[]).await {
+                    Ok(provider) => provider,
+                    Err(error) => {
+                        tracing::warn!(%error, "the ask guard's judge couldn't read the provider");
+                        return None;
+                    }
+                },
+                None => None,
+            };
+            let mut pipes = match self.spawner.spawn(&self.launch(provider.as_ref())) {
                 Ok(pipes) => pipes,
                 Err(error) => {
                     tracing::warn!(%error, "the ask guard's judge didn't start");

@@ -4,6 +4,7 @@
 pub mod accounts;
 pub mod activity;
 pub mod advertise;
+pub mod agent_provider;
 pub mod agents;
 pub mod approvals;
 pub mod auth;

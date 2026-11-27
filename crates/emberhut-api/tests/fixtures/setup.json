@@ -1,6 +1,7 @@
 {
   "items": [
     { "id": "agent", "state": "ready", "detail": "The assistant and its workers run on the agent CLI." },
+    { "id": "provider", "state": "ready", "detail": "The agent runs with the saved Anthropic API key." },
     { "id": "accounts", "state": "missing", "detail": "No runner has reported an account yet." },
     { "id": "devices", "state": "ready", "detail": "2 devices signed in." },
     { "id": "push", "state": "off", "detail": "No push service is set up (APNs or FCM): phones see replies only in the app." },

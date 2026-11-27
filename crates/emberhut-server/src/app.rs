@@ -34,6 +34,9 @@ use crate::mcp::tokens::AgentTokens;
 use crate::routes;
 use crate::services::accounts::AccountService;
 use crate::services::activity::ActivityLog;
+use crate::services::agent_provider::{
+    AgentLogin, AgentProviderService, NoProviderApi, ProviderApi, ProviderParts, ProviderStore,
+};
 use crate::services::agents::scope::AgentRoots;
 use crate::services::agents::slack::{AgentSlack, NoAgentSlack};
 use crate::services::agents::{AgentConversations, AgentService, ConversationParts};
@@ -184,6 +187,7 @@ struct Inner {
     pairing_routes: Vec<String>,
     direct_scheme: Scheme,
     setup: SetupService,
+    agent_provider: AgentProviderService,
     agents: AgentService,
     approvals: ApprovalService,
     agent_conversations: AgentConversations,
@@ -283,6 +287,9 @@ pub struct Dependencies {
     pub approvals: ApprovalDeps,
     /// Slack, as configured agents' own bots post and read there.
     pub agent_slack: Arc<dyn AgentSlack>,
+    /// The model providers' APIs, which check a provider before it is saved for the agent
+    /// (none by default: every check is unanswered).
+    pub provider_api: Arc<dyn ProviderApi>,
 }
 
 /// How the server runs the assistant's workers: the CLI (none: no workers, and the
@@ -370,6 +377,7 @@ impl Default for Dependencies {
             pairing_routes: Vec::new(),
             approvals: ApprovalDeps::default(),
             agent_slack: Arc::new(NoAgentSlack),
+            provider_api: Arc::new(NoProviderApi),
         }
     }
 }
@@ -423,6 +431,7 @@ impl AppState {
             pairing_routes,
             approvals: approval_deps,
             agent_slack,
+            provider_api,
         } = dependencies;
         let WorkerSetup {
             runtime: worker_runtime,
@@ -441,6 +450,10 @@ impl AppState {
             (secrets_dir.clone(), public_url.clone());
         let direct_scheme = direct_scheme(&public_url);
         let configured_public_url = approval_deps.public_url.clone();
+        let provider_store = ProviderStore::new(
+            crate::services::messaging::secrets::Secrets::new(secrets_dir.clone()),
+            db.settings(),
+        );
         private_files.extend(crate::services::transfer::beside_database(db.path()));
         let private_dir = secrets_dir.clone();
         let home_for_guard = home.clone();
@@ -745,8 +758,19 @@ impl AppState {
             },
         );
         tasks.hand_answers_to(Arc::new(WhatsAppAnswers(messaging.whatsapp().clone())));
+        let agent_provider = AgentProviderService::new(ProviderParts {
+            store: provider_store,
+            clock: Arc::clone(&clock),
+            api: provider_api,
+            login: match &worker_runtime {
+                None => AgentLogin::Off,
+                Some(runtime) if runtime.config.accounts.is_empty() => AgentLogin::Saved,
+                Some(runtime) => AgentLogin::Accounts(runtime.config.accounts.len()),
+            },
+        });
         let setup = SetupService::new(SetupParts {
             agent: worker_runtime.is_some(),
+            provider: agent_provider.clone(),
             public_url: configured_public_url,
             auth: auth.clone(),
             accounts: accounts.clone(),
@@ -837,6 +861,7 @@ impl AppState {
                 pairing_routes,
                 direct_scheme,
                 setup,
+                agent_provider,
                 agents,
                 approvals,
                 agent_conversations,
@@ -868,6 +893,12 @@ impl AppState {
     #[must_use]
     pub fn setup(&self) -> &SetupService {
         &self.inner.setup
+    }
+
+    /// The model provider the agent runs on, as the owner saves it from the apps.
+    #[must_use]
+    pub fn agent_provider(&self) -> &AgentProviderService {
+        &self.inner.agent_provider
     }
 
     /// Agents, approvers and trusted requesters, as the owner configures them.

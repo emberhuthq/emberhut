@@ -32,6 +32,9 @@ pub struct Launch {
     pub env: Vec<(String, String)>,
     /// Variables of the server's environment it does not get.
     pub env_remove: Vec<String>,
+    /// Prefixes: no variable of the server's environment whose name starts with one reaches
+    /// it (the variables it is set still do).
+    pub env_remove_prefixed: Vec<String>,
     /// Where it runs; the server's directory when none.
     pub cwd: Option<PathBuf>,
 }
@@ -51,6 +54,16 @@ impl Launch {
             }
         }
         None
+    }
+
+    /// Whether the server's own `name` is kept from it (removed, or under a removed prefix).
+    #[must_use]
+    pub fn strips(&self, name: &str) -> bool {
+        self.env_remove.iter().any(|removed| removed == name)
+            || self
+                .env_remove_prefixed
+                .iter()
+                .any(|prefix| name.starts_with(prefix.as_str()))
     }
 
     /// The value the launch sets `name` to, if it sets it.
@@ -155,6 +168,19 @@ impl CliSpawner for ProcessSpawner {
             .kill_on_drop(true);
         for name in &launch.env_remove {
             command.env_remove(name);
+        }
+        if !launch.env_remove_prefixed.is_empty() {
+            for (name, _) in std::env::vars_os() {
+                let prefixed = name.to_str().is_some_and(|name| {
+                    launch
+                        .env_remove_prefixed
+                        .iter()
+                        .any(|prefix| name.starts_with(prefix.as_str()))
+                });
+                if prefixed {
+                    command.env_remove(&name);
+                }
+            }
         }
         command.envs(launch.env.iter().map(|(key, value)| (key, value)));
         if let Some(cwd) = &launch.cwd {
@@ -307,6 +333,7 @@ mod tests {
                 .to_vec(),
             env: vec![("A".to_owned(), "1".to_owned())],
             env_remove: Vec::new(),
+            env_remove_prefixed: Vec::new(),
             cwd: None,
         };
         assert_eq!(launch.flag("--model"), Some("opus"));
@@ -314,6 +341,20 @@ mod tests {
         assert_eq!(launch.flag("--resume"), None);
         assert_eq!(launch.var("A"), Some("1"));
         assert_eq!(launch.var("B"), None);
+        assert!(!launch.strips("ANTHROPIC_MODEL"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_prefix_keeps_the_server_s_variables_but_not_the_ones_set() {
+        // `HOME` is in every test's environment; the launch keeps it and every `HOM…` out,
+        // but sets `HOMELY` itself.
+        let mut launch = sh(r#"echo "${HOME:-gone} ${HOMELY:-none}""#);
+        launch.env_remove_prefixed = vec!["HOM".to_owned()];
+        launch.env.push(("HOMELY".to_owned(), "set".to_owned()));
+        assert!(launch.strips("HOME"));
+        let mut pipes = ProcessSpawner::default().spawn(&launch).unwrap();
+        assert_eq!(next_line(&mut pipes).await, "gone set");
     }
 
     #[tokio::test]
@@ -323,6 +364,7 @@ mod tests {
             args: Vec::new(),
             env: Vec::new(),
             env_remove: Vec::new(),
+            env_remove_prefixed: Vec::new(),
             cwd: None,
         };
         let error = ProcessSpawner::default().spawn(&launch).unwrap_err();
@@ -337,6 +379,7 @@ mod tests {
             args: vec!["-c".to_owned(), script.to_owned()],
             env: vec![("GREETING".to_owned(), "hello".to_owned())],
             env_remove: Vec::new(),
+            env_remove_prefixed: Vec::new(),
             cwd: None,
         }
     }
