@@ -2,6 +2,7 @@ import type { NativeBottomTabScreenProps } from "@bottom-tabs/react-navigation";
 import type { CompositeScreenProps, NavigatorScreenParams } from "@react-navigation/native";
 import type { NativeStackNavigationOptions, NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ChatFile } from "@/api";
+import type { GroupId as SettingsGroupId } from "@/features/settings/entries";
 
 export type TabParamList = {
   /** A room's chat; without `room`, the one last open. `draft` starts the message box with it (Talk on a task). */
@@ -38,7 +39,10 @@ export type RootStackParamList = {
   AboutYou: undefined;
   /** One fact Emberhut keeps about you, to fix or forget ("people/x"). */
   Fact: { id: string };
+  /** Settings' front door: the search, the groups, the suggestions. */
   Settings: undefined;
+  /** One group of Settings ("ember", "connections"), on a screen of its own. */
+  SettingsGroup: { group: SettingsGroupId };
   /** What your ember thinks with: the model provider, its key and model, checked with the provider before it's saved. */
   Credentials: undefined;
   /** Each runner machine's live capacity, as the server lists them. */

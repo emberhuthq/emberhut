@@ -1,82 +1,170 @@
-import Constants from "expo-constants";
-import { Alert } from "react-native";
-import { savedLine } from "@/features/ember/credentials";
+import { useState, type ReactNode } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { RootScreenProps } from "@/navigation/types";
-import { inBackground } from "@/log";
-import { sessionStore } from "@/services";
-import { offlineReason } from "@/state/connection";
-import { useConnection, useSession } from "@/state/hooks";
-import { useAgentProvider, useEmberhutState } from "@/state/queries";
-import { Button, ListRow, Screen, Section, usePullRefresh } from "@/ui";
-import { Appearance } from "./Appearance";
-import { Devices, PairAnother } from "./Devices";
-import { Environments } from "./Environments";
-import { FallbackServer } from "./FallbackServer";
-import { PushRow } from "./PushRow";
-import { Switches } from "./Switches";
+import { useTheme } from "@/theme";
+import { Icon, ListRow, Section, SectionHeading, Text, TextField } from "@/ui";
+import { groupName, groupShown, groups, groupStatus, pathOf, type Destination, type Now } from "./entries";
+import { search, suggestions, type Row } from "./find";
+import { useSettingsNow } from "./useSettingsNow";
 
 /**
- * Settings: Emberhut's look (kept on the server), notifications and Emberhut's server; your signed-in devices and pairing another one; then, as on
- * the reference client's page, Emberhut's MCP servers and skills with your switches and the sources and machines it depends on.
+ * Settings asks first: a search over every setting, the groups as chips (they scroll sideways, the edge fading) that open
+ * their screens, and Suggested, a handful of plain verbs worked out from how things stand. Typing narrows the list to
+ * what matches, each saying where it lives; a tap opens that place and changes nothing by itself.
  */
 export function SettingsScreen({ navigation }: RootScreenProps<"Settings">) {
-  const signedIn = useSession((s) => s.status === "signedIn");
-  const provider = useAgentProvider(signedIn);
-  const serverUrl = useSession((s) => s.serverUrl);
-  const machineId = useSession((s) => s.machineId);
-  const state = useEmberhutState();
-  const pull = usePullRefresh(state.refetch);
-  const offline = useConnection(offlineReason);
-  const version = Constants.expoConfig?.version ?? "?";
-  const build = Constants.expoConfig?.android?.versionCode;
-  const signOut = () =>
-    Alert.alert("Sign out of Emberhut?", "This phone forgets its session. You'll need a new pairing code to sign in again.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign out", style: "destructive", onPress: () => inBackground(sessionStore.getState().signOut(), "SettingsScreen: signOut") },
-    ]);
+  const { colors, spacing } = useTheme();
+  const now = useSettingsNow();
+  const [query, setQuery] = useState("");
+  const typed = query.trim() !== "";
+  const found = typed ? search(query, now) : null;
+  const rows = found ? found.rows : suggestions(now);
+  const open = (to: Destination) => {
+    if ("group" in to) navigation.navigate("SettingsGroup", { group: to.group });
+    else if (to.screen === "Account") navigation.navigate("Account");
+    else navigation.navigate(to.screen);
+  };
   return (
-    <Screen scroll {...pull}>
-      <Appearance />
-      {signedIn ? (
-        <Section title="Your ember">
-          <ListRow
-            key="thinksWith"
-            icon="flame-outline"
-            title="What your ember thinks with"
-            subtitle={provider.isError ? provider.error.message : provider.data ? savedLine(provider.data) : "Looking…"}
-            onPress={() => navigation.navigate("Credentials")}
-          />
-        </Section>
-      ) : null}
-      <Section title="This phone">
-        {signedIn ? <PushRow key="push" /> : null}
-        <ListRow key="server" icon="server-outline" title="Server" subtitle={serverUrl ?? "None yet: it's set when this phone pairs"} />
-        {machineId ? (
-          // The id its key proved at pairing, to compare with the one the server prints.
-          <ListRow key="machine" icon="finger-print-outline" title="Machine id" subtitle={machineId} />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+        {now.hasAccount ? (
+          <Section>
+            <ListRow
+              key="account"
+              icon="person-circle-outline"
+              title="Account"
+              subtitle="Your emberhut.com account · optional"
+              onPress={() => navigation.navigate("Account")}
+            />
+          </Section>
         ) : null}
-        <ListRow
-          key="connection"
-          icon={offline ? "cloud-offline-outline" : "cloud-done-outline"}
-          title={
-            offline
-              ? "Can't reach Emberhut"
-              : state.data
-                ? state.data.on
-                  ? "Connected · Emberhut is on"
-                  : "Connected · Emberhut is paused"
-                : "Reaching Emberhut…"
-          }
-          subtitle={offline ?? undefined}
-        />
-        <ListRow key="version" icon="information-circle-outline" title="App version" subtitle={build ? `${version} (${build})` : version} />
-      </Section>
-      {signedIn ? <FallbackServer /> : null}
-      <Devices auth={state.data?.auth} />
-      {signedIn ? <PairAnother /> : null}
-      <Switches />
-      <Environments />
-      {signedIn ? <Button label="Sign out" variant="destructive" icon="log-out-outline" onPress={signOut} /> : null}
-    </Screen>
+        <View style={[styles.search, { gap: spacing.sm }]}>
+          <TextField
+            value={query}
+            onChangeText={setQuery}
+            placeholder="What do you want to change?"
+            accessibilityLabel="Search settings"
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            onSubmitEditing={() => {
+              const top = rows[0];
+              if (top) open(top.entry.to);
+            }}
+          />
+        </View>
+        <Chips now={now} onOpen={(group) => open({ group })} />
+        {found?.nothing ? <Text tone="secondary">Nothing called that. Try a group above.</Text> : null}
+        {rows.length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            {typed ? null : <SectionHeading>Suggested</SectionHeading>}
+            <Section>
+              {rows.map((row) => (
+                <ResultRow key={row.entry.id} row={row} onPress={() => open(row.entry.to)} />
+              ))}
+            </Section>
+          </View>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
+
+/** The groups' chips, in a row that scrolls sideways, its right edge fading into the page. */
+function Chips({ now, onOpen }: { now: Now; onOpen: (group: (typeof groups)[number]) => void }) {
+  const { colors, radius, spacing } = useTheme();
+  // The account has its row at the top.
+  const shown = groups.filter((group) => group !== "account" && groupShown(group, now));
+  return (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingRight: 32 }}>
+        {shown.map((group) => {
+          const status = groupStatus(group, now);
+          return (
+            <Pressable
+              key={group}
+              accessibilityRole="button"
+              accessibilityLabel={status ? `${groupName[group]}, ${status}` : groupName[group]}
+              onPress={() => onOpen(group)}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.xs,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs + 2,
+                borderRadius: radius.pill,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.border,
+                backgroundColor: pressed ? colors.surfaceRaised : colors.surface,
+              })}
+            >
+              <Text variant="callout">{groupName[group]}</Text>
+              <Icon name="chevron-forward" size={12} color={colors.textTertiary} />
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {/* The edge fade: the page's own colour over the chips' last few points, stronger to the edge. */}
+      <View pointerEvents="none" style={styles.fade}>
+        {[0.15, 0.35, 0.6, 0.85].map((opacity) => (
+          <View key={opacity} style={{ flex: 1, backgroundColor: colors.background, opacity }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** A suggestion or a result: its icon, its title with the match marked, its line, and where it lives. */
+function ResultRow({ row, onPress }: { row: Row; onPress: () => void }) {
+  const { colors, spacing } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${row.title}, ${row.line}, in ${pathOf(row.entry)}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { gap: spacing.md, padding: spacing.md, backgroundColor: pressed ? colors.surfaceRaised : colors.surface },
+      ]}
+    >
+      <Icon name={row.entry.icon} color={colors.textSecondary} />
+      <View style={styles.text}>
+        <Text numberOfLines={2}>{marked(row, colors.accent)}</Text>
+        <Text variant="footnote" tone="secondary" numberOfLines={2}>
+          {row.line}
+        </Text>
+      </View>
+      <Text variant="caption" tone="tertiary">
+        {pathOf(row.entry)}
+      </Text>
+      <Icon name="chevron-forward" size={18} color={colors.textTertiary} />
+    </Pressable>
+  );
+}
+
+/** The title, its matched parts in the accent. */
+function marked(row: Row, accent: string) {
+  if (row.marks.length === 0) return row.title;
+  const parts: ReactNode[] = [];
+  let at = 0;
+  for (const [start, end] of row.marks) {
+    if (start < at) continue;
+    parts.push(row.title.slice(at, start));
+    parts.push(
+      <Text key={start} weight="700" style={{ color: accent }}>
+        {row.title.slice(start, end)}
+      </Text>,
+    );
+    at = end;
+  }
+  parts.push(row.title.slice(at));
+  return parts;
+}
+
+const styles = StyleSheet.create({
+  search: { flexDirection: "column" },
+  fade: { position: "absolute", right: 0, top: 0, bottom: 0, width: 32, flexDirection: "row" },
+  row: { flexDirection: "row", alignItems: "center" },
+  text: { flex: 1, gap: 2 },
+});
