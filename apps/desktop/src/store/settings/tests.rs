@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use emberhut_api::chrome::{ChromeAction, ChromeReply};
 use emberhut_api::facts::FactsPage;
-use emberhut_api::ids::{ChromeProfileId, FactId, RoomId};
+use emberhut_api::ids::{ChromeProfileId, FactId, RoomId, TrialId};
 use emberhut_api::settings::SettingsAction;
 use emberhut_api::switches::{SwitchAction, SwitchPage};
 use gpui_kit::{AppContext as _, Entity, TestAppContext};
@@ -160,6 +160,71 @@ fn a_forgotten_fact_goes_at_once_and_comes_back_if_refused(cx: &mut TestAppConte
             Call::Facts
         ]
     );
+}
+
+/// A page with one lesson on trial, number 4, and none.
+fn trial_pages() -> (FactsPage, FactsPage) {
+    let on_trial: FactsPage = serde_json::from_value(json!({"facts": [], "trials": [
+        {"id": 4, "text": "Say which file.", "at": "2026-11-20T10:00:00Z",
+         "ends": "2026-12-04T10:00:00Z", "said": "Which file?"}]}))
+    .unwrap();
+    (on_trial, FactsPage::default())
+}
+
+#[gpui_kit::test]
+fn a_kept_lesson_leaves_the_trial_and_learning_from_you_stays_as_left(cx: &mut TestAppContext) {
+    let (on_trial, kept) = trial_pages();
+    let backend = Arc::new(FakeBackend::new([]));
+    backend.replies.push_facts(Ok(on_trial));
+    backend.replies.push_facts(Ok(kept));
+    let store = store(cx, &backend);
+    store.update(cx, |store, cx| {
+        store.show_in_test_column(Some(Page::SettingsPane(SettingsPane::AboutYou)), cx);
+    });
+    cx.run_until_parked();
+    store.update(cx, |store, cx| {
+        assert!(!store.facts().learning_open(), "folded at first");
+        store.toggle_learning(cx);
+        store.keep_trial(TrialId::new(4), cx);
+        assert!(store.facts().page().unwrap().trials.is_empty(), "at once");
+    });
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.action_problem(), None);
+        assert!(store.facts().learning_open(), "still open");
+    });
+    assert_eq!(
+        backend.calls(),
+        [
+            Call::Facts,
+            Call::Settings(SettingsAction::TrialKeep(TrialId::new(4))),
+            Call::Facts
+        ]
+    );
+}
+
+#[gpui_kit::test]
+fn a_server_that_cant_keep_lessons_early_says_so_plainly(cx: &mut TestAppContext) {
+    let (on_trial, _) = trial_pages();
+    let backend = Arc::new(FakeBackend::new([]));
+    backend.replies.push_facts(Ok(on_trial.clone()));
+    // An older server takes the body (200) and leaves the lesson on trial.
+    backend.replies.push_facts(Ok(on_trial));
+    let store = store(cx, &backend);
+    store.update(cx, |store, cx| {
+        store.show_in_test_column(Some(Page::SettingsPane(SettingsPane::AboutYou)), cx);
+    });
+    cx.run_until_parked();
+    store.update(cx, |store, cx| store.keep_trial(TrialId::new(4), cx));
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.facts().page().unwrap().trials.len(), 1, "back");
+        assert_eq!(
+            store.action_problem(),
+            Some(super::about::CANT_KEEP),
+            "a plain line, not a failure"
+        );
+    });
 }
 
 #[gpui_kit::test]

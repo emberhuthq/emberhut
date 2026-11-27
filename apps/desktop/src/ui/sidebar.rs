@@ -21,6 +21,7 @@ use crate::store::sessions::lists as sessions_lists;
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
 use crate::store::sessions::words::{self as session_words, Mark as SessionMark};
+use crate::store::settings::about::TITLE as ABOUT_TITLE;
 use crate::ui::a11y::{self, Accessible as _};
 
 use crate::brand::APP_NAME;
@@ -503,7 +504,7 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
                         .size(px(14.))
                         .text_color(p.muted),
                 )
-                .child(format!("What {APP_NAME} knows about you"))
+                .child(ABOUT_TITLE)
                 .on_click(|_, window, cx| {
                     routes::open_settings(Some(SettingsPane::AboutYou), window, cx);
                 }),

@@ -33,9 +33,9 @@ use super::palette::{Pal, category_color, pal};
 use super::qr::Qr;
 use super::settings_more;
 use super::widgets::{group, page_head};
-use crate::brand::APP_NAME;
 use crate::store::devices::NewCode;
 use crate::store::settings::SettingsPane;
+use crate::store::settings::about::TITLE as ABOUT_TITLE;
 use crate::store::settings::appearance::summary;
 use crate::store::settings::chrome::{self as chrome_words, Health};
 use crate::store::working::settings_filter::SettingsFilter;
@@ -95,7 +95,7 @@ impl SettingsView {
             SettingsPane::ChromeProfiles => {
                 ("Chrome profiles", self.chrome.clone().into_any_element())
             }
-            SettingsPane::AboutYou => ("About you", self.about.clone().into_any_element()),
+            SettingsPane::AboutYou => (ABOUT_TITLE, self.about.clone().into_any_element()),
         };
         div()
             .size_full()
@@ -173,8 +173,11 @@ impl SettingsView {
             "about-you-row",
             p,
             (IconName::Contact, category_color(0)),
-            format!("What {APP_NAME} knows about you"),
-            ("Facts and rules on trial".to_owned(), Health::Off),
+            ABOUT_TITLE,
+            (
+                "Facts, and lessons from your corrections".to_owned(),
+                Health::Off,
+            ),
             "",
         )
         .on_click(Self::opens(SettingsPane::AboutYou));
@@ -198,7 +201,7 @@ impl SettingsView {
             return div().flex().flex_col().gap(px(18.)).children(parts);
         }
         parts.push(
-            section(p, "About you", None, vec![about.into_any_element()], None).into_any_element(),
+            section(p, "Your ember", None, vec![about.into_any_element()], None).into_any_element(),
         );
         parts.push(usage::card(&self.store, p, cx).into_any_element());
         parts.push(
@@ -310,7 +313,7 @@ mod tests {
 
     use emberhut_api::chrome::ChromeAction;
     use emberhut_api::facts::{FactCategory, FactsPage};
-    use emberhut_api::ids::{ChromeProfileId, FactId};
+    use emberhut_api::ids::{ChromeProfileId, FactId, TrialId};
     use emberhut_api::settings::{FactChange, SettingsAction};
     use emberhut_api::switches::SwitchAction;
     use gpui_kit::component::input::InputState;
@@ -522,45 +525,205 @@ mod tests {
         );
     }
 
-    #[gpui_kit::test]
-    fn long_rules_and_facts_wrap_inside_a_narrow_window(cx: &mut TestAppContext) {
-        let (backend, store, _, mut cx) = open_settings_view(cx, Some(SettingsPane::AboutYou));
-        let long = "A scan or review is done only when every finding is marked landed or \
-                    superseded after a check in the code, not when its session says done. "
-            .repeat(3);
-        let page: FactsPage = serde_json::from_value(json!({
-            "facts": [{"id": "work/desk", "category": "work", "title": long, "text": long,
-                       "source": "chat", "updated": "2026-11-20T10:00:00Z"}],
-            "trials": [{"id": 4, "text": long, "at": "2026-11-20T10:00:00Z",
-                        "ends": "2026-12-04T10:00:00Z", "said": long}]}))
-        .unwrap();
-        backend.replies.push_facts(Ok(page));
+    /// What your ember knows about you over a fake backend that answers with `page`, drawn.
+    fn open_about(
+        cx: &mut TestAppContext,
+        page: serde_json::Value,
+    ) -> (
+        Arc<FakeBackend>,
+        Entity<Store>,
+        Entity<SettingsView>,
+        VisualTestContext,
+    ) {
+        let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::AboutYou));
+        backend
+            .replies
+            .push_facts(Ok(serde_json::from_value(page).unwrap()));
         store.update(&mut cx, |store, cx| {
             store.show_in_test_column(Some(Page::SettingsPane(SettingsPane::AboutYou)), cx);
         });
         cx.run_until_parked();
+        cx.update(Window::render_frame);
+        (backend, store, view, cx)
+    }
+
+    /// Two facts in two categories and a lesson on trial, with its line to the user.
+    fn known() -> serde_json::Value {
+        json!({
+            "facts": [
+                {"id": "people/example", "category": "people", "title": "Example Person",
+                 "text": "Runs the example team.", "source": "chat",
+                 "updated": "2026-11-20T10:00:00Z", "important": true},
+                {"id": "work/desk", "category": "work", "title": "Desk",
+                 "text": "Works from home.", "source": "chat", "updated": "2026-11-20T10:00:00Z"}],
+            "trials": [{"id": 4, "text": "Before telling the owner a file changed, say which.",
+                        "at": "2026-11-20T10:00:00Z", "ends": "2026-12-04T10:00:00Z",
+                        "said": "Which file was that?",
+                        "lesson": "I say which file a change is in."}]})
+    }
+
+    #[gpui_kit::test]
+    fn learning_from_you_is_one_folded_line_over_the_chips_and_facts(cx: &mut TestAppContext) {
+        let (_backend, store, _, mut cx) = open_about(cx, known());
+        let learning = cx
+            .debug_bounds(about::LEARNING)
+            .expect("Learning from you is drawn");
+        let chips = cx.debug_bounds(about::CHIPS).expect("the chips are drawn");
+        let fact = cx.debug_bounds(about::FACT_ROW).expect("a fact is drawn");
+        assert!(
+            learning.bottom() <= chips.top() && chips.bottom() <= fact.top(),
+            "lessons, then chips, then facts: {learning:?} {chips:?} {fact:?}"
+        );
+        assert!(
+            cx.debug_bounds(about::TRIAL_ROW).is_none(),
+            "folded at first"
+        );
+        cx.update(|window, cx| window.click(about::LEARNING_TOGGLE, cx));
+        cx.run_until_parked();
+        cx.update(Window::render_frame);
+        assert!(cx.debug_bounds(about::TRIAL_ROW).is_some(), "opened");
+        assert!(store.read_with(&cx, |store, _| store.facts().learning_open()));
+    }
+
+    #[gpui_kit::test]
+    fn keep_keeps_the_lesson_now(cx: &mut TestAppContext) {
+        let (backend, store, _, mut cx) = open_about(cx, known());
+        store.update(&mut cx, Store::toggle_learning);
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.click("trial-4-keep", cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            backend.calls(),
+            [
+                Call::Facts,
+                Call::Settings(SettingsAction::TrialKeep(TrialId::new(4))),
+                Call::Facts,
+            ]
+        );
+    }
+
+    #[gpui_kit::test]
+    fn drop_asks_once_before_it_drops(cx: &mut TestAppContext) {
+        let (backend, store, _, mut cx) = open_about(cx, known());
+        store.update(&mut cx, Store::toggle_learning);
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.click("trial-4-drop", cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(backend.calls(), [Call::Facts], "asked, not sent");
+        cx.update(|window, cx| window.click("trial-4-confirm", cx));
+        cx.run_until_parked();
+        assert_eq!(
+            backend.calls()[1],
+            Call::Settings(SettingsAction::TrialDrop(TrialId::new(4)))
+        );
+    }
+
+    #[gpui_kit::test]
+    fn a_facts_edit_and_forget_buttons_act(cx: &mut TestAppContext) {
+        let (backend, _store, view, mut cx) = open_about(cx, known());
+        assert!(cx.debug_bounds(about::FACT_EDIT).is_some(), "Edit shows");
+        assert!(
+            cx.debug_bounds(about::FACT_FORGET).is_some(),
+            "Forget shows"
+        );
+        cx.update(|window, cx| window.click("fact-work/desk-edit", cx));
+        cx.run_until_parked();
+        let about = view.read_with(&cx, |view, _| view.about.clone());
+        let field = about.read_with(&cx, |about, _| about.text.clone());
+        assert_eq!(
+            field.read_with(&cx, |input, _| input.value().to_string()),
+            "Works from home.",
+            "Fix a fact opens on it"
+        );
+        cx.update(|window, cx| window.click("sheet-done", cx));
+        cx.run_until_parked();
+
+        cx.update(|window, cx| window.click("fact-work/desk-forget", cx));
+        cx.run_until_parked();
+        assert_eq!(backend.calls(), [Call::Facts], "asked, not sent");
+        cx.update(|window, cx| window.click("fact-work/desk-forget-confirm", cx));
+        cx.run_until_parked();
+        assert_eq!(
+            backend.calls()[1],
+            Call::Settings(SettingsAction::FactDrop(FactId::new("work/desk")))
+        );
+    }
+
+    #[gpui_kit::test]
+    fn a_chip_narrows_the_list_to_its_category(cx: &mut TestAppContext) {
+        let (_backend, _store, _, mut cx) = open_about(cx, known());
+        let shown = |cx: &mut VisualTestContext| {
+            cx.update(|window, _| {
+                (
+                    window.try_find("fact-people/example-edit").is_some(),
+                    window.try_find("fact-work/desk-edit").is_some(),
+                )
+            })
+        };
+        assert_eq!(shown(&mut cx), (true, true), "All");
+        // All, People, Work.
+        cx.update(|window, cx| window.click("about-chip-2", cx));
+        cx.run_until_parked();
+        cx.update(Window::render_frame);
+        assert_eq!(shown(&mut cx), (false, true), "Work only");
+        cx.update(|window, cx| window.click("about-chip-0", cx));
+        cx.run_until_parked();
+        cx.update(Window::render_frame);
+        assert_eq!(shown(&mut cx), (true, true), "All again");
+    }
+
+    #[gpui_kit::test]
+    fn long_rules_and_facts_wrap_inside_a_narrow_window(cx: &mut TestAppContext) {
+        let long = "A scan or review is done only when every finding is marked landed or \
+                    superseded after a check in the code, not when its session says done. "
+            .repeat(3);
+        let (_backend, store, _, mut cx) = open_about(
+            cx,
+            json!({
+                "facts": [{"id": "work/desk", "category": "work", "title": long, "text": long,
+                           "source": "chat", "updated": "2026-11-20T10:00:00Z"}],
+                "trials": [{"id": 4, "text": long, "at": "2026-11-20T10:00:00Z",
+                            "ends": "2026-12-04T10:00:00Z", "said": long, "lesson": long}]}),
+        );
+        store.update(&mut cx, Store::toggle_learning);
         cx.simulate_resize(gpui_kit::size(px(560.), px(900.)));
         cx.update(Window::render_frame);
         let edge = px(560.);
         let row = cx
             .debug_bounds(about::TRIAL_ROW)
-            .expect("the rule is drawn");
+            .expect("the lesson is drawn");
         let drop = cx
             .debug_bounds(about::TRIAL_DROP)
             .expect("its Drop is drawn");
+        let keep = cx
+            .debug_bounds(about::TRIAL_KEEP)
+            .expect("its Keep is drawn");
         let fact = cx.debug_bounds(about::FACT_ROW).expect("the fact is drawn");
+        let forget = cx
+            .debug_bounds(about::FACT_FORGET)
+            .expect("its Forget is drawn");
         assert!(
             row.right() <= edge,
-            "the rule wraps inside the window: {row:?}"
+            "the lesson wraps inside the window: {row:?}"
         );
-        assert!(
-            drop.right() <= row.right(),
-            "Drop stays in its row: {drop:?} in {row:?}"
-        );
-        assert!(drop.size.width > px(0.), "Drop has room: {drop:?}");
+        for button in [drop, keep] {
+            assert!(
+                button.right() <= row.right(),
+                "the button stays in its row: {button:?} in {row:?}"
+            );
+            assert!(button.size.width > px(0.), "it has room: {button:?}");
+        }
         assert!(
             fact.right() <= edge,
             "the fact wraps inside the window: {fact:?}"
+        );
+        assert!(
+            forget.right() <= fact.right() && forget.size.width > px(0.),
+            "Forget stays in its row: {forget:?} in {fact:?}"
         );
     }
 
