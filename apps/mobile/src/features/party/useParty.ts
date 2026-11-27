@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useState } from "react";
 import { followParty, type Party, type PartyLiveEvent, type PartyPage } from "@/api";
 import { inBackground } from "@/log";
 import { api } from "@/services";
+import { useServerInUse } from "@/state/hooks";
 import { queryKeys } from "@/state/query";
 import { applyPartyEvent, emptyParty, loadedParty, type PartyView } from "./party";
 
@@ -23,6 +24,7 @@ export function useParty(id: number) {
   const [dropped, setDropped] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const server = useServerInUse();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -42,7 +44,7 @@ export function useParty(id: number) {
       })
       .catch((cause: unknown) => !controller.signal.aborted && setFailed(cause instanceof Error ? cause.message : "unknown"));
     return () => controller.abort();
-  }, [id, attempt]);
+  }, [id, attempt, server]);
 
   const retry = useCallback(() => {
     setFailed(null);

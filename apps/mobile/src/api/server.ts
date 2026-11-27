@@ -1,30 +1,66 @@
 import type { SecureStorage } from "./auth";
 import { isLocalHost } from "./localNetwork";
 
-const key = "emberhut.server";
+/**
+ * The prefix of the secure-storage keys a server's pairing is kept under: the server's own, and the fallback server's
+ * (the one the app goes back to when its server stops answering).
+ */
+export const slotPrefix = { server: "emberhut.", fallback: "emberhut.fallback." } as const;
 
-/** Where this phone's server is: typed in at pairing, kept in secure storage, the base of every request. */
+/** Which of the two servers: this phone's server, or its fallback server. */
+export type Slot = keyof typeof slotPrefix;
+
+/** Where a server is: typed in at pairing, kept in secure storage, the base of every request to it. */
 export interface ServerAddress {
   /** The address as "https://host:port" (no trailing slash), or null before one was given. */
   readonly url: string | null;
+  /**
+   * The server speaks this build's wire dialect (src/api/dialect.ts): its requests and answers are rewritten through it.
+   * True unless turned off, so a server paired before servers had this flag keeps the build's behaviour. A build without
+   * a dialect has nothing to rewrite either way.
+   */
+  readonly speaksDialect: boolean;
   load(): Promise<string | null>;
   save(url: string): Promise<void>;
+  setSpeaksDialect(on: boolean): Promise<void>;
+  /** Forgets the address (and the flag): a fallback server that was removed. */
+  clear(): Promise<void>;
 }
 
-export function createServerAddress(storage: SecureStorage): ServerAddress {
+/** The address kept under `prefix` (slotPrefix): this phone's server by default. */
+export function createServerAddress(storage: SecureStorage, prefix: string = slotPrefix.server): ServerAddress {
+  const key = `${prefix}server`;
+  // Only "off" is ever stored: no entry means the flag's default.
+  const dialectKey = `${prefix}dialect`;
   let url: string | null = null;
+  let speaksDialect = true;
   return {
     get url() {
       return url;
     },
+    get speaksDialect() {
+      return speaksDialect;
+    },
     async load() {
-      url = serverUrlFrom((await storage.getItem(key)) ?? "");
+      const [kept, dialect] = await Promise.all([storage.getItem(key), storage.getItem(dialectKey)]);
+      url = serverUrlFrom(kept ?? "");
+      speaksDialect = dialect !== "off";
       return url;
     },
     async save(next) {
       // Held only once kept: an address that couldn't be saved is never the one requests go to.
       await storage.setItem(key, next);
       url = next;
+    },
+    async setSpeaksDialect(on) {
+      if (on) await storage.deleteItem(dialectKey);
+      else await storage.setItem(dialectKey, "off");
+      speaksDialect = on;
+    },
+    async clear() {
+      await Promise.all([storage.deleteItem(key), storage.deleteItem(dialectKey)]);
+      url = null;
+      speaksDialect = true;
     },
   };
 }

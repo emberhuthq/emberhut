@@ -7,7 +7,7 @@ import { AboutYouScreen } from "@/features/aboutYou/AboutYouScreen";
 import { ApprovalScreen } from "@/features/approvals/ApprovalScreen";
 import { ApprovalsScreen } from "@/features/approvals/ApprovalsScreen";
 import { FactScreen } from "@/features/aboutYou/FactScreen";
-import { SignInScreen } from "@/features/auth/SignInScreen";
+import { AddServerScreen, SignInScreen } from "@/features/auth/SignInScreen";
 import { BrowserScreen } from "@/features/browser/BrowserScreen";
 import { RoomsScreen } from "@/features/chat/RoomsScreen";
 import { FileScreen } from "@/features/files/FileScreen";
@@ -125,6 +125,7 @@ export function RootStack() {
           <Stack.Screen name="AboutYou" component={AboutYouScreen} options={{ title: "About you" }} />
           <Stack.Screen name="Fact" component={FactScreen} options={{ title: "Fix a fact", presentation: "modal" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+          <Stack.Screen name="AddServer" component={AddServerScreen} options={{ title: "Pair with a server", presentation: "modal" }} />
           <Stack.Screen name="Machines" component={MachinesScreen} options={{ title: "Machines" }} />
           <Stack.Screen name="Parties" component={PartiesScreen} options={{ title: "Party" }} />
           <Stack.Screen name="Party" component={PartyScreen} options={({ route }) => ({ title: route.params.title ?? "Party" })} />

@@ -1,13 +1,15 @@
 import { useNavigation } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { checkServerAddress } from "@/api";
 import { accountConfig } from "@/config/account";
 import { linkErrorText, pairingLinkBase, parsePairingLink, type PairingLink } from "@/connect/pairingLink";
 import { inBackground } from "@/log";
+import type { RootScreenProps } from "@/navigation/types";
 import { sessionStore } from "@/services";
+import type { PairRole } from "@/state/session";
 import { useSession } from "@/state/hooks";
 import { useTheme } from "@/theme";
 import { Button, Card, Icon, KeyboardAvoider, Text, TextField } from "@/ui";
@@ -23,7 +25,37 @@ const unreachable = "Can't reach Emberhut";
  * is pinned: the pairing must prove it is that one.
  */
 export function SignInScreen() {
+  return <PairingScreen role="server" />;
+}
+
+/**
+ * Pairing with another server while signed in (Settings, Fallback server): a new server for this phone, the one it had
+ * kept as its fallback ("switch"), or a fallback server beside it. Done, it goes back to Settings.
+ */
+export function AddServerScreen({ route, navigation }: RootScreenProps<"AddServer">) {
+  return <PairingScreen role={route.params.role} onPaired={() => navigation.goBack()} />;
+}
+
+const headings: Record<PairRole, { title: string; detail: string }> = {
+  server: {
+    title: "Sign in to Emberhut",
+    detail: "Pair this phone with your server: scan its pairing QR code, or type its address and a one-time code from it.",
+  },
+  switch: {
+    title: "Move to a new server",
+    detail:
+      "Pair with the new server: scan its pairing QR code, or type its address and a one-time code from it. The server this phone has now stays as its fallback server, signed in, for when the new one stops answering.",
+  },
+  fallback: {
+    title: "Add a fallback server",
+    detail:
+      "Pair with the server this phone goes to when its own stops answering: scan its pairing QR code, or type its address and a one-time code from it.",
+  },
+};
+
+function PairingScreen({ role, onPaired }: { role: PairRole; onPaired?: () => void }) {
   const { colors, spacing } = useTheme();
+  const signIn = role === "server";
   const required = useSession((s) => s.required);
   const refused = useSession((s) => s.refused);
   const pairing = useSession((s) => s.pairing);
@@ -34,19 +66,29 @@ export function SignInScreen() {
   const kept = useSession((s) => s.serverUrl);
   const pin = useSession((s) => s.pin);
   const navigation = useNavigation();
-  const [server, setServer] = useState(kept ?? "");
+  // Another server starts from an empty address; sign-in from the one kept.
+  const start = signIn ? (kept ?? "") : "";
+  const [server, setServer] = useState(start);
   const [code, setCode] = useState("");
   const [name, setName] = useState(deviceName);
   const [scanning, setScanning] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  // What an earlier pairing said belongs to that one.
+  useEffect(() => {
+    if (!signIn) sessionStore.setState({ pairError: null });
+  }, [signIn]);
+
   const ready = server.trim() !== "" && isComplete(code);
   const address = checkServerAddress(server);
-  const pair = () => inBackground(sessionStore.getState().pair(code, name, server), "SignInScreen: pair");
+  const paired = (ok: boolean) => {
+    if (ok) onPaired?.();
+  };
+  const pair = () => inBackground(sessionStore.getState().pair(code, name, server, role).then(paired), "SignInScreen: pair");
   const pairLink = (link: PairingLink) => {
     setScanning(false);
     setLinkError(null);
-    inBackground(sessionStore.getState().pairLink(link, name), "SignInScreen: pair from a link");
+    inBackground(sessionStore.getState().pairLink(link, name, role).then(paired), "SignInScreen: pair from a link");
   };
   /** A pairing link as text (pasted, or typed into the address): paired from at once, or why it can't be. */
   const readLink = (text: string) => {
@@ -74,28 +116,28 @@ export function SignInScreen() {
       setLinkError(linkErrorText(parsed.error));
       return;
     }
-    setServer(kept ?? "");
+    setServer(start);
     pairLink(parsed.link);
   };
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: colors.background }]} edges={["top", "bottom"]}>
+    <SafeAreaView style={[styles.fill, { backgroundColor: colors.background }]} edges={signIn ? ["top", "bottom"] : ["bottom"]}>
       <KeyboardAvoider>
         <ScrollView
           contentContainerStyle={{ padding: spacing.xl, gap: spacing.lg, flexGrow: 1, justifyContent: "center" }}
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ alignItems: "center", gap: spacing.sm }}>
-            <Icon name="key" size={44} color={colors.accent} />
+            <Icon name={signIn ? "key" : "swap-horizontal"} size={44} color={colors.accent} />
             <Text variant="title" align="center" accessibilityRole="header">
-              Sign in to Emberhut
+              {headings[role].title}
             </Text>
             <Text tone="secondary" align="center">
-              Pair this phone with your server: scan its pairing QR code, or type its address and a one-time code from it.
+              {headings[role].detail}
             </Text>
           </View>
-          {pin ? <Pinned name={pin.name} /> : null}
-          {refused ? <OffNetwork /> : null}
-          {startError ? <Unreadable reason={startError} /> : null}
+          {signIn && pin ? <Pinned name={pin.name} /> : null}
+          {signIn && refused ? <OffNetwork /> : null}
+          {signIn && startError ? <Unreadable reason={startError} /> : null}
           <View style={{ gap: spacing.sm }}>
             <Button label="Scan a QR code" icon="qr-code-outline" onPress={() => setScanning(true)} loading={pairing} block />
             <Button
@@ -176,7 +218,7 @@ export function SignInScreen() {
               A code reads like ABCD-EFGH, works once and for 10 minutes.
             </Text>
           </Card>
-          {accountConfig ? (
+          {signIn && accountConfig ? (
             <Button
               label="Find your machines in your account"
               icon="person-circle-outline"
@@ -184,7 +226,7 @@ export function SignInScreen() {
               onPress={() => navigation.navigate("Account")}
             />
           ) : null}
-          {required || kept === null ? null : <Button label="Not now" variant="plain" onPress={later} />}
+          {!signIn || required || kept === null ? null : <Button label="Not now" variant="plain" onPress={later} />}
         </ScrollView>
       </KeyboardAvoider>
       <Scanner visible={scanning} onLink={pairLink} onClose={() => setScanning(false)} />
