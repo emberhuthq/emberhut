@@ -26,8 +26,10 @@ use emberhut_server::services::agent_provider::HttpProviderApi;
 use emberhut_server::services::agent_provider::bridge::{BridgeParts, OpenAiBridge};
 use emberhut_server::services::claude::{ClaudeAssistant, Launch};
 use emberhut_server::services::messaging::web::WebClient;
+use emberhut_server::services::routines::Routine;
 use emberhut_server::services::talk::Assistant;
 use emberhut_server::services::workers::WorkerRuntime;
+use jiff::tz::TimeZone;
 use serde_json::{Value, json};
 
 use crate::agent_provider::{TOKEN, echoing, provider_item, put, store_of, talk};
@@ -689,4 +691,57 @@ async fn openai_s_own_api_gets_max_completion_tokens_and_a_broken_stream_ends_in
             .unwrap()
             .starts_with("prompt is too long: OpenAI answered 400")
     );
+}
+
+#[tokio::test]
+async fn a_bridged_provider_is_something_to_think_with_so_a_routine_runs_through_it() {
+    let fake = FakeOpenAi::default();
+    let base = fake.serve().await;
+    let cli = echoing();
+    let app = app_on(&base, &cli).await;
+    // A day starts at midnight: keep the routine inside one day.
+    let hour = app.clock_now().to_zoned_datetime(TimeZone::system()).hour();
+    if hour == 0 || hour >= 22 {
+        app.advance_minutes(180);
+    }
+    let session = app.sign_in().await;
+    let due = app
+        .clock_now()
+        .checked_add(jiff::SignedDuration::from_mins(-5))
+        .unwrap()
+        .to_zoned_datetime(TimeZone::system())
+        .strftime("%H:%M")
+        .to_string();
+    let routines = [Routine {
+        at: due,
+        what: "Morning brief: keep it short.".to_owned(),
+        day: None,
+    }];
+    app.state
+        .routines()
+        .set(Some(&routines), None)
+        .await
+        .unwrap();
+    app.state.wake().tick().await.unwrap();
+    app.settle().await;
+    assert!(cli.launches().is_empty(), "nothing to think with yet");
+
+    // Saved, never talked to: the bridge is what it thinks with, no turn needed to prove it.
+    let saved = put(
+        &app,
+        &session,
+        &json!({ "provider": "openai-compatible", "apiKey": TOKEN, "baseUrl": base,
+            "model": "local-big", "fastModel": "local-small" }),
+    )
+    .await;
+    assert_eq!(saved.status, 200, "{}", saved.text);
+    let (state, _) = provider_item(&app, &session).await;
+    assert_eq!(state, SetupState::Ready);
+    app.state.wake().tick().await.unwrap();
+    app.settle().await;
+    let launches = cli.launches();
+    assert_eq!(launches.len(), 1, "the brief ran");
+    let bridge = launches[0].var("ANTHROPIC_BASE_URL").unwrap();
+    assert!(bridge.starts_with("http://127.0.0.1:"), "{bridge}");
+    assert_ne!(bridge, base, "through the bridge, not to the endpoint");
 }

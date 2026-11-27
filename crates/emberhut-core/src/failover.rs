@@ -6,6 +6,10 @@
 //! the service gave (an hour when it gave none) and the session moves to the first account in
 //! the configured order that can take work. With every account out, nothing moves and the
 //! answer reaches the chat as it came.
+//!
+//! An answer that says the CLI isn't logged in at all ([`says_not_logged_in`]) is read here
+//! too. It is not an account running out, so nothing moves: the agent has nothing to think
+//! with until its model provider is set up.
 
 use std::collections::BTreeMap;
 
@@ -158,6 +162,36 @@ pub fn says_out_of_usage(text: &str) -> bool {
         || text.contains("limit · resets")
 }
 
+/// The longest answer that is read as the CLI's own line about its login rather than the
+/// assistant's words.
+const LOGIN_LINE: usize = 200;
+
+/// Whether a turn's answer is the CLI saying it has nothing to sign in with (`Not logged in ·
+/// Please run /login`, `Invalid API key · Please run /login`), the wordings Claude Code uses.
+/// An error result (`error`) counts when it asks for `/login` or starts with `not logged in`;
+/// any other answer only when it is that one short line, both at once, as the assistant may
+/// talk about logging in itself.
+#[must_use]
+pub fn says_not_logged_in(text: &str, error: bool) -> bool {
+    let text = text.trim().to_lowercase();
+    let not_logged_in = text.starts_with("not logged in");
+    if error {
+        asks_for_login(&text) || not_logged_in
+    } else {
+        text.chars().count() <= LOGIN_LINE && not_logged_in && asks_for_login(&text)
+    }
+}
+
+/// `run /login` as the CLI writes it: `/login` not run into a longer word.
+fn asks_for_login(text: &str) -> bool {
+    text.match_indices("run /login").any(|(at, found)| {
+        text[at + found.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == '-'))
+    })
+}
+
 /// `hit your limit`, or `hit your <word> limit`.
 fn hit_your_limit(text: &str) -> bool {
     text.match_indices("hit your ").any(|(at, found)| {
@@ -264,5 +298,34 @@ mod tests {
         ] {
             assert!(!says_out_of_usage(text), "{text}");
         }
+    }
+
+    #[test]
+    fn the_cli_s_wordings_for_no_login_are_recognised() {
+        for text in [
+            "Not logged in · Please run /login",
+            "  NOT LOGGED IN · please run /login.\n",
+            "Invalid API key · Please run /login",
+            "OAuth token has expired. Please run /login",
+            "Not logged in",
+        ] {
+            assert!(says_not_logged_in(text, true), "{text}");
+        }
+        assert!(says_not_logged_in(
+            "Not logged in · Please run /login",
+            false
+        ));
+        for (text, error) in [
+            ("Invalid API key · Please run /login", false),
+            ("To sign in again, run /login in a terminal.", false),
+            ("Not logged in to Gmail yet.", false),
+            ("Please run /loginhelper", true),
+            ("", true),
+        ] {
+            assert!(!says_not_logged_in(text, error), "{text}");
+        }
+        let long = format!("Not logged in · Please run /login {}", "word ".repeat(50));
+        assert!(!says_not_logged_in(&long, false));
+        assert!(says_not_logged_in(&long, true));
     }
 }

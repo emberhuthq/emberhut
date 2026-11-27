@@ -61,15 +61,25 @@ endpoint, set with `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`, its models w
   `EMBERHUT_AGENT_COMMAND` the server still runs the silent assistant, which is chosen at start-up,
   and the checklist's `provider` item is `off`. Running `claude` from the `PATH` of a server that
   never asked for an agent would surprise its owner.
+- **Nothing unattended without something to think with.** With no account configured, a turn
+  nobody asked for (a routine, a check-in, the wake rule's, a worker the tick starts) runs only
+  on a saved provider the CLI runs on, on `claude`, or, with nothing saved, once a turn showed
+  the CLI's own login answers. A CLI that says it isn't logged in is kept as signed out until a
+  provider is saved or removed, or a turn answers; the chat gets a plain note instead of its
+  words (ADR 0014, "Not logged in").
 - **Runners keep their own credentials.** Nothing saved here is sent to a runner's machine.
 
 ## Consequences
 
 - A new owner connects the agent from the apps' onboarding: pick a provider, paste a key (or
   choose a local Ollama and one of its models), and the next turn runs on it.
-- The setup checklist gains a `provider` item: `ready` on configured accounts or a saved provider
-  in use, `missing` when the owner can fix it from the apps, `off` without an agent CLI (or for a
-  bridged provider on a server without the bridge).
+- The setup checklist gains a `provider` item: `ready` on configured accounts, a saved provider
+  in use (through the bridge for a bridged one), or the CLI's own login once a turn answered on
+  it; `missing` when the owner can fix it from the apps (a key or a bridged provider's model to
+  save, or a CLI that said it isn't logged in); `off` without an agent CLI, or for a bridged
+  provider on a server without the bridge.
+- A fresh server starts no routine before the agent has something to think with, so its first
+  chat line is never the CLI's terminal instruction.
 - Tests check each provider against a stand-in on loopback and read each launch's environment
   from the scripted spawner; none reaches a provider.
 - The checks follow the providers' public routes; a provider that moves them breaks its check,

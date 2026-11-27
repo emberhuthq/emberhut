@@ -131,6 +131,30 @@ the morning brief and the evening wrap (`emberhut_core::briefs`), worded for any
 brief also carries what each room said since the day before. A routine wakes Main once a day
 (an event with the key `routine:<local day>:<time>`).
 
+**Nothing to think with, nothing unattended.** The tick starts nothing (no routine, check-in,
+watch reminder, redelivery or event's wake) while the assistant has nothing to think with
+(`Assistant::can_think`): no agent command (the silent assistant), or, with no account
+configured, no saved provider it runs on ([ADR 0028](0028-agent-model-providers.md)), or a CLI
+whose last turn said it isn't logged in. The workers' tick starts no worker then either. What is
+due waits as it is and nothing is marked failed: a routine still due that day runs at the first
+tick the assistant can think (`routine_due` holds from its time to midnight), a check-in or
+watch past its time fires then, and the events wait in their table. The owner's own messages are
+always answered. A first run on a fresh server so never opens Main with the morning brief's turn
+on an agent that can't run.
+
+**Not logged in.** A turn whose result is the CLI saying it isn't logged in (`Not logged in ·
+Please run /login`, `Invalid API key · Please run /login`;
+`emberhut_core::failover::says_not_logged_in`, beside the out-of-usage wordings, matched by hand:
+an error result asking for `/login` or starting `not logged in`, any other answer only when it is
+that one short line) never reaches the chat in the CLI's words. The session closes, the CLI is
+kept as signed out (the setting `agentLogin`), and the chat says `I can't think yet: choose what
+I think with in Setup.`: for the owner's message every time, for a turn nobody asked for only
+when it is news, so once until it is fixed. It is checked before an error is read as anything
+else, on every endpoint: a refused login is not an account out of usage. Signed out, nothing
+unattended starts, and the setup checklist's `provider` item is `missing`; saving or removing a
+provider forgets it, and so does a turn the CLI answers (`agentLogin` is then `answered`, which
+also lets a server with nothing saved, whose CLI is signed in on the machine, run its routines).
+
 Two standing wakes sit beside the routines, each on until its setting is `false` (`set_routines`
 takes both): new messages in the owner's chats (`newsWakes`, ADR 0020), and meeting prep
 (`meetingPrep`, `services::meeting_prep`): every 10 minutes, each timed event on the calendar

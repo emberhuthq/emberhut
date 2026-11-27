@@ -789,13 +789,25 @@ pub(crate) async fn a_removed_provider_is_gone_and_no_longer_used() {
     assert!(!key_file(&app, "deepseek").exists());
     let again = app.call(Call::delete(PROVIDER).token(&session)).await;
     assert_eq!(again.status, 200, "removing nothing is no error");
+    assert_eq!(
+        provider_item(&app, &session).await.0,
+        SetupState::Missing,
+        "what the turns showed went with it"
+    );
 
     talk(&app, &session, "Without it").await;
     let launches = cli.launches();
     assert_eq!(launches.len(), 2, "restarted without it");
     assert_eq!(launches[1].var("ANTHROPIC_AUTH_TOKEN"), None);
     assert_eq!(launches[1].flag("--model"), Some("a-model"));
-    assert_eq!(provider_item(&app, &session).await.0, SetupState::Missing);
+    assert_eq!(
+        provider_item(&app, &session).await,
+        (
+            SetupState::Ready,
+            "The agent runs on the agent CLI's own login on the server.".to_owned()
+        ),
+        "the CLI's own login answered"
+    );
 }
 
 #[tokio::test]

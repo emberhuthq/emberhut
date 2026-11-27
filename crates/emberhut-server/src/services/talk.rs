@@ -158,6 +158,13 @@ pub trait Assistant: fmt::Debug + Send + Sync {
     /// Closes what has sat idle too long (the agent CLI's room sessions): the server calls it
     /// at every wake tick. Nothing by default.
     fn close_idle(&self) {}
+
+    /// Whether it has something to think with now, so a turn nobody asked for (a routine, a
+    /// check-in, the wake rule's) may start; a person's own message is answered either way.
+    /// Yes by default.
+    fn can_think(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async { true })
+    }
 }
 
 /// The assistant until the agent runtime lands: it answers nothing.
@@ -171,6 +178,11 @@ impl Assistant for Silent {
         _live: LiveSink,
     ) -> BoxFuture<'_, Result<Option<String>, AssistantError>> {
         Box::pin(async { Ok(None) })
+    }
+
+    /// Nothing: no agent is configured, so nothing wakes it.
+    fn can_think(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async { false })
     }
 }
 

@@ -146,7 +146,7 @@ Behind the session gate (`SetupPage`). Every item once, in the order the apps sh
 | `id` | `ready` | otherwise |
 |---|---|---|
 | `agent` | `EMBERHUT_AGENT_COMMAND` is set | `off` |
-| `provider` | the agent runs on configured accounts, or on a saved provider it can run on (below) | `off` without an agent CLI, or for `openai`/`openai-compatible` on a server without the OpenAI bridge; `missing` with nothing saved, with `claude` saved and no account (only the CLI can tell whether it is signed in), or when the saved key's file is gone |
+| `provider` | the agent runs on configured accounts, on a saved provider it can run on (below; `openai`/`openai-compatible` through the OpenAI bridge), or on the CLI's own login once a turn answered on it | `off` without an agent CLI, or for `openai`/`openai-compatible` on a server without the OpenAI bridge; `missing` with nothing saved, with `claude` saved and no account (only the CLI can tell whether it is signed in), when the saved key's file is gone, for `openai`/`openai-compatible` saved without a model, or when a turn's CLI answered that it isn't logged in (`detail`: "The agent CLI answered that it isn't logged in: choose a model provider, or sign the CLI in on the server.") until a provider is saved or removed, or a turn answers |
 | `accounts` | a runner reports an enabled account that is logged in | `off` without a runner; `missing` with no account, or none logged in |
 | `devices` | a device is signed in | `missing` |
 | `push` | APNs or FCM is ready | `off` |
@@ -160,7 +160,15 @@ Behind the session gate (`SetupPage`). Every item once, in the order the apps sh
 Nothing is started to answer: no CLI is run, and only the Mac helper is asked anything. What the
 server can't know isn't an item: whether the machine is linked to an account is the account
 directory's to say (directory.md's `GET /v1/machines`), and whether the server's own agent CLI is
-logged in only the CLI can tell (the runners report theirs).
+logged in only the CLI can tell (the runners report theirs), so `provider` reads only what the
+CLI's last turn showed.
+
+While the agent has nothing to think with (`provider` isn't `ready`, but for `claude` saved and
+not yet shown signed out), nothing it isn't asked for starts: no routine, check-in, watch
+reminder or event's wake, and no worker. They wait, and none counts as failed: a routine still
+due that day runs as soon as a provider is saved. A turn whose CLI says it isn't logged in puts
+`I can't think yet: choose what I think with in Setup.` in the chat in place of the CLI's words,
+once for the turns nobody asked for and for each of the owner's messages.
 
 ## Agent provider
 

@@ -17,7 +17,7 @@ use emberhut_db::DbError;
 use super::cli::{CliPipes, CliSpawner, Launch, SpawnError};
 use super::stream::{self, MCP_TOKEN_VAR, Said};
 use super::{AgentAccount, TOOL_TIMEOUT_MS};
-use crate::services::agent_provider::{ProviderEnv, ProviderStore};
+use crate::services::agent_provider::{AgentLogin, ProviderEnv, ProviderStore};
 
 /// The shell commands a worker may never run unless the owner's words cover its outward steps:
 /// matched by their first words only, so they back the gate up and never stand in for it.
@@ -137,6 +137,24 @@ impl WorkerConfig {
             Some(store) => store.env(&self.accounts).await,
             None => Ok(None),
         }
+    }
+
+    /// Whether a worker may start now that nobody asked for at this moment (the tick's): the
+    /// agent has something to think with ([`ProviderStore::thinks_with`]); with nowhere to read
+    /// that, yes.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`] when it can't be read.
+    pub async fn thinks(&self) -> Result<bool, DbError> {
+        let Some(store) = &self.provider else {
+            return Ok(true);
+        };
+        let login = match self.accounts.len() {
+            0 => AgentLogin::Saved,
+            accounts => AgentLogin::Accounts(accounts),
+        };
+        Ok(store.thinks_with(login).await?.thinks())
     }
 
     /// What the CLI runs with for `run`, its token given as `token`, on `provider` when there

@@ -8,14 +8,16 @@
 //! account directory's to say (`GET /v1/machines`), and whether the agent CLI's own accounts
 //! are logged in only the CLI can tell, so only the runners' reports of theirs are read. The
 //! saved model provider is read as saved: it was checked when it was saved, and is not checked
-//! again here.
+//! again here. The agent CLI's own login is read from what its turns showed
+//! ([`crate::services::agent_provider::ThinksWith`]): one that answered is ready, one that said
+//! it isn't logged in is missing.
 
 use emberhut_api::setup::{SetupItem, SetupItemId as Id, SetupPage, SetupState as State};
 use emberhut_core::messaging::mail::{CLIENT_ID_SECRET, CLIENT_SECRET_SECRET};
 use emberhut_db::DbError;
 
 use crate::services::accounts::AccountService;
-use crate::services::agent_provider::{AgentLogin, AgentProviderService, Provider};
+use crate::services::agent_provider::{AgentProviderService, Provider, ThinksWith};
 use crate::services::auth::{AuthError, AuthService};
 use crate::services::chrome::ChromeService;
 use crate::services::mac::{MacError, MacService};
@@ -116,55 +118,72 @@ impl SetupService {
     }
 
     async fn provider(&self) -> Result<SetupItem, SetupError> {
-        let service = &self.parts.provider;
         // No part of a key is shown here: the checklist is read in report mode too.
-        let saved = service.status().await?;
-        let provider = saved.provider.as_ref().and_then(Provider::of);
         let item = |state, detail: String| SetupItem::new(Id::Provider, state, detail);
-        Ok(match (service.login(), provider) {
-            (AgentLogin::Off, _) => item(
+        Ok(match self.parts.provider.thinks_with().await? {
+            ThinksWith::NoAgent => item(
                 State::Off,
                 "EMBERHUT_AGENT_COMMAND isn't set: there is no agent to connect to a model."
                     .to_owned(),
             ),
-            (AgentLogin::Accounts(accounts), provider) => {
+            ThinksWith::SignedOut => item(
+                State::Missing,
+                "The agent CLI answered that it isn't logged in: choose a model provider, or \
+                 sign the CLI in on the server."
+                    .to_owned(),
+            ),
+            ThinksWith::Accounts {
+                count: accounts,
+                saved,
+            } => {
                 let mut detail = format!(
                     "The agent runs on {} (EMBERHUT_AGENT_ACCOUNTS).",
                     count(accounts, "configured account", "configured accounts")
                 );
-                if let Some(provider) = provider {
+                if let Some(provider) = saved {
                     detail.push_str(" The provider saved from the apps (");
                     detail.push_str(provider.kind().as_str());
                     detail.push_str(") isn't used while they are.");
                 }
                 item(State::Ready, detail)
             }
-            (AgentLogin::Saved, None) => item(
+            ThinksWith::Unsaved { answered: false } => item(
                 State::Missing,
                 "No model provider is saved: choose one, or sign the agent CLI in to Claude on \
                  the server."
                     .to_owned(),
             ),
-            (AgentLogin::Saved, Some(provider)) if provider.bridged() && !service.bridges() => {
-                item(
-                    State::Off,
-                    format!(
-                        "{} is saved, but the OpenAI bridge it runs through isn't running on \
-                         this server.",
-                        provider.name()
-                    ),
-                )
-            }
-            (AgentLogin::Saved, Some(Provider::Claude)) => item(
+            ThinksWith::Unsaved { answered: true } => item(
+                State::Ready,
+                "The agent runs on the agent CLI's own login on the server.".to_owned(),
+            ),
+            ThinksWith::BridgeOff(provider) => item(
+                State::Off,
+                format!(
+                    "{} is saved, but the OpenAI bridge it runs through isn't running on this \
+                     server.",
+                    provider.name()
+                ),
+            ),
+            ThinksWith::ModelMissing(provider) => item(
+                State::Missing,
+                format!(
+                    "{} needs a model: choose one of its models.",
+                    provider.name()
+                ),
+            ),
+            ThinksWith::Claude { answered: false } => item(
                 State::Missing,
                 "The agent runs on the agent CLI's own Claude login, which the server can't \
                  check: sign it in on the server, or choose another provider."
                     .to_owned(),
             ),
-            (AgentLogin::Saved, Some(provider)) if saved.in_use => {
-                let model = saved
-                    .model
-                    .map_or_else(String::new, |model| format!(", on {model}"));
+            ThinksWith::Claude { answered: true } => item(
+                State::Ready,
+                format!("The agent runs on {}.", saved_as(Provider::Claude)),
+            ),
+            ThinksWith::Saved { provider, model } => {
+                let model = model.map_or_else(String::new, |model| format!(", on {model}"));
                 let through = if provider.bridged() {
                     ", through the server's OpenAI bridge"
                 } else {
@@ -175,16 +194,7 @@ impl SetupService {
                     format!("The agent runs on {}{model}{through}.", saved_as(provider)),
                 )
             }
-            (AgentLogin::Saved, Some(provider)) if provider.bridged() && saved.model.is_none() => {
-                item(
-                    State::Missing,
-                    format!(
-                        "{} needs a model: choose one of its models.",
-                        provider.name()
-                    ),
-                )
-            }
-            (AgentLogin::Saved, Some(provider)) => item(
+            ThinksWith::KeyMissing(provider) => item(
                 State::Missing,
                 format!("{}'s key isn't saved: save it again.", provider.name()),
             ),
