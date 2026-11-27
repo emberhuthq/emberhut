@@ -14,7 +14,7 @@ use gpui_kit::{
     App, Global, KeyBinding, Menu, MenuItem, OsAction, PromptLevel, SystemMenuType, Window, actions,
 };
 
-use crate::brand::{APP_NAME, FULL_NAME};
+use crate::brand::APP_NAME;
 use crate::shell::windows;
 use crate::ui::calendar::OpenCalendar;
 use crate::ui::column::GoBack;
@@ -250,7 +250,7 @@ fn help_menu() -> Menu {
     Menu::new("Help").items([MenuItem::action(format!("{APP_NAME} Help"), ShowHelp)])
 }
 
-/// The About box: the full name, the version and the website.
+/// The About box: the name, the version and the website.
 fn about(window: &mut Window, cx: &mut App) {
     let detail = format!(
         "{APP_NAME} {}\n{}",
@@ -258,7 +258,7 @@ fn about(window: &mut Window, cx: &mut App) {
         env!("CARGO_PKG_HOMEPAGE")
     );
     // Its one button only closes it: nothing to wait for.
-    drop(window.prompt(PromptLevel::Info, FULL_NAME, Some(&detail), &["OK"], cx));
+    drop(window.prompt(PromptLevel::Info, APP_NAME, Some(&detail), &["OK"], cx));
 }
 
 /// Brings every window of the app forward, the front one last so it stays in front.
