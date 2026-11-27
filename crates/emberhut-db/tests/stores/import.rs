@@ -6,8 +6,13 @@
 
 use std::path::Path;
 
-use emberhut_core::DeviceDetails;
-use emberhut_db::import::{ArchivedRow, ImportTarget, Row, Scrub, SqlValue, keep_devices};
+use emberhut_core::message::{Author, HistoryQuery, NewMessage};
+use emberhut_core::upload::FileKind;
+use emberhut_core::{DeviceDetails, RoomId};
+use emberhut_db::import::{
+    ArchivedRow, FileRecord, ImportTarget, ImportedFile, ImportedMessage, ImportedNote,
+    ImportedTask, Numbered, Row, RunRecord, Scrub, SqlValue, keep_devices,
+};
 use emberhut_db::{Database, DatabaseUrl, DbError, MACHINE_ID};
 use sea_orm::ConnectionTrait;
 
@@ -361,4 +366,234 @@ async fn the_machine_the_old_database_was_served_as_is_kept_too() {
     let other = Database::open_existing(&url("other.db")).await.unwrap();
     assert_eq!(other.sessions().signed_in(at(1)).await.unwrap().len(), 0);
     other.close().await.unwrap();
+}
+
+/// A task with only what the test reads set.
+fn task(id: i64, status: &str, updated: i64) -> ImportedTask {
+    ImportedTask {
+        id,
+        title: format!("Task {id}"),
+        body: None,
+        owner: "owner".into(),
+        status: status.into(),
+        goal: None,
+        project: None,
+        pid: None,
+        hard: false,
+        size: None,
+        priority: 3,
+        due: None,
+        today: false,
+        parked_until: None,
+        decide_by: None,
+        decision: None,
+        last_ask: None,
+        action: None,
+        created: 1_000,
+        updated,
+        done_at: None,
+        last_note: None,
+        parent: None,
+        progress: None,
+        total: None,
+        count_unit: None,
+        tracked: false,
+        eta: None,
+        ultra: false,
+        ultra_parallel: None,
+        ultra_budget: None,
+        model: None,
+        area: None,
+        kind: None,
+        landed: None,
+        fixed_by: None,
+        runner: None,
+        next: None,
+        unit: None,
+        session: None,
+        requested: None,
+        room: None,
+        ultra_run: None,
+        turn_file: None,
+        requested_by: None,
+    }
+}
+
+fn said_by_owner(text: &str) -> NewMessage {
+    NewMessage {
+        room: RoomId::MAIN,
+        author: Author::User,
+        text: text.into(),
+        reply_to: None,
+    }
+}
+
+fn file_record(path: &str, sha256: &str) -> FileRecord {
+    FileRecord {
+        tree: "uploads".into(),
+        path: path.into(),
+        bytes: 1,
+        sha256: sha256.into(),
+    }
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one run of the server and two later imports, as they follow each other"
+)]
+async fn a_later_import_adds_to_a_database_in_use() {
+    let dir = tempfile::tempdir().unwrap();
+    let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
+        .parse()
+        .unwrap();
+    let missing = ImportTarget::open_existing(&url, dir.path()).await;
+    assert!(matches!(missing, Err(DbError::Missing(_))), "never made");
+    // The server, running all along.
+    let server = Database::connect(&url).await.unwrap();
+
+    let target = ImportTarget::open_existing(&url, dir.path()).await.unwrap();
+    let reading = target.read().await.unwrap();
+    assert_eq!(reading.next_id(Numbered::Messages).await.unwrap(), 1);
+    assert_eq!(reading.runs().await.unwrap(), Vec::<RunRecord>::new());
+    // A snapshot that reads keeps no writer waiting.
+    let said = server
+        .messages()
+        .append(said_by_owner("First"), at(1))
+        .await
+        .unwrap();
+    assert_eq!(said.id.get(), 1);
+    let store = reading.end_read().await.unwrap().begin().await.unwrap();
+    store
+        .insert_messages(&[ImportedMessage {
+            id: 7,
+            room_id: 1,
+            author: Author::User,
+            text: "Hello".into(),
+            created_at: 1_000,
+            reply_to_id: None,
+        }])
+        .await
+        .unwrap();
+    store
+        .insert_files(&[ImportedFile {
+            id: 2,
+            stored_name: "0a0b0c0d-a.png".into(),
+            name: "a.png".into(),
+            kind: FileKind::Image,
+            size: 1,
+            created_at: 1_000,
+        }])
+        .await
+        .unwrap();
+    store.insert_tasks(&[task(4, "todo", 1_000)]).await.unwrap();
+    store
+        .archive("source", "notes", &exact_rows())
+        .await
+        .unwrap();
+    store
+        .record_files(&[file_record("0a0b0c0d-a.png", "aa")])
+        .await
+        .unwrap();
+    store
+        .record_run(&RunRecord {
+            ran_at: at(0),
+            version: "1".into(),
+            input: "later".into(),
+            sources: "{}".into(),
+            report: "done".into(),
+        })
+        .await
+        .unwrap();
+    store.commit().await.unwrap();
+    assert!(
+        dir.path().join("emberhut.db-wal").exists(),
+        "a file in use is left to its server's checkpoints"
+    );
+
+    let store = ImportTarget::open_existing(&url, dir.path())
+        .await
+        .unwrap()
+        .begin()
+        .await
+        .unwrap();
+    assert_eq!(store.next_id(Numbered::Messages).await.unwrap(), 8);
+    assert_eq!(store.next_id(Numbered::Files).await.unwrap(), 3);
+    let found = store
+        .files_by_stored_name(&["0a0b0c0d-a.png".into(), "other".into()])
+        .await
+        .unwrap();
+    assert_eq!(found.iter().map(|file| file.id).collect::<Vec<_>>(), [2]);
+    let note = ImportedNote {
+        id: 3,
+        uid: "diary:2026-11-28".into(),
+        who: "assistant".into(),
+        day: "2026-11-28".into(),
+        at: 1_000,
+        text: "A day".into(),
+        created: 1_000,
+        updated: 1_000,
+    };
+    store
+        .insert_notes(std::slice::from_ref(&note))
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .notes_by_uid(&["diary:2026-11-28".into(), "other".into()])
+            .await
+            .unwrap(),
+        [note]
+    );
+    assert_eq!(store.next_id(Numbered::Notes).await.unwrap(), 4);
+    store.update_tasks(&[task(4, "done", 2_000)]).await.unwrap();
+    assert_eq!(
+        store.tasks_by_id(&[4]).await.unwrap(),
+        [task(4, "done", 2_000)]
+    );
+    assert!(store.update_tasks(&[task(5, "done", 2_000)]).await.is_err());
+    let mut changed = exact_rows();
+    changed.truncate(1);
+    let mut values = Row::new();
+    values.push("id", SqlValue::Integer(1));
+    values.push("n", SqlValue::Integer(4));
+    changed[0] = ArchivedRow::new(1, 1, Some("1".into()), values);
+    store.rearchive("source", "notes", &changed).await.unwrap();
+    let archived = store.archived("source", "notes", None, 10).await.unwrap();
+    assert_eq!(archived[0], changed[0]);
+    assert_eq!(archived.len(), 3);
+    let elsewhere = ArchivedRow::new(9, 9, None, Row::new());
+    assert!(matches!(
+        store.rearchive("source", "notes", &[elsewhere]).await,
+        Err(DbError::NotArchived { ordinal: 9, .. })
+    ));
+    store
+        .record_files(&[file_record("0a0b0c0d-a.png", "bb"), file_record("b", "cc")])
+        .await
+        .unwrap();
+    let files = store.recorded_files().await.unwrap();
+    assert_eq!(
+        files,
+        [file_record("0a0b0c0d-a.png", "bb"), file_record("b", "cc")]
+    );
+    let runs = store.runs().await.unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!((runs[0].ran_at, runs[0].input.as_str()), (at(0), "later"));
+    store.commit().await.unwrap();
+
+    // The server sees what was added, and numbers its own after it.
+    let page = server
+        .messages()
+        .page(RoomId::MAIN, HistoryQuery::default())
+        .await
+        .unwrap();
+    let texts: Vec<&str> = page.iter().map(|message| message.text.as_str()).collect();
+    assert_eq!(texts, ["First", "Hello"]);
+    let said = server
+        .messages()
+        .append(said_by_owner("Next"), at(2))
+        .await
+        .unwrap();
+    assert_eq!(said.id.get(), 8);
+    server.close().await.unwrap();
 }

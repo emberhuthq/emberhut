@@ -8,10 +8,16 @@
 //! it and closes the file with no `-wal` or `-shm` left; dropping the store instead rolls it
 //! all back.
 //!
+//! A later import can also add to a database that is in use: [`ImportTarget::open_existing`]
+//! opens it as its server left it (up to date, never migrated here), [`ImportTarget::read`]
+//! reads it in a snapshot that keeps no writer waiting, and [`ImportTarget::begin`] then takes
+//! the write lock for one short transaction of appends (`append`).
+//!
 //! The importer knows the source's format; this module knows Emberhut's schema. What passes
 //! between them is the archive's [`Row`]s and plain records of Emberhut's rows.
 
 mod agents;
+mod append;
 mod archive;
 mod check;
 mod devices;
@@ -25,9 +31,11 @@ use std::time::Duration;
 use sea_orm::sqlx::sqlite::{SqliteJournalMode, SqliteSynchronous};
 use sea_orm::{
     ConnectOptions, ConnectionTrait, DatabaseConnection, DatabaseTransaction, Statement,
+    TransactionTrait,
 };
 
 pub use agents::{AgentLists, ImportedAgentThread};
+pub use append::Numbered;
 pub use archive::ArchivedRow;
 pub use check::{ArchiveCheck, ForeignKeyProblem, Scrub};
 pub use devices::{KeptDevices, keep_devices};
@@ -41,17 +49,24 @@ pub use rows::{
 };
 pub use value::{Row, RowFormatError, SqlValue};
 
-use crate::{DbError, begin_write, migrate, migration};
+use crate::{DatabaseUrl, DbError, begin_write, check_schema, migrate, migration, probe_options};
 
 /// How long a statement on the import's file waits for a lock: nothing else opens it, so only
 /// the import's own connection could hold one.
 const BUSY: Duration = Duration::from_secs(5);
 
-/// A new database file being built by an import, before its transaction starts.
+/// How long a statement on a database in use waits for its server's write to end: the server's
+/// writes are short, and the append's one transaction must not fail because one was under way.
+const BUSY_IN_USE: Duration = Duration::from_secs(30);
+
+/// A database file an import writes into, before its transaction starts: a new one being built,
+/// or one in use that an import adds to.
 #[derive(Debug)]
 pub struct ImportTarget {
     conn: DatabaseConnection,
     path: PathBuf,
+    /// Whether the file was there already (and may be in use by its server).
+    existing: bool,
 }
 
 impl ImportTarget {
@@ -68,28 +83,7 @@ impl ImportTarget {
         if std::fs::symlink_metadata(path).is_ok() {
             return Err(DbError::TargetExists(path.to_path_buf()));
         }
-        let mut options = ConnectOptions::new(format!("sqlite://{}", path.display()));
-        let filename = path.to_path_buf();
-        // One connection that is never replaced: what is attached to it, and its `TEMP`
-        // tables, belong to that connection.
-        options
-            .max_connections(1)
-            .min_connections(1)
-            .sqlx_logging(true)
-            .sqlx_logging_level(log::LevelFilter::Trace)
-            .map_sqlx_sqlite_opts(move |sqlite| {
-                sqlite
-                    .filename(&filename)
-                    .create_if_missing(true)
-                    .foreign_keys(true)
-                    .journal_mode(SqliteJournalMode::Wal)
-                    .synchronous(SqliteSynchronous::Normal)
-                    .busy_timeout(BUSY)
-                    .pragma("temp_store", "FILE")
-            });
-        let conn = sea_orm::Database::connect(options)
-            .await
-            .map_err(DbError::Connect)?;
+        let conn = connect_one(path, true, BUSY).await?;
         set_temp_dir(&conn, temp_dir).await?;
         migrate::<migration::Migrator>(&conn, tokio::time::Instant::now())
             .await
@@ -97,6 +91,55 @@ impl ImportTarget {
         Ok(Self {
             conn,
             path: path.to_path_buf(),
+            existing: false,
+        })
+    }
+
+    /// Opens the database at `url`, which must be there, be emberhut's and be up to date, to
+    /// add an import's rows to it while its server may be running. Nothing in its schema is
+    /// changed: a database with migrations pending is refused, not migrated.
+    ///
+    /// Its one connection waits for the server's writes rather than failing, and keeps SQLite's
+    /// temporary files in `temp_dir`. Its transactions are short: [`Self::read`] reads in a
+    /// snapshot, which keeps no writer waiting, and [`Self::begin`] takes the write lock.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Missing`], [`DbError::NotEmberhut`], [`DbError::Outdated`],
+    /// [`DbError::Connect`] and [`DbError::Query`].
+    pub async fn open_existing(url: &DatabaseUrl, temp_dir: &Path) -> Result<Self, DbError> {
+        let path = url.path();
+        if !path.is_file() {
+            return Err(DbError::Missing(path.to_path_buf()));
+        }
+        let probe = sea_orm::Database::connect(probe_options(url))
+            .await
+            .map_err(DbError::Connect)?;
+        let checked = check_schema::<migration::Migrator>(&probe, url).await;
+        probe.close().await?;
+        checked?;
+        let conn = connect_one(path, false, BUSY_IN_USE).await?;
+        set_temp_dir(&conn, temp_dir).await?;
+        Ok(Self {
+            conn,
+            path: path.to_path_buf(),
+            existing: true,
+        })
+    }
+
+    /// Starts a transaction that only reads: a snapshot of the file as it is now, which does
+    /// not keep its server from writing. [`ImportStore::end_read`] ends it.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn read(self) -> Result<ImportStore, DbError> {
+        let txn = self.conn.begin().await?;
+        Ok(ImportStore {
+            txn,
+            conn: self.conn,
+            path: self.path,
+            existing: self.existing,
         })
     }
 
@@ -131,6 +174,7 @@ impl ImportTarget {
             txn,
             conn: self.conn,
             path: self.path,
+            existing: self.existing,
         })
     }
 
@@ -142,6 +186,35 @@ impl ImportTarget {
     pub async fn close(self) -> Result<(), DbError> {
         Ok(self.conn.close().await?)
     }
+}
+
+/// One connection to the file at `path` that is never replaced (what is attached to it, and its
+/// `TEMP` tables, belong to that connection), making the file only when `create`.
+async fn connect_one(
+    path: &Path,
+    create: bool,
+    busy: Duration,
+) -> Result<DatabaseConnection, DbError> {
+    let mut options = ConnectOptions::new(format!("sqlite://{}", path.display()));
+    let filename = path.to_path_buf();
+    options
+        .max_connections(1)
+        .min_connections(1)
+        .sqlx_logging(true)
+        .sqlx_logging_level(log::LevelFilter::Trace)
+        .map_sqlx_sqlite_opts(move |sqlite| {
+            sqlite
+                .filename(&filename)
+                .create_if_missing(create)
+                .foreign_keys(true)
+                .journal_mode(SqliteJournalMode::Wal)
+                .synchronous(SqliteSynchronous::Normal)
+                .busy_timeout(busy)
+                .pragma("temp_store", "FILE")
+        });
+    sea_orm::Database::connect(options)
+        .await
+        .map_err(DbError::Connect)
 }
 
 /// Points SQLite's temporary files at `dir`.
@@ -179,7 +252,8 @@ pub(crate) fn ident(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
 }
 
-/// The import's one write transaction on a new database file.
+/// The import's one write transaction on a new database file, or a transaction on a database
+/// in use that an import adds to ([`ImportTarget::open_existing`]).
 ///
 /// Dropping it rolls everything back; [`Self::commit`] keeps it.
 #[derive(Debug)]
@@ -187,6 +261,7 @@ pub struct ImportStore {
     txn: DatabaseTransaction,
     conn: DatabaseConnection,
     path: PathBuf,
+    existing: bool,
 }
 
 impl ImportStore {
@@ -196,19 +271,37 @@ impl ImportStore {
         &self.path
     }
 
-    /// Commits, moves every change from the write-ahead log into the file and closes it, so
-    /// the file stands alone with no `-wal` or `-shm` beside it.
+    /// Commits and closes the file. A new file is first checkpointed, every change moved from
+    /// the write-ahead log into it, so it stands alone with no `-wal` or `-shm` beside it; a
+    /// file that was there already is left to its server's checkpoints.
     ///
     /// # Errors
     ///
     /// [`DbError::Query`].
     pub async fn commit(self) -> Result<(), DbError> {
         self.txn.commit().await?;
-        self.conn
-            .execute_unprepared("PRAGMA wal_checkpoint(TRUNCATE)")
-            .await?;
+        if !self.existing {
+            self.conn
+                .execute_unprepared("PRAGMA wal_checkpoint(TRUNCATE)")
+                .await?;
+        }
         self.conn.close().await?;
         Ok(())
+    }
+
+    /// Ends a transaction that only read ([`ImportTarget::read`]), keeping the connection for
+    /// the next.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn end_read(self) -> Result<ImportTarget, DbError> {
+        self.txn.rollback().await?;
+        Ok(ImportTarget {
+            conn: self.conn,
+            path: self.path,
+            existing: self.existing,
+        })
     }
 
     /// Rolls everything back and closes the file.

@@ -48,6 +48,12 @@ macro_rules! imported {
             }
         }
 
+        impl From<&$name> for $entity::ActiveModel {
+            fn from(row: &$name) -> Self {
+                Self { $( $field: Set(row.$field.clone()), )* }
+            }
+        }
+
         impl ImportStore {
             #[doc = concat!("Inserts imported [`", stringify!($name), "`]s as they are.")]
             ///
@@ -56,9 +62,7 @@ macro_rules! imported {
             /// [`DbError::Query`].
             pub async fn $insert(&self, rows: &[$name]) -> Result<(), DbError> {
                 for chunk in rows.chunks(BATCH) {
-                    let models = chunk.iter().map(|row| $entity::ActiveModel {
-                        $( $field: Set(row.$field.clone()), )*
-                    });
+                    let models = chunk.iter().map($entity::ActiveModel::from);
                     $entity::Entity::insert_many(models).exec(&self.txn).await?;
                 }
                 Ok(())

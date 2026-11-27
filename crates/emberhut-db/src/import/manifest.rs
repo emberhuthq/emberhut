@@ -1,6 +1,7 @@
 //! The manifest: what an import read, kept, copied and mapped.
 
 use jiff::Timestamp;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveValue::Set, EntityTrait};
 
 use super::ImportStore;
@@ -140,7 +141,8 @@ impl ImportStore {
         Ok(())
     }
 
-    /// Records the files copied.
+    /// Records the files copied; a file recorded already (copied again by a later import) takes
+    /// the new size and SHA-256.
     ///
     /// # Errors
     ///
@@ -154,6 +156,11 @@ impl ImportStore {
                 sha256: Set(file.sha256.clone()),
             });
             import_file::Entity::insert_many(models)
+                .on_conflict(
+                    OnConflict::columns([import_file::Column::Tree, import_file::Column::Path])
+                        .update_columns([import_file::Column::Bytes, import_file::Column::Sha256])
+                        .to_owned(),
+                )
                 .exec(&self.txn)
                 .await?;
         }
