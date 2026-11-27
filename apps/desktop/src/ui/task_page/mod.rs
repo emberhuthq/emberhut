@@ -7,6 +7,8 @@ mod actions;
 mod agents;
 mod decision;
 mod details;
+#[cfg(test)]
+mod media_tests;
 mod reply;
 mod results;
 mod text;

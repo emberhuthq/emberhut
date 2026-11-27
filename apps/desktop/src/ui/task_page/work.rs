@@ -367,6 +367,7 @@ fn run_row(
         );
     }
     text = text.children(run_media(part, run, artifacts));
+    let run_id = run.id.get();
     let dot = div()
         .size(px(12.))
         .mt(px(3.))
@@ -381,7 +382,27 @@ fn run_row(
         .w(px(12.))
         .child(dot)
         .when(!last, |d| d.child(div().w(px(2.)).flex_1().bg(p.border)));
-    div().flex().gap(px(12.)).child(rail).child(text)
+    div()
+        .debug_selector(move || run_selector(run_id))
+        .flex()
+        .gap(px(12.))
+        .child(rail)
+        .child(text)
+}
+
+/// The name a test finds run `run`'s row by.
+pub(super) fn run_selector(run: i64) -> String {
+    format!("run-row-{run}")
+}
+
+/// The name a test finds the thumbnail of `artifact`, shown with run `run`, by.
+pub(super) fn media_selector(run: i64, artifact: i64) -> String {
+    format!("run-media-{run}-{artifact}")
+}
+
+/// The name a test finds the picture inside that thumbnail by.
+pub(super) fn picture_selector(run: i64, artifact: i64) -> String {
+    format!("run-picture-{run}-{artifact}")
 }
 
 /// A run's pictures and videos as thumbnails, each opening in the viewer.
@@ -402,11 +423,13 @@ fn run_media(
             .as_deref()
             .and_then(|thumb| part.read.picture(thumb));
         let (url, name) = (artifact.url.clone(), artifact.name.clone());
+        let (run_id, artifact_id) = (run.id.get(), artifact.id.get());
         thumbs = thumbs.child(
             div()
                 .id(ElementId::Name(
                     format!("run-media-{}-{}", run.id, artifact.id).into(),
                 ))
+                .debug_selector(move || media_selector(run_id, artifact_id))
                 .relative()
                 .w(px(120.))
                 .h(px(84.))
@@ -415,6 +438,7 @@ fn run_media(
                 .cursor_pointer()
                 .children(picture.map(|image| {
                     img(ImageSource::Render(image))
+                        .debug_selector(move || picture_selector(run_id, artifact_id))
                         .w(px(120.))
                         .h(px(84.))
                         .rounded(px(8.))
