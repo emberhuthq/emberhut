@@ -39,14 +39,18 @@ describe("live", () => {
   });
 });
 
+/** A storage kept in memory, as the device's is across launches. */
+function memoryStorage(saved = new Map<string, string>()): StateStorage {
+  return {
+    getItem: (k) => saved.get(k) ?? null,
+    setItem: (k, v) => void saved.set(k, v),
+    removeItem: (k) => void saved.delete(k),
+  };
+}
+
 describe("prefs", () => {
   it("keeps the theme, room and Needs you grouping across launches", async () => {
-    const saved = new Map<string, string>();
-    const storage: StateStorage = {
-      getItem: (k) => saved.get(k) ?? null,
-      setItem: (k, v) => void saved.set(k, v),
-      removeItem: (k) => void saved.delete(k),
-    };
+    const storage = memoryStorage();
     const first = createPrefsStore(storage);
     first.getState().setTheme("dark");
     first.getState().setRoom(4);
@@ -60,5 +64,22 @@ describe("prefs", () => {
       needsGrouping: "when",
       sessionFilter: { workers: ["lead", "helper"], machines: ["machine-b"] },
     });
+  });
+
+  it("shows the agents, below the rooms, when an older save has neither", async () => {
+    const saved = new Map([["emberhut.prefs", JSON.stringify({ state: { theme: "light", room: 2 }, version: 1 })]]);
+    const store = createPrefsStore(memoryStorage(saved));
+    await store.persist.rehydrate();
+    expect(store.getState()).toMatchObject({ theme: "light", room: 2, showAgents: true, agentsPlace: "below" });
+  });
+
+  it("keeps hidden agents and where they sit across launches", async () => {
+    const storage = memoryStorage();
+    const first = createPrefsStore(storage);
+    first.getState().setShowAgents(false);
+    first.getState().setAgentsPlace("above");
+    const second = createPrefsStore(storage);
+    await second.persist.rehydrate();
+    expect(second.getState()).toMatchObject({ showAgents: false, agentsPlace: "above" });
   });
 });

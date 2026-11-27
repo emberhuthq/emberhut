@@ -10,7 +10,7 @@ import { useConnection, useSession } from "@/state/hooks";
 import { useApplySettings, useEmberhutState } from "@/state/queries";
 import { useTheme } from "@/theme";
 import { Button, Chip, ListRow, Screen, Section, Text, Toggle, usePullRefresh } from "@/ui";
-import { Appearance } from "./Appearance";
+import { Appearance, RoomsList } from "./Appearance";
 import { Devices, PairAnother } from "./Devices";
 import { groupStatus, type GroupId, type Now } from "./entries";
 import { Environments } from "./Environments";
@@ -51,7 +51,12 @@ function GroupRows({ group, now }: { group: GroupId; now: Now }) {
     case "ember":
       return <EmberRows now={now} />;
     case "appearance":
-      return <Appearance />;
+      return (
+        <>
+          <Appearance />
+          <RoomsList />
+        </>
+      );
     case "devices":
       return <DevicesRows />;
     case "connections":

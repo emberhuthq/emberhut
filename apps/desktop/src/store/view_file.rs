@@ -1,5 +1,6 @@
 //! How the window was left, kept across launches in `view.json`: the open room, whether the
-//! sidebar's Rooms section is folded, and the sidebar's width once its edge was dragged. Read
+//! sidebar's Rooms section is folded, the sidebar's width once its edge was dragged, and
+//! whether the sidebar shows the agents and where. Read
 //! before the run loop starts, as [`json_file`] reads; written off the UI thread whenever the
 //! room or the fold changes, and when a drag of the sidebar's edge ends (not on each step of
 //! it). A width read back is kept inside [`SIDEBAR_WIDTHS`].
@@ -26,6 +27,24 @@ pub(crate) struct ViewFile {
     pub(crate) rooms_open: bool,
     /// The sidebar's width, in logical pixels, once the user dragged its edge.
     pub(crate) sidebar_width: Option<f32>,
+    /// Whether the sidebar lists the agents. Hidden, they stay in Settings › Appearance and in
+    /// Find.
+    pub(crate) agents_shown: bool,
+    /// Where the sidebar lists the agents.
+    pub(crate) agents_place: AgentsPlace,
+}
+
+/// Where the sidebar lists the agents. A file written before the choice existed reads as
+/// [`AgentsPlace::Below`]: the rooms are what the sidebar is for, and the agents are reached
+/// less often.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum AgentsPlace {
+    /// After the rooms, the projects, the sessions and the goals, just above More.
+    #[default]
+    Below,
+    /// Right under Needs you, Tasks and Scheduled, above the rooms.
+    Above,
 }
 
 impl Default for ViewFile {
@@ -34,6 +53,8 @@ impl Default for ViewFile {
             room: None,
             rooms_open: true,
             sidebar_width: None,
+            agents_shown: true,
+            agents_place: AgentsPlace::Below,
         }
     }
 }
@@ -85,6 +106,36 @@ impl Store {
         self.view.rooms_open = !self.view.rooms_open;
         self.keep_view(cx);
         cx.notify();
+    }
+
+    /// Whether the sidebar lists the agents.
+    #[must_use]
+    pub(crate) fn agents_shown(&self) -> bool {
+        self.view.agents_shown
+    }
+
+    /// Shows the agents in the sidebar, or hides them; kept across launches.
+    pub(crate) fn show_agents(&mut self, shown: bool, cx: &mut Context<'_, Self>) {
+        if self.view.agents_shown != shown {
+            self.view.agents_shown = shown;
+            self.keep_view(cx);
+            cx.notify();
+        }
+    }
+
+    /// Where the sidebar lists the agents.
+    #[must_use]
+    pub(crate) fn agents_place(&self) -> AgentsPlace {
+        self.view.agents_place
+    }
+
+    /// Lists the agents `place` in the sidebar; kept across launches.
+    pub(crate) fn place_agents(&mut self, place: AgentsPlace, cx: &mut Context<'_, Self>) {
+        if self.view.agents_place != place {
+            self.view.agents_place = place;
+            self.keep_view(cx);
+            cx.notify();
+        }
     }
 
     /// The sidebar's width.
@@ -194,6 +245,8 @@ mod tests {
             room: Some(RoomId::new(4)),
             rooms_open: false,
             sidebar_width: Some(300.),
+            agents_shown: false,
+            agents_place: AgentsPlace::Above,
         };
         write(&files, &view);
         assert_eq!(ViewFile::read(Some(&files)), view);
@@ -212,7 +265,16 @@ mod tests {
                 room: Some(RoomId::new(3)),
                 rooms_open: true,
                 sidebar_width: None,
-            }
+                agents_shown: true,
+                agents_place: AgentsPlace::Below,
+            },
+            "a file from before the agents' choice lists them, below the rooms"
+        );
+        std::fs::write(files.view(), r#"{"agentsPlace": "sideways"}"#).unwrap();
+        assert_eq!(
+            ViewFile::read(Some(&files)),
+            ViewFile::default(),
+            "a place this build doesn't know reads as the default"
         );
     }
 
@@ -249,6 +311,8 @@ mod tests {
             store.toggle_rooms(cx);
             store.drag_sidebar_to(301., cx);
             store.let_go_of_sidebar(cx);
+            store.show_agents(false, cx);
+            store.place_agents(AgentsPlace::Above, cx);
         });
         cx.run_until_parked();
         assert_eq!(
@@ -257,6 +321,8 @@ mod tests {
                 room: Some(RoomId::new(4)),
                 rooms_open: false,
                 sidebar_width: Some(301.),
+                agents_shown: false,
+                agents_place: AgentsPlace::Above,
             }
         );
     }

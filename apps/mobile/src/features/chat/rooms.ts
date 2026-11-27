@@ -2,6 +2,7 @@ import type { AgentRow, Approval, Goal, RoomRow, WorkRow } from "@/api";
 import { agentsByRoom, visible, waitsOnYou } from "@/features/approvals/model";
 import { rowWhen } from "@/features/needsYou/model";
 import type { GoalPalette } from "@/theme";
+import type { AgentsPlace } from "@/state/prefs";
 import { plainText } from "@/ui/markdownParse";
 
 export const isMain = (r: RoomRow): boolean => r.project === null || r.project === undefined;
@@ -36,6 +37,18 @@ export function splitAgentRooms(
     return { room, agent };
   });
   return { rooms: rooms.filter((r) => !byRoom.has(r.id)), agents: own };
+}
+
+/** A section of the rooms list: the open rooms, the agents' rooms, the paused fold. */
+export type RoomsSection = "open" | "agents" | "paused";
+
+/**
+ * The rooms list's sections in order: the open rooms first, then the agents' rooms after the paused fold ("below", the
+ * default, so agents sit out of the way) or before it ("above"); no agents' section at all while they are hidden.
+ */
+export function roomsSections(showAgents: boolean, agentsPlace: AgentsPlace): RoomsSection[] {
+  if (!showAgents) return ["open", "paused"];
+  return agentsPlace === "above" ? ["open", "agents", "paused"] : ["open", "paused", "agents"];
 }
 
 /**
