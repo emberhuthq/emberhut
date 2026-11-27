@@ -1,5 +1,7 @@
-// The goals' colors, by rank: iOS's system orange, green, purple, cyan, pink, yellow and mint, each with its dark-mode
-// value, and gray for what has no goal. Local until packages/design-tokens holds them with the rest.
+// The goals' colors, by rank: orange, green, purple, cyan, pink, yellow and mint, and gray for what has no goal, as on the
+// desktop. In light each is deep enough to read 3:1 on any light ground (iOS's own system colors are too light for it: the
+// yellow reads 1.4:1 on paper); in dark they are iOS's dark-mode values. Local until packages/design-tokens holds them with
+// the rest.
 
 export interface GoalPalette {
   /** By rank: the first goal takes the first, round the list past the last. */
@@ -8,8 +10,8 @@ export interface GoalPalette {
 }
 
 const light: GoalPalette = {
-  ranks: ["#FF9500", "#34C759", "#AF52DE", "#32ADE6", "#FF2D55", "#FFCC00", "#00C7BE"],
-  none: "#8E8E93",
+  ranks: ["#B45A00", "#21803A", "#8E3FBF", "#1F72A8", "#C8203F", "#8A6A00", "#00837C"],
+  none: "#6E6E73",
 };
 
 const dark: GoalPalette = {
