@@ -162,8 +162,10 @@ impl FileViewer {
         window: &mut Window,
         cx: &mut Context<'_, Self>,
     ) -> Self {
-        // It counts for where the app is, as the other windows do (polling, the lock).
+        // It counts for where the app is, as the other windows do (polling, the lock), and keeps
+        // its look in step with the theme and the system's appearance.
         crate::shell::presence::follow(window, &store, cx);
+        crate::ui::look::keep(&store, window, cx);
         let mut viewer = Self::new(store, cx);
         viewer.windowed = true;
         // The size the user gives it is the next one's.
