@@ -438,6 +438,20 @@ impl SlackService {
         self.memory().live.get(&workspace.to_lowercase()).cloned()
     }
 
+    /// The workspaces the secrets hold a user token for, by their short name, in name order.
+    pub async fn saved_workspaces(&self) -> Vec<String> {
+        let mut workspaces: Vec<String> = self
+            .ctx
+            .secrets
+            .names()
+            .await
+            .iter()
+            .filter_map(|name| workspace_of_secret(name).map(str::to_owned))
+            .collect();
+        workspaces.sort();
+        workspaces
+    }
+
     /// Connects each workspace the secrets hold a user token for that isn't yet (or whose last
     /// try is due again), takes a new token for one connected already, and starts the live
     /// events of each one with an app-level token.

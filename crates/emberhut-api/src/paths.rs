@@ -8,6 +8,9 @@ pub const PAIR_NEW: &str = "/api/auth/pair/new";
 pub const REFRESH: &str = "/api/auth/refresh";
 /// `GET`: the sign-in mode, and whether this request's session is a signed-in device's.
 pub const AUTH_STATUS: &str = "/api/auth/status";
+/// `GET`: what the server has set up, item by item ([`crate::setup::SetupPage`]), for a
+/// signed-in device.
+pub const SETUP: &str = "/api/setup";
 /// `POST`: where the server pushes this phone's alerts ([`crate::push::PushRegistration`]).
 pub const DEVICES: &str = "/api/devices";
 /// `GET`: a one-time secret link's page; `POST`: its form. `{token}` is the link's token.

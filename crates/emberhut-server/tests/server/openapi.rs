@@ -79,6 +79,7 @@ fn the_document_lists_the_slice_s_routes() {
         ("GET", paths::HEALTH),
         ("GET", paths::LOOP),
         ("GET", paths::AUTH_STATUS),
+        ("GET", paths::SETUP),
         ("POST", paths::DEVICES),
         ("GET", paths::SECRET_PAGE),
         ("POST", paths::SECRET_PAGE),
@@ -321,6 +322,20 @@ struct Covered {
 }
 
 const COVERED: &[Covered] = &[
+    Covered {
+        method: "GET",
+        path: paths::SETUP,
+        status: 200,
+        name: "a_bare_server_says_what_it_lacks_and_only_to_a_signed_in_device",
+        test: crate::setup_route::a_bare_server_says_what_it_lacks_and_only_to_a_signed_in_device,
+    },
+    Covered {
+        method: "GET",
+        path: paths::SETUP,
+        status: 401,
+        name: "a_bare_server_says_what_it_lacks_and_only_to_a_signed_in_device",
+        test: crate::setup_route::a_bare_server_says_what_it_lacks_and_only_to_a_signed_in_device,
+    },
     Covered {
         method: "GET",
         path: emberhut_api::connect::PROBE,

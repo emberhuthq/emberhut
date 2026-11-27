@@ -91,6 +91,7 @@ use crate::services::schedule_sources::AssistantSchedule;
 use crate::services::scheduled::{ScheduleSource, ScheduledService};
 use crate::services::secret_links::{SecretLinkParts, SecretLinkService};
 use crate::services::settings_build::BuildService;
+use crate::services::setup::{SetupParts, SetupService};
 use crate::services::state::{Sections, StateService};
 use crate::services::switches::{SwitchParts, SwitchService};
 use crate::services::talk::{Assistant, Silent, TalkParts, TalkService};
@@ -182,6 +183,7 @@ struct Inner {
     machine: Option<Arc<Machine>>,
     pairing_routes: Vec<String>,
     direct_scheme: Scheme,
+    setup: SetupService,
     agents: AgentService,
     approvals: ApprovalService,
     agent_conversations: AgentConversations,
@@ -438,6 +440,7 @@ impl AppState {
         let (secrets_dir_for_messaging, public_url_for_messaging) =
             (secrets_dir.clone(), public_url.clone());
         let direct_scheme = direct_scheme(&public_url);
+        let configured_public_url = approval_deps.public_url.clone();
         private_files.extend(crate::services::transfer::beside_database(db.path()));
         let private_dir = secrets_dir.clone();
         let home_for_guard = home.clone();
@@ -742,6 +745,17 @@ impl AppState {
             },
         );
         tasks.hand_answers_to(Arc::new(WhatsAppAnswers(messaging.whatsapp().clone())));
+        let setup = SetupService::new(SetupParts {
+            agent: worker_runtime.is_some(),
+            public_url: configured_public_url,
+            auth: auth.clone(),
+            accounts: accounts.clone(),
+            runners: runner_service.clone(),
+            push: push.clone(),
+            mac: MacService::new(Arc::clone(&mac)),
+            chrome: browser.chrome().clone(),
+            messaging: messaging.clone(),
+        });
         guard.use_messaging(messaging.clone());
         let (parties, dark, family) = side_apps(
             db,
@@ -822,6 +836,7 @@ impl AppState {
                 machine,
                 pairing_routes,
                 direct_scheme,
+                setup,
                 agents,
                 approvals,
                 agent_conversations,
@@ -847,6 +862,12 @@ impl AppState {
     #[must_use]
     pub fn direct_scheme(&self) -> Scheme {
         self.inner.direct_scheme
+    }
+
+    /// The setup checklist the apps' onboarding walks.
+    #[must_use]
+    pub fn setup(&self) -> &SetupService {
+        &self.inner.setup
     }
 
     /// Agents, approvers and trusted requesters, as the owner configures them.

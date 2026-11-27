@@ -58,6 +58,7 @@ pub mod schedule_sources;
 pub mod scheduled;
 pub mod secret_links;
 pub mod settings_build;
+pub mod setup;
 pub mod state;
 pub mod switches;
 pub mod talk;

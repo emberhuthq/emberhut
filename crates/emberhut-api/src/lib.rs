@@ -86,6 +86,7 @@ pub mod runners;
 pub mod scheduled;
 pub mod seen;
 pub mod settings;
+pub mod setup;
 pub mod state;
 pub mod switches;
 pub mod talk;

@@ -1272,6 +1272,42 @@
         ]
       }
     },
+    "/api/setup": {
+      "get": {
+        "tags": [
+          "setup"
+        ],
+        "summary": "Every item of the checklist and how it is: `ready`, `missing` (the owner can set it up\nfrom the apps), `off` (it takes the server's own configuration) or `error` (set up, but\nfailing now), with a line saying how many there are or what to do. The Mac helper is asked\nfor its health, within 5 s; nothing else leaves the server.",
+        "operationId": "setup",
+        "responses": {
+          "200": {
+            "description": "The checklist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/devices": {
       "post": {
         "tags": [
@@ -18483,6 +18519,73 @@
           }
         }
       },
+      "SetupItem": {
+        "type": "object",
+        "description": "One item of the checklist.",
+        "required": [
+          "id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/SetupItemId",
+            "description": "What it is about."
+          },
+          "state": {
+            "$ref": "#/components/schemas/SetupState",
+            "description": "How it is."
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A line for the owner: how many there are, or what to do; left out when there is\nnothing to add."
+          }
+        }
+      },
+      "SetupItemId": {
+        "type": "string",
+        "description": "One of: agent, accounts, devices, push, public-url, mac, chrome, gmail, slack, whatsapp. A newer server may send another word; clients keep it as it is.",
+        "examples": [
+          "agent",
+          "accounts",
+          "devices",
+          "push",
+          "public-url",
+          "mac",
+          "chrome",
+          "gmail",
+          "slack",
+          "whatsapp"
+        ]
+      },
+      "SetupPage": {
+        "type": "object",
+        "description": "`GET /api/setup`'s answer: the checklist, in the order the apps show it.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetupItem"
+            },
+            "description": "Every item, each once. A newer server may add items: a client shows or skips the ids\nit doesn't know."
+          }
+        }
+      },
+      "SetupState": {
+        "type": "string",
+        "description": "One of: ready, missing, off, error. A newer server may send another word; clients keep it as it is.",
+        "examples": [
+          "ready",
+          "missing",
+          "off",
+          "error"
+        ]
+      },
       "SharedMcp": {
         "type": "object",
         "description": "`GET /api/runner/mcp`: the MCP servers the runners' sessions get too, as the server's\noperator listed them (`{ name: { type, url, headers, ... } }`).",
@@ -22258,6 +22361,10 @@
     {
       "name": "auth",
       "description": "Pairing a device and renewing its session"
+    },
+    {
+      "name": "setup",
+      "description": "What the server has set up, for the apps' onboarding"
     },
     {
       "name": "connect",
