@@ -318,3 +318,30 @@ async fn set_routines_replaces_the_routines_and_the_quiet_hours() {
     );
     assert_eq!(routines.routines().await.unwrap()[0].at, "07:15");
 }
+
+#[tokio::test]
+async fn set_routines_keeps_a_weekly_routine_on_its_day() {
+    let app = TestApp::new().await;
+    let routines = app.state.routines();
+    let saved = app
+        .call_tool(
+            "set_routines",
+            json!({ "routines": [
+                { "at": "08:30", "what": "Morning brief." },
+                { "at": "20:00", "what": "The weekly meeting.", "day": 6 }
+            ] }),
+        )
+        .await;
+    assert_eq!(text(&saved), "Saved.");
+    let now = routines.routines().await.unwrap();
+    assert_eq!(now[0].day, None, "a routine with no day runs every day");
+    assert_eq!(now[1].day, Some(6), "a weekly routine keeps its weekday");
+    let bad = app
+        .call_tool(
+            "set_routines",
+            json!({ "routines": [{ "at": "08:30", "what": "x", "day": 7 }] }),
+        )
+        .await;
+    assert_eq!(bad.is_error, Some(true), "a weekday past 6 is refused");
+    assert_eq!(routines.routines().await.unwrap().len(), 2);
+}
