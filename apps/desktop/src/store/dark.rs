@@ -134,7 +134,7 @@ impl DarkData {
             Err(error) => {
                 log::warn!("couldn't read the Dark room: {error}");
                 if !self.loaded {
-                    self.error = Some(format!("Can't reach {APP_NAME}'s server."));
+                    self.error = Some(unread(&error));
                 }
                 false
             }
@@ -192,6 +192,23 @@ impl DarkData {
                 self.error = Some("Couldn't clear it now; try again in a moment.".to_owned());
             }
         }
+    }
+}
+
+/// Why the room couldn't be read, worded for the user: a server that answers without the room
+/// is not one that can't be reached.
+fn unread(error: &Error) -> String {
+    match error {
+        Error::Unreachable(_) => format!("Can't reach {APP_NAME}'s server."),
+        Error::SignInRequired => "This device has to sign in first.".to_owned(),
+        Error::Refused {
+            message: Some(message),
+            ..
+        } => message.clone(),
+        Error::Refused {
+            status: Some(404), ..
+        } => "Your server doesn't have the Dark room.".to_owned(),
+        _ => "Couldn't read the Dark room; try again in a moment.".to_owned(),
     }
 }
 
@@ -402,6 +419,36 @@ mod tests {
         read.took(Ok(room(false, &json!([]))));
         read.took(Err(Error::Unreachable("down".into())));
         assert_eq!(read.error(), None);
+    }
+
+    #[test]
+    fn a_server_without_the_room_isnt_called_unreachable() {
+        let read = |error| {
+            let mut dark = DarkData::default();
+            dark.took(Err(error));
+            dark.error().map(str::to_owned)
+        };
+        assert_eq!(
+            read(Error::Refused {
+                status: Some(404),
+                message: None
+            })
+            .as_deref(),
+            Some("Your server doesn't have the Dark room.")
+        );
+        assert_eq!(
+            read(Error::Refused {
+                status: Some(503),
+                message: Some("The model is busy.".into())
+            })
+            .as_deref(),
+            Some("The model is busy."),
+            "the server's own words come first"
+        );
+        assert_eq!(
+            read(Error::SignInRequired).as_deref(),
+            Some("This device has to sign in first.")
+        );
     }
 
     #[test]
