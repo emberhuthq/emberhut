@@ -12,7 +12,7 @@ import { readAccountSettings } from "./src/config/account.ts";
  */
 const BUILD_NUMBER = 5;
 /** Bump before every TestFlight upload: App Store Connect takes each build number once per version. */
-const IOS_BUILD_NUMBER = 8;
+const IOS_BUILD_NUMBER = 10;
 const VERSION = "0.1.0";
 
 /**
