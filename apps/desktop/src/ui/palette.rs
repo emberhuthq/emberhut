@@ -3,8 +3,8 @@
 //! No colour literal appears in a view; the one exception is a room's dot, its goal's
 //! categorical colour ([`room_color`]).
 
-use gpui_kit::component::{Theme, ThemeMode};
-use gpui_kit::{App, Global, Hsla, Window, WindowAppearance, rgb};
+use gpui_kit::component::{Theme, ThemeColor, ThemeMode};
+use gpui_kit::{App, Global, Hsla, Window, WindowAppearance, rgb, transparent_black};
 
 use crate::assets::UI_FONT;
 use crate::color::{Rgb, mix, parse_hex};
@@ -275,33 +275,210 @@ pub(crate) fn apply(
     );
     Theme::update(cx, |t| {
         t.font_family = UI_FONT.into();
-        t.primary = p.accent;
-        t.primary_hover = p.accent.opacity(0.9);
-        t.primary_active = p.accent.opacity(0.8);
-        t.ring = p.accent;
-        t.caret = p.accent;
-        t.primary_foreground = p.on_accent;
-        t.button_primary_foreground = p.on_accent;
-        t.accent = p.accent_soft;
-        t.accent_foreground = p.text;
-        t.selection = p.accent.opacity(0.3);
-        t.background = p.surface;
-        t.foreground = p.text;
-        t.muted_foreground = p.muted;
-        t.popover = p.surface_raised;
-        t.popover_foreground = p.text;
-        t.input = p.border;
-        t.border = p.border;
-        t.success = p.success;
-        t.warning = p.warn;
-        t.danger = p.danger;
-        t.info = p.info;
-        t.button_primary = p.accent;
-        t.button_primary_hover = p.accent.opacity(0.9);
-        t.button_primary_active = p.accent.opacity(0.8);
-        t.link = p.accent;
+        kit_colors(&p, &mut t.colors);
     });
     p
+}
+
+/// The share a control's hover and press keep of its fill, the page showing through the rest.
+const KIT_HOVER: f32 = 0.9;
+const KIT_ACTIVE: f32 = 0.8;
+
+/// Every one of gpui-kit's colours from the palette `p`. `Theme::change` loads gpui-kit's own
+/// default theme first, a cool grey one, so a colour left out here would draw in it: the code
+/// blocks, the default and ghost buttons' text, the danger buttons' text, tables, lists and
+/// scrollbars all did.
+pub(super) fn kit_colors(p: &Pal, t: &mut ThemeColor) {
+    kit_grounds(p, t);
+    kit_states(p, t);
+    kit_buttons(p, t);
+    kit_rows(p, t);
+    kit_controls(p, t);
+    kit_hues(p, t);
+}
+
+/// A control's fill under the pointer: the page showing through a little of it.
+fn kit_hover(fill: Hsla) -> Hsla {
+    fill.opacity(KIT_HOVER)
+}
+
+/// A control's fill held down.
+fn kit_active(fill: Hsla) -> Hsla {
+    fill.opacity(KIT_ACTIVE)
+}
+
+/// gpui-kit's grounds, text, lines, focus and links.
+fn kit_grounds(p: &Pal, t: &mut ThemeColor) {
+    t.background = p.surface;
+    t.foreground = p.text;
+    t.border = p.border;
+    t.input = p.border;
+    t.muted = p.surface_raised;
+    t.muted_foreground = p.muted;
+    t.accent = p.accent_soft;
+    t.accent_foreground = p.text;
+    t.popover = p.surface_raised;
+    t.popover_foreground = p.text;
+    // What a dialog dims the window with: the ink in light, the background in dark.
+    t.overlay = if p.dark {
+        p.background.opacity(0.6)
+    } else {
+        p.text.opacity(0.2)
+    };
+    t.window_border = p.border;
+    t.ring = p.accent;
+    t.caret = p.accent;
+    t.selection = p.accent.opacity(0.3);
+    t.drag_border = p.accent;
+    t.drop_target = p.accent.opacity(0.12);
+    t.link = p.accent;
+    t.link_hover = kit_hover(p.accent);
+    t.link_active = kit_active(p.accent);
+}
+
+/// gpui-kit's states as fills, each with the text that reads on it.
+fn kit_states(p: &Pal, t: &mut ThemeColor) {
+    let on = Pal::readable_on;
+    t.primary = p.accent;
+    t.primary_hover = kit_hover(p.accent);
+    t.primary_active = kit_active(p.accent);
+    t.primary_foreground = p.on_accent;
+    t.secondary = p.surface_raised;
+    t.secondary_hover = p.surface_raised.blend(p.hover);
+    t.secondary_active = p.surface_raised.blend(p.pressed);
+    t.secondary_foreground = p.text;
+    t.danger = p.danger;
+    t.danger_hover = kit_hover(p.danger);
+    t.danger_active = kit_active(p.danger);
+    t.danger_foreground = on(p.danger);
+    t.warning = p.warn;
+    t.warning_hover = kit_hover(p.warn);
+    t.warning_active = kit_active(p.warn);
+    t.warning_foreground = on(p.warn);
+    t.success = p.success;
+    t.success_hover = kit_hover(p.success);
+    t.success_active = kit_active(p.success);
+    t.success_foreground = on(p.success);
+    t.info = p.info;
+    t.info_hover = kit_hover(p.info);
+    t.info_active = kit_active(p.info);
+    t.info_foreground = on(p.info);
+}
+
+/// gpui-kit's buttons: the default one on the surface, the others their state's colours.
+fn kit_buttons(p: &Pal, t: &mut ThemeColor) {
+    t.button = p.surface;
+    t.button_hover = p.surface.blend(p.hover);
+    t.button_active = p.surface.blend(p.pressed);
+    t.button_foreground = p.text;
+    t.button_primary = t.primary;
+    t.button_primary_hover = t.primary_hover;
+    t.button_primary_active = t.primary_active;
+    t.button_primary_foreground = t.primary_foreground;
+    t.button_secondary = t.secondary;
+    t.button_secondary_hover = t.secondary_hover;
+    t.button_secondary_active = t.secondary_active;
+    t.button_secondary_foreground = t.secondary_foreground;
+    t.button_danger = t.danger;
+    t.button_danger_hover = t.danger_hover;
+    t.button_danger_active = t.danger_active;
+    t.button_danger_foreground = t.danger_foreground;
+    t.button_warning = t.warning;
+    t.button_warning_hover = t.warning_hover;
+    t.button_warning_active = t.warning_active;
+    t.button_warning_foreground = t.warning_foreground;
+    t.button_success = t.success;
+    t.button_success_hover = t.success_hover;
+    t.button_success_active = t.success_active;
+    t.button_success_foreground = t.success_foreground;
+    t.button_info = t.info;
+    t.button_info_hover = t.info_hover;
+    t.button_info_active = t.info_active;
+    t.button_info_foreground = t.info_foreground;
+}
+
+/// gpui-kit's lists, tables and the like: the surface, their heads raised, a row tinted under
+/// the pointer and the chosen one in the soft accent.
+fn kit_rows(p: &Pal, t: &mut ThemeColor) {
+    let hovered = p.surface.blend(p.hover);
+    t.list = p.surface;
+    t.list_even = p.surface;
+    t.list_head = p.surface_raised;
+    t.list_hover = hovered;
+    t.list_active = p.accent_soft;
+    t.list_active_border = p.accent;
+    t.list_highlight_foreground = p.accent;
+    t.table = p.surface;
+    t.table_even = p.surface;
+    t.table_head = p.surface_raised;
+    t.table_head_foreground = p.text;
+    t.table_foot = p.surface_raised;
+    t.table_foot_foreground = p.muted;
+    t.table_hover = hovered;
+    t.table_active = p.accent_soft;
+    t.table_active_border = p.accent;
+    t.table_row_border = p.border;
+    t.description_list_label = p.surface_raised;
+    t.description_list_label_foreground = p.muted;
+    t.group_box = p.surface_raised;
+    t.group_box_foreground = p.text;
+    t.accordion = p.surface;
+}
+
+/// gpui-kit's controls, and the window's own bars, sidebar and tabs.
+fn kit_controls(p: &Pal, t: &mut ThemeColor) {
+    t.scrollbar = transparent_black();
+    t.scrollbar_thumb = p.faint.opacity(0.45);
+    t.scrollbar_thumb_hover = p.faint.opacity(0.7);
+    t.switch = p.faint.opacity(0.5);
+    t.switch_thumb = if p.dark { p.text } else { p.surface };
+    t.slider_bar = p.accent;
+    t.slider_thumb = p.surface;
+    t.progress_bar = p.accent;
+    t.skeleton = p.surface_raised;
+    t.title_bar = p.background;
+    t.title_bar_border = p.border;
+    t.status_bar = p.background;
+    t.status_bar_border = p.border;
+    t.sidebar = p.background;
+    t.sidebar_foreground = p.text;
+    t.sidebar_border = p.border;
+    t.sidebar_accent = p.accent_soft;
+    t.sidebar_accent_foreground = p.text;
+    t.sidebar_primary = p.accent;
+    t.sidebar_primary_foreground = p.on_accent;
+    t.tab = p.surface;
+    t.tab_foreground = p.muted;
+    t.tab_active = p.surface_raised;
+    t.tab_active_foreground = p.text;
+    t.tab_bar = p.background;
+    t.tab_bar_segmented = p.surface_raised;
+}
+
+/// gpui-kit's chart colours and the named hues a component may ask for: the theme's accent
+/// and status colours, each with a light wash of it.
+fn kit_hues(p: &Pal, t: &mut ThemeColor) {
+    let wash = |colour: Hsla| colour.opacity(0.15);
+    t.chart_1 = p.accent;
+    t.chart_2 = p.info;
+    t.chart_3 = p.success;
+    t.chart_4 = p.warn;
+    t.chart_5 = p.danger;
+    t.chart_bullish = p.success;
+    t.chart_bearish = p.danger;
+    t.chart_grid = p.border;
+    t.red = p.danger;
+    t.red_light = wash(p.danger);
+    t.green = p.success;
+    t.green_light = wash(p.success);
+    t.blue = p.info;
+    t.blue_light = wash(p.info);
+    t.yellow = p.warn;
+    t.yellow_light = wash(p.warn);
+    t.magenta = p.accent;
+    t.magenta_light = wash(p.accent);
+    t.cyan = p.info;
+    t.cyan_light = wash(p.info);
 }
 
 /// A room's dot: its goal's colour by rank, as on the other apps (categorical, not the
@@ -680,6 +857,59 @@ mod tests {
             // Now and today: the danger colour, its own text on it.
             let today = contrast(Pal::readable_on(p.danger), p.danger);
             assert!(today >= AA, "{preset} dark={}: {today:.2}", p.dark);
+        }
+    }
+
+    /// gpui-kit's colours with every field set to a colour no palette makes.
+    fn blank_kit_colors() -> (ThemeColor, serde_json::Value) {
+        let unset = serde_json::Value::from("#12345678");
+        let mut fields = serde_json::to_value(ThemeColor::default()).unwrap();
+        for value in fields.as_object_mut().unwrap().values_mut() {
+            *value = unset.clone();
+        }
+        (serde_json::from_value(fields).unwrap(), unset)
+    }
+
+    #[test]
+    fn every_gpui_kit_colour_comes_from_the_palette() {
+        for (preset, _, p) in every_palette() {
+            let (mut colors, unset) = blank_kit_colors();
+            kit_colors(&p, &mut colors);
+            let fields = serde_json::to_value(colors).unwrap();
+            for (name, value) in fields.as_object().unwrap() {
+                assert_ne!(
+                    value, &unset,
+                    "{preset} dark={}: {name} is left as it was",
+                    p.dark
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn gpui_kit_text_reads_on_its_fills() {
+        for (preset, _, p) in every_palette() {
+            let (mut t, _) = blank_kit_colors();
+            kit_colors(&p, &mut t);
+            let pairs = [
+                ("foreground", t.foreground, t.background),
+                ("muted", t.muted_foreground, t.background),
+                ("code", t.foreground, t.muted),
+                ("popover", t.popover_foreground, t.popover),
+                ("button", t.button_foreground, t.button),
+                ("ghost", t.secondary_foreground, t.background),
+                ("primary", t.primary_foreground, t.primary),
+                ("danger", t.danger_foreground, t.danger),
+                ("warning", t.warning_foreground, t.warning),
+                ("success", t.success_foreground, t.success),
+                ("info", t.info_foreground, t.info),
+                ("table head", t.table_head_foreground, t.table_head),
+                ("link", t.link, t.background),
+            ];
+            for (name, ink, fill) in pairs {
+                let r = contrast(ink, fill);
+                assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
+            }
         }
     }
 }

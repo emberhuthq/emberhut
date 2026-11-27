@@ -330,6 +330,28 @@ mod tests {
         }
     }
 
+    /// Checks that every one of gpui-kit's colours is the palette's after a window opened in
+    /// `appearance`.
+    fn assert_kit_colours_are_the_palettes(appearance: Appearance, cx: &mut TestAppContext) {
+        let store = store(appearance, cx);
+        open_on_macos(&store, cx);
+        cx.update(|cx| {
+            let mut expected = gpui_kit::component::ThemeColor::default();
+            palette::kit_colors(&pal(cx), &mut expected);
+            assert_eq!(cx.theme().colors, expected);
+        });
+    }
+
+    #[gpui_kit::test]
+    fn every_gpui_kit_colour_is_the_palettes_in_light(cx: &mut TestAppContext) {
+        assert_kit_colours_are_the_palettes(Appearance::Light, cx);
+    }
+
+    #[gpui_kit::test]
+    fn every_gpui_kit_colour_is_the_palettes_in_dark(cx: &mut TestAppContext) {
+        assert_kit_colours_are_the_palettes(Appearance::Dark, cx);
+    }
+
     #[gpui_kit::test]
     fn the_opaque_look_keeps_the_root_filled(cx: &mut TestAppContext) {
         let store = store(Appearance::Dark, cx);
