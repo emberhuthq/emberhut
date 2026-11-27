@@ -1,14 +1,17 @@
 //! How the window looks: the theme's palette over the window's material. [`apply`] is the one
 //! place that puts them on the window: the palette, the window's background (blurred or
-//! opaque), and the fill of gpui-kit's root, which paints the theme's background under the
-//! whole window unless the material needs it clear. Nothing here runs at rest: the watch of
-//! Reduce Transparency is a task asleep on the system's notification.
+//! opaque), the fill of gpui-kit's root, which paints the theme's background under the whole
+//! window unless the material needs it clear, and the system's own appearance for the app's
+//! windows (their title bars, alerts and blur), held to the theme's Light or Dark. Nothing
+//! here runs at rest: the watch of Reduce Transparency is a task asleep on the system's
+//! notification.
 
-use emberhut_api::theme::ThemePage;
+use emberhut_api::theme::{Appearance, ThemePage};
 use gpui_kit::base::Root;
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    AnyWindowHandle, App, Entity, Global, Window, WindowBackgroundAppearance, transparent_black,
+    AnyWindowHandle, App, Entity, Global, Window, WindowAppearance, WindowBackgroundAppearance,
+    transparent_black,
 };
 
 use super::palette;
@@ -61,6 +64,13 @@ impl State {
 
 impl Global for State {}
 
+/// The appearance the app's windows were last held to: the theme's Light or Dark, or none to
+/// follow the system.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Held(Option<WindowAppearance>);
+
+impl Global for Held {}
+
 fn state(cx: &App) -> State {
     cx.try_global::<State>().copied().unwrap_or(State::OPAQUE)
 }
@@ -91,6 +101,7 @@ pub(crate) fn background_now(cx: &App) -> WindowBackgroundAppearance {
 /// gpui-kit's root exists: its fill is set by [`follow`]), and whenever the theme, the
 /// appearance, the sidebar or the material changes.
 pub(crate) fn apply(page: &ThemePage, window: &mut Window, cx: &mut App) {
+    hold_appearance(&page.choice.appearance, cx);
     let state = state(cx);
     let shown = palette::apply(page, state.wanted(), window, cx).material;
     if shown != state.shown {
@@ -144,6 +155,30 @@ pub(crate) fn follow(window: AnyWindowHandle, store: Entity<Store>, cx: &mut App
     .detach();
 }
 
+/// The system appearance the app's windows are held to for the theme's `appearance`: its
+/// Light or Dark, or none (System) to follow the system's.
+fn held(appearance: &Appearance) -> Option<WindowAppearance> {
+    match appearance {
+        Appearance::Light => Some(WindowAppearance::Light),
+        Appearance::Dark => Some(WindowAppearance::Dark),
+        // System, and an appearance this app doesn't know yet.
+        _ => None,
+    }
+}
+
+/// Holds the app's windows to the theme's `appearance` when that changed, so what the system
+/// draws for them (on macOS their title bars, the alerts of `Window::prompt`, menus and the
+/// window's blur, through `NSApplication.appearance`) matches what the app draws even when the
+/// theme's choice isn't the system's. gpui does nothing with it on other platforms. A window's
+/// own appearance follows; its observers apply the theme again then.
+fn hold_appearance(appearance: &Appearance, cx: &mut App) {
+    let wanted = Held(held(appearance));
+    if cx.try_global::<Held>() != Some(&wanted) {
+        cx.set_window_appearance(wanted.0);
+        cx.set_global(wanted);
+    }
+}
+
 /// Chooses the material again from the system's setting; the new one if it changed.
 fn rechoose(cx: &mut App) -> Option<Material> {
     let before = cx.try_global::<State>().copied()?;
@@ -181,7 +216,6 @@ fn fill_root(material: Material, window: &mut Window, cx: &mut App) {
 mod tests {
     use std::sync::Arc;
 
-    use emberhut_api::theme::Appearance;
     use gpui_kit::component::ActiveTheme as _;
     use gpui_kit::{Hsla, StyleRefinement, TestAppContext, WindowOptions};
 
@@ -281,6 +315,34 @@ mod tests {
             assert_eq!(start(Look::Opaque, cx), WindowBackgroundAppearance::Opaque);
             assert_eq!(cx.global::<State>().chosen, Material::Opaque);
         });
+    }
+
+    #[test]
+    fn the_windows_are_held_to_the_themes_light_or_dark_and_let_go_for_system() {
+        assert_eq!(held(&Appearance::Light), Some(WindowAppearance::Light));
+        assert_eq!(held(&Appearance::Dark), Some(WindowAppearance::Dark));
+        assert_eq!(held(&Appearance::System), None);
+    }
+
+    #[gpui_kit::test]
+    fn applying_the_theme_holds_the_windows_to_its_choice(cx: &mut TestAppContext) {
+        let store = store(Appearance::Dark, cx);
+        let window = open_on_macos(&store, cx);
+        let held_now = |cx: &mut TestAppContext| cx.update(|cx| cx.global::<Held>().0);
+        assert_eq!(held_now(cx), Some(WindowAppearance::Dark));
+        for (appearance, expected) in [
+            (Appearance::System, None),
+            (Appearance::Light, Some(WindowAppearance::Light)),
+        ] {
+            store.update(cx, |store, _| store.fix_theme(None, Some(appearance)));
+            cx.update(|cx| {
+                let page = store.read(cx).theme().page().clone();
+                window
+                    .update(cx, |_, window, cx| apply(&page, window, cx))
+                    .unwrap();
+            });
+            assert_eq!(held_now(cx), expected);
+        }
     }
 
     #[test]
