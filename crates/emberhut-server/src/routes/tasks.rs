@@ -16,12 +16,11 @@ use emberhut_api::task_search::FoundTasks;
 use emberhut_api::tasks::{NewTaskReply, NewTaskRequest};
 use emberhut_core::task::{ArtifactId, TaskId};
 use serde_json::Value;
-use subtle::ConstantTimeEq as _;
 
 use super::uploads::{empty, send};
 use crate::app::AppState;
 use crate::error::ApiError;
-use crate::extract::{JsonBody, SignedIn, Viewer};
+use crate::extract::{JsonBody, SignedIn, Viewer, carries_program_key};
 use crate::services::tasks::{MessageFile, TaskError, TasksQuery};
 use crate::services::uploads::Served;
 
@@ -103,16 +102,7 @@ pub(super) async fn create(
     headers: HeaderMap,
     body: Result<JsonBody, crate::extract::Invalid>,
 ) -> Response {
-    let bearer = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .map(str::trim);
-    let allowed = match (app.program_key(), bearer) {
-        (Some(key), Some(given)) => bool::from(key.as_bytes().ct_eq(given.as_bytes())),
-        _ => false,
-    };
-    if !allowed {
+    if !carries_program_key(&headers, &app) {
         return refusal(StatusCode::UNAUTHORIZED, "programs use the key");
     }
     let request: NewTaskRequest = match body {

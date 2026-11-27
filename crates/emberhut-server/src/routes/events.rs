@@ -1,9 +1,9 @@
 //! `POST /api/events`: a program (a script when a long job ends, a webhook) tells the
-//! assistant something, with a paired device's token.
+//! assistant something, with a paired device's token or the server's program key.
 
 use axum::Json;
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use emberhut_api::error::{ErrorBody, OkReply};
 use emberhut_api::wake::EventRequest;
@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::app::AppState;
 use crate::error::ApiError;
-use crate::extract::{SignedIn, Valid};
+use crate::extract::{SignedIn, Valid, carries_program_key};
 
 /// The refusal of a body without text.
 const TEXT_REQUIRED: &str = "text is required";
@@ -20,8 +20,9 @@ const TEXT_REQUIRED: &str = "text is required";
 /// The kind an event has when the body names none.
 const NOTE: &str = "note";
 
-/// Tells the assistant `text`: an event it reads at its next wake, in the room of `project`
-/// (a room's name) when the server has one by that name, in Main otherwise.
+/// Tells the assistant `text`: an event it reads at its next wake, in the room `project`
+/// names when the server has it, in Main otherwise. A name (`Atlas`) is a room's name; a number
+/// (`4` or `"4"`) is a project's id, its room, else a room's id.
 #[utoipa::path(
     post,
     path = "/api/events",
@@ -38,16 +39,24 @@ const NOTE: &str = "note";
             body = ErrorBody
         ),
         (status = 413, description = "The body is over the server's limit", body = ErrorBody),
-        (status = 401, description = "No signed-in device (in either auth mode)", body = ErrorBody),
+        (
+            status = 401,
+            description = "Neither a signed-in device nor the program key (in either auth mode)",
+            body = ErrorBody
+        ),
     )
 )]
 pub(super) async fn events(
     State(app): State<AppState>,
+    headers: HeaderMap,
     device: Result<SignedIn, ApiError>,
     Valid(request): Valid<EventRequest>,
 ) -> Result<Response, ApiError> {
-    // An event wakes the assistant, which then acts with its tools: a signed-in device only.
-    SignedIn::acting(device)?;
+    // An event wakes the assistant, which then acts with its tools: a signed-in device, or a
+    // program on the server's machine with its key.
+    if !carries_program_key(&headers, &app) {
+        SignedIn::acting(device)?;
+    }
     let Some(text) = request.text else {
         return Ok((
             StatusCode::BAD_REQUEST,
@@ -63,17 +72,38 @@ pub(super) async fn events(
         .as_deref()
         .filter(|kind| !kind.is_empty())
         .unwrap_or(NOTE);
-    let room = match request.project.as_ref().and_then(Value::as_str) {
-        Some(name) if !name.trim().chars().all(|c| c.is_ascii_digit()) => app
-            .rooms()
-            .find(name)
-            .await
-            .map_err(fault)?
-            .map_or(RoomId::MAIN, |room| room.id),
-        _ => RoomId::MAIN,
+    let found = match request.project.as_ref() {
+        Some(project) => match number(project) {
+            Some(id) => app.rooms().numbered(id).await.map_err(fault)?,
+            None => match project.as_str() {
+                Some(name) if !name.trim().chars().all(|c| c.is_ascii_digit()) => {
+                    app.rooms().find(name).await.map_err(fault)?
+                }
+                _ => None,
+            },
+        },
+        None => None,
     };
+    let room = found.map_or(RoomId::MAIN, |room| room.id);
     app.wake().event(room, kind, &text).await.map_err(fault)?;
     Ok(Json(OkReply::OK).into_response())
+}
+
+/// The id a `project` gives as a number: a whole JSON number or a string of digits, above
+/// zero.
+fn number(project: &Value) -> Option<i64> {
+    let id = match project {
+        Value::Number(number) => number.as_i64(),
+        Value::String(text) => {
+            let digits = text.trim();
+            if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
+                return None;
+            }
+            digits.parse().ok()
+        }
+        _ => None,
+    }?;
+    (id > 0).then_some(id)
 }
 
 /// A database failure, answered as the server's fault.

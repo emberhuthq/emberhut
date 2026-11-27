@@ -473,15 +473,19 @@ A value of another kind changes nothing. 200 `{ "ok": true, ...the state }`.
 ```
 
 A program (a script when a long job ends, a webhook) tells the assistant something with a paired
-device's token, in either auth mode (`EventRequest`). It waits in the room `project` names (a room's name; Main when
-none, or none by that name) until the wake rule wakes that room: at once for the assistant's own
+device's token or, from the server's machine, the server's program key as the bearer
+(`EMBERHUT_PROGRAM_KEY_FILE`), in either auth mode (`EventRequest`). It waits in the room `project`
+names until the wake rule wakes that room: a room's name (`"Atlas"`), or a number (`4` or `"4"`):
+the room of the project with that id, else the room with that id; Main when none is given or none
+matches (a family member's room never does). The wake rule wakes it at once for the assistant's own
 appointments and urgent kinds, else after a 90-second burst or ten events, at most twenty wakes
 an hour for every room; the turn reads `Event: - [kind] text`, the oldest ten waiting events at
 most (the rest wait for the room's next wake). `text` is 1 to 100 000 characters (a number is
 read as its digits); `kind` is at most 32 of `a-z`, `0-9` and `_` (it is written into the
 `- [kind]` line, so nothing else may forge one), `note` when left out.
 200 `{ "ok": true }`; 400 `{ "ok": false, "error": "text is required" }` without a text, 400
-`{ "error": "<field>: <rule>" }` for a text over the limit or another kind.
+`{ "error": "<field>: <rule>" }` for a text over the limit or another kind; 401 with neither a
+session nor the program key.
 
 ## Push
 

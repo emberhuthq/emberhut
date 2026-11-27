@@ -98,6 +98,23 @@ impl RoomsService {
         Ok(whole.or_else(start).map(|at| rooms[at].clone()))
     }
 
+    /// The owner's room a number names, as a program sends it for a project: the room of the
+    /// project with that id, else the room with that id; none when neither is the owner's (a
+    /// family member's room is never one).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn numbered(&self, id: i64) -> Result<Option<Room>, DbError> {
+        let rooms = self.rooms.owners().await?;
+        let of_project = rooms
+            .iter()
+            .find(|room| room.project.is_some_and(|project| project.get() == id));
+        Ok(of_project
+            .or_else(|| rooms.iter().find(|room| room.id.get() == id))
+            .cloned())
+    }
+
     /// The room `room`, as a sentence names it: `the Main room`, `the Atlas room`.
     async fn called(&self, room: RoomId) -> Result<String, DbError> {
         let name = self
