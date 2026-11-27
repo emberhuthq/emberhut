@@ -244,6 +244,15 @@ fn appearance_tokens(page: &ThemePage, dark: bool) -> &Tokens {
     }
 }
 
+/// Whether `appearance` is a dark one.
+#[must_use]
+pub(crate) fn is_dark(appearance: WindowAppearance) -> bool {
+    matches!(
+        appearance,
+        WindowAppearance::Dark | WindowAppearance::VibrantDark
+    )
+}
+
 /// The palette now.
 #[must_use]
 pub(crate) fn pal(cx: &App) -> Pal {
@@ -251,18 +260,18 @@ pub(crate) fn pal(cx: &App) -> Pal {
 }
 
 /// Puts `page`'s palette over `material` in place for `window`, and into gpui-kit's theme;
-/// returns it. `ui::look::apply` is the one caller: it also puts the material on the window.
+/// returns it. A theme following the system takes the system's appearance for the app (which,
+/// while the theme holds the app to Light or Dark, is that one). `ui::look::apply` is the one caller: it also puts the material on the window.
 pub(crate) fn apply(
     page: &ThemePage,
     material: Material,
     window: &mut Window,
     cx: &mut App,
 ) -> Pal {
-    let system_dark = matches!(
-        window.appearance(),
-        WindowAppearance::Dark | WindowAppearance::VibrantDark
-    );
-    let p = Pal::new(page, system_dark).with_material(material);
+    // The app's appearance, not `window`'s own: a window held to an appearance of its own (the
+    // Dark room's) would otherwise turn the whole app's palette with it, from its own appearance
+    // observer or from whichever window applied a theme change last.
+    let p = Pal::new(page, is_dark(cx.window_appearance())).with_material(material);
     cx.set_global(p);
     Theme::change(
         if p.dark {
