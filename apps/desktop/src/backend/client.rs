@@ -106,9 +106,17 @@ impl EmberhutBackend {
     /// Removes what is kept for `server` in `files`, install id and all (on macOS, its Keychain
     /// item), so the next client starts a new install.
     pub(super) fn forget(server: &Server, files: &AppFiles) -> Result<(), Error> {
-        session_store(&server.url, files)
-            .clear()
-            .map_err(|error| Error::Local(Box::new(error)))
+        let local = |error: emberhut_client::StoreError| Error::Local(Box::new(error));
+        session_store(&server.url, files).clear().map_err(local)?;
+        // With the Keychain, the session file is only an earlier launch's, waiting to move into
+        // the item: it goes too, so nothing brings the session back.
+        #[cfg(target_os = "macos")]
+        if super::has_keychain() {
+            emberhut_client::FileSessionStore::new(files.session())
+                .clear()
+                .map_err(local)?;
+        }
+        Ok(())
     }
 
     /// Whether the server takes this device's session as a signed-in device's.
@@ -956,23 +964,6 @@ mod tests {
         EmberhutBackend::with_store(url, Some(store), "Emberhut").unwrap()
     }
 
-    /// Forgetting removes the kept session, install id and all (the file store's; on macOS the
-    /// Keychain's, which the tests never touch).
-    #[cfg(not(target_os = "macos"))]
-    #[test]
-    fn forgetting_removes_the_kept_session() {
-        let dir = tempfile::tempdir().unwrap();
-        let files = AppFiles::in_dir(dir.path());
-        let url = ServerUrl::parse("http://127.0.0.1:9").unwrap();
-        let first = EmberhutBackend::open(url.clone(), Some(&files), "Emberhut").unwrap();
-        assert!(files.session().exists(), "a new install is kept");
-        let install = first.client.install();
-        EmberhutBackend::forget(&Server::at(url.clone()), &files).unwrap();
-        assert!(!files.session().exists());
-        let next = EmberhutBackend::open(url, Some(&files), "Emberhut").unwrap();
-        assert_ne!(next.client.install(), install, "a new install");
-    }
-
     /// A test run keeps its session in a private file of its own, not in the Keychain.
     #[cfg(target_os = "macos")]
     #[test]
@@ -980,7 +971,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let files = AppFiles::in_dir(dir.path());
         let url = ServerUrl::parse("http://127.0.0.1:9").unwrap();
-        let backend = EmberhutBackend::open(url.clone(), Some(&files), "Emberhut").unwrap();
+        let backend = EmberhutBackend::open(url, Some(&files), "Emberhut").unwrap();
         let path = dir.path().join("test-session.json");
         let kept = emberhut_client::FileSessionStore::new(&path)
             .load()
@@ -992,8 +983,28 @@ mod tests {
             !files.session().exists(),
             "not the session file a later launch moves in"
         );
-        EmberhutBackend::forget(&Server::at(url), &files).unwrap();
-        assert!(!path.exists(), "forgetting removes it");
+    }
+
+    /// Forgetting removes the kept session, install id and all, from the file the session is
+    /// kept in (a test run's own on macOS, which never reaches the Keychain; the Keychain's
+    /// removal is the store's, tested over a fake item).
+    #[test]
+    fn forgetting_removes_the_kept_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = AppFiles::in_dir(dir.path());
+        let kept = if cfg!(target_os = "macos") {
+            dir.path().join("test-session.json")
+        } else {
+            files.session()
+        };
+        let url = ServerUrl::parse("http://127.0.0.1:9").unwrap();
+        let first = EmberhutBackend::open(url.clone(), Some(&files), "Emberhut").unwrap();
+        assert!(kept.exists(), "a new install is kept");
+        let install = first.client.install();
+        EmberhutBackend::forget(&Server::at(url.clone()), &files).unwrap();
+        assert!(!kept.exists());
+        let next = EmberhutBackend::open(url, Some(&files), "Emberhut").unwrap();
+        assert_ne!(next.client.install(), install, "a new install");
     }
 
     #[test]

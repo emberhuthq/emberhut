@@ -11,11 +11,18 @@ use security_framework::passwords::{
     set_generic_password_options,
 };
 
-use super::{Item, KeychainSessionStore};
+use super::{Item, KeychainSessionStore, Removal};
 use crate::brand::APP_ID;
 
 /// The Keychain's "no such item" (`errSecItemNotFound`).
 const NOT_FOUND: i32 = -25_300;
+
+/// The Keychain's refusal to remove an item without its owner's right (`errSecInvalidOwnerEdit`).
+const INVALID_OWNER_EDIT: i32 = -25_244;
+
+/// The Keychain's "it would have to ask the user" while interaction is off
+/// (`errSecInteractionNotAllowed`).
+const INTERACTION_NOT_ALLOWED: i32 = -25_308;
 
 /// Whether this user has a default keychain to keep items in. `SecItem`'s generic passwords go to
 /// it, and without one (a `HOME` of its own, a context with no login keychain) the Security
@@ -57,10 +64,19 @@ impl Item for SystemItem {
         set_generic_password_options(bytes, self.options()).map_err(failed)
     }
 
-    fn delete(&self) -> Result<(), StoreError> {
-        match delete_generic_password_options(self.options()) {
-            Ok(()) => Ok(()),
-            Err(error) if error.code() == NOT_FOUND => Ok(()),
+    fn delete(&self) -> Result<Removal, StoreError> {
+        // No dialog: a removal the keychain would ask the user about fails instead. The lock
+        // turns interaction back on when it goes.
+        let quiet = SecKeychain::disable_user_interaction().map_err(failed)?;
+        let deleted = delete_generic_password_options(self.options());
+        drop(quiet);
+        match deleted {
+            Ok(()) => Ok(Removal::Gone),
+            Err(error) if error.code() == NOT_FOUND => Ok(Removal::Gone),
+            Err(error) if matches!(error.code(), INVALID_OWNER_EDIT | INTERACTION_NOT_ALLOWED) => {
+                log::info!("the Keychain won't remove the item ({error})");
+                Ok(Removal::Refused)
+            }
             Err(error) => Err(failed(error)),
         }
     }
