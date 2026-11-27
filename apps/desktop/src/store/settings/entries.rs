@@ -105,7 +105,7 @@ impl Group {
     #[must_use]
     pub(crate) fn status(self, now: &Now) -> String {
         match self {
-            Self::Ember => duty_word(now.on_duty).to_owned(),
+            Self::Ember => now.doing_word(),
             Self::Appearance => now.appearance_word(),
             Self::Devices => match now.devices {
                 Some(1) => "1 can reach your ember".to_owned(),
