@@ -46,6 +46,7 @@ mod runner;
 mod secret_links;
 mod settings;
 mod settings_pages;
+mod setup;
 mod state;
 mod talk;
 mod tasks;
@@ -70,6 +71,7 @@ const BEARER: &str = "bearer";
     modifiers(&BearerScheme),
     tags(
         (name = "auth", description = "Pairing a device and renewing its session"),
+        (name = "setup", description = "What the server has set up, for the apps' onboarding"),
         (name = "connect", description = "The machine's identity, and linking it to an account"),
         (name = "state", description = "What the app shows for a room"),
         (name = "live", description = "What the assistant is doing, as it does it"),
@@ -144,6 +146,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(health::health))
         .routes(routes!(health::lag))
         .routes(routes!(auth::status))
+        .routes(routes!(setup::setup))
         .routes(routes!(push::register))
         .routes(routes!(secret_links::page, secret_links::save))
         .routes(routes!(mac::mac))

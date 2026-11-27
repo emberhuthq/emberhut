@@ -1,0 +1,14 @@
+{
+  "items": [
+    { "id": "agent", "state": "ready", "detail": "The assistant and its workers run on the agent CLI." },
+    { "id": "accounts", "state": "missing", "detail": "No runner has reported an account yet." },
+    { "id": "devices", "state": "ready", "detail": "2 devices signed in." },
+    { "id": "push", "state": "off", "detail": "No push service is set up (APNs or FCM): phones see replies only in the app." },
+    { "id": "public-url", "state": "ready", "detail": "https://box.example" },
+    { "id": "mac", "state": "error", "detail": "The Mac helper isn't answering." },
+    { "id": "chrome", "state": "ready", "detail": "1 profile paired, 1 online." },
+    { "id": "gmail", "state": "missing", "detail": "No account is signed in." },
+    { "id": "slack", "state": "ready", "detail": "A token for 1 workspace: acme." },
+    { "id": "whatsapp", "state": "off" }
+  ]
+}

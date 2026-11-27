@@ -116,6 +116,51 @@ request's access token is a signed-in device's.
 
 The server sends `devices` only to a signed-in device (an empty list otherwise).
 
+## Setup
+
+What the server has set up, for the apps' onboarding. Before pairing, an app needs only
+`GET /api/auth/status` (whether the server is in use: `bound`); the checklist says what the owner
+has connected, so it is read with a session.
+
+### GET /api/setup
+
+Behind the session gate (`SetupPage`). Every item once, in the order the apps show it:
+
+```json
+{
+  "items": [
+    { "id": "agent", "state": "ready", "detail": "The assistant and its workers run on the agent CLI." },
+    { "id": "devices", "state": "ready", "detail": "2 devices signed in." },
+    { "id": "mac", "state": "off", "detail": "No Mac helper is set up (EMBERHUT_MAC_HELPER_URL)." }
+  ]
+}
+```
+
+- `state` is `ready` (set up, and working as far as the server can tell), `missing` (the owner
+  can set it up from the apps: pair, sign in, save a token, log an account in), `off` (it takes
+  the server's own configuration) or `error` (set up, but failing now).
+- `detail` is a line for the owner: how many there are, or what to do. It may be left out.
+- `id` and `state` are open words: a newer server may add items, and a client shows or skips
+  the ones it doesn't know.
+
+| `id` | `ready` | otherwise |
+|---|---|---|
+| `agent` | `EMBERHUT_AGENT_COMMAND` is set | `off` |
+| `accounts` | a runner reports an enabled account that is logged in | `off` without a runner; `missing` with no account, or none logged in |
+| `devices` | a device is signed in | `missing` |
+| `push` | APNs or FCM is ready | `off` |
+| `public-url` | `EMBERHUT_PUBLIC_URL` is set (`detail` is it) | `off` |
+| `mac` | the Mac helper answers its health, within 5 s | `off` without a helper; `error` when it doesn't answer or refuses |
+| `chrome` | a Chrome profile is paired (`detail` says how many are online) | `missing` |
+| `gmail` | the server's Google OAuth client is saved and an account is signed in | `missing` without either; `error` when an account's last look failed |
+| `slack` | a user token is saved for a workspace | `missing` |
+| `whatsapp` | the daemon says the number is connected (`open`) | `off` without a daemon (`EMBERHUT_WHATSAPP_URL`); `error` when it reports an error; `missing` otherwise (not linked) |
+
+Nothing is started to answer: no CLI is run, and only the Mac helper is asked anything. What the
+server can't know isn't an item: whether the machine is linked to an account is the account
+directory's to say (directory.md's `GET /v1/machines`), and whether the server's own agent CLI is
+logged in only the CLI can tell (the runners report theirs).
+
 ## The state
 
 ### GET /api/state?room=

@@ -309,6 +309,13 @@ impl GmailService {
         }
     }
 
+    /// Whether the server's Google OAuth client (its id and secret) is saved: without it, no
+    /// account can sign in.
+    pub async fn client_saved(&self) -> bool {
+        !self.ctx.secrets.read(CLIENT_ID_SECRET).await.is_empty()
+            && !self.ctx.secrets.read(CLIENT_SECRET_SECRET).await.is_empty()
+    }
+
     /// The accounts signed in: a refresh token each, in name order.
     pub async fn accounts(&self) -> Vec<String> {
         let mut accounts: Vec<String> = self
@@ -917,9 +924,7 @@ impl GmailService {
                 "account: a short lowercase name (home, work)".to_owned(),
             ));
         }
-        if self.ctx.secrets.read(CLIENT_ID_SECRET).await.is_empty()
-            || self.ctx.secrets.read(CLIENT_SECRET_SECRET).await.is_empty()
-        {
+        if !self.client_saved().await {
             return Err(GmailError(format!(
                 "the server's Google OAuth client isn't saved yet (secrets {CLIENT_ID_SECRET} and \
                  {CLIENT_SECRET_SECRET})"

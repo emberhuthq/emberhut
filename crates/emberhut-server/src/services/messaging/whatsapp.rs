@@ -77,6 +77,20 @@ struct Status {
     at: Option<String>,
 }
 
+/// The number's connection, as [`WhatsAppService::connection`] reads it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WhatsAppConnection {
+    /// A daemon is set up.
+    pub set_up: bool,
+    /// The daemon's word for the connection: `open`, `linking`, `unlinked`, `logged_out`,
+    /// `not started`...
+    pub state: String,
+    /// The linked number.
+    pub number: Option<String>,
+    /// What went wrong last.
+    pub error: Option<String>,
+}
+
 /// Linking in progress.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 struct Link {
@@ -118,6 +132,11 @@ pub trait WaDaemon: fmt::Debug + Send + Sync {
         body: Option<Value>,
         wait: Duration,
     ) -> BoxFuture<'a, Result<Value, DaemonError>>;
+
+    /// Whether a daemon is set up at all ([`NoWaDaemon`] stands in when none is).
+    fn is_set_up(&self) -> bool {
+        true
+    }
 }
 
 /// No daemon set up.
@@ -136,6 +155,10 @@ impl WaDaemon for NoWaDaemon {
                 "the WhatsApp daemon isn't set up on this server".to_owned(),
             ))
         })
+    }
+
+    fn is_set_up(&self) -> bool {
+        false
     }
 }
 
@@ -1452,6 +1475,18 @@ impl WhatsAppService {
                  style=\"color:#888\">It refreshes by itself.</p>"
             ),
         )
+    }
+
+    /// The number's connection as the daemon last told it, without its chats: whether a
+    /// daemon is set up, and its state, number and last error.
+    pub async fn connection(&self) -> WhatsAppConnection {
+        let status = self.status().await;
+        WhatsAppConnection {
+            set_up: self.parts.daemon.is_set_up(),
+            state: status.state.unwrap_or_default(),
+            number: status.number,
+            error: status.error,
+        }
     }
 
     /// What the assistant and the app see: the switch, the connection, the chats and the last
