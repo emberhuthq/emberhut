@@ -211,6 +211,14 @@ impl Store {
         cx.notify();
     }
 
+    /// An action went through but didn't take: `line` says why until hidden or the next
+    /// action.
+    pub(crate) fn show_action_problem(&mut self, line: String, cx: &mut Context<'_, Self>) {
+        log::warn!("{line}");
+        self.action_problem = Some(line);
+        cx.notify();
+    }
+
     /// Hides the refused action's line.
     pub(crate) fn hide_action_problem(&mut self, cx: &mut Context<'_, Self>) {
         if self.action_problem.take().is_some() {

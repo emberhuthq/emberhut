@@ -63,7 +63,7 @@ pub(crate) fn name(page: Page) -> &'static str {
         Page::Scheduled => "Scheduled",
         Page::SettingsPane(SettingsPane::Appearance) => "Appearance",
         Page::SettingsPane(SettingsPane::ChromeProfiles) => "Chrome profiles",
-        Page::SettingsPane(SettingsPane::AboutYou) => "About you",
+        Page::SettingsPane(SettingsPane::AboutYou) => crate::store::settings::about::TITLE,
         Page::Approvals(_) => "Approvals",
         Page::Approval(_) => "Approval request",
     }
