@@ -29,6 +29,8 @@ pub(crate) enum SettingsPane {
     ChromeProfiles,
     /// What the assistant knows about the user.
     AboutYou,
+    /// What the ember thinks with: the model provider the server's agent runs on.
+    Credentials,
 }
 
 /// Settings' data.
@@ -46,6 +48,7 @@ impl Store {
         match pane {
             SettingsPane::AboutYou => self.load_facts(cx),
             SettingsPane::Appearance => self.load_theme(cx),
+            SettingsPane::Credentials => self.load_credentials(cx),
             SettingsPane::ChromeProfiles => {}
         }
     }

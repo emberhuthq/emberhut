@@ -248,6 +248,8 @@ pub(crate) enum SettingsArg {
     ChromeProfiles,
     /// What the assistant knows about you.
     AboutYou,
+    /// What your ember thinks with: the model provider it runs on.
+    Credentials,
     /// The archived rooms, unfolded on Settings' main page.
     ArchivedRooms,
     /// The machines, over Settings.
@@ -263,6 +265,7 @@ impl SettingsArg {
             Self::Appearance => Some(Page::SettingsPane(SettingsPane::Appearance)),
             Self::ChromeProfiles => Some(Page::SettingsPane(SettingsPane::ChromeProfiles)),
             Self::AboutYou => Some(Page::SettingsPane(SettingsPane::AboutYou)),
+            Self::Credentials => Some(Page::SettingsPane(SettingsPane::Credentials)),
             Self::Machines => Some(Page::Machines),
         }
     }
@@ -502,6 +505,14 @@ mod tests {
             cli.over_settings(),
             Some(Page::SettingsPane(SettingsPane::ChromeProfiles)),
             "the sheet is over the profiles"
+        );
+        let cli = parse(&["--settings", "credentials"]).unwrap();
+        assert_eq!(
+            (cli.start_page(None), cli.over_settings()),
+            (
+                Page::Settings,
+                Some(Page::SettingsPane(SettingsPane::Credentials))
+            )
         );
         let cli = parse(&["--settings", "machines"]).unwrap();
         assert_eq!(cli.over_settings(), Some(Page::Machines));

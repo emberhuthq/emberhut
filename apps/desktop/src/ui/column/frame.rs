@@ -64,6 +64,7 @@ pub(crate) fn name(page: Page) -> &'static str {
         Page::SettingsPane(SettingsPane::Appearance) => "Appearance",
         Page::SettingsPane(SettingsPane::ChromeProfiles) => "Chrome profiles",
         Page::SettingsPane(SettingsPane::AboutYou) => crate::store::settings::about::TITLE,
+        Page::SettingsPane(SettingsPane::Credentials) => "What your ember thinks with",
         Page::Approvals(_) => "Approvals",
         Page::Approval(_) => "Approval request",
     }

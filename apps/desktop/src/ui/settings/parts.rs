@@ -72,7 +72,7 @@ pub(super) fn section(
 }
 
 /// A line of small secondary text.
-pub(super) fn note(p: &Pal, text: impl Into<SharedString>) -> Div {
+pub(crate) fn note(p: &Pal, text: impl Into<SharedString>) -> Div {
     div()
         .text_size(px(11.5))
         .text_color(p.muted)
@@ -80,7 +80,7 @@ pub(super) fn note(p: &Pal, text: impl Into<SharedString>) -> Div {
 }
 
 /// A line of small text saying what went wrong.
-pub(super) fn problem_line(p: &Pal, text: impl Into<SharedString>) -> Div {
+pub(crate) fn problem_line(p: &Pal, text: impl Into<SharedString>) -> Div {
     div()
         .text_size(px(12.))
         .text_color(p.danger)
@@ -169,7 +169,7 @@ pub(super) fn nav_row(
 }
 
 /// A small coloured tag: `Update`, `Paused`, `Needs you`.
-pub(super) fn tag(text: impl Into<SharedString>, color: Hsla) -> Div {
+pub(crate) fn tag(text: impl Into<SharedString>, color: Hsla) -> Div {
     div()
         .px(px(6.))
         .py(px(1.))
@@ -297,7 +297,7 @@ fn escape_markdown(text: &str) -> String {
 }
 
 /// A page's scrolling body, its content in a column as wide as Settings reads well.
-pub(super) fn page_body(id: &'static str, content: impl IntoElement) -> Stateful<Div> {
+pub(crate) fn page_body(id: &'static str, content: impl IntoElement) -> Stateful<Div> {
     div().id(id).flex_1().overflow_y_scroll().child(
         div()
             .flex()

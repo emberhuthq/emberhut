@@ -1,4 +1,5 @@
-//! The files built into the app: its face picture and fonts, then the icons it draws:
+//! The files built into the app: its face picture, the one provider logo the repository has,
+//! and fonts, then the icons it draws:
 //! gpui-kit's default bundle (the components' own icons) and the Lucide icons the app's views
 //! name beyond it ([`AppIcons`]).
 
@@ -8,6 +9,10 @@ use gpui_kit::{App, AssetSource, Result, SharedString};
 
 /// The assistant's face, as the sidebar and the sign-in screen show it.
 pub(crate) const FACE: &str = "face.png";
+
+/// Claude's mark, for its row among the providers the ember can think with: the website's own
+/// file (`site/shared/logos/claude.svg`), drawn in its colours.
+pub(crate) const CLAUDE_LOGO: &str = "logos/claude.svg";
 
 /// The interface font: the Mac's own system font, and Inter (built in) elsewhere so the app
 /// looks the same.
@@ -114,6 +119,11 @@ impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
         if path == FACE {
             return Ok(Some(Cow::Borrowed(include_bytes!("../assets/face.png"))));
+        }
+        if path == CLAUDE_LOGO {
+            return Ok(Some(Cow::Borrowed(include_bytes!(
+                "../../../site/shared/logos/claude.svg"
+            ))));
         }
         if let Some(icon) = AppIcons.load(path)? {
             return Ok(Some(icon));
