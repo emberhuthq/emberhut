@@ -521,8 +521,12 @@ impl Backend for Failover {
         self.active().agent_provider()
     }
 
-    fn test_agent_provider(&self, request: &ProviderRequest) -> Result<ProviderTest, Error> {
-        self.active().test_agent_provider(request)
+    fn test_agent_provider(
+        &self,
+        request: &ProviderRequest,
+        within: Duration,
+    ) -> Result<ProviderTest, Error> {
+        self.active().test_agent_provider(request, within)
     }
 
     fn save_agent_provider(&self, request: &ProviderRequest) -> Result<AgentProvider, Error> {
