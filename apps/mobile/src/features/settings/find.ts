@@ -5,6 +5,7 @@
  * worked out from how things stand, never what is already done. Neither changes a setting: a row only opens where it lives.
  */
 
+import type { IconName } from "@/ui";
 import { entries, groupShown, lineOf, pathOf, type Entry, type Now } from "./entries";
 
 /** A row of the front door's list: the setting it opens, its words, and the parts of its title to mark. */
@@ -12,6 +13,8 @@ export interface Row {
   entry: Entry;
   title: string;
   line: string;
+  /** Its icon: its setting's, or one for what it does (a sun for Switch to light). */
+  icon: IconName;
   /** [start, end) of each match in the title. */
   marks: [number, number][];
 }
@@ -49,7 +52,7 @@ function row(entry: Entry, line: string, words: string[]): Row {
     .filter((m): m is [{ at: number; start: boolean }, number] => m[0] !== null)
     .map(([f, length]): [number, number] => [f.at, f.at + length])
     .sort((a, b) => a[0] - b[0]);
-  return { entry, title: entry.title, line, marks };
+  return { entry, title: entry.title, line, marks, icon: entry.icon };
 }
 
 /** What a search found: the settings matching every word, best first, or else the closest few (`nothing` true). */
@@ -133,6 +136,8 @@ export function suggestions(now: Now): Row[] {
   ]);
   return rows.slice(0, mostSuggested).flatMap(([id, title, line]) => {
     const entry = entries.find((e) => e.id === id);
-    return entry ? [{ entry, title, line, marks: [] }] : [];
+    // The setting's icon is a moon; switching to light shows the sun it brings.
+    const icon = title === "Switch to light" ? "sunny-outline" : entry?.icon;
+    return entry && icon ? [{ entry, title, line, marks: [], icon }] : [];
   });
 }

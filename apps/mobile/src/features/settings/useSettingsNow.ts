@@ -23,6 +23,8 @@ export function useSettingsNow(): Now {
   const sources = (environments.data?.groups ?? []).flatMap((g) => g.items).filter((e) => e.group === "connections");
   return {
     onDuty: state.data?.on ?? false,
+    working: (state.data?.on ?? false) && (state.data?.busy ?? false),
+    jobs: (state.data?.tasks ?? []).filter((job) => job.status === "running").length,
     provider: provider.data ? savedLine(provider.data) : undefined,
     facts: facts.data?.facts.length,
     lessons: facts.data?.trials?.length ?? 0,
