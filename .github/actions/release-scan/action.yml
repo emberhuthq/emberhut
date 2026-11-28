@@ -53,7 +53,9 @@ runs:
             *.tar.gz) tar -xzf "$asset" -C "$dest" ;;
             *.zip) "$sevenzip" x -y -bd -o"$dest" "$asset" > /dev/null ;;
             *.dmg)
-              "$sevenzip" x -y -bd -o"$dest" "$asset" > /dev/null
+              # The image's /Applications link points out of it; 7-Zip refuses it (exit 2), and
+              # it holds nothing to scan.
+              "$sevenzip" x -y -bd -xr'!Applications' -o"$dest" "$asset" > /dev/null
               # Some 7-Zip versions stop at the image's partition; unpack the file system too.
               for inner in "$dest"/*.hfs "$dest"/*.hfsx "$dest"/*.apfs "$dest"/*.img; do
                 "$sevenzip" x -y -bd -o"$dest/fs" "$inner" > /dev/null
