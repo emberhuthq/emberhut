@@ -18,6 +18,9 @@ pub struct Run {
     pub fixed: Vec<bool>,
     /// What heredocs and here-strings feed it, in order.
     pub stdin: Vec<String>,
+    /// The files its output is sent to (`>`, `>>`, `&>`, `>|`, `<>`), with whether each name is
+    /// known; `/dev/null` and a copy of another descriptor (`2>&1`) left out.
+    pub writes: Vec<(String, bool)>,
     /// The folder it runs in; none when it can't be told (a `cd` to a variable, `popd`, a
     /// command on another machine).
     pub dir: Option<String>,
@@ -74,6 +77,16 @@ struct Parser<'h> {
     runs: Vec<(Option<usize>, Run)>,
     pending: Vec<Pending>,
     next_id: usize,
+}
+
+/// Keeps the file a redirection `op` sends output to (`word`): not a file read, a copy of
+/// another descriptor (`2>&1`) or `/dev/null`.
+fn written(run: &mut Run, op: &str, word: Word) {
+    let copy =
+        matches!(op, ">&" | "<&") && word.text.chars().all(|c| c.is_ascii_digit() || c == '-');
+    if op != "<" && op != "<&" && !copy && word.text != "/dev/null" {
+        run.writes.push((word.text, word.fixed));
+    }
 }
 
 impl<'h> Parser<'h> {
@@ -170,7 +183,8 @@ impl<'h> Parser<'h> {
                     }
                     // A file to read or write: not a command.
                     _ => {
-                        self.word_at(ctx)?;
+                        let word = self.word_at(ctx)?;
+                        written(&mut run, op, word);
                     }
                 }
                 continue;

@@ -5,11 +5,18 @@
 //! lets through ([`super::GuardConfig::always_merge`]). Otherwise the server asks the owner
 //! itself; the lead is told to wait ([`emberhut_core::guard::outward::WAITS`]).
 //!
+//! A command the rules can't be sure of (inline code, a script, a command on another machine:
+//! [`rules::Reading::Unsure`]) goes to the assistant first: its judge model reads the command
+//! ([`rules::READ_ONLY_RULES`]), and one it reads as only reading runs. Only what it doesn't
+//! (or a judge that is off, fails or takes longer than [`JUDGE_WAIT`]) asks the owner. Its
+//! last verdicts are kept in memory, so a command run again isn't read again.
+//!
 //! The OKs are kept in the settings (`outwardOks`: task to the
 //! line it says) until the task is closed after them ([`Guard::outward_ended`]).
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::PoisonError;
 use std::time::Duration;
 
 use emberhut_core::MessageId;
@@ -21,6 +28,13 @@ use emberhut_db::{DbError, SettingKey};
 use super::{Guard, GuardError};
 
 pub(crate) const OKS: SettingKey<BTreeMap<String, String>> = SettingKey::new("outwardOks");
+
+/// How long the assistant's judge may take over one command: the gate answers the worker's
+/// hook well inside its own time limit.
+pub const JUDGE_WAIT: Duration = Duration::from_secs(25);
+
+/// How many of the judge's verdicts are kept.
+const VERDICTS_KEPT: usize = 200;
 
 /// A folder's git remotes, as `owner/name` where they are GitHub's.
 pub trait RepoRemotes: fmt::Debug + Send + Sync {
@@ -231,7 +245,8 @@ impl Guard {
     }
 
     /// A lead's shell command before it runs: none lets it through; otherwise what the lead is
-    /// told, and the owner is asked (once, while that card is open) by `ask`.
+    /// told, and the owner is asked (once, while that card is open) by `ask`. A command it
+    /// can't be sure of is read by the assistant first ([`Self::assistant_reads_only`]).
     ///
     /// # Errors
     ///
@@ -242,12 +257,102 @@ impl Guard {
         command: &str,
         cwd: &str,
     ) -> Result<Option<&'static str>, GuardError> {
-        if !self.is_outward(command)
-            || self.covered_by(task).await?.is_some()
-            || self.always_ok(command, cwd).await
+        let unsure = match rules::reading(command, &self.home()) {
+            rules::Reading::Clear => return Ok(None),
+            rules::Reading::Unsure(steps) => Some(steps),
+            rules::Reading::Outward(_) => None,
+        };
+        if self.covered_by(task).await?.is_some() || self.always_ok(command, cwd).await {
+            return Ok(None);
+        }
+        if let Some(steps) = unsure
+            && self.assistant_reads_only(command, cwd, &steps).await
         {
+            tracing::info!(
+                task = %task.key(),
+                command = %emberhut_core::guard::key_mask::mask(
+                    &command.chars().take(160).collect::<String>(),
+                    &[],
+                    None
+                ),
+                "the assistant read a command the rules couldn't as only reading"
+            );
             return Ok(None);
         }
         Ok(Some(rules::WAITS))
+    }
+
+    /// Whether the assistant's judge reads `command` (run in `cwd`, held as `held`) as only
+    /// reading. No judge, no answer within [`JUDGE_WAIT`] or an answer that isn't a clear yes:
+    /// no. Its verdicts are kept, so the same command isn't read twice.
+    pub async fn assistant_reads_only(
+        &self,
+        command: &str,
+        cwd: &str,
+        held: &[rules::Step],
+    ) -> bool {
+        if !self.inner.judge.on() {
+            return false;
+        }
+        let key = format!("{cwd}\n{command}");
+        if let Some(seen) = self
+            .inner
+            .read_only
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, verdict)| *verdict)
+        {
+            return seen;
+        }
+        let prompt = rules::read_only_prompt(command, cwd, held);
+        let said = tokio::time::timeout(
+            JUDGE_WAIT,
+            self.inner.judge.judge(rules::READ_ONLY_RULES, &prompt),
+        )
+        .await;
+        let verdict = match said {
+            Ok(Some(text)) => read_verdict(&text),
+            // No answer (or none in time) isn't kept: the next try asks again.
+            Ok(None) | Err(_) => return false,
+        };
+        let mut kept = self
+            .inner
+            .read_only
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        kept.push((key, verdict));
+        let extra = kept.len().saturating_sub(VERDICTS_KEPT);
+        kept.drain(..extra);
+        verdict
+    }
+}
+
+/// The judge's verdict: `{"reads_only": true}` alone is a yes.
+fn read_verdict(said: &str) -> bool {
+    let (Some(start), Some(end)) = (said.find('{'), said.rfind('}')) else {
+        return false;
+    };
+    said.get(start..=end)
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|value| value.get("reads_only").and_then(serde_json::Value::as_bool))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_verdict;
+
+    #[test]
+    fn only_a_clear_yes_reads_as_read_only() {
+        assert!(read_verdict(
+            r#"{"reads_only": true, "why": "it prints a file"}"#
+        ));
+        assert!(read_verdict("Here it is:\n{\"reads_only\": true}"));
+        assert!(!read_verdict(r#"{"reads_only": false, "why": "it posts"}"#));
+        assert!(!read_verdict(r#"{"reads_only": "true"}"#));
+        assert!(!read_verdict("yes, it only reads"));
+        assert!(!read_verdict(""));
     }
 }

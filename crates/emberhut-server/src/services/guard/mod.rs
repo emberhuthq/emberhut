@@ -102,6 +102,9 @@ struct Inner {
     /// The cards whose send answer the owner just tapped: `(task, asked)`, read once by the
     /// sending tool's own guard.
     tapped: Mutex<Vec<(i64, Timestamp)>>,
+    /// The assistant's last verdicts on commands the outward rules couldn't be sure of:
+    /// (folder and command, whether it only reads).
+    read_only: Mutex<Vec<(String, bool)>>,
 }
 
 /// What the guard rails are built from.
@@ -155,6 +158,7 @@ impl Guard {
                 facts: OnceLock::new(),
                 agents: OnceLock::new(),
                 tapped: Mutex::new(Vec::new()),
+                read_only: Mutex::new(Vec::new()),
             }),
         }
     }

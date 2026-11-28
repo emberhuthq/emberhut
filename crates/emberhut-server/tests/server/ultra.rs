@@ -392,6 +392,35 @@ async fn a_plain_worker_gets_the_gate_before_its_shell_commands_and_its_push_is_
 }
 
 #[tokio::test]
+async fn a_worker_s_read_only_commands_pass_the_gate_with_no_card() {
+    let cli = FakeCli::new(|_, line| {
+        if is_user(line) {
+            vec![init("s-1")]
+        } else {
+            Vec::new()
+        }
+    });
+    let app = worker_app(&cli).await;
+    let task = assistant_task(&app, "a scan", false).await;
+    app.state.tasks().start_worker(task).await.unwrap();
+    for command in [
+        r#"cd /tmp; ls -A | xargs -P 4 -I{} sh -c 'timeout 60 du -sx "{}" 2>/dev/null || echo "TIMEOUT {}"' > /tmp/top.txt &"#,
+        r#"python3 -I -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d))" data.json"#,
+        r#"K=$(cat ~/.config/api.key); curl -s https://api.example.com/v1/models -H "x-api-key: $K" | python3 -c "import json,sys; print(json.load(sys.stdin))""#,
+    ] {
+        let answer = gate(
+            &app,
+            task,
+            &json!({ "tool_name": "Bash", "tool_input": { "command": command }, "cwd": "/tmp" }),
+        )
+        .await;
+        assert_eq!(answer.json(), json!({}), "{command}");
+    }
+    let detail = app.state.tasks().detail(task).await.unwrap().unwrap();
+    assert!(detail.task.decision.is_none(), "no card for the owner");
+}
+
+#[tokio::test]
 async fn a_lane_never_starts_while_the_task_s_outward_steps_are_not_covered() {
     let app = worker_app(&answering_cli("done")).await;
     let task = assistant_task(&app, "a split job", true).await;
