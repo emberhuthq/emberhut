@@ -42,6 +42,37 @@ pub(crate) fn one_line_opt(value: &Option<String>, context: &()) -> garde::Resul
         .map_or(Ok(()), |value| one_line(value, context))
 }
 
+/// A paired runner's name ([`crate::runner::pairing::is_runner_name`]).
+pub(crate) fn runner_name(value: &str, _context: &()) -> garde::Result {
+    if crate::runner::pairing::is_runner_name(value) {
+        Ok(())
+    } else {
+        Err(garde::Error::new(format!(
+            "1 to {} of A-Z, a-z, 0-9, - and _, and not {:?}",
+            crate::runner::pairing::NAME_MAX,
+            crate::runner::pairing::RESERVED_NAME
+        )))
+    }
+}
+
+/// A paired runner's address ([`crate::runner::pairing::is_runner_url`]).
+pub(crate) fn runner_url(value: &str, _context: &()) -> garde::Result {
+    if crate::runner::pairing::is_runner_url(value) {
+        Ok(())
+    } else {
+        Err(garde::Error::new(
+            "an http:// or https:// address with a host, without ? or #",
+        ))
+    }
+}
+
+/// An optional [`runner_url`].
+pub(crate) fn runner_url_opt(value: &Option<String>, context: &()) -> garde::Result {
+    value
+        .as_deref()
+        .map_or(Ok(()), |value| runner_url(value, context))
+}
+
 /// A Chrome profile's name: with its runs of whitespace made one space, 1 to 24 characters
 /// (UTF-16 units), with a letter or digit (`a-z`, `0-9`) its short name (`work` for `Work`) is made of.
 pub(crate) fn chrome_label(value: &str, _context: &()) -> garde::Result {
