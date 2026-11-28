@@ -558,6 +558,113 @@ async fn page_runs(app: &TestApp, id: TaskId) -> usize {
     page(app, id).await.runs.map_or(0, |runs| runs.len())
 }
 
+/// A runner event of `kind` about the session `session` working on `task`, its status
+/// `status`, `extra` added (a `turn`, an `at`).
+fn session_event(task: TaskId, session: &str, kind: &str, status: &str, extra: Value) -> Value {
+    let mut event = json!({
+        "machine": "build", "kind": kind, "at": "2026-11-25T10:00:00.000Z",
+        "session": { "id": session, "title": "The lexer", "project": "", "status": status,
+                     "meta": { "task": task.key() } },
+    });
+    if let (Value::Object(event), Value::Object(extra)) = (&mut event, extra) {
+        event.extend(extra);
+    }
+    event
+}
+
+/// Reports `event` as the build runner; it is taken.
+async fn report(app: &TestApp, event: &Value) {
+    let answer = app
+        .call(
+            Call::post("/api/runner/events")
+                .header("authorization", &format!("Bearer {BUILD}"))
+                .json(event),
+        )
+        .await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+}
+
+/// The sessions list, of `task`'s sessions when given.
+async fn listed(app: &TestApp, task: Option<TaskId>) -> SessionsPage {
+    let session = app.sign_in().await;
+    let mut request = Call::get("/api/runner/sessions").token(&session);
+    if let Some(task) = task {
+        request = request.query(&format!("task={}", task.get()));
+    }
+    app.call(request).await.read_as()
+}
+
+#[tokio::test]
+pub(crate) async fn with_the_flag_off_a_sessions_task_is_not_followed() {
+    let app = app(false).await;
+    let id = task(&app, "the lexer").await;
+    for (kind, status) in [
+        ("turn_queued", "queued"),
+        ("turn_started", "running"),
+        ("activity", "running"),
+    ] {
+        report(
+            &app,
+            &session_event(
+                id,
+                "r-0ff1",
+                kind,
+                status,
+                json!({ "turn": { "id": "r-0ff1:1", "by": "assistant", "prompt": "Write it" } }),
+            ),
+        )
+        .await;
+    }
+    let state = state(&app).await;
+    let issue = state
+        .issues
+        .iter()
+        .find(|i| i.id.get() == id.get())
+        .unwrap();
+    assert!(
+        issue.live.as_ref().is_none_or(|live| live.run.is_none()),
+        "no run: {:?}",
+        issue.live
+    );
+    assert_eq!(page_runs(&app, id).await, 0);
+    assert!(
+        !page(&app, id)
+            .await
+            .links
+            .iter()
+            .any(|link| link.reference == "r-0ff1"),
+        "the session isn't linked"
+    );
+    let all = listed(&app, None).await;
+    let row = all
+        .sessions
+        .iter()
+        .find(|row| row.id.as_str() == "r-0ff1")
+        .unwrap();
+    assert!(row.tasks.is_empty(), "{:?}", row.tasks);
+    let of_task = listed(&app, Some(id)).await.sessions;
+    assert!(of_task.is_empty(), "no session is linked: {of_task:?}");
+
+    report(
+        &app,
+        &session_event(
+            id,
+            "r-0ff1",
+            "turn_finished",
+            "idle",
+            json!({ "turn": { "id": "r-0ff1:1", "outcome": "completed", "last": "Done." } }),
+        ),
+    )
+    .await;
+    let history = app.state.tasks().history_of(id).await.unwrap();
+    assert!(
+        !history
+            .iter()
+            .any(|line| line.text == "A turn ended with no plan"),
+        "{history:?}"
+    );
+}
+
 #[tokio::test]
 pub(crate) async fn a_worker_that_ends_with_no_plan_is_noted_and_a_plan_clears_it() {
     let app = app(true).await;

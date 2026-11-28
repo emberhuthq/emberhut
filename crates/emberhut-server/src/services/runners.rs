@@ -374,7 +374,10 @@ impl RunnerService {
     ///
     /// [`DbError`].
     pub async fn sessions(&self, filter: Filter) -> Result<Vec<api::work::RunnerSession>, DbError> {
+        let plans = self.parts.tasks.keeps_plans();
         let linked: Option<Vec<String>> = match filter.task.filter(|task| *task != 0) {
+            // Sessions are linked to tasks only on a server that keeps plans.
+            Some(_) if !plans => return Ok(Vec::new()),
             Some(task) => Some(
                 self.parts
                     .tasks
@@ -398,8 +401,12 @@ impl RunnerService {
         threads.sort_by_key(|thread| std::cmp::Reverse(thread.updated_at));
         threads.truncate(LIST_LENGTH);
         let accounts = self.parts.usage.all().await?;
-        let ids: Vec<String> = threads.iter().map(|thread| thread.id.clone()).collect();
-        let tasks = self.parts.tasks.sessions_tasks(&ids).await?;
+        let tasks = if plans {
+            let ids: Vec<String> = threads.iter().map(|thread| thread.id.clone()).collect();
+            self.parts.tasks.sessions_tasks(&ids).await?
+        } else {
+            BTreeMap::new()
+        };
         Ok(threads
             .iter()
             .map(|thread| self.row(thread, &accounts, tasks.get(&thread.id)))
@@ -591,7 +598,10 @@ impl RunnerService {
                 "a followed session came to an end"
             );
         }
-        if let Some(task) = task_in(session) {
+        // A session's task is followed only on a server that keeps plans.
+        if self.parts.tasks.keeps_plans()
+            && let Some(task) = task_in(session)
+        {
             let turn = match (kind.as_str(), &thread.status) {
                 ("turn_finished", _) => SessionTurn::Finished {
                     outcome: &turn
@@ -713,7 +723,11 @@ impl RunnerService {
         );
         if let Some(mine) = self.parts.store.get(&machine, id.as_str()).await? {
             let accounts = self.parts.usage.all().await?;
-            let tasks = self.parts.tasks.session_tasks(id.as_str()).await?;
+            let tasks = if self.parts.tasks.keeps_plans() {
+                self.parts.tasks.session_tasks(id.as_str()).await?
+            } else {
+                Vec::new()
+            };
             let row = self.row(&mine, &accounts, Some(&tasks));
             head.insert("accountName".to_owned(), json!(row.account_name));
             head.insert("tasks".to_owned(), json!(row.tasks));

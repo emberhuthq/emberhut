@@ -85,10 +85,12 @@ shows running while it works. The assistant's own sessions may write any task's 
 ### The flag
 
 Plans are behind a server flag (`--task-plans`, `EMBERHUT_TASK_PLANS`, off by default). With it
-off, no `plan` is sent, the tools are absent and the briefs don't mention plans; with it on, the
-display settings say so (`ui.taskPlans`, the flag's and never a saved setting's), so the apps can
-show tasks as the work running. Plans written while it was on are kept when it goes off. The flag
-lets the server, the desktop app and the phone app move to plans together.
+off, no `plan` is sent, the tools are absent, the briefs don't mention plans, and runner sessions
+are neither linked to their tasks nor their turns kept as runs (a session's `tasks` stays empty, as
+before plans); with it on, the display settings say so (`ui.taskPlans`, the flag's and never a
+saved setting's), so the apps can show tasks as the work running. Plans written while it was on
+are kept when it goes off. The flag lets the server, the desktop app and the phone app move to
+plans together.
 
 ## Consequences
 
