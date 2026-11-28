@@ -60,6 +60,20 @@ pub(crate) fn shows_tasks(state: &State) -> bool {
     state.ui.as_ref().is_none_or(|ui| ui.hide_projects)
 }
 
+/// Whether the server keeps plans: tasks are the work that runs, each with its plan, and the
+/// sessions move out of the main navigation. Off on an older server, which never says.
+#[must_use]
+pub(crate) fn keeps_plans(state: &State) -> bool {
+    state.ui.as_ref().is_some_and(|ui| ui.task_plans)
+}
+
+/// Whether the sidebar lists Tasks: the project screens are hidden, or tasks carry plans (then
+/// Tasks is the main place).
+#[must_use]
+pub(crate) fn lists_tasks(state: &State) -> bool {
+    shows_tasks(state) || keeps_plans(state)
+}
+
 /// The day a waiting row has to be decided by, `YYYY-MM-DD`.
 #[must_use]
 pub(crate) fn decide_by(row: &WorkRow) -> Option<&str> {
@@ -127,6 +141,9 @@ mod tests {
     fn tasks_show_while_the_project_screens_are_hidden() {
         assert!(shows_tasks(&state(json!({}))));
         assert!(!shows_tasks(&state(json!({"ui": {"hideProjects": false}}))));
+        assert!(!keeps_plans(&state(json!({}))));
+        let plans = state(json!({"ui": {"hideProjects": false, "taskPlans": true}}));
+        assert!(keeps_plans(&plans) && lists_tasks(&plans) && !shows_tasks(&plans));
     }
 
     #[test]
