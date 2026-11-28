@@ -13,6 +13,10 @@ use super::version::Running;
 use crate::backend::Cause;
 
 /// How long the new copy has to draw its first frame.
+#[cfg_attr(
+    all(windows, not(test)),
+    expect(dead_code, reason = "the Mac's install step's, built on Unix only")
+)]
 pub(crate) const WATCH_FOR: Duration = Duration::from_secs(120);
 
 /// A new bundle, staged beside the installed one and checked.
@@ -26,6 +30,13 @@ pub(crate) struct Staged {
 
 /// Why a new bundle couldn't be staged or swapped in.
 #[derive(Debug, thiserror::Error)]
+#[cfg_attr(
+    all(windows, not(test)),
+    expect(
+        dead_code,
+        reason = "some variants are the Mac's install step's, built on Unix only"
+    )
+)]
 pub(crate) enum InstallError {
     /// The disk image holds no `Emberhut.app`.
     #[error("the update holds no Emberhut.app")]
@@ -83,6 +94,10 @@ pub(crate) trait Watch: Send {
 
 /// What the watch saw first.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    all(windows, not(test)),
+    expect(dead_code, reason = "the Mac's install step's, built on Unix only")
+)]
 pub(crate) enum Seen {
     /// The new copy said it is healthy.
     Healthy,
@@ -96,6 +111,13 @@ pub(crate) enum Seen {
 
 /// How the update ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    windows,
+    expect(
+        dead_code,
+        reason = "some variants are the Mac's install step's, built on Unix only"
+    )
+)]
 pub(crate) enum Verdict {
     /// The new build stays.
     Kept,
@@ -113,6 +135,10 @@ pub(crate) enum Verdict {
 /// The verdict once the watch saw `seen`, the marker then read `healthy_after` (the new copy
 /// may have turned healthy as it was ended), the watch having ended the new copy itself or not.
 #[must_use]
+#[cfg_attr(
+    all(windows, not(test)),
+    expect(dead_code, reason = "the Mac's install step's, built on Unix only")
+)]
 pub(crate) fn decide(seen: Seen, healthy_after: bool, ended_by_us: bool) -> Verdict {
     match seen {
         Seen::Healthy => Verdict::Kept,

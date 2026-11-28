@@ -1,9 +1,10 @@
-//! What this Mac is, as far as choosing a payload goes: its processor and its macOS version.
+//! What this computer is, as far as choosing a payload goes: its system (macOS or Windows), its
+//! processor and its system's version.
 
 use std::cmp::Ordering;
 use std::fmt;
 
-use emberhut_api::releases::Arch;
+use emberhut_api::releases::{Arch, Platform};
 
 /// A system version, `13.0` or `14.5.1`: up to three numbers, the missing ones 0.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -44,13 +45,25 @@ impl fmt::Display for OsVersion {
     }
 }
 
-/// This machine, for choosing a payload.
+/// This computer, for choosing a payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ThisMac {
+pub(crate) struct ThisMachine {
+    /// Its system, as feeds name it.
+    pub(crate) platform: Platform,
     /// Its processor, as releases name it.
     pub(crate) arch: Arch,
-    /// Its macOS version.
+    /// Its system's version.
     pub(crate) os: OsVersion,
+}
+
+/// The system's name, as people know it (`macOS`, `Windows`).
+#[must_use]
+pub(crate) fn system_name(platform: &Platform) -> &str {
+    match platform {
+        Platform::Macos => "macOS",
+        Platform::Windows => "Windows",
+        other => other.as_str(),
+    }
 }
 
 /// The processor this copy was built for, as releases name it.
@@ -67,19 +80,57 @@ fn arch_named(rust: &str) -> Arch {
     }
 }
 
-/// This Mac's macOS version (`sw_vers -productVersion`); `None` off macOS or when it can't be
-/// read.
+/// The system's version: macOS's (`sw_vers -productVersion`, `14.5`) or Windows's (from
+/// `ver`, `10.0.22631`); `None` elsewhere or when it can't be read.
 #[must_use]
 pub(crate) fn os_version() -> Option<OsVersion> {
-    if !cfg!(target_os = "macos") {
-        return None;
+    if cfg!(target_os = "macos") {
+        let output = std::process::Command::new("/usr/bin/sw_vers")
+            .arg("-productVersion")
+            .output()
+            .inspect_err(|error| log::warn!("can't ask for the macOS version: {error}"))
+            .ok()?;
+        return OsVersion::parse(&String::from_utf8_lossy(&output.stdout));
     }
-    let output = std::process::Command::new("/usr/bin/sw_vers")
-        .arg("-productVersion")
-        .output()
-        .inspect_err(|error| log::warn!("can't ask for the macOS version: {error}"))
-        .ok()?;
-    OsVersion::parse(&String::from_utf8_lossy(&output.stdout))
+    if cfg!(windows) {
+        return windows_version();
+    }
+    None
+}
+
+/// Windows's version, from `cmd /c ver` (run without a window).
+#[cfg(windows)]
+fn windows_version() -> Option<OsVersion> {
+    use std::os::windows::process::CommandExt as _;
+    /// `CREATE_NO_WINDOW`: no console flashes up.
+    const NO_WINDOW: u32 = 0x0800_0000;
+    let system = std::env::var_os("SystemRoot")?;
+    let output =
+        std::process::Command::new(std::path::Path::new(&system).join("System32\\cmd.exe"))
+            .args(["/d", "/c", "ver"])
+            .creation_flags(NO_WINDOW)
+            .output()
+            .inspect_err(|error| log::warn!("can't ask for the Windows version: {error}"))
+            .ok()?;
+    windows_version_in(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(not(windows))]
+fn windows_version() -> Option<OsVersion> {
+    None
+}
+
+/// The version in `ver`'s line, `Microsoft Windows [Version 10.0.22631.4460]`: its first three
+/// numbers.
+#[cfg_attr(
+    not(any(windows, test)),
+    expect(dead_code, reason = "read on Windows only")
+)]
+fn windows_version_in(said: &str) -> Option<OsVersion> {
+    let start = said.find("Version ")? + "Version ".len();
+    let numbers = said[start..].split(']').next()?.trim();
+    let first_three: Vec<&str> = numbers.split('.').take(3).collect();
+    OsVersion::parse(&first_three.join("."))
 }
 
 #[cfg(test)]
@@ -99,6 +150,14 @@ mod tests {
         for bad in ["", "13.a", "1.2.3.4", "13..0", "-1"] {
             assert_eq!(OsVersion::parse(bad), None, "{bad:?}");
         }
+    }
+
+    #[test]
+    fn windows_says_its_version_in_brackets() {
+        let said = "\r\nMicrosoft Windows [Version 10.0.22631.4460]\r\n";
+        assert_eq!(windows_version_in(said), OsVersion::parse("10.0.22631"));
+        assert!(windows_version_in(said).unwrap() >= OsVersion::parse("10.0.19041").unwrap());
+        assert_eq!(windows_version_in("no version here"), None);
     }
 
     #[test]

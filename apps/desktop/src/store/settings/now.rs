@@ -73,6 +73,8 @@ pub(crate) struct Now {
     pub(crate) archived: usize,
     /// The app's version line: `Emberhut 0.9.2 (build 12)`.
     pub(crate) version: String,
+    /// The version of the build downloaded, verified and ready to install, `0.2.0`, if one is.
+    pub(crate) update_ready: Option<String>,
     /// The server's address.
     pub(crate) server: String,
     /// Whether phone push is on at the server.
@@ -202,8 +204,9 @@ impl Store {
             version: format!(
                 "{} {}",
                 crate::brand::APP_NAME,
-                self.updates().rows(std::time::SystemTime::now()).version
+                self.updates().version_line()
             ),
+            update_ready: self.updates().panel(std::time::SystemTime::now()).ready,
             server: self.server().to_string(),
             push: state.is_some_and(|state| state.push),
             has_account,

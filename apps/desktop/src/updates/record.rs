@@ -1,10 +1,11 @@
 //! What the updater keeps across launches (`update-check.json` in the app's directory): when it
-//! last checked, how old the feed was, the build whose bar the user put away, and the payloads
-//! that failed verification, with the wait before the next download.
+//! last checked and last tried to, how old the feed was, until when GitHub limits requests, the
+//! build whose bar the user put away, and the payloads that failed verification, with the wait
+//! before the next download.
 //!
 //! After a payload fails verification it isn't fetched again until the feed offers a different
 //! `sha256`, and no payload is downloaded for 24 hours, doubling with each failure after that,
-//! so a hostile server can make the app download at most one capped payload a day.
+//! so a hostile feed can make the app download at most one capped payload a day.
 
 use std::io;
 use std::path::Path;
@@ -29,7 +30,13 @@ pub(crate) struct Record {
     /// When the feed was last read, in seconds since 1970.
     #[serde(default)]
     last_checked: Option<u64>,
-    /// When the feed last read was published, as the server wrote it.
+    /// When a check last started, in seconds since 1970, whether or not it got through.
+    #[serde(default)]
+    last_attempt: Option<u64>,
+    /// Until when GitHub limits this network's requests, in seconds since 1970.
+    #[serde(default)]
+    limited_until: Option<u64>,
+    /// When the feed last read was published, as the release pipeline wrote it.
     #[serde(default)]
     pub(crate) published: Option<String>,
     /// The build whose bar the user closed: it shows again for a newer one.
@@ -87,12 +94,37 @@ impl Record {
         self.last_checked.map(from_secs)
     }
 
-    /// The feed was read at `now`, published at `published`.
+    /// When a check last started.
+    #[must_use]
+    pub(crate) fn last_attempt(&self) -> Option<SystemTime> {
+        self.last_attempt.map(from_secs)
+    }
+
+    /// A check starts at `now`.
+    pub(crate) fn attempted(&mut self, now: SystemTime) {
+        self.last_attempt = Some(secs(now));
+    }
+
+    /// The releases were read at `now`, the feed (if one was) published at `published`.
     pub(crate) fn checked(&mut self, now: SystemTime, published: Option<String>) {
         self.last_checked = Some(secs(now));
+        self.limited_until = None;
         if published.is_some() {
             self.published = published;
         }
+    }
+
+    /// GitHub limits requests until `until`.
+    pub(crate) fn limited(&mut self, until: SystemTime) {
+        self.limited_until = Some(secs(until).max(1));
+    }
+
+    /// Until when GitHub limits requests, if it still does at `now`.
+    #[must_use]
+    pub(crate) fn limited_at(&self, now: SystemTime) -> Option<SystemTime> {
+        self.limited_until
+            .map(from_secs)
+            .filter(|until| *until > now)
     }
 
     /// Whether the payload with SHA-256 `sha256` may be downloaded at `now`.
@@ -186,6 +218,19 @@ mod tests {
     }
 
     #[test]
+    fn a_limit_holds_until_its_time_and_a_check_that_gets_through_clears_it() {
+        let mut record = Record::default();
+        assert_eq!(record.limited_at(at(0)), None);
+        record.limited(at(1));
+        assert_eq!(record.limited_at(at(0)), Some(at(1)));
+        assert_eq!(record.limited_at(at(1)), None, "over at its time");
+        record.checked(at(0), None);
+        assert_eq!(record.limited_at(at(0)), None);
+        record.attempted(at(3));
+        assert_eq!(record.last_attempt(), Some(at(3)));
+    }
+
+    #[test]
     fn the_record_is_kept_across_launches() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE);
@@ -195,6 +240,8 @@ mod tests {
             ..Record::default()
         };
         record.checked(at(2), Some("2026-12-08T10:00:00.000Z".into()));
+        record.attempted(at(2));
+        record.limited(at(3));
         record.failed_verification("aa", at(1));
         record.write(&path).unwrap();
         let read = Record::read(&path);

@@ -1,12 +1,15 @@
-//! The app's updates as the views show them: this copy's version, when the feed was last read
-//! and how old it was, the build downloaded and ready (the bar at the top of the chat, until
-//! the user puts it away for that build), and what a check is doing or why it failed.
+//! The app's updates as the views show them: this copy's version, the channel and whether it
+//! checks by itself, what a check is doing or why it failed, the build downloaded and ready
+//! (the bar at the top of the chat, until the user puts it away for that build), and the notes
+//! of what's new.
 //!
-//! The checks run on a background thread through [`crate::updates::Engine`]: at launch, then
-//! whenever the last one is 4 hours old (a minute's tick asks, so a Mac waking from a long
-//! sleep checks within a minute). A ready build installs on Restart to Update, from the menu's
-//! Check for Updates…, or by itself once the Mac has had no input for 10 minutes and no
-//! message is being written. Off the Mac, and in a development build, nothing is checked.
+//! The checks run on a background thread through [`crate::updates::Engine`]. With automatic
+//! checks on (the default): at launch, then whenever the last one is a day old (a minute's tick
+//! asks, so a computer waking from a long sleep checks within a minute); a ready build then
+//! also installs by itself once the computer has had no input for 10 minutes and no message is
+//! being written. With them off, only Check for updates (in Settings or the app menu) checks.
+//! Switching the channel checks at once. Off macOS and Windows, and in a development build,
+//! nothing is checked.
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -18,17 +21,16 @@ use emberhut_api::releases::Build;
 use gpui_kit::{App, AppContext as _, Context, EntityId, Task, WeakEntity};
 
 use super::{Store, update_or_log};
+use crate::prefs::Kept;
+use crate::updates::channel::Channel;
 use crate::updates::installer::Verdict;
 use crate::updates::platform::{self, PowerOffWatch};
 use crate::updates::record::Record;
-use crate::updates::version::Running;
+use crate::updates::version::{self, Running};
 use crate::updates::{CheckError, Earlier, Engine, Found, Ready, Unavailable, cadence};
 
-/// How long the Mac must go without input before a ready build installs by itself.
+/// How long the computer must go without input before a ready build installs by itself.
 pub(crate) const IDLE_FOR: Duration = Duration::from_mins(10);
-
-/// The line Settings shows under the rows: how updates work.
-pub(crate) const HOW_IT_WORKS: &str = "Updates come from your Emberhut server; Emberhut checks every 4 hours and installs by itself when the Mac is idle.";
 
 /// What the updater is doing.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -36,16 +38,16 @@ pub(crate) enum Phase {
     /// Nothing yet.
     #[default]
     Idle,
-    /// Reading the feed.
+    /// Reading the releases.
     Checking,
-    /// Downloading and checking this version's payload.
-    Downloading(String),
-    /// The last check found nothing newer for this Mac (why the newest isn't offered, if one
-    /// isn't).
+    /// Downloading and checking this version's payload, this far (in percent, once known).
+    Downloading(String, Option<u8>),
+    /// The last check found nothing newer for this computer (why the newest isn't offered, or
+    /// that the channel has no release yet, if so).
     UpToDate(Option<String>),
     /// The last check failed, worded for the user.
     Failed(String),
-    /// The ready build is being swapped in.
+    /// The ready build is being installed.
     Installing,
 }
 
@@ -88,9 +90,17 @@ pub(crate) struct Updates {
     engine: Option<Arc<Engine>>,
     /// Why there is none, once known.
     unavailable: Option<Unavailable>,
+    /// The releases followed.
+    channel: Channel,
+    /// Whether the app checks (and installs when idle) by itself.
+    automatic: bool,
     phase: Phase,
     /// The build downloaded, verified and staged.
     ready: Option<Ready>,
+    /// This copy's own release notes, once a check found them.
+    own_notes: Option<String>,
+    /// The channel changed during a check: another runs once it ends.
+    recheck: bool,
     record: Record,
     /// The chat views whose composer holds words.
     writing: HashSet<EntityId>,
@@ -104,12 +114,17 @@ pub(crate) struct Updates {
 
 impl Default for Updates {
     fn default() -> Self {
+        let running = Running::this();
         Self {
-            running: Running::this(),
+            running,
             engine: None,
             unavailable: None,
+            channel: Channel::default_for(running),
+            automatic: true,
             phase: Phase::Idle,
             ready: None,
+            own_notes: None,
+            recheck: false,
             record: Record::default(),
             writing: HashSet::new(),
             stop: Arc::default(),
@@ -123,6 +138,8 @@ impl std::fmt::Debug for Updates {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Updates")
             .field("running", &self.running)
+            .field("channel", &self.channel)
+            .field("automatic", &self.automatic)
             .field("phase", &self.phase)
             .field("ready", &self.ready)
             .finish_non_exhaustive()
@@ -138,21 +155,44 @@ pub(crate) struct Bar {
     pub(crate) build: Build,
 }
 
-/// Settings' rows about this copy and its updates.
+/// Settings' Updates page.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Rows {
-    /// `0.2.0 (build 12)`.
+pub(crate) struct Panel {
+    /// This copy's version, `0.1.0-rc.1`.
     pub(crate) version: String,
-    /// `5 minutes ago`, `Not yet`; none where nothing is checked.
-    pub(crate) last_checked: Option<String>,
-    /// How old the feed was at the last check.
-    pub(crate) published: Option<String>,
-    /// `Build 15`, when one is ready.
-    pub(crate) ready: Option<String>,
-    /// What a check is doing, or why the last one failed or the copy doesn't update.
+    /// Its build, `Build 10001`, or `Development build`.
+    pub(crate) build: String,
+    /// Whether this copy updates itself: the channel, the check and the switch show.
+    pub(crate) updates: bool,
+    /// Why it doesn't, when it doesn't.
+    pub(crate) unavailable: Option<String>,
+    /// The releases followed.
+    pub(crate) channel: Channel,
+    /// Whether the app checks by itself.
+    pub(crate) automatic: bool,
+    /// What a check is doing, or what the last one found.
     pub(crate) status: Option<String>,
+    /// Why the last check failed, instead.
+    pub(crate) problem: Option<String>,
+    /// Why a release candidate on Stable stays where it is, when it does.
+    pub(crate) waiting: Option<String>,
     /// Whether Check for updates can be pressed.
     pub(crate) can_check: bool,
+    /// The build ready to install, `0.2.0`, when one is.
+    pub(crate) ready: Option<String>,
+    /// What's new: in the build offered, or in this copy when nothing is.
+    pub(crate) notes: Option<WhatsNew>,
+}
+
+/// The notes Settings shows under What's new.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WhatsNew {
+    /// Whose notes: `In 0.2.0`.
+    pub(crate) title: String,
+    /// The notes, plain text.
+    pub(crate) text: String,
+    /// The releases skipped on the way, newest first: notes not verified, shown folded.
+    pub(crate) earlier: Vec<Earlier>,
 }
 
 impl Updates {
@@ -161,6 +201,19 @@ impl Updates {
     #[must_use]
     pub(crate) fn phase(&self) -> &Phase {
         &self.phase
+    }
+
+    /// The releases followed.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn channel(&self) -> Channel {
+        self.channel
+    }
+
+    /// This copy, `0.2.0 (build 12)`.
+    #[must_use]
+    pub(crate) fn version_line(&self) -> String {
+        self.running.to_string()
     }
 
     /// The bar at the top of the chat, if it shows.
@@ -181,47 +234,91 @@ impl Updates {
         Some(Bar { title, build })
     }
 
-    /// Settings' rows, at `now`.
+    /// Settings' Updates page, at `now`.
     #[must_use]
-    pub(crate) fn rows(&self, now: SystemTime) -> Rows {
-        let checks = self.engine.is_some();
-        let status = match (&self.unavailable, &self.phase) {
-            (Some(why), _) => Some(why.to_string()),
-            (None, Phase::Checking) => Some("Checking for updates…".to_owned()),
-            (None, Phase::Downloading(version)) => Some(format!("Downloading Emberhut {version}…")),
-            (None, Phase::Installing) => Some("Installing the update…".to_owned()),
-            (None, Phase::Failed(why)) => Some(why.clone()),
-            (None, Phase::UpToDate(unfit)) => unfit.clone(),
-            (None, Phase::Idle) => None,
+    pub(crate) fn panel(&self, now: SystemTime) -> Panel {
+        let updates = self.engine.is_some();
+        let checked = self.record.last_checked().map(|at| ago(at, now));
+        let problem = match &self.phase {
+            Phase::Failed(why) if updates => Some(why.clone()),
+            _ => None,
         };
-        Rows {
-            version: self.running.to_string(),
-            last_checked: checks.then(|| {
-                self.record
-                    .last_checked()
-                    .map_or_else(|| "Not yet".to_owned(), |at| ago(at, now))
+        let status = match &self.phase {
+            _ if !updates => None,
+            Phase::Checking => Some("Checking…".to_owned()),
+            Phase::Downloading(version, Some(percent)) => {
+                Some(format!("Downloading {version} ({percent}%)…"))
+            }
+            Phase::Downloading(version, None) => Some(format!("Downloading {version}…")),
+            Phase::Installing => Some("Installing…".to_owned()),
+            Phase::Failed(_) => None,
+            _ if self.ready.is_some() => Some("Ready to install".to_owned()),
+            Phase::UpToDate(Some(why)) => Some(why.clone()),
+            Phase::UpToDate(None) => Some(checked.as_ref().map_or_else(
+                || "You're up to date".to_owned(),
+                |ago| format!("You're up to date · checked {ago}"),
+            )),
+            Phase::Idle => checked.map(|ago| format!("Last checked {ago}")),
+        };
+        let waiting = (updates
+            && self.channel == Channel::Stable
+            && self.running.is_candidate()
+            && self.ready.is_none())
+        .then(|| {
+            format!(
+                "You're on a release candidate. Emberhut never goes back to an older build: it \
+                 moves to Stable with the first stable release after {}.",
+                self.running.version
+            )
+        });
+        let notes = match (&self.ready, &self.own_notes) {
+            (Some(ready), _) => Some(WhatsNew {
+                title: format!("In {}", ready.staged.version),
+                text: ready.notes.trim().to_owned(),
+                earlier: ready.earlier.clone(),
             }),
-            published: checks
-                .then(|| {
-                    self.record
-                        .published
-                        .as_deref()
-                        .and_then(|at| published(at, now))
+            (None, Some(own)) => Some(WhatsNew {
+                title: format!("In {}", self.running.version),
+                text: own.trim().to_owned(),
+                earlier: Vec::new(),
+            }),
+            (None, None) => None,
+        }
+        .filter(|notes| !notes.text.is_empty() || !notes.earlier.is_empty());
+        Panel {
+            version: self.running.version.to_owned(),
+            build: self.running.build.map_or_else(
+                || "Development build".to_owned(),
+                |build| format!("Build {build}"),
+            ),
+            updates,
+            unavailable: self
+                .unavailable
+                .clone()
+                .or_else(|| {
+                    (!updates && self.running.build.is_none())
+                        .then_some(Unavailable::DevelopmentBuild)
                 })
-                .flatten(),
+                .map(|why| why.to_string()),
+            channel: self.channel,
+            automatic: self.automatic,
+            status,
+            problem,
+            waiting,
+            can_check: updates && !self.busy(),
             ready: self
                 .ready
                 .as_ref()
-                .map(|ready| format!("Build {}", ready.staged.build)),
-            status,
-            can_check: checks && !self.busy(),
+                .filter(|_| self.phase != Phase::Installing)
+                .map(|ready| ready.staged.version.clone()),
+            notes,
         }
     }
 
     fn busy(&self) -> bool {
         matches!(
             self.phase,
-            Phase::Checking | Phase::Downloading(_) | Phase::Installing
+            Phase::Checking | Phase::Downloading(..) | Phase::Installing
         )
     }
 
@@ -231,8 +328,8 @@ impl Updates {
     }
 }
 
-/// Whether a ready build installs by itself: the Mac has had no input for [`IDLE_FOR`] (`idle`,
-/// as the system says), and no message is being written.
+/// Whether a ready build installs by itself: the computer has had no input for [`IDLE_FOR`]
+/// (`idle`, as the system says), and no message is being written.
 #[must_use]
 pub(crate) fn installs_alone(idle: Option<Duration>, writing: bool) -> bool {
     !writing && idle.is_some_and(|idle| idle >= IDLE_FOR)
@@ -260,7 +357,7 @@ pub(crate) fn ago(at: SystemTime, now: SystemTime) -> String {
     format!("{count} {unit}{plural} ago")
 }
 
-/// `published 3 days ago`, for a feed published at the server's time `at`.
+/// `published 3 days ago`, for a feed published at `at`.
 fn published(at: &str, now: SystemTime) -> Option<String> {
     let at: jiff::Timestamp = at
         .parse()
@@ -270,6 +367,9 @@ fn published(at: &str, now: SystemTime) -> Option<String> {
     Some(format!("published {}", ago(at, now)))
 }
 
+/// What Settings says when the channel has no release for this system yet.
+const NOTHING_ON_CHANNEL: &str = "No release on this channel yet";
+
 impl Store {
     /// The updater's state.
     #[must_use]
@@ -277,9 +377,15 @@ impl Store {
         &self.updates
     }
 
-    /// Makes the updater (reading this copy's signature takes a moment, so off the UI thread),
-    /// checks once, and starts the minute's tick.
+    /// Takes the channel and the switch kept on this computer, makes the updater (reading
+    /// this copy's signature takes a moment, so off the UI thread), checks once when automatic
+    /// checks are on, and starts the minute's tick.
     pub(super) fn start_updates(&mut self, cx: &mut Context<'_, Self>) {
+        let kept = Kept::get(cx).updates;
+        self.updates.channel = kept
+            .channel
+            .unwrap_or_else(|| Channel::default_for(self.updates.running));
+        self.updates.automatic = kept.automatic;
         let files = self.files.clone();
         cx.spawn(async move |this, cx| {
             let made = cx
@@ -314,29 +420,39 @@ impl Store {
         .detach();
     }
 
-    /// Uses `engine` with the `record` kept, and checks now (a launch).
+    /// Uses `engine` with the `record` kept, and checks now (a launch) when automatic checks
+    /// are on and GitHub isn't limiting requests.
     fn use_updater(&mut self, engine: Arc<Engine>, record: Record, cx: &mut Context<'_, Self>) {
         if let Some(notice) = engine.rolled_back() {
             self.updates.phase = Phase::Failed(notice);
         }
         self.updates.running = engine.running();
         self.updates.engine = Some(engine);
+        let limited = record.limited_at(SystemTime::now()).is_some();
         self.updates.record = record;
-        self.check_updates(cx).detach();
+        cx.notify();
+        if self.updates.automatic && !limited {
+            self.check_updates(cx).detach();
+        }
     }
 
-    /// A minute's tick: a check when the last is 4 hours old, an install when the Mac is idle.
+    /// A minute's tick, with automatic checks on: an install when the computer is idle, a
+    /// check when the last is a day old.
     fn tick(&mut self, cx: &mut Context<'_, Self>) {
-        if self.updates.busy() {
+        if self.updates.busy() || !self.updates.automatic {
             return;
         }
         let writing = self.updates.writing(self.composer.has_drafts());
         if self.updates.ready.is_some() && installs_alone(platform::idle(), writing) {
-            log::info!("the Mac is idle: installing the update");
+            log::info!("the computer is idle: installing the update");
             self.restart_to_update(cx);
             return;
         }
-        if cadence::is_due(self.updates.record.last_checked(), SystemTime::now()) {
+        let now = SystemTime::now();
+        let record = &self.updates.record;
+        if record.limited_at(now).is_none()
+            && cadence::is_due(record.last_checked(), record.last_attempt(), now)
+        {
             self.check_updates(cx).detach();
         }
     }
@@ -351,8 +467,44 @@ impl Store {
         }
     }
 
-    /// Check for Updates…: a check now, answered for its dialog; a build already downloaded
-    /// installs at once.
+    /// Follows `channel`, kept on this computer, and checks at once. Leaving candidates for
+    /// Stable drops a candidate already downloaded: the copy waits for a stable release above
+    /// itself instead.
+    pub(crate) fn set_update_channel(&mut self, channel: Channel, cx: &mut Context<'_, Self>) {
+        if channel == self.updates.channel {
+            return;
+        }
+        self.updates.channel = channel;
+        Kept::set_updates(cx, |kept| kept.channel = Some(channel));
+        if channel == Channel::Stable
+            && self
+                .updates
+                .ready
+                .as_ref()
+                .is_some_and(|ready| version::is_candidate(&ready.staged.version))
+        {
+            self.updates.ready = None;
+        }
+        if self.updates.busy() {
+            self.updates.recheck = true;
+        } else if self.updates.engine.is_some() {
+            self.check_updates(cx).detach();
+        }
+        cx.notify();
+    }
+
+    /// Turns automatic checks on or off, kept on this computer.
+    pub(crate) fn set_update_automatic(&mut self, on: bool, cx: &mut Context<'_, Self>) {
+        if on == self.updates.automatic {
+            return;
+        }
+        self.updates.automatic = on;
+        Kept::set_updates(cx, |kept| kept.automatic = on);
+        cx.notify();
+    }
+
+    /// Check for Updates… (the app menu): a check now, answered for its dialog; a build
+    /// already downloaded installs at once.
     pub(crate) fn check_for_updates(&mut self, cx: &mut Context<'_, Self>) -> Task<Answer> {
         if self.updates.ready.is_some() && !self.updates.busy() {
             self.restart_to_update(cx);
@@ -361,7 +513,12 @@ impl Store {
         self.check_updates(cx)
     }
 
-    /// Reads the feed and takes what it offers, on a background thread.
+    /// Settings' Check for updates: a check now, its outcome on the page.
+    pub(crate) fn check_updates_now(&mut self, cx: &mut Context<'_, Self>) {
+        self.check_updates(cx).detach();
+    }
+
+    /// Reads the releases and takes what they offer, on a background thread.
     fn check_updates(&mut self, cx: &mut Context<'_, Self>) -> Task<Answer> {
         let Some(engine) = self.updates.engine.clone() else {
             let why = self.updates.unavailable.as_ref().map_or_else(
@@ -377,16 +534,19 @@ impl Store {
             return Task::ready(Answer::Busy);
         }
         self.updates.phase = Phase::Checking;
+        self.updates.recheck = false;
         cx.notify();
-        let backend = Arc::clone(&self.backend);
         let record = self.updates.record.clone();
         let staged = self.updates.ready.as_ref().map(|ready| ready.staged.build);
-        let (downloading, told) = smol::channel::bounded::<String>(1);
+        let channel = self.updates.channel;
+        let (downloading, told) = smol::channel::bounded::<(String, Option<u8>)>(4);
         cx.spawn(async move |this, cx| {
-            while let Ok(version) = told.recv().await {
+            while let Ok((version, percent)) = told.recv().await {
                 let shown = update_or_log(&this, cx, |store, cx| {
-                    store.updates.phase = Phase::Downloading(version);
-                    cx.notify();
+                    if store.updates.busy() {
+                        store.updates.phase = Phase::Downloading(version, percent);
+                        cx.notify();
+                    }
                 });
                 if shown.is_none() {
                     return;
@@ -397,22 +557,24 @@ impl Store {
         cx.spawn(async move |this, cx| {
             let checked = cx
                 .background_spawn(async move {
-                    let on_download = |version: &str| {
-                        if downloading.try_send(version.to_owned()).is_err() {
-                            log::debug!("the download's start wasn't shown");
+                    let on_download = |version: &str, percent: Option<u8>| {
+                        if downloading.try_send((version.to_owned(), percent)).is_err() {
+                            log::debug!("the download's progress wasn't shown");
                         }
                     };
-                    engine.check(&*backend, record, staged, SystemTime::now(), &on_download)
+                    engine.check(record, staged, channel, SystemTime::now(), &on_download)
                 })
                 .await;
-            update_or_log(&this, cx, |store, cx| store.checked(checked, cx)).unwrap_or(Answer::Busy)
+            update_or_log(&this, cx, |store, cx| store.checked(checked, channel, cx))
+                .unwrap_or(Answer::Busy)
         })
     }
 
-    /// A check's outcome, and the record as it left it.
+    /// A check's outcome on `channel`, and the record as it left it.
     fn checked(
         &mut self,
         (record, found): (Record, Result<Found, CheckError>),
+        channel: Channel,
         cx: &mut Context<'_, Self>,
     ) -> Answer {
         self.updates.record = record;
@@ -432,13 +594,20 @@ impl Store {
         };
         let answer = match found {
             Ok(Found::NothingPublished) => {
-                self.updates.phase = Phase::UpToDate(None);
+                self.updates.phase = Phase::UpToDate(Some(NOTHING_ON_CHANNEL.to_owned()));
                 Answer::Latest {
                     running: short(self.updates.running),
-                    detail: Some("Your server has published no update yet".to_owned()),
+                    detail: Some(NOTHING_ON_CHANNEL.to_owned()),
                 }
             }
-            Ok(Found::Latest { unfit, .. }) => {
+            Ok(Found::Latest {
+                unfit,
+                notes,
+                published: _,
+            }) => {
+                if notes.is_some() {
+                    self.updates.own_notes = notes;
+                }
                 self.updates.phase = Phase::UpToDate(unfit.clone());
                 Answer::Latest {
                     running: short(self.updates.running),
@@ -456,7 +625,7 @@ impl Store {
             }
             Ok(Found::ByHand) => {
                 let why =
-                    "Update Emberhut by hand: your server publishes updates this copy can't read";
+                    "Update Emberhut by hand: its releases are in a format this copy can't read";
                 self.updates.phase = Phase::Failed(why.to_owned());
                 Answer::Failed(why.to_owned())
             }
@@ -466,6 +635,10 @@ impl Store {
                 Answer::Failed(error.to_string())
             }
         };
+        if self.updates.recheck || channel != self.updates.channel {
+            // The channel changed while this check ran: check again on the new one.
+            self.check_updates(cx).detach();
+        }
         cx.notify();
         answer
     }
@@ -505,8 +678,9 @@ impl Store {
         cx.notify();
     }
 
-    /// Restart to Update: the ready build swaps in, this copy steps aside and watches it start,
-    /// then quits (putting the old build back first if the new one doesn't start).
+    /// Install and restart: the ready build goes in and the app quits. On macOS it swaps in,
+    /// this copy steps aside and watches it start (putting the old build back if it doesn't);
+    /// on Windows the installer runs once this copy has quit and starts the app again.
     pub(crate) fn restart_to_update(&mut self, cx: &mut Context<'_, Self>) {
         let (Some(engine), Some(ready)) = (self.updates.engine.clone(), self.updates.ready.clone())
         else {
@@ -529,7 +703,7 @@ impl Store {
             let watch = match swap {
                 Ok(watch) => watch,
                 Err(error) => {
-                    log::error!("the update couldn't be swapped in: {error}");
+                    log::error!("the update couldn't be installed: {error}");
                     update_or_log(&this, cx, |store, cx| {
                         store.updates.ready = None;
                         store.updates.phase =
@@ -584,8 +758,11 @@ impl Store {
                 build: Build::new(build),
                 version: version.to_owned(),
             },
-            notes: String::new(),
-            earlier: Vec::new(),
+            notes: "- Rooms open faster (#12)\n- The update bar says what's new (#14)".to_owned(),
+            earlier: vec![Earlier {
+                version: "0.1.0-rc.2".to_owned(),
+                notes: "- A fix for pasted pictures (#9)".to_owned(),
+            }],
             published: emberhut_api::time::Timestamp::new("2026-12-08T10:00:00.000Z"),
         });
     }
@@ -595,6 +772,7 @@ impl Store {
     #[cfg(test)]
     pub(crate) fn use_test_updater(&mut self, engine: Arc<Engine>, after_watch: fn(&mut App)) {
         self.updates.running = engine.running();
+        self.updates.channel = Channel::default_for(engine.running());
         self.updates.engine = Some(engine);
         self.updates.after_watch = after_watch;
     }

@@ -1,20 +1,22 @@
-//! Check for Updates… (the app menu, and Settings' Check for updates): a check now, answered in
-//! a small dialog. Nothing newer: "You're on the latest (0.2.0, build 12)", with how old the
-//! server's feed is. A newer build, downloaded and verified: "Emberhut 0.3.0 (build 15) is ready"
-//! with its notes, Restart to Update and Later. A build already downloaded installs at once.
-//! A failure says why.
+//! Check for Updates… (the app menu): Settings' Updates page opens and a check runs now,
+//! answered in a small dialog. Nothing newer: "You're on the latest (0.2.0, build 12)", with how
+//! old the release's feed is. A newer build, downloaded and verified: "Emberhut 0.3.0 (build 15)
+//! is ready" with its notes, Install and Restart and Later. A build already downloaded installs
+//! at once. A failure says why ("Couldn't reach GitHub").
 
 use gpui_kit::{App, Entity, PromptLevel, Window};
 
 use crate::brand::APP_NAME;
 use crate::store::Store;
+use crate::store::settings::SettingsPane;
 use crate::store::updates::Answer;
 
-/// Checks now, from `window`, and answers there.
+/// Opens Settings' Updates page in `window`, checks now, and answers there.
 pub(crate) fn check_for_updates(window: &mut Window, cx: &mut App) {
     let Some(store) = crate::shell::windows::store(cx) else {
         return;
     };
+    super::routes::open_settings(Some(SettingsPane::Updates), window, cx);
     let task = store.update(cx, Store::check_for_updates);
     window
         .spawn(cx, async move |cx| {
@@ -48,7 +50,7 @@ pub(crate) fn words(
             PromptLevel::Info,
             title.clone(),
             (!notes.is_empty()).then(|| notes.clone()),
-            &["Restart to Update", "Later"],
+            &["Install and Restart", "Later"],
         ),
         Answer::Failed(why) => (
             PromptLevel::Warning,
@@ -104,14 +106,14 @@ mod tests {
         };
         let (_, message, _, buttons) = words(&ready).unwrap();
         assert_eq!(message, "Emberhut 0.3.0 (build 15) is ready");
-        assert_eq!(buttons, ["Restart to Update", "Later"]);
-        let failed = Answer::Failed("Couldn't reach your server".into());
+        assert_eq!(buttons, ["Install and Restart", "Later"]);
+        let failed = Answer::Failed("Couldn't reach GitHub".into());
         let (level, _, detail, _) = words(&failed).unwrap();
         assert_eq!(level, PromptLevel::Warning);
-        assert_eq!(detail.as_deref(), Some("Couldn't reach your server"));
+        assert_eq!(detail.as_deref(), Some("Couldn't reach GitHub"));
         let dev = Answer::Unavailable {
             running: "0.1.0, development build".into(),
-            why: "A development build doesn't update itself".into(),
+            why: "Development builds don't update themselves.".into(),
         };
         let (_, message, _, _) = words(&dev).unwrap();
         assert_eq!(message, "You're on Emberhut 0.1.0, development build");

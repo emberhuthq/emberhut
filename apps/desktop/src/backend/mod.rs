@@ -641,32 +641,6 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`]; [`Error::Refused`] 400 when the server won't ever take it.
     fn save_note(&self, note: &NoteSave) -> Result<NoteSaved, Error>;
 
-    /// The release feed of `platform`, asking for `format` first and each lower one after it;
-    /// `None` when the server has published none.
-    ///
-    /// # Errors
-    ///
-    /// As [`Backend::state`].
-    fn release_feed(
-        &self,
-        platform: &emberhut_api::releases::Platform,
-        format: u32,
-    ) -> Result<Option<emberhut_api::releases::ReleaseFeed>, Error>;
-
-    /// Streams the release payload at the server path `path` into `to`, never more than
-    /// `max_len` bytes; its size and SHA-256.
-    ///
-    /// # Errors
-    ///
-    /// As [`Backend::state`]; [`Error::Local`] with [`TooLarge`] past `max_len`, or when `to`
-    /// fails.
-    fn download_release(
-        &self,
-        path: &str,
-        to: &mut dyn Write,
-        max_len: u64,
-    ) -> Result<PayloadDigest, Error>;
-
     /// The approval requests `query` names, newest first.
     ///
     /// # Errors
@@ -878,15 +852,6 @@ pub(crate) struct TooLarge {
     pub(crate) size: u64,
     /// The limit.
     pub(crate) limit: u64,
-}
-
-/// A release payload as it reached the disk: its size and SHA-256.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct PayloadDigest {
-    /// The bytes written.
-    pub(crate) size: u64,
-    /// Their SHA-256.
-    pub(crate) sha256: [u8; 32],
 }
 
 /// The cause behind an [`Error`], as the client reported it.

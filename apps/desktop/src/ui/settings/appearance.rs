@@ -12,7 +12,8 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{Disableable as _, Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Action, Div, ElementId, Entity, FontWeight, Hsla, Stateful, Task, Window, div, px, relative,
+    Action, Div, ElementId, Entity, FontWeight, Hsla, SharedString, Stateful, Task, Window, div,
+    px, relative,
 };
 
 use super::parts::{note, page_body, problem_line, section};
@@ -515,7 +516,7 @@ impl AppearancePane {
 }
 
 /// A setting's row: its title and a line under it at the left; its control goes at the right.
-fn labelled(p: &Pal, title: &'static str, line: &'static str) -> Div {
+pub(super) fn labelled(p: &Pal, title: &'static str, line: impl Into<SharedString>) -> Div {
     div().flex().items_center().gap(px(12.)).child(
         div()
             .flex()
@@ -524,7 +525,12 @@ fn labelled(p: &Pal, title: &'static str, line: &'static str) -> Div {
             .min_w_0()
             .gap(px(2.))
             .child(div().text_size(px(13.)).child(title))
-            .child(div().text_size(px(12.)).text_color(p.muted).child(line)),
+            .child(
+                div()
+                    .text_size(px(12.))
+                    .text_color(p.muted)
+                    .child(line.into()),
+            ),
     )
 }
 
@@ -577,8 +583,8 @@ fn hidden_agent(
     tab_stop(row, p).test_support()
 }
 
-/// One of the Mode switch's segments.
-fn segment(id: &'static str, label: &'static str, on: bool, p: &Pal) -> Stateful<Div> {
+/// One of the Mode switch's segments (and of every two- or three-way choice in Settings).
+pub(super) fn segment(id: &'static str, label: &'static str, on: bool, p: &Pal) -> Stateful<Div> {
     div()
         .id(id)
         .button_named(label)

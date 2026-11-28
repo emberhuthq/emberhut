@@ -7,10 +7,10 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use emberhut_api::releases::{Asset, Build};
+use emberhut_api::releases::Asset;
 
+use super::github::{FetchError, Source};
 use super::trusted::hex;
-use crate::backend::{self, Backend};
 
 /// The largest payload the app takes, whatever a feed says.
 pub(crate) const CEILING: u64 = 1 << 30;
@@ -24,20 +24,20 @@ pub(crate) enum DownloadError {
         /// Its size in the feed.
         size: u64,
     },
-    /// This Mac has no room for it.
+    /// This computer has no room for it.
     #[error("there isn't room for the update ({need} bytes free are needed)")]
     NoSpace {
         /// The free space needed.
         need: u64,
     },
-    /// The server couldn't be asked, or refused.
+    /// GitHub couldn't be asked, or refused.
     #[error(transparent)]
-    Server(backend::Error),
+    Fetch(FetchError),
     /// It came larger than the feed said, or with another size.
-    #[error("the update isn't the size your server listed")]
+    #[error("the update isn't the size its release listed")]
     WrongSize,
     /// Its bytes aren't the ones the feed names.
-    #[error("the update isn't the file your server listed")]
+    #[error("the update isn't the file its release listed")]
     WrongHash,
     /// The folder or the file couldn't be written.
     #[error("couldn't save the update")]
@@ -45,7 +45,7 @@ pub(crate) enum DownloadError {
 }
 
 impl DownloadError {
-    /// Whether the payload itself failed a check (rather than the network or this Mac).
+    /// Whether the payload itself failed a check (rather than the network or this computer).
     #[must_use]
     pub(crate) fn is_verification(&self) -> bool {
         matches!(
@@ -70,18 +70,18 @@ pub(crate) fn space_needed(size: u64) -> u64 {
     size.saturating_mul(3)
 }
 
-/// Fetches `asset` of build `build` with `backend` into `dir` (made owner-only), `free` bytes
-/// being free there (`None`: unknown, not checked).
+/// Fetches `asset` from `source` into `dir` (made owner-only) as `name`, `free` bytes being
+/// free there (`None`: unknown, not checked), telling `progress` how many bytes have come.
 ///
 /// # Errors
 ///
 /// What [`DownloadError`] lists.
 pub(crate) fn fetch(
-    backend: &dyn Backend,
+    source: &dyn Source,
     asset: &Asset,
-    build: Build,
-    dir: &Path,
-    free: Option<u64>,
+    name: &str,
+    (dir, free): (&Path, Option<u64>),
+    progress: &dyn Fn(u64),
 ) -> Result<Payload, DownloadError> {
     if asset.size > CEILING {
         return Err(DownloadError::TooLarge { size: asset.size });
@@ -91,9 +91,9 @@ pub(crate) fn fetch(
         return Err(DownloadError::NoSpace { need });
     }
     private_dir(dir).map_err(DownloadError::Local)?;
-    let path = dir.join(format!("Emberhut-build-{build}.dmg"));
-    let partial = path.with_extension("dmg.part");
-    let fetched = fetch_into(backend, asset, &partial).and_then(|sha256| {
+    let path = dir.join(name);
+    let partial = dir.join(format!("{name}.part"));
+    let fetched = fetch_into(source, asset, &partial, progress).and_then(|sha256| {
         std::fs::rename(&partial, &path)
             .map(|()| sha256)
             .map_err(DownloadError::Local)
@@ -108,18 +108,17 @@ pub(crate) fn fetch(
 }
 
 fn fetch_into(
-    backend: &dyn Backend,
+    source: &dyn Source,
     asset: &Asset,
     partial: &Path,
+    progress: &dyn Fn(u64),
 ) -> Result<[u8; 32], DownloadError> {
     let mut file = owner_only_file(partial).map_err(DownloadError::Local)?;
-    let got = backend
-        .download_release(&asset.url, &mut file, asset.size.min(CEILING))
+    let got = source
+        .download(&asset.url, &mut file, asset.size.min(CEILING), progress)
         .map_err(|error| match error {
-            backend::Error::Local(cause) if cause.is::<backend::TooLarge>() => {
-                DownloadError::WrongSize
-            }
-            other => DownloadError::Server(other),
+            FetchError::TooLarge => DownloadError::WrongSize,
+            other => DownloadError::Fetch(other),
         })?;
     file.sync_all().map_err(DownloadError::Local)?;
     if got.size != asset.size {
@@ -182,12 +181,15 @@ mod tests {
     use sha2::{Digest as _, Sha256};
 
     use super::*;
-    use crate::backend::fake::FakeBackend;
+    use crate::updates::github::fake::FakeSource;
+
+    const NAME: &str = "Emberhut-build-15.dmg";
 
     fn asset(bytes: &[u8]) -> Asset {
         Asset {
             arch: emberhut_api::releases::Arch::Arm64,
-            url: "/api/releases/files/Emberhut_0.3.0_15_macos_arm64.dmg".into(),
+            url: "https://github.com/emberhuthq/emberhut/releases/download/v0.3.0/Emberhut.dmg"
+                .into(),
             size: bytes.len() as u64,
             sha256: hex(&Sha256::digest(bytes).into()),
             signature: String::new(),
@@ -198,14 +200,14 @@ mod tests {
     fn a_payload_with_the_feeds_size_and_hash_is_kept_in_a_private_folder() {
         let dir = tempfile::tempdir().unwrap();
         let staging = dir.path().join("updates");
-        let backend = FakeBackend::new([]);
-        backend.releases.push_payload(Ok(b"a disk image".to_vec()));
+        let source = FakeSource::default();
+        source.push_payload(b"a disk image");
         let payload = fetch(
-            &backend,
+            &source,
             &asset(b"a disk image"),
-            Build::new(15),
-            &staging,
-            None,
+            NAME,
+            (&staging, None),
+            &|_| {},
         )
         .unwrap();
         assert_eq!(std::fs::read(&payload.path).unwrap(), b"a disk image");
@@ -225,19 +227,17 @@ mod tests {
     #[test]
     fn other_bytes_or_another_size_are_refused_and_deleted() {
         let dir = tempfile::tempdir().unwrap();
-        let backend = FakeBackend::new([]);
-        backend.releases.push_payload(Ok(b"another image".to_vec()));
+        let source = FakeSource::default();
+        source.push_payload(b"another image");
         let listed = asset(b"a disk image!");
-        let error = fetch(&backend, &listed, Build::new(15), dir.path(), None).unwrap_err();
+        let error = fetch(&source, &listed, NAME, (dir.path(), None), &|_| {}).unwrap_err();
         assert!(matches!(error, DownloadError::WrongHash), "{error:?}");
         assert!(error.is_verification());
-        backend.releases.push_payload(Ok(b"short".to_vec()));
-        let error = fetch(&backend, &listed, Build::new(15), dir.path(), None).unwrap_err();
+        source.push_payload(b"short");
+        let error = fetch(&source, &listed, NAME, (dir.path(), None), &|_| {}).unwrap_err();
         assert!(matches!(error, DownloadError::WrongSize), "{error:?}");
-        backend
-            .releases
-            .push_payload(Ok(b"a disk image!! and more".to_vec()));
-        let error = fetch(&backend, &listed, Build::new(15), dir.path(), None).unwrap_err();
+        source.push_payload(b"a disk image!! and more");
+        let error = fetch(&source, &listed, NAME, (dir.path(), None), &|_| {}).unwrap_err();
         assert!(
             matches!(error, DownloadError::WrongSize),
             "cut off: {error:?}"
@@ -249,9 +249,9 @@ mod tests {
     #[test]
     fn no_room_or_a_size_past_the_ceiling_downloads_nothing() {
         let dir = tempfile::tempdir().unwrap();
-        let backend = FakeBackend::new([]);
+        let source = FakeSource::default();
         let listed = asset(b"a disk image");
-        let error = fetch(&backend, &listed, Build::new(15), dir.path(), Some(35)).unwrap_err();
+        let error = fetch(&source, &listed, NAME, (dir.path(), Some(35)), &|_| {}).unwrap_err();
         assert!(
             matches!(error, DownloadError::NoSpace { need: 36 }),
             "{error:?}"
@@ -259,17 +259,17 @@ mod tests {
         assert!(!error.is_verification());
         let mut huge = listed;
         huge.size = CEILING + 1;
-        let error = fetch(&backend, &huge, Build::new(15), dir.path(), None).unwrap_err();
+        let error = fetch(&source, &huge, NAME, (dir.path(), None), &|_| {}).unwrap_err();
         assert!(matches!(error, DownloadError::TooLarge { .. }), "{error:?}");
-        assert_eq!(backend.calls(), [], "nothing asked of the server");
+        assert_eq!(source.asked(), [], "nothing asked of GitHub");
     }
 
     #[test]
-    fn a_server_failure_isnt_the_payloads() {
+    fn a_fetch_failure_isnt_the_payloads() {
         let dir = tempfile::tempdir().unwrap();
-        let backend = FakeBackend::new([]);
-        let error = fetch(&backend, &asset(b"x"), Build::new(15), dir.path(), None).unwrap_err();
-        assert!(matches!(error, DownloadError::Server(_)), "{error:?}");
+        let source = FakeSource::default();
+        let error = fetch(&source, &asset(b"x"), NAME, (dir.path(), None), &|_| {}).unwrap_err();
+        assert!(matches!(error, DownloadError::Fetch(_)), "{error:?}");
         assert!(!error.is_verification());
     }
 

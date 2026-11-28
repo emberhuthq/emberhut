@@ -326,6 +326,8 @@ pub(crate) enum SettingsArg {
     Sharing,
     /// Privacy.
     Privacy,
+    /// Updates.
+    Updates,
     /// Advanced.
     Advanced,
     /// The emberhut.com account.
@@ -355,6 +357,7 @@ impl SettingsArg {
             Self::Connections => SettingsPane::Connections,
             Self::Sharing => SettingsPane::Sharing,
             Self::Privacy | Self::ArchivedRooms => SettingsPane::Privacy,
+            Self::Updates => SettingsPane::Updates,
             Self::Advanced => SettingsPane::Advanced,
             Self::Account => SettingsPane::Account,
             Self::ChromeProfiles => SettingsPane::ChromeProfiles,
@@ -671,6 +674,7 @@ mod tests {
             ("connections", SettingsPane::Connections),
             ("sharing", SettingsPane::Sharing),
             ("privacy", SettingsPane::Privacy),
+            ("updates", SettingsPane::Updates),
             ("advanced", SettingsPane::Advanced),
             ("account", SettingsPane::Account),
         ] {

@@ -65,7 +65,7 @@ use emberhut_api::usage::{UseAccountReply, UseAccountRequest};
 use emberhut_identity::MachineId;
 use serde::{Deserialize, Serialize};
 
-use super::{Backend, Error, PayloadDigest, RoomEvent, Serving, StateReply, UploadSource};
+use super::{Backend, Error, RoomEvent, Serving, StateReply, UploadSource};
 use crate::config::ServerUrl;
 
 /// How often the primary is checked, and how many failures turn to the fallback.
@@ -739,23 +739,6 @@ impl Backend for Failover {
 
     fn save_note(&self, note: &NoteSave) -> Result<NoteSaved, Error> {
         self.active().save_note(note)
-    }
-
-    fn release_feed(
-        &self,
-        platform: &emberhut_api::releases::Platform,
-        format: u32,
-    ) -> Result<Option<emberhut_api::releases::ReleaseFeed>, Error> {
-        self.active().release_feed(platform, format)
-    }
-
-    fn download_release(
-        &self,
-        path: &str,
-        to: &mut dyn Write,
-        max_len: u64,
-    ) -> Result<PayloadDigest, Error> {
-        self.active().download_release(path, to, max_len)
     }
 
     fn approvals(&self, query: &ApprovalsQuery) -> Result<ApprovalsPage, Error> {

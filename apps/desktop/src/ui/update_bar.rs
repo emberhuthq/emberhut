@@ -1,6 +1,6 @@
 //! The update bar: one quiet line at the top of the chat once a newer build is downloaded and
 //! verified ("Emberhut 0.3.0 is ready", or "Build 15 is ready" when only the build changes), with
-//! Restart to Update and an X that puts it away until a newer build. Kept across launches.
+//! Install and restart and an X that puts it away until a newer build. Kept across launches.
 //!
 //! The chat mounts it with [`bar`], and tells the store whether its composer holds words with
 //! [`note_writing`], so a ready build doesn't install by itself under a message being written.
@@ -48,7 +48,7 @@ pub(crate) fn bar(store: &Entity<Store>, p: &Pal, cx: &App) -> Option<Div> {
                     Button::new("update-restart")
                         .primary()
                         .small()
-                        .label("Restart to Update")
+                        .label("Install and restart")
                         .on_click(move |_, _, cx| {
                             restart.update(cx, Store::restart_to_update);
                         }),

@@ -1,15 +1,19 @@
-//! This copy's version and build. Only a published release is built with `EMBERHUT_BUILD` set (by
-//! the release command); every other build is a development build, which never checks for
-//! updates and never installs one.
+//! This copy's version and build. A release is built in CI with `EMBERHUT_VERSION` (the tag
+//! without its `v`: `0.1.0-rc.1` or `0.1.0`) and `EMBERHUT_BUILD` (the number the tag gives,
+//! [`super::tag`]); every other build is a development build, which never checks for updates
+//! and never installs one, and shows the workspace's version.
 
 use std::fmt;
 
 use emberhut_api::releases::Build;
 
-/// The workspace's version, plain `MAJOR.MINOR.PATCH`.
-pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The version: the release's tag without its `v`, or the workspace's `MAJOR.MINOR.PATCH`.
+pub(crate) const VERSION: &str = match option_env!("EMBERHUT_VERSION") {
+    Some(version) => version,
+    None => env!("CARGO_PKG_VERSION"),
+};
 
-/// The build number the release command compiled in, if it did.
+/// The build number the release compiled in, if it did.
 const BUILD: Option<&str> = option_env!("EMBERHUT_BUILD");
 
 /// This copy: its version, and its build when it is a published release.
@@ -38,6 +42,18 @@ impl Running {
             .map(Build::new);
         Self { version, build }
     }
+
+    /// Whether this copy is a release candidate (`0.1.0-rc.1`).
+    #[must_use]
+    pub(crate) fn is_candidate(&self) -> bool {
+        is_candidate(self.version)
+    }
+}
+
+/// Whether `version` names a release candidate (`0.1.0-rc.1`).
+#[must_use]
+pub(crate) fn is_candidate(version: &str) -> bool {
+    version.contains("-rc.")
 }
 
 /// `0.2.0 (build 12)`, or `0.2.0 (development build)`.
@@ -67,7 +83,15 @@ mod tests {
     }
 
     #[test]
-    fn this_copy_is_the_workspaces_version() {
-        assert_eq!(Running::this().version, env!("CARGO_PKG_VERSION"));
+    fn this_copy_is_the_releases_version_or_the_workspaces() {
+        let expected = option_env!("EMBERHUT_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"));
+        assert_eq!(Running::this().version, expected);
+    }
+
+    #[test]
+    fn a_candidate_is_told_by_its_version() {
+        assert!(Running::from_parts("0.1.0-rc.1", Some("10001")).is_candidate());
+        assert!(!Running::from_parts("0.1.0", Some("10099")).is_candidate());
+        assert!(!is_candidate("0.1.0"));
     }
 }

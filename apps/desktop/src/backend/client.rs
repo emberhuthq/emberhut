@@ -574,29 +574,6 @@ impl Backend for EmberhutBackend {
         self.client.save_note(note).map_err(error)
     }
 
-    fn release_feed(
-        &self,
-        platform: &emberhut_api::releases::Platform,
-        format: u32,
-    ) -> Result<Option<emberhut_api::releases::ReleaseFeed>, Error> {
-        self.client.release_feed(platform, format).map_err(error)
-    }
-
-    fn download_release(
-        &self,
-        path: &str,
-        to: &mut dyn Write,
-        max_len: u64,
-    ) -> Result<super::PayloadDigest, Error> {
-        self.client
-            .download_release(path, to, max_len)
-            .map(|got| super::PayloadDigest {
-                size: got.size,
-                sha256: got.sha256,
-            })
-            .map_err(error)
-    }
-
     fn approvals(&self, query: &ApprovalsQuery) -> Result<ApprovalsPage, Error> {
         self.client.approvals(query).map_err(error)
     }
@@ -926,34 +903,6 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(error, Error::Local(_)), "{error:?}");
-    }
-
-    #[test]
-    fn a_release_payload_is_streamed_with_its_hash_and_the_feed_read() {
-        let server = TestServer::start(2, |request| {
-            if request.target.starts_with("/api/releases/v") {
-                Reply::json(404, &json!({"error": "not found"}))
-            } else {
-                Reply::text(200, "a disk image")
-            }
-        });
-        let backend = backend(&server);
-        let mut kept = Vec::new();
-        let got = backend
-            .download_release("/api/releases/files/Emberhut.dmg", &mut kept, 100)
-            .unwrap();
-        assert_eq!((got.size, kept.as_slice()), (12, &b"a disk image"[..]));
-        assert_eq!(
-            backend
-                .release_feed(&emberhut_api::releases::Platform::Macos, 1)
-                .unwrap(),
-            None
-        );
-        let targets: Vec<_> = server.finish().into_iter().map(|r| r.target).collect();
-        assert_eq!(
-            targets,
-            ["/api/releases/files/Emberhut.dmg", "/api/releases/v1/macos"]
-        );
     }
 
     #[test]
