@@ -14,6 +14,7 @@ use super::{Part, TaskView, fold, fold_row, text};
 use crate::store::files::RemoteFile;
 use crate::store::tasks::runs;
 use crate::store::{OpenReport, Store};
+use crate::ui::a11y::Accessible as _;
 use crate::ui::files::actions::{self as file_actions, FileAction};
 use crate::ui::files::drag;
 use crate::ui::inline_video;
@@ -70,7 +71,13 @@ pub(super) fn section(
     view: &TaskView,
     cx: &Context<'_, TaskView>,
 ) -> Div {
-    let runs = runs::timeline(part.page);
+    // With plans the activity shows no run's pictures, so every result shows here.
+    let plans = part.read.keeps_plans();
+    let runs = if plans {
+        Vec::new()
+    } else {
+        runs::timeline(part.page)
+    };
     let artifacts = if part.task.artifacts.is_empty() {
         part.page.map_or(&[][..], |page| &page.task.artifacts)
     } else {
@@ -80,7 +87,15 @@ pub(super) fn section(
     let on_cards = crate::store::decision::card_media(part.task);
     let mut results = runs::unclaimed(artifacts, &runs, part.now);
     results.retain(|artifact| !on_cards.contains(&artifact.id) && artifact.x.is_none());
-    if results.is_empty() {
+    // With plans, the steps' results come first, each naming the step that made it, and a
+    // result also kept as a file shows once.
+    let steps: Vec<(&str, &emberhut_api::task_plan::PlanStep)> = part
+        .page
+        .and_then(|page| page.plan.as_ref())
+        .filter(|_| plans)
+        .map_or_else(Vec::new, crate::store::tasks::plan::results);
+    results.retain(|artifact| !steps.iter().any(|(link, _)| *link == artifact.url));
+    if results.is_empty() && steps.is_empty() {
         return body;
     }
     let p = part.p;
@@ -103,7 +118,17 @@ pub(super) fn section(
             return body;
         }
     } else {
-        body = body.child(super::section(p, "Results"));
+        body = body.child(super::section(
+            p,
+            if plans {
+                "Files and results"
+            } else {
+                "Results"
+            },
+        ));
+    }
+    for (link, step) in steps {
+        body = body.child(step_result(p, part.store, link, &step.title));
     }
     let tiles: Vec<&Artifact> = results
         .iter()
@@ -121,6 +146,63 @@ pub(super) fn section(
         body = body.child(file_row(p, part.store, artifact));
     }
     body
+}
+
+/// A step's result: its link in short words and the step that made it; a click opens it as any
+/// link on the page.
+fn step_result(p: &Pal, store: &Entity<Store>, link: &str, step: &str) -> impl IntoElement {
+    let label = crate::store::tasks::plan::link_label(link);
+    let (store, url) = (store.clone(), link.to_owned());
+    crate::ui::controls::tab_stop(
+        div()
+            .id(ElementId::Name(format!("step-result-{link}").into()))
+            .role(gpui_kit::Role::Button)
+            .hint("Opens it")
+            .border_1()
+            .rounded(px(8.))
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .px(px(6.))
+            .py(px(5.))
+            .cursor_pointer()
+            .hover(|d| d.bg(p.hover))
+            .child(
+                div()
+                    .size(px(28.))
+                    .flex_none()
+                    .rounded(px(7.))
+                    .bg(p.surface_raised)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(glyph(IconName::Link, p.faint, 14.)),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(px(13.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(label),
+                    )
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(px(11.5))
+                            .text_color(p.muted)
+                            .child(format!("from {step}")),
+                    ),
+            )
+            .child(glyph(IconName::ChevronRight, p.faint, 13.))
+            .on_click(move |_, window, cx| text::follow(&store, &url, window, cx)),
+        p,
+    )
 }
 
 /// A picture or video tile: its thumbnail (a play mark on a video, which plays it in place on

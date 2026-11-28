@@ -17,20 +17,28 @@ use crate::ui::tasks::marks::{status_icon, tone_color};
 
 /// The title, the live card and the decision.
 pub(super) fn title_and_state(
-    mut body: Div,
+    body: Div,
     part: &Part<'_>,
     view: &TaskView,
     cx: &Context<'_, TaskView>,
 ) -> Div {
-    let task = part.task;
-    body = body.child(
-        reads(&task.title)
+    asks(title_and_live(body, part), part, view, cx)
+}
+
+/// The title and the live card.
+pub(super) fn title_and_live(body: Div, part: &Part<'_>) -> Div {
+    body.child(
+        reads(&part.task.title)
             .pt(px(14.))
             .text_size(px(18.))
             .font_weight(FontWeight::BOLD),
-    );
-    body = body.child(live_card(part));
-    body = super::decision::x_posts(body, part, cx);
+    )
+    .child(live_card(part))
+}
+
+/// What the task asks of the user: an X post to look at, and the decision.
+pub(super) fn asks(body: Div, part: &Part<'_>, view: &TaskView, cx: &Context<'_, TaskView>) -> Div {
+    let body = super::decision::x_posts(body, part, cx);
     super::decision::section_of(body, part, view, cx)
 }
 

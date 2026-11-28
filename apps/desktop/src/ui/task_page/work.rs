@@ -27,7 +27,7 @@ const RUNS_SHOWN: usize = 5;
 
 /// A parent's subtasks: `7/21 done · 160/300 episodes` with a bar, then each one (archived ones
 /// left out), in order, opening its page.
-pub(super) fn subtasks(mut body: Div, part: &Part<'_>) -> Div {
+pub(super) fn subtasks(mut body: Div, part: &Part<'_>, cx: &gpui_kit::App) -> Div {
     let Some(rollup) = &part.task.sub else {
         return body;
     };
@@ -70,6 +70,7 @@ pub(super) fn subtasks(mut body: Div, part: &Part<'_>) -> Div {
                 swipes: None,
                 ticked: part.read.is_ticked(subtask.id),
             },
+            cx,
         ));
     }
     body
@@ -214,6 +215,7 @@ fn findings_list(
                     swipes: None,
                     ticked: part.read.is_ticked(finding.id),
                 },
+                cx,
             ));
         }
     }
@@ -455,8 +457,10 @@ fn run_media(
     Some(thumbs)
 }
 
-/// The task's sessions on the runners: each one's state, title, where it runs and what it does.
+/// The task's sessions on the runners: each one's state, title, where it runs and what it does;
+/// with plans, an `Open session` at its end says what a click does.
 pub(super) fn sessions(mut body: Div, part: &Part<'_>) -> Div {
+    let plans = part.read.keeps_plans();
     let Some(sessions) = part
         .page
         .map(|page| &page.sessions)
@@ -504,6 +508,7 @@ pub(super) fn sessions(mut body: Div, part: &Part<'_>) -> Div {
                 div()
                     .flex()
                     .flex_col()
+                    .when(plans, Styled::flex_1)
                     .min_w_0()
                     .child(
                         div()
@@ -518,7 +523,17 @@ pub(super) fn sessions(mut body: Div, part: &Part<'_>) -> Div {
                             .text_color(p.muted)
                             .child(line),
                     ),
-            );
+            )
+            .when(plans, |d| {
+                d.child(
+                    div()
+                        .flex_none()
+                        .pt(px(2.))
+                        .text_size(px(11.5))
+                        .text_color(p.accent)
+                        .child("Open session"),
+                )
+            });
         body = body.child(crate::ui::sessions::link(part.store, place, id, row, p));
     }
     body
