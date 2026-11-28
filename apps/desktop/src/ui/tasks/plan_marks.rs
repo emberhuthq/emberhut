@@ -1,51 +1,38 @@
 //! The marks a plan is drawn with, on a server that keeps plans: running is always amber and
-//! always a shape (a ring that spins, still under Reduce motion), blocked a red disc with `!`,
+//! always a shape (a ring with an arc, turned once a second by the view that shows it), blocked a red disc with `!`,
 //! waiting on the user a filled ember dot; and the bar, one segment a step (done filled, doing
 //! amber, blocked red, to do empty) or one plain fill for a long plan.
 
-use std::time::Duration;
-
 use gpui_kit::assets::IconName;
 use gpui_kit::prelude::*;
-use gpui_kit::{
-    Animation, AnimationExt as _, AnyElement, App, Div, ElementId, FontWeight, Transformation, div,
-    percentage, px,
-};
+use gpui_kit::{AnyElement, Div, FontWeight, Transformation, div, percentage, px};
 
 use super::marks::{glyph, progress};
 use crate::store::tasks::plan::{Bar, Lead, Segment};
 use crate::ui::palette::Pal;
 
-/// How long the running ring takes to turn once.
-const TURN: Duration = Duration::from_millis(900);
-
-/// The running mark: an amber ring with a spinning arc, `size` across.
-pub(crate) fn running(p: &Pal, id: impl Into<ElementId>, size: f32, cx: &App) -> AnyElement {
-    let ring = div()
+/// The running mark: an amber ring with its arc, `size` across, turned a quarter for each
+/// `turn`. It never animates by frame: a view that shows it moves `turn` once a second while
+/// something runs (and not under Reduce motion), so a long list redraws once a second, not
+/// every frame.
+pub(crate) fn running(p: &Pal, size: f32, turn: u8) -> Div {
+    let arc = glyph(IconName::LoaderCircle, p.warn, size + 2.)
+        .transform(Transformation::rotate(percentage(f32::from(turn % 4) / 4.)));
+    div()
         .size(px(size))
         .flex_none()
         .relative()
         .rounded_full()
         .border_2()
-        .border_color(p.warn.opacity(0.25));
-    let arc = glyph(IconName::LoaderCircle, p.warn, size + 2.);
-    let arc = if crate::motion::reduced(cx) {
-        arc.into_any_element()
-    } else {
-        arc.with_animation(id, Animation::new(TURN).repeat(), |icon, t| {
-            icon.transform(Transformation::rotate(percentage(t)))
-        })
-        .into_any_element()
-    };
-    ring.child(
-        div()
-            .absolute()
-            .top(px(-3.))
-            .left(px(-3.))
-            .size(px(size + 2.))
-            .child(arc),
-    )
-    .into_any_element()
+        .border_color(p.warn.opacity(0.25))
+        .child(
+            div()
+                .absolute()
+                .top(px(-3.))
+                .left(px(-3.))
+                .size(px(size + 2.))
+                .child(arc),
+        )
 }
 
 /// The blocked mark: a red disc with `!`.
@@ -78,10 +65,11 @@ pub(crate) fn needs_you(p: &Pal, size: f32) -> Div {
         .child(div().size(px(size * 0.45)).rounded_full().bg(p.accent))
 }
 
-/// A row's lead mark for `lead`; none for the usual state icon.
-pub(crate) fn lead(p: &Pal, lead: Lead, id: impl Into<ElementId>, cx: &App) -> Option<AnyElement> {
+/// A row's lead mark for `lead`, the running ring turned `turn` quarters; none for the usual
+/// state icon.
+pub(crate) fn lead(p: &Pal, lead: Lead, turn: u8) -> Option<AnyElement> {
     let mark = match lead {
-        Lead::Running => running(p, id, 13., cx),
+        Lead::Running => running(p, 13., turn).into_any_element(),
         Lead::Blocked => blocked(p, 15.).into_any_element(),
         Lead::NeedsYou => needs_you(p, 15.).into_any_element(),
         Lead::Usual => return None,
