@@ -1,12 +1,14 @@
 //! Settings' data: every setting described once ([`entries`]) for search ([`search`]) and the
 //! front door's suggestions ([`suggest`]) over how things stand ([`now`]); the MCP servers'
-//! and skills' switches, what the assistant knows about the user, the Chrome profiles' changes,
-//! and the assistant's on-duty switch. Each submodule hides one of them; their words and
-//! filters are pure functions, tested on their own.
+//! and skills' switches, what the assistant knows about the user, the Chrome profiles' changes
+//! and adding the extension to Chrome ([`chrome_install`]), and the assistant's on-duty switch.
+//! Each submodule hides one of them; their words and filters are pure functions, tested on
+//! their own.
 
 pub(crate) mod about;
 pub(crate) mod appearance;
 pub(crate) mod chrome;
+pub(crate) mod chrome_install;
 pub(crate) mod entries;
 pub(crate) mod now;
 mod on_duty;

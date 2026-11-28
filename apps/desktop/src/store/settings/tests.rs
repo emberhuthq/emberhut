@@ -1,6 +1,6 @@
 //! Settings' data in the store, on GPUI's headless test platform with a scripted backend:
 //! when the switches are asked for, what a switch does, a fix to a fact and its refusal, a
-//! Chrome change's answer, and pausing.
+//! Chrome change's answer, adding the extension to Chrome only on the user's OK, and pausing.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,6 +15,7 @@ use serde_json::json;
 
 use super::SettingsPane;
 use super::chrome::ChromeSheet;
+use super::chrome_install::{InstallState, Installer, Written};
 use crate::backend::Error;
 use crate::backend::fake::{Call, FakeBackend};
 use crate::store::{Page, Store, ThemeState};
@@ -255,6 +256,111 @@ fn a_new_profiles_link_opens_its_pairing(cx: &mut TestAppContext) {
         assert!(matches!(store.chrome().sheet(), Some(ChromeSheet::Pairing(link)) if link.label == "Work"));
         assert_eq!(store.state().unwrap().chrome_pairing.len(), 1, "into the state");
     });
+}
+
+/// Writes nothing: counts the times it was asked, and answers with `answer`.
+#[derive(Debug)]
+struct FakeInstaller {
+    asked: std::sync::atomic::AtomicUsize,
+    answer: Result<Written, String>,
+}
+
+impl Installer for FakeInstaller {
+    fn install(&self) -> Result<Written, String> {
+        self.asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.answer.clone()
+    }
+}
+
+fn installer(answer: Result<Written, String>) -> Arc<FakeInstaller> {
+    Arc::new(FakeInstaller {
+        asked: std::sync::atomic::AtomicUsize::new(0),
+        answer,
+    })
+}
+
+#[gpui_kit::test]
+fn the_extension_is_added_to_chrome_only_on_the_users_ok_then_the_link_waits(
+    cx: &mut TestAppContext,
+) {
+    let written = Written {
+        place: "/Users/ada/Library/Application Support/Google/Chrome/External Extensions".into(),
+        already: false,
+        next: "Chrome shows “New extension added” the next time it starts: click Enable.",
+    };
+    let fake = installer(Ok(written.clone()));
+    let pairing = json!({"code": "AB-12", "link": "https://example.com/p#AB-12",
+        "label": "Work", "name": "work", "until": "2026-11-24T22:30:00Z"});
+    let reply: ChromeReply = serde_json::from_value(json!({"ok": true, "chrome": [],
+        "chromePairing": [pairing], "chromeLatest": "1.0.0", "pairing": pairing}))
+    .unwrap();
+    let backend = Arc::new(FakeBackend::new([]));
+    backend.replies.push_chrome(Ok(reply));
+    let store = store(cx, &backend);
+    store.update(cx, |store, cx| {
+        store.state = Some(crate::fixtures::state(json!({})));
+        store.set_chrome_installer(Arc::clone(&fake) as Arc<dyn Installer>);
+        store.show_chrome_sheet(Some(ChromeSheet::Add), cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        fake.asked.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the sheet alone writes nothing"
+    );
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.chrome().install(), &InstallState::NotWritten);
+    });
+
+    store.update(cx, |store, cx| {
+        store.install_chrome_extension(cx);
+        assert_eq!(store.chrome().install(), &InstallState::Writing);
+        store.install_chrome_extension(cx); // a second press while it writes is ignored
+    });
+    cx.run_until_parked();
+    assert_eq!(fake.asked.load(std::sync::atomic::Ordering::SeqCst), 1);
+    store.read_with(cx, |store, _| {
+        assert_eq!(store.chrome().install(), &InstallState::Written(written));
+        assert_eq!(
+            store.chrome().sheet(),
+            Some(&ChromeSheet::Add),
+            "still naming the profile"
+        );
+    });
+
+    // Then the profile's link: its page waits for the extension to pair.
+    store.update(cx, |store, cx| store.add_chrome("Work", cx));
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        let Some(ChromeSheet::Pairing(link)) = store.chrome().sheet() else {
+            panic!("the pairing page");
+        };
+        let waiting = &store.state().unwrap().chrome_pairing;
+        assert!(
+            waiting.iter().any(|l| l.code == link.code && !l.paired),
+            "waiting to pair"
+        );
+    });
+}
+
+#[gpui_kit::test]
+fn a_failed_install_says_why(cx: &mut TestAppContext) {
+    let fake = installer(Err(
+        "This computer has no pkexec to ask for your password.".into()
+    ));
+    let backend = Arc::new(FakeBackend::new([]));
+    let store = store(cx, &backend);
+    store.update(cx, |store, cx| {
+        store.set_chrome_installer(Arc::clone(&fake) as Arc<dyn Installer>);
+        store.install_chrome_extension(cx);
+    });
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        assert!(
+            matches!(store.chrome().install(), InstallState::Failed(why) if why.contains("pkexec"))
+        );
+    });
+    assert!(backend.calls().is_empty(), "nothing asked of the server");
 }
 
 #[gpui_kit::test]

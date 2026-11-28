@@ -9,6 +9,7 @@ use gpui_kit::AppContext as _;
 use gpui_kit::Context;
 use jiff::tz::TimeZone;
 
+use super::chrome_install::{ChromeInstaller, InstallState, Installer};
 use super::words;
 use crate::backend::Error;
 use crate::brand::APP_NAME;
@@ -35,6 +36,10 @@ pub(crate) enum ChromeSheet {
 /// The Chrome changes on their way and what they left.
 #[derive(Debug, Default)]
 pub(crate) struct ChromeFeed {
+    /// Adding the extension to Chrome (`chrome_install`): written only on the user's OK.
+    install: InstallState,
+    /// What writes Chrome's entry; this computer's when `None`.
+    installer: Option<Arc<dyn Installer>>,
     sheet: Option<ChromeSheet>,
     /// The profile a re-pair's link was asked from: closing the link goes back to its page.
     back_to: Option<ChromeProfileId>,
@@ -50,6 +55,12 @@ impl ChromeFeed {
     #[must_use]
     pub(crate) fn sheet(&self) -> Option<&ChromeSheet> {
         self.sheet.as_ref()
+    }
+
+    /// Where adding the extension to Chrome is.
+    #[must_use]
+    pub(crate) fn install(&self) -> &InstallState {
+        &self.install
     }
 
     /// Whether a change is on its way.
@@ -280,6 +291,41 @@ impl Store {
             .take()
             .filter(|_| matches!(feed.sheet, Some(ChromeSheet::Pairing(_))));
         self.show_chrome_sheet(back.map(ChromeSheet::Profile), cx);
+    }
+
+    /// The user agreed to add the extension to Chrome: Chrome's entry for it is written, off the
+    /// UI thread (on Linux the system asks for the user's password), once at a time. What comes
+    /// next is the link to pair the profile, whose page waits for the extension.
+    pub(crate) fn install_chrome_extension(&mut self, cx: &mut Context<'_, Self>) {
+        let feed = &mut self.settings.chrome;
+        if feed.install == InstallState::Writing {
+            return;
+        }
+        feed.install = InstallState::Writing;
+        let installer = feed
+            .installer
+            .clone()
+            .unwrap_or_else(|| Arc::new(ChromeInstaller::here()));
+        cx.spawn(async move |this, cx| {
+            let written = cx
+                .background_spawn(async move { installer.install() })
+                .await;
+            update_or_log(&this, cx, |store, cx| {
+                store.settings.chrome.install = match written {
+                    Ok(written) => InstallState::Written(written),
+                    Err(why) => InstallState::Failed(why),
+                };
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
+    /// Writes Chrome's entry with `installer` instead of this computer's (the tests).
+    #[cfg(test)]
+    pub(crate) fn set_chrome_installer(&mut self, installer: Arc<dyn Installer>) {
+        self.settings.chrome.installer = Some(installer);
     }
 
     /// Asks for a link for a new profile named `label`.
