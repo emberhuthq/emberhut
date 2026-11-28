@@ -19,6 +19,7 @@ import { PartiesScreen } from "@/features/party/PartiesScreen";
 import { PartyScreen } from "@/features/party/PartyScreen";
 import { NewSessionScreen } from "@/features/sessions/NewSessionScreen";
 import { SessionScreen } from "@/features/sessions/SessionScreen";
+import { SessionsScreen } from "@/features/sessions/SessionsScreen";
 import { groupName } from "@/features/settings/entries";
 import { SettingsGroupScreen } from "@/features/settings/SettingsGroupScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
@@ -114,6 +115,7 @@ export function RootStack() {
           <Stack.Screen name="Area" component={AreaScreen} options={{ title: "Area" }} />
           <Stack.Screen name="Today" component={TodayScreen} options={{ title: "Today" }} />
           <Stack.Screen name="Session" component={SessionScreen} options={({ route }) => ({ title: route.params.title ?? "Session" })} />
+          <Stack.Screen name="SessionList" component={SessionsScreen} options={{ title: "Sessions" }} />
           <Stack.Screen name="NewSession" component={NewSessionScreen} options={{ title: "New session", presentation: "modal" }} />
           <Stack.Screen
             name="Browser"

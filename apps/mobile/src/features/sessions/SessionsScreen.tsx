@@ -1,9 +1,10 @@
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { useLayoutEffect } from "react";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import type { AgentNow, RunnerSession, ExternalThread } from "@/api";
 import { machineLabel } from "@/features/machines/machineNames";
 import { useMachineNames } from "@/features/machines/useMachineNames";
-import type { TabScreenProps } from "@/navigation/types";
 import { usePrefs } from "@/state/hooks";
 import { useEmberhutState } from "@/state/queries";
 import { useTheme } from "@/theme";
@@ -21,9 +22,15 @@ type Entry =
 
 /**
  * Every room's sessions: the agents working on your tasks, then every session running (yours and Emberhut's), external threads still
- * running, then the recent ones, waiting on you first. New session at the top.
+ * running, then the recent ones, waiting on you first. New session at the top. A tab of its own, or a page from More while
+ * the server keeps task plans: only its header comes from where it's shown.
  */
-export function SessionsScreen({ navigation }: TabScreenProps<"Sessions">) {
+export function SessionsScreen({
+  navigation: header,
+}: {
+  navigation: { setOptions: (options: Partial<NativeStackNavigationOptions>) => void };
+}) {
+  const navigation = useNavigation();
   const { colors, spacing } = useTheme();
   const room = usePrefs((s) => s.room);
   const filter = usePrefs((s) => s.sessionFilter);
@@ -33,7 +40,7 @@ export function SessionsScreen({ navigation }: TabScreenProps<"Sessions">) {
   const { refreshing, onRefresh } = usePullRefresh(state.refetch);
 
   useLayoutEffect(() => {
-    navigation.setOptions({
+    header.setOptions({
       headerRight: () => (
         <Pressable
           onPress={() => navigation.navigate("NewSession")}
@@ -46,7 +53,7 @@ export function SessionsScreen({ navigation }: TabScreenProps<"Sessions">) {
         </Pressable>
       ),
     });
-  }, [navigation, colors.text, spacing.lg]);
+  }, [header, navigation, colors.text, spacing.lg]);
 
   if (state.data === undefined) return <Loading label="Reaching Emberhut" />;
   const groups = groupSessions(state.data, filter, names);

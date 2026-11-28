@@ -35,6 +35,8 @@ export interface PrefsState {
   /** Whether the rooms list shows the agents' rooms; hidden ones still open from Settings › Appearance. */
   showAgents: boolean;
   agentsPlace: AgentsPlace;
+  /** The server's last word on whether it keeps task plans (state.ui.taskPlans), so the tabs are right before it answers. */
+  taskPlans: boolean;
   setTheme: (theme: ThemePreference) => void;
   setThemeCache: (page: ThemePage | null) => void;
   setThemePending: (change: ThemeChange | null) => void;
@@ -44,6 +46,7 @@ export interface PrefsState {
   setSessionFilter: (filter: SessionFilter) => void;
   setShowAgents: (show: boolean) => void;
   setAgentsPlace: (place: AgentsPlace) => void;
+  setTaskPlans: (on: boolean) => void;
 }
 
 /** What this device keeps for itself (not secrets: those are in secure storage). */
@@ -60,6 +63,7 @@ export function createPrefsStore(storage: StateStorage) {
         sessionFilter: {},
         showAgents: true,
         agentsPlace: "below",
+        taskPlans: false,
         setTheme: (theme) => set({ theme }),
         setThemeCache: (themeCache) => set({ themeCache }),
         setThemePending: (themePending) => set({ themePending }),
@@ -69,14 +73,15 @@ export function createPrefsStore(storage: StateStorage) {
         setSessionFilter: (sessionFilter) => set({ sessionFilter }),
         setShowAgents: (showAgents) => set({ showAgents }),
         setAgentsPlace: (agentsPlace) => set({ agentsPlace }),
+        setTaskPlans: (taskPlans) => set({ taskPlans }),
       }),
       {
         name: "emberhut.prefs",
-        // Still 1: the theme fields, sessionFilter, showAgents and agentsPlace are new keys, filled with their defaults on an
-        // older save.
+        // Still 1: the theme fields, sessionFilter, showAgents, agentsPlace and taskPlans are new keys, filled with their
+        // defaults on an older save.
         version: 1,
         storage: createJSONStorage(() => storage),
-        partialize: ({ theme, themeCache, themePending, themeMigrated, room, needsGrouping, sessionFilter, showAgents, agentsPlace }) => ({
+        partialize: ({
           theme,
           themeCache,
           themePending,
@@ -86,6 +91,18 @@ export function createPrefsStore(storage: StateStorage) {
           sessionFilter,
           showAgents,
           agentsPlace,
+          taskPlans,
+        }) => ({
+          theme,
+          themeCache,
+          themePending,
+          themeMigrated,
+          room,
+          needsGrouping,
+          sessionFilter,
+          showAgents,
+          agentsPlace,
+          taskPlans,
         }),
       },
     ),

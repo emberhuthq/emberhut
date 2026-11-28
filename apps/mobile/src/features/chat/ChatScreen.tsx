@@ -9,6 +9,7 @@ import { handoffLine } from "@/features/browser/browser";
 import { useBrowserDevice } from "@/features/browser/browserDevice";
 import { inBackground } from "@/log";
 import { useOpenLink } from "@/navigation/links";
+import { useTaskPlans } from "@/features/tasks/useTaskPlans";
 import type { TabScreenProps } from "@/navigation/types";
 import { api, chatStore, prefsStore, talkStore } from "@/services";
 import { offlineReason } from "@/state/connection";
@@ -205,10 +206,12 @@ function useChatHeader(
   const { colors, spacing } = useTheme();
   const running = runningNow(data);
   const waiting = agent ? agentWaitingOnYou(data, agent.id) : 0;
+  // While the server keeps task plans the Sessions list isn't a tab: the button opens it as a page.
+  const plans = useTaskPlans();
   useLayoutEffect(() => {
     const sessions = (
       <Pressable
-        onPress={() => navigation.navigate("Sessions")}
+        onPress={() => (plans ? navigation.navigate("SessionList") : navigation.navigate("Sessions"))}
         accessibilityRole="button"
         accessibilityLabel={`Sessions, ${running} running`}
         hitSlop={ios ? 8 : undefined}
@@ -254,7 +257,7 @@ function useChatHeader(
         </View>
       ),
     });
-  }, [navigation, name, status, running, colors, spacing, agent, waiting]);
+  }, [navigation, name, status, running, colors, spacing, agent, waiting, plans]);
 }
 
 /** What runs now: each agent, the sessions with no agent row of their own, external threads still running. */
