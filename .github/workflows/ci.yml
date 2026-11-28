@@ -97,6 +97,9 @@ jobs:
         with:
           tool: cargo-nextest@0.9.152
       - run: cargo nextest run --workspace --all-features --locked --profile ci
+      # The memory eval's recall@8 tables (crates/emberhut-server/tests/memory_eval), on the run's page.
+      - if: always()
+        run: cat target/tmp/memory-eval/*.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
       - run: cargo test --workspace --all-features --doc --locked
 
   # No job opens a window. The hosted macOS runners are virtual machines, and GPUI draws with

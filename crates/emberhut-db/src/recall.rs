@@ -353,6 +353,27 @@ impl RecallStore {
             .collect())
     }
 
+    /// Drops every vector (another model makes them now).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn drop_vectors(&self) -> Result<(), DbError> {
+        let txn = begin_write(&self.conn).await?;
+        doc_vector::Entity::delete_many().exec(&txn).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// Sets the mark `key` to `value`.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn set_mark(&self, key: &str, value: &str) -> Result<(), DbError> {
+        set_mark(&self.conn, key, value).await
+    }
+
     /// The ids of the pieces that have a vector.
     ///
     /// # Errors

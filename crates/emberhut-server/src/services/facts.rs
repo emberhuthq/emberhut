@@ -138,6 +138,17 @@ impl FactService {
         blocking(move || read_all(&root, category.as_deref())).await
     }
 
+    /// What changes whenever a fact is written, moved or forgotten (for recall, to read the
+    /// facts again only then).
+    ///
+    /// # Errors
+    ///
+    /// [`FactError::Folder`] (never, today: an unreadable folder stamps as empty).
+    pub async fn stamp(&self) -> Result<String, FactError> {
+        let root = self.root.clone();
+        blocking(move || Ok(stamp(&root))).await
+    }
+
     /// Keeps `change`: a new fact, or a changed one (moving to another category, or to a
     /// title with another file name, moves its file). Its id.
     ///
@@ -286,7 +297,59 @@ fn read_all(root: &Path, category: Option<&str>) -> Result<Vec<Fact>, FactError>
 /// Writes `fact` to its file at `now`.
 fn write(root: &Path, fact: &Fact, now: &str) -> Result<(), FactError> {
     fs::create_dir_all(root.join(&fact.category)).map_err(FactError::Folder)?;
-    fs::write(file_of(root, &fact.id), render(fact, now)).map_err(FactError::Folder)
+    write_whole(&file_of(root, &fact.id), render(fact, now).as_bytes()).map_err(FactError::Folder)
+}
+
+/// Writes `bytes` to `path` whole or not at all: into a hidden file beside it, flushed to the
+/// disk, then renamed over it, so a crash leaves the old file or the new one, never half of one.
+pub(crate) fn write_whole(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| io::Error::other("no file name"))?
+        .to_string_lossy();
+    let temporary = path.with_file_name(format!(".{name}.tmp"));
+    let written = (|| {
+        let mut file = fs::File::create(&temporary)?;
+        io::Write::write_all(&mut file, bytes)?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)
+    })();
+    if written.is_err()
+        && let Err(error) = fs::remove_file(&temporary)
+    {
+        tracing::debug!(error = %error, "a half-written fact file was left behind");
+    }
+    written
+}
+
+/// What changes whenever a fact is written, moved or forgotten: for each category's folder,
+/// how many facts it holds, when the newest changed and their total size.
+fn stamp(root: &Path) -> String {
+    let mut out = Vec::new();
+    for category in CATEGORIES {
+        let Ok(entries) = fs::read_dir(root.join(category)) else {
+            continue;
+        };
+        let (mut count, mut newest, mut size) = (0_u64, 0_u128, 0_u64);
+        for entry in entries.filter_map(Result::ok) {
+            if !entry.file_name().to_string_lossy().ends_with(".md") {
+                continue;
+            }
+            let Ok(meta) = entry.metadata() else {
+                continue;
+            };
+            count += 1;
+            size += meta.len();
+            let changed = meta
+                .modified()
+                .ok()
+                .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+                .map_or(0, |at| at.as_nanos());
+            newest = newest.max(changed);
+        }
+        out.push(format!("{category}:{count}:{newest}:{size}"));
+    }
+    out.join(";")
 }
 
 /// The project `change` leaves a fact that was in `was`.

@@ -78,25 +78,16 @@ pub struct Doc {
     pub place: String,
 }
 
-/// Long text in pieces of about [`PIECE`] characters, each cut at a paragraph, a line or a
-/// sentence where one is in the second half of the window; the pieces are trimmed and none is
-/// empty.
+/// Long text in pieces of about [`PIECE`] characters. Each is cut, in this order of preference,
+/// at a paragraph break, a line break, the end of a sentence or a space, whichever comes first
+/// in that order in the second half of the window; a sentence keeps its full stop. The pieces
+/// are trimmed and none is empty.
 #[must_use]
 pub fn pieces(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest: Vec<char> = text.trim().chars().collect();
     while rest.len() > PIECE {
-        let window = &rest[..PIECE];
-        let cut_at = [
-            last_of(window, &['\n', '\n']),
-            last_of(window, &['\n']),
-            last_of(window, &['.', ' ']),
-        ]
-        .into_iter()
-        .flatten()
-        .max()
-        .filter(|at| *at >= PIECE / 2)
-        .unwrap_or(PIECE);
+        let cut_at = cut_point(&rest[..PIECE]);
         out.push(rest[..cut_at].iter().collect::<String>().trim().to_owned());
         rest = rest[cut_at..]
             .iter()
@@ -111,11 +102,29 @@ pub fn pieces(text: &str) -> Vec<String> {
     out
 }
 
-/// Where `needle` last starts in `window`.
-fn last_of(window: &[char], needle: &[char]) -> Option<usize> {
-    window
-        .windows(needle.len())
-        .rposition(|candidate| candidate == needle)
+/// Where to cut `window` (just after the boundary): the latest paragraph break in its second
+/// half, else the latest line break there, else the latest sentence end, else the latest
+/// space, else the whole window.
+fn cut_point(window: &[char]) -> usize {
+    let half = window.len() / 2;
+    let after_last = |is_boundary: &dyn Fn(usize) -> bool| {
+        (half..window.len())
+            .rev()
+            .find(|at| is_boundary(*at))
+            .map(|at| at + 1)
+    };
+    let paragraph = |at: usize| at > 0 && window[at] == '\n' && window[at - 1] == '\n';
+    let line = |at: usize| window[at] == '\n';
+    let sentence = |at: usize| {
+        matches!(window[at], '.' | '!' | '?' | '؟' | '。')
+            && window.get(at + 1).is_none_or(|next| next.is_whitespace())
+    };
+    let space = |at: usize| window[at].is_whitespace();
+    after_last(&paragraph)
+        .or_else(|| after_last(&line))
+        .or_else(|| after_last(&sentence))
+        .or_else(|| after_last(&space))
+        .unwrap_or(window.len())
 }
 
 /// The reference of `reference`'s piece `n` (the first is the reference itself).
@@ -227,13 +236,151 @@ pub fn normalised(mut vector: Vec<f32>) -> Vec<f32> {
     vector
 }
 
-/// How close two normalised vectors are: their dot product (missing parts count as nothing).
+/// How close two normalised vectors are: their dot product. Vectors of different lengths come
+/// from different models and are not compared: they are as far apart as can be (`-1`).
 #[must_use]
 pub fn closeness(a: &[f32], b: &[f32]) -> f64 {
+    if a.len() != b.len() {
+        return -1.0;
+    }
     a.iter()
         .zip(b)
         .map(|(x, y)| f64::from(*x) * f64::from(*y))
         .sum()
+}
+
+/// Every piece's vector in one block, each held as `i8`s with a scale of its own (a quarter of
+/// the room `f32`s take), for scoring a query against all of them. A snapshot: a change makes a
+/// new one ([`Vectors::with`], [`Vectors::retaining`]), so a search scores one that nothing
+/// changes under it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Vectors {
+    dimension: usize,
+    ids: Vec<i64>,
+    scales: Vec<f32>,
+    parts: Vec<i8>,
+}
+
+impl Vectors {
+    /// These vectors (all of one length; one of another length is left out).
+    #[must_use]
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (i64, Vec<f32>)>) -> Self {
+        let mut vectors = Self::default();
+        for (id, vector) in pairs {
+            vectors.push(id, &vector);
+        }
+        vectors
+    }
+
+    fn push(&mut self, id: i64, vector: &[f32]) {
+        if vector.is_empty() {
+            return;
+        }
+        if self.ids.is_empty() {
+            self.dimension = vector.len();
+        }
+        if vector.len() != self.dimension {
+            return;
+        }
+        let top = vector.iter().fold(0.0_f32, |top, x| top.max(x.abs()));
+        let scale = if top > 0.0 && top.is_finite() {
+            top / 127.0
+        } else {
+            1.0
+        };
+        self.ids.push(id);
+        self.scales.push(scale);
+        self.parts.extend(vector.iter().map(|x| {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "rounded and clamped to i8's range"
+            )]
+            let part = (x / scale).round().clamp(-127.0, 127.0) as i8;
+            part
+        }));
+    }
+
+    /// How many vectors it holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    /// Whether it holds none.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// Their length (0 when there are none).
+    #[must_use]
+    pub fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    /// A copy with `added` in it, each in place of the vector its piece had.
+    #[must_use]
+    pub fn with(&self, added: &[(i64, Vec<f32>)]) -> Self {
+        let replaced: HashSet<i64> = added.iter().map(|(id, _)| *id).collect();
+        let mut next = self.retaining(|id| !replaced.contains(&id));
+        for (id, vector) in added {
+            next.push(*id, vector);
+        }
+        next
+    }
+
+    /// A copy with only the vectors whose piece `keep` says to keep.
+    #[must_use]
+    pub fn retaining(&self, keep: impl Fn(i64) -> bool) -> Self {
+        let mut next = Self {
+            dimension: self.dimension,
+            ..Self::default()
+        };
+        for (n, id) in self.ids.iter().enumerate() {
+            if keep(*id) {
+                next.ids.push(*id);
+                next.scales.push(self.scales[n]);
+                next.parts
+                    .extend_from_slice(&self.parts[n * self.dimension..(n + 1) * self.dimension]);
+            }
+        }
+        next
+    }
+
+    /// Every piece's closeness to `query` (normalised), unordered; none for a query of another
+    /// length (another model's).
+    #[must_use]
+    pub fn scores(&self, query: &[f32]) -> Vec<(i64, f32)> {
+        if query.len() != self.dimension || self.dimension == 0 {
+            return Vec::new();
+        }
+        self.ids
+            .iter()
+            .enumerate()
+            .map(|(n, id)| {
+                let parts = &self.parts[n * self.dimension..(n + 1) * self.dimension];
+                let dot: f32 = parts
+                    .iter()
+                    .zip(query)
+                    .map(|(part, q)| f32::from(*part) * q)
+                    .sum();
+                (*id, dot * self.scales[n])
+            })
+            .collect()
+    }
+
+    /// The `n` pieces closest to `query`, closest first.
+    #[must_use]
+    pub fn nearest(&self, query: &[f32], n: usize) -> Vec<(i64, f32)> {
+        let mut scores = self.scores(query);
+        let closer = |a: &(i64, f32), b: &(i64, f32)| b.1.total_cmp(&a.1);
+        if n < scores.len() {
+            scores.select_nth_unstable_by(n, closer);
+            scores.truncate(n);
+        }
+        scores.sort_by(closer);
+        scores
+    }
 }
 
 /// What the meaning search embeds for a piece.
@@ -363,6 +510,27 @@ mod tests {
     }
 
     #[test]
+    fn a_sentence_keeps_its_full_stop_and_a_paragraph_wins() {
+        // Sentences only: cut after the last full stop, and the next piece starts with a word.
+        let sentences = "One sentence here. ".repeat(100);
+        let cut = pieces(&sentences);
+        assert!(
+            cut[0].ends_with("here."),
+            "{:?}",
+            &cut[0][cut[0].len() - 10..]
+        );
+        assert!(cut[1].starts_with("One"), "{:?}", &cut[1][..10]);
+        // A paragraph break in the second half wins over a later sentence end.
+        let text = format!("{}\n\n{}", "a".repeat(900), "Later sentence. ".repeat(60));
+        let cut = pieces(&text);
+        assert_eq!(cut[0], "a".repeat(900));
+        assert!(cut[1].starts_with("Later"));
+        // An Arabic question mark ends a sentence too.
+        let arabic = "هل وصلت الطاولة؟ ".repeat(120);
+        assert!(pieces(&arabic)[0].ends_with('؟'));
+    }
+
+    #[test]
     fn pieces_have_references_of_their_own() {
         assert_eq!(piece_reference("chat:1", 0), "chat:1");
         assert_eq!(piece_reference("chat:1", 2), "chat:1#2");
@@ -398,6 +566,46 @@ mod tests {
         assert!((closeness(&a, &a) - 1.0).abs() < 1e-6);
         assert_eq!(normalised(vec![0.0, 0.0]), vec![0.0, 0.0]);
         assert!(closeness(&normalised(vec![1.0, 0.0]), &normalised(vec![0.0, 1.0])).abs() < 1e-9);
+        assert!(
+            closeness(&[1.0, 0.0], &[1.0, 0.0, 0.0]) < 0.0,
+            "another model's vector is never close"
+        );
+    }
+
+    #[test]
+    fn the_vector_block_scores_like_f32_and_keeps_one_model() {
+        let unit = |v: Vec<f32>| normalised(v);
+        let block = Vectors::from_pairs([
+            (1, unit(vec![1.0, 0.0, 0.0])),
+            (2, unit(vec![0.7, 0.7, 0.0])),
+            (3, unit(vec![0.0, 0.0, 1.0])),
+            (4, unit(vec![1.0, 0.0])), // another model's: left out
+        ]);
+        assert_eq!((block.len(), block.dimension()), (3, 3));
+        let query = unit(vec![1.0, 0.1, 0.0]);
+        let near = block.nearest(&query, 2);
+        assert_eq!(
+            near.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        let exact = closeness(&unit(vec![0.7, 0.7, 0.0]), &query);
+        assert!(
+            (f64::from(near[1].1) - exact).abs() < 0.01,
+            "int8 is close to f32"
+        );
+        assert!(
+            block.nearest(&[1.0, 0.0], 2).is_empty(),
+            "a query of another length"
+        );
+
+        // Piece 3 changed to say what the query asks; piece 5 is new.
+        let changed = block.with(&[(3, query.clone()), (5, unit(vec![0.0, 1.0, 0.0]))]);
+        assert_eq!(changed.len(), 4);
+        assert_eq!(changed.nearest(&query, 1)[0].0, 3);
+        assert_eq!(changed.nearest(&unit(vec![0.0, 1.0, 0.0]), 1)[0].0, 5);
+        let fewer = changed.retaining(|id| id != 3);
+        assert_eq!(fewer.nearest(&query, 1)[0].0, 1);
+        assert_eq!(block.len(), 3, "a snapshot is not changed by its copies");
     }
 
     fn doc(source: &str, at: Option<&str>) -> Doc {
