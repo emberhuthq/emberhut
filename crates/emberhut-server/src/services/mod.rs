@@ -70,6 +70,7 @@ pub mod transcripts;
 pub mod transfer;
 pub mod uploads;
 pub mod voice;
+pub mod waitlist;
 pub mod wake;
 pub mod workers;
 pub mod workers_view;

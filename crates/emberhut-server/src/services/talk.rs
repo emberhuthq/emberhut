@@ -165,6 +165,12 @@ pub trait Assistant: fmt::Debug + Send + Sync {
     fn can_think(&self) -> BoxFuture<'_, bool> {
         Box::pin(async { true })
     }
+
+    /// The accounts its sessions run on, in the order they are tried, each with why it is out
+    /// now if it is. None by default (no accounts).
+    fn accounts(&self) -> Vec<(String, Option<emberhut_core::failover::Limit>)> {
+        Vec::new()
+    }
 }
 
 /// The assistant until the agent runtime lands: it answers nothing.

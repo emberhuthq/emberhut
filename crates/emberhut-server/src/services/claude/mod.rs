@@ -1168,6 +1168,17 @@ impl Assistant for ClaudeAssistant {
         self.close_idle_but(None);
     }
 
+    fn accounts(&self) -> Vec<(String, Option<emberhut_core::failover::Limit>)> {
+        let now = self.clock.now();
+        let state = self.state();
+        state
+            .pool
+            .ids()
+            .iter()
+            .map(|id| (id.clone(), state.pool.limit(id, now).cloned()))
+            .collect()
+    }
+
     /// As the saved provider and the CLI's turns say ([`ProviderStore::thinks_with`]); with
     /// nowhere to read them, yes: only the CLI can tell.
     fn can_think(&self) -> BoxFuture<'_, bool> {

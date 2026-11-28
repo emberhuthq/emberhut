@@ -138,6 +138,7 @@ struct Inner {
     report_log: ReportLog,
     display: DisplayService,
     theme: ThemeService,
+    waitlist: crate::services::waitlist::WaitlistService,
     agent_tokens: AgentTokens,
     history: HistoryService,
     uploads: UploadService,
@@ -820,6 +821,10 @@ impl AppState {
                 report_log: ReportLog::new(Arc::clone(&clock)),
                 display,
                 theme,
+                waitlist: crate::services::waitlist::WaitlistService::new(
+                    db.settings(),
+                    Arc::clone(&clock),
+                ),
                 agent_tokens,
                 history,
                 uploads,
@@ -1048,6 +1053,12 @@ impl AppState {
     #[must_use]
     pub fn theme(&self) -> &ThemeService {
         &self.inner.theme
+    }
+
+    /// The waitlists kept on this server.
+    #[must_use]
+    pub fn waitlist(&self) -> &crate::services::waitlist::WaitlistService {
+        &self.inner.waitlist
     }
 
     /// The rooms' agent tokens, which let a room's agent session call the MCP endpoint.

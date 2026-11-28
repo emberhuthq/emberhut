@@ -16,6 +16,7 @@ use crate::error::ApiError;
 use crate::extract::SignedIn;
 
 mod accounts;
+mod agent_accounts;
 mod agent_provider;
 mod agents;
 mod agents_inbound;
@@ -55,6 +56,7 @@ mod theme;
 mod threads;
 mod uploads;
 mod voice;
+mod waitlist;
 mod whatsapp;
 mod workers;
 
@@ -155,6 +157,9 @@ fn api() -> OpenApiRouter<AppState> {
             agent_provider::remove
         ))
         .routes(routes!(agent_provider::test))
+        .routes(routes!(agent_accounts::accounts))
+        .routes(routes!(waitlist::lists))
+        .routes(routes!(waitlist::join))
         .routes(routes!(push::register))
         .routes(routes!(secret_links::page, secret_links::save))
         .routes(routes!(mac::mac))
