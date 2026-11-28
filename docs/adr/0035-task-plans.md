@@ -75,12 +75,55 @@ plan`. Writing a plan clears it. This makes a missing plan visible without naggi
 ### Who writes a plan
 
 The tools are `plan_set`, `plan_step` and `plan_read`. A worker writes its own task's plan; a
-runner session writes the plan of the task it is linked to. Runner sessions share one room token,
+runner session writes the plan of the task it is linked to. Runner sessions share one token,
 so each names itself with a request header (`x-emberhut-session`), which the server lists in the
 runners' shared MCP configuration with the variable the runner sets per session; a session the
-server does not know, or a value left unexpanded, is as no header. A session the assistant starts
+server does not know, or a value left unexpanded, is as no header (see how runner sessions reach
+the tools, below). A session the assistant starts
 for a task is linked to the task from its meta, and its turns are the task's runs, so the task
 shows running while it works. The assistant's own sessions may write any task's plan.
+
+### How runner sessions reach the tools
+
+A runner gives each session's agent CLI the MCP servers `GET /api/runner/mcp` lists. That list
+was only the operator's `--runner-mcp` file, so a runner session had no tools of the server's
+unless the operator listed the room endpoint with a room token by hand, and a room token is made
+at a room's session start and lost at a restart, so a file can't hold one for long. With the
+flag on, the list now always carries the server's own entry (named `emberhut`, as the server
+names itself to MCP clients):
+
+- **Its own endpoint, `POST /mcp/runner`, and a token kind of its own.** The runner sessions'
+  token is one random token per server process, made the first time the list hands it out and
+  held in memory as its hash, like the rooms' and the workers' tokens. Only the list hands it out,
+  and only a runner's token reaches the list. One path per kind of token is how the server
+  already tells callers apart (rooms on `/mcp/emberhut`, workers on `/mcp/worker`): each route
+  reads one token store and picks its tools from it alone, so a room token on the runner path, or
+  this token on the room path, is an unknown caller, and the room endpoint's checks (whose agent,
+  a family member's room) stay as they are.
+- **A short list of tools**: `task` (one task in full, read only), `plan_set`, `plan_step` and
+  `plan_read`. Nothing that sends a message, drives a browser, reads threads or reaches past
+  tasks: the token is shared by every session on every runner.
+- **Writes need a linked session.** The entry sends the session header with the variable the
+  runner sets per session. A call whose header names a session linked to tasks writes only those
+  tasks' plans (the task may be left out when it is one); a call with no header, a value left
+  unexpanded, or a session the server doesn't know (or linked to no task) is refused writes, with
+  a message naming the header, and reads any task's plan. A room token keeps its rights as
+  before.
+- **Who and where.** The history line of a change names the assistant, as for a runner session
+  calling with a room token: a runner session works for the assistant. The calls act in Main,
+  as every runner session is Main's.
+- **The URL** is the one the server gives its own agent sessions: its listen address
+  (`127.0.0.1` for one listening on every address) and the path. Where the runners reach the server
+  at another address, the operator lists the entry in the file instead: a file entry for one of the
+  server's endpoints (by its URL's path) or named `emberhut` is kept as written, gets the session
+  header, and, pointing at `/mcp/runner` without an `Authorization`, gets the token.
+- **After a restart** the token is new and the old one is an unknown caller (401). Runners fetch
+  the list when they start and every ten minutes after, and give each new turn the list they last
+  had, so a session works again from its first turn after the next fetch; a runner that can't
+  reach the list keeps the one it had.
+
+With the flag off the list is the file's alone, no token is made, and every call to
+`/mcp/runner` is an unknown caller.
 
 ### A session's runs, and an end that was missed
 
