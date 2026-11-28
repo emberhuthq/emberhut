@@ -16,7 +16,7 @@ pub(crate) const DEFAULT_NAME: &str = "Ember";
 pub(crate) const SUGGESTIONS: [&str; 5] = [DEFAULT_NAME, "Ash", "Cinder", "Spark", "Flint"];
 
 /// The longest name, in characters.
-pub(crate) const NAME_MAX: usize = 32;
+pub(crate) const NAME_MAX: usize = 24;
 
 /// `typed` as a name: trimmed, at most [`NAME_MAX`] characters, the default when empty.
 #[must_use]

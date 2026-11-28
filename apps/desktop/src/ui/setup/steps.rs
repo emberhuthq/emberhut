@@ -291,7 +291,7 @@ impl SetupView {
                 self.store.read(cx).on_cloud_waitlist(),
                 p,
             ))
-            .child(always_on(p))
+            .child(always_on(&self.store, p))
             .children(status)
             .when(here != Here::TypeCode, |d| {
                 d.child(div().flex().pt(px(4.)).child(continue_button))
@@ -646,7 +646,8 @@ fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement 
 
 /// Why an always-on home matters: a small picture (this computer asleep, an always-on one
 /// lit) and a line.
-fn always_on(p: &Pal) -> impl IntoElement {
+fn always_on(store: &Entity<Store>, p: &Pal) -> impl IntoElement {
+    let store = store.clone();
     let place =
         |glyph: IconName, badge: Option<IconName>, color, badge_color, words: &'static str| {
             div()
@@ -719,6 +720,19 @@ fn always_on(p: &Pal) -> impl IntoElement {
                 .text_size(px(12.5))
                 .text_color(p.muted)
                 .child(always_on_line()),
+        )
+        .child(
+            Button::new("setup-add-hut")
+                .ghost()
+                .small()
+                .label("Add another hut")
+                .tooltip("Pair an always-on computer with a code from it")
+                .on_click(move |_, _, cx| {
+                    store.update(cx, |store, cx| {
+                        store.choose_home(HomeChoice::Elsewhere, cx);
+                        store.continue_home(cx);
+                    });
+                }),
         )
         .test_support()
 }
