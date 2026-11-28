@@ -136,6 +136,7 @@ pub(crate) fn config(accounts: &[(&str, &str)]) -> ClaudeConfig {
         mcp_url: format!("http://127.0.0.1:18990{}", emberhut_api::paths::MCP_ROOM),
         prompt: Some("Answer in one line.".to_owned()),
         max_sessions: 4,
+        task_plans: false,
     }
 }
 

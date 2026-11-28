@@ -16,6 +16,45 @@ use emberhut_db::StoredPlan;
 use super::{TaskError, TaskService};
 use crate::convert::timestamp_to_api;
 
+/// What the assistant's rules say of plans, on a server that keeps them.
+pub const ASSISTANT_RULE: &str = "Tasks carry plans: the steps of the work, which the owner \
+follows live in their apps. Whoever works on a task keeps its plan with plan_set and plan_step: \
+the whole plan first, each step marked doing when it starts and done the moment it's finished, \
+blocked with a note when stuck, and kept true as the work changes. A brief you write for a \
+session or a worker asks it to keep its task's plan; work you do on a task yourself, you keep \
+its plan yourself. Never make an HTML progress page or a progress report for a task: its plan \
+is what the owner reads.";
+
+/// The line of a worker's brief about its task's plan, on a server that keeps plans.
+pub const WORKER_RULE: &str = "- Keep the task's plan with plan_set and plan_step: your first \
+act is plan_set with the whole plan (every step of the work, in order); mark a step doing when \
+you start it and done the moment it's finished, blocked with a note when you're stuck, and keep \
+it true as the work changes. The owner follows the task by it, live: it replaces HTML progress \
+pages and progress notes.";
+
+/// What a runner session started for the task `key` is asked about its plan, after its brief,
+/// on a server that keeps plans. Its status line stays as the runner asks for it.
+#[must_use]
+pub fn session_rule(key: &str) -> String {
+    format!(
+        "This work is task {key}. Keep its plan with the emberhut tools plan_set and plan_step \
+         (they act on {key} by default): your first act is plan_set with the whole plan; mark \
+         each step doing when you start it and done the moment it's finished, blocked with a \
+         note when you're stuck, and keep it true as the work changes. The plan replaces any \
+         HTML progress page or progress report. End each reply with its STATUS line as before."
+    )
+}
+
+/// What an ultra run's lane on the task `key` is told about its plan, on a server that keeps
+/// plans: the lead keeps it.
+#[must_use]
+pub fn lane_rule(key: &str) -> String {
+    format!(
+        "The lead keeps {key}'s plan: don't write it (plan_set, plan_step); report what your \
+         part did in your answer."
+    )
+}
+
 impl TaskService {
     /// Whether this server keeps tasks' plans.
     #[must_use]

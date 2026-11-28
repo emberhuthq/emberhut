@@ -11,6 +11,7 @@
 //! `thread_start` takes the folder and machine it is given, names the task in the session's
 //! meta and follows the session; `session_send`'s `task_id` is ignored.
 
+use emberhut_core::task::TaskId;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
@@ -495,7 +496,7 @@ impl Tool for ThreadStart {
                     cwd,
                     project: None,
                     title: args.title.clone(),
-                    message: args.message,
+                    message: brief(ctx, TaskId::new(args.task_id), args.message),
                     account: args.account.filter(|account| !account.is_empty()),
                     model: args.model.filter(|model| !model.is_empty()),
                     effort: args.effort,
@@ -541,6 +542,19 @@ impl Tool for ThreadStart {
             opened.id,
             opened.cwd.as_deref().unwrap_or_default()
         )))
+    }
+}
+
+/// A work session's brief: `message`, and on a server that keeps plans, what the session is
+/// asked about its task's plan.
+fn brief(ctx: &ToolContext, task: TaskId, message: String) -> String {
+    if ctx.app.task_plans() {
+        format!(
+            "{message}\n\n{}",
+            crate::services::tasks::session_rule(&task.key())
+        )
+    } else {
+        message
     }
 }
 
