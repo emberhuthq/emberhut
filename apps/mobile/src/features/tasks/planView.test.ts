@@ -246,6 +246,27 @@ describe("the activity feed", () => {
     expect(activityFeed(runs, [], history, artifacts, "files").map((f) => f.kind)).toEqual(["file"]);
   });
 
+  it("reads plan events by how the server's plan lines start, not by a word in any line", () => {
+    const lines = [
+      "Started: Choose one",
+      "Reopened: Run the tests",
+      "Plan set: 9 steps, 2 done",
+      "Plan estimate: about 2 hours",
+      "Added step: Notarize",
+      "Blocked: Sign the build — needs the certificate",
+      "Let's plan the next step together",
+      "Created",
+    ].map((text, i) => ({ at: `2026-11-28T10:0${i}:00Z`, who: "assistant", text }));
+    expect(activityFeed([], [], lines, [], "plan").map((f) => (f.kind === "moment" ? f.moment.text : ""))).toEqual([
+      "Blocked: Sign the build — needs the certificate",
+      "Added step: Notarize",
+      "Plan estimate: about 2 hours",
+      "Plan set: 9 steps, 2 done",
+      "Reopened: Run the tests",
+      "Started: Choose one",
+    ]);
+  });
+
   it("keeps the turn lines from an older server's history when it sends no runs", () => {
     expect(activityFeed([], [], history, []).filter((f) => f.kind === "moment")).toHaveLength(3);
   });

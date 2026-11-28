@@ -68,5 +68,25 @@ export const STEP_STATE = { todo: "todo", doing: "doing", done: "done", blocked:
 /** One of the plan step states the app knows. */
 export type StepState = (typeof STEP_STATE)[keyof typeof STEP_STATE];
 
+/**
+ * How the lines a server that keeps plans writes in a task's history start when they are about its plan: a step ticked,
+ * started, skipped, reopened or blocked, a step added, renamed or noted, the whole plan written, its estimate changed, a
+ * turn that ended with no plan.
+ */
+export const PLAN_HISTORY_OPENINGS = [
+  "Ticked: ",
+  "Started: ",
+  "Skipped: ",
+  "Reopened: ",
+  "Blocked: ",
+  "Added step: ",
+  "Renamed step: ",
+  "Updated step: ",
+  "Note on ",
+  "Plan set: ",
+  "Plan estimate",
+  "A turn ended with no plan",
+] as const;
+
 /** Who a task, a line or a step is from. */
 export type Author = typeof OWNER | typeof ASSISTANT;
