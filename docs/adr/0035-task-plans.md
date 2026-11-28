@@ -103,12 +103,15 @@ names itself to MCP clients):
 - **A short list of tools**: `task` (one task in full, read only), `plan_set`, `plan_step` and
   `plan_read`. Nothing that sends a message, drives a browser, reads threads or reaches past
   tasks: the token is shared by every session on every runner.
-- **Writes need a linked session.** The entry sends the session header with the variable the
-  runner sets per session. A call whose header names a session linked to tasks writes only those
-  tasks' plans (the task may be left out when it is one); a call with no header, a value left
-  unexpanded, or a session the server doesn't know (or linked to no task) is refused writes, with
-  a message naming the header, and reads any task's plan. A room token keeps its rights as
-  before.
+- **A linked session writes only its tasks' plans.** The entry sends the session header with
+  the variable the runner sets per session. A call whose header names a session linked to tasks
+  writes only those tasks' plans (the task may be left out when it is one), as with a room token.
+  A call with no header, a value left unexpanded, or a session the server doesn't know (or
+  linked to no task) has the room token's rule: it reads and writes the task it names, and one
+  that leaves the task out is refused with a message saying to name it and that the session
+  header names no session. Holding writes back until the header is there would leave the
+  sessions of a runner that doesn't set the variable yet with no plans at all; the token reaches
+  tasks and nothing else either way.
 - **Who and where.** The history line of a change names the assistant, as for a runner session
   calling with a room token: a runner session works for the assistant. The calls act in Main,
   as every runner session is Main's.
