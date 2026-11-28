@@ -1275,3 +1275,32 @@ fn a_claude_account_signs_in_through_anthropic_and_the_hut_runs_on_it() {
     assert_eq!(hut.accounts_now(), Vec::new());
     assert!(!dir.exists(), "its folder goes");
 }
+
+#[test]
+fn a_hut_launchd_wont_take_back_after_a_new_account_runs_on_as_the_apps_child() {
+    let setup = Setup::new(Os::Mac);
+    let hut = setup.hut();
+    assert_eq!(hut.start_now().unwrap(), url(18990));
+    let keep = KeepLit {
+        when_closed: true,
+        at_login: true,
+    };
+    hut.keep_lit_now(keep).unwrap();
+    hut.add_account_now().unwrap();
+    let dir = setup.paths().data().join("accounts/claude-1");
+    setup.world().signed_in.insert(dir.into_os_string());
+    setup.world().refuses_agent = true;
+
+    assert_eq!(
+        hut.use_accounts_now().unwrap(),
+        url(18990),
+        "it answers all the same"
+    );
+    let serve = setup.world().spawned.last().cloned().unwrap();
+    assert!(serve.words().iter().any(|word| word == "--agent-accounts"));
+    assert_eq!(
+        setup.state().keep,
+        KeepLit::default(),
+        "no longer kept by the service"
+    );
+}

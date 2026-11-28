@@ -289,7 +289,22 @@ impl LocalHut {
     /// As [`LocalHut::start`].
     pub(crate) fn use_accounts_now(&self) -> Result<crate::config::ServerUrl, HutError> {
         let _busy = lock(&self.inner.busy);
-        self.light(true).map(crate::config::ServerUrl::loopback)
+        match self.light(true) {
+            Ok(port) => Ok(crate::config::ServerUrl::loopback(port)),
+            // The service wouldn't take it back: the hut runs on as the app's child rather than
+            // stay out (as keeping it lit does).
+            Err(error) if self.by_service(self.read_state().keep) => {
+                log::warn!(
+                    "the hut's service didn't start again ({error}): it runs as the app's child"
+                );
+                self.remove_service();
+                let mut state = self.read_state();
+                state.keep = super::KeepLit::default();
+                self.write_state(&state)?;
+                self.light(true).map(crate::config::ServerUrl::loopback)
+            }
+            Err(error) => Err(error),
+        }
     }
 }
 

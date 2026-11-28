@@ -719,14 +719,15 @@ impl LocalHut {
         }
     }
 
-    /// [`LocalHut::checked`], tried three times: right after an unload, launchd may refuse a
-    /// load for a moment (as ADR 0024's installer found).
+    /// [`LocalHut::checked`], tried up to eight times, waiting a little longer each time:
+    /// right after an unload, launchd refuses a load ("Input/output error") until the old job
+    /// is gone, which takes seconds on a real Mac (as ADR 0024's installer found).
     fn retried(&self, run: &Run, what: &'static str) -> Result<(), HutError> {
         let mut tries = 0;
         loop {
             tries += 1;
             match self.checked(run, what) {
-                Err(_) if tries < 3 => std::thread::sleep(self.inner.options.poll * 2),
+                Err(_) if tries < 8 => std::thread::sleep(self.inner.options.poll * 2 * tries),
                 outcome => return outcome,
             }
         }
