@@ -15,6 +15,7 @@ use super::{NewSession, SessionPage, SessionsView};
 use crate::shell::{WindowKind, windows};
 use crate::store::{Page, Store};
 use crate::ui::column::{self, Column, GoBack};
+use crate::ui::move_to_task::{self, MoveEvent, MoveToTask, MoveToTaskView};
 use crate::ui::palette::pal;
 use crate::ui::task_page::TaskView;
 use crate::ui::tasks::marks::glyph;
@@ -44,6 +45,8 @@ pub(crate) struct SessionsWindow {
     session: Entity<SessionPage>,
     task: Entity<TaskView>,
     focus: FocusHandle,
+    /// Move to task…'s picker, over the window while it is up.
+    move_picker: Option<Entity<MoveToTaskView>>,
 }
 
 impl SessionsWindow {
@@ -66,7 +69,24 @@ impl SessionsWindow {
             session,
             task,
             focus,
+            move_picker: None,
         }
+    }
+
+    /// The picker closed (its session moved: the task's page opens over the one shown).
+    fn move_answered(
+        &mut self,
+        event: &MoveEvent,
+        window: &mut Window,
+        cx: &mut Context<'_, Self>,
+    ) {
+        self.move_picker = None;
+        if let MoveEvent::Moved(task) = *event {
+            self.column
+                .update(cx, |column, cx| column.push(Page::Task(task), cx));
+        }
+        window.focus(&self.focus, cx);
+        cx.notify();
     }
 }
 
@@ -103,11 +123,18 @@ impl Render for SessionsWindow {
             .on_action(cx.listener(|this, _: &GoBack, _, cx| {
                 this.column.update(cx, Column::back);
             }))
+            .on_action(cx.listener(|this, action: &MoveToTask, window, cx| {
+                let picker =
+                    move_to_task::open(&this.store, action, window, cx, Self::move_answered);
+                this.move_picker = Some(picker);
+                cx.notify();
+            }))
             .on_action(cx.listener(|this, _: &NewSession, window, cx| {
                 this.column.update(cx, Column::close);
                 this.list
                     .update(cx, |list, cx| list.new_session(window, cx));
             }))
+            .relative()
             .size_full()
             .flex()
             .flex_col()
@@ -115,5 +142,6 @@ impl Render for SessionsWindow {
             .text_color(p.text)
             .children(bar)
             .child(div().flex_1().min_h_0().child(shown))
+            .children(self.move_picker.clone())
     }
 }

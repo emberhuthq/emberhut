@@ -14,6 +14,7 @@ pub(crate) mod findings;
 pub(crate) mod history;
 pub(crate) mod list;
 pub(crate) mod loose;
+pub(crate) mod moving;
 pub(crate) mod pages;
 pub(crate) mod plan;
 pub(crate) mod replies;

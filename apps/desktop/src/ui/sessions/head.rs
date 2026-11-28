@@ -2,8 +2,8 @@
 //! timer, Live or Reconnecting while it runs, where it runs (machine, account, folder, branch),
 //! its model and effort on the user's own, its tasks (each opens its page), and the last thing
 //! that failed. Its actions: Stop (asked first on the assistant's session), and on the user's
-//! own Stop this turn and the settings menu (model, effort, Stop and drop what's queued). Also
-//! the confirm card and a new session's draft card.
+//! own Stop this turn and the settings menu (model, effort, Stop and drop what's queued); with
+//! plans, Move to task… on a whole session. Also the confirm card and a new session's draft card.
 
 use emberhut_api::runner::actions::{Effort, SessionSettings};
 use gpui_kit::assets::IconName;
@@ -18,11 +18,14 @@ use super::page::SessionPage;
 use super::{Open, push};
 use crate::prose::direction;
 use crate::store::sessions::summary::Summary;
+use crate::store::sessions::view::SessionRef;
 use crate::store::sessions::watch::SessionWatch;
 use crate::store::sessions::words::{self, MODELS};
 use crate::store::tasks::clock;
+use crate::store::tasks::moving::{Moving, can_move};
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
+use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
 use crate::ui::reads::reads;
 use crate::ui::tasks::marks::glyph;
@@ -87,7 +90,7 @@ pub(crate) fn bar(
         .px(px(14.))
         .pt(px(10.))
         .pb(px(6.))
-        .child(actions(page, head, view.reference().agent.is_some(), cx))
+        .child(actions(page, head, view.reference(), cx))
         .child(card)
 }
 
@@ -95,9 +98,20 @@ fn muted(p: &Pal, text: String) -> Div {
     div().text_size(px(12.)).text_color(p.muted).child(text)
 }
 
-/// Stop, and on the user's own session Stop this turn and its settings.
-fn actions(page: &SessionPage, head: &Summary, helper: bool, cx: &Context<'_, SessionPage>) -> Div {
+/// Move to task… (a whole session, on a server that keeps plans), then Stop, and on the user's
+/// own session Stop this turn and its settings.
+fn actions(
+    page: &SessionPage,
+    head: &Summary,
+    shown: &SessionRef,
+    cx: &Context<'_, SessionPage>,
+) -> Div {
+    let helper = shown.agent.is_some();
     let mut actions = div().flex().items_center().gap(px(6.)).justify_end();
+    if !helper && can_move(page.store.read(cx).state()) {
+        let moving = Moving::new(shown.id.clone(), &head.title, head.tasks.clone());
+        actions = actions.child(move_to_task::button("session-move-to-task", moving));
+    }
     if head.direct {
         if head.running {
             actions = actions.child(

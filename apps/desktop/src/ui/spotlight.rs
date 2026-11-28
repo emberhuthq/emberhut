@@ -185,8 +185,14 @@ fn row(
         .on_click(cx.listener(move |_, _, _, cx| cx.emit(SpotlightEvent::Open(found.clone()))))
 }
 
-/// A task in the results: its state, its title, its key, project and status, its deadline.
-fn task_hit(p: &Pal, store: &Store, task: &Issue, today: jiff::civil::Date) -> Vec<AnyElement> {
+/// A task in the results: its state, its title, its key, project and status, its deadline (the
+/// move-to-task picker's rows too).
+pub(crate) fn task_hit(
+    p: &Pal,
+    store: &Store,
+    task: &Issue,
+    today: jiff::civil::Date,
+) -> Vec<AnyElement> {
     let project = store
         .state()
         .and_then(|state| lookup::project_name(state, task.pid));

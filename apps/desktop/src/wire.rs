@@ -1,6 +1,7 @@
 //! The wire words the contract leaves to the server: values the server writes and the app reads
 //! (or writes back), spelled once here. Each moves to `emberhut-api` once the contract names it.
 
+use emberhut_api::ids::TaskId;
 use emberhut_api::task_message::MessageTo;
 
 /// The server when nothing else names one: a server on this machine, on the server's default
@@ -21,6 +22,25 @@ pub(crate) const TASK_KEY_PREFIX: &str = "T-";
 /// How a link to a task starts, before the task's number: the server writes such links in notes
 /// and messages, and the app opens them: the app's own scheme ([`crate::links::SCHEME`]).
 pub(crate) const TASK_LINK: &str = "emberhut://task/";
+
+/// The route of one session (`POST /api/runner/sessions/{id}/task`, `{ "task": <id> }`) that
+/// moves it to another task, on a server that keeps plans: its last part.
+pub(crate) const SESSION_TASK_ROUTE: &str = "task";
+
+/// The body of [`SESSION_TASK_ROUTE`]: the task to move the session to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub(crate) struct MoveToTask {
+    /// The task.
+    pub(crate) task: TaskId,
+}
+
+/// The answer of [`SESSION_TASK_ROUTE`] (`{ "ok": true, "task": <id> }`): the task the session
+/// is on now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+pub(crate) struct MovedToTask {
+    /// The task.
+    pub(crate) task: TaskId,
+}
 
 /// The steps of a task's history that only change its state, in the words the server writes.
 pub(crate) const QUIET_STEPS: [&str; 11] = [

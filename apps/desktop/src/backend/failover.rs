@@ -638,6 +638,10 @@ impl Backend for Failover {
         self.active().change_session(id, settings)
     }
 
+    fn move_session(&self, id: &SessionId, task: TaskId) -> Result<TaskId, Error> {
+        self.active().move_session(id, task)
+    }
+
     fn open_session(&self, session: &OpenSession) -> Result<OpenedSession, Error> {
         self.active().open_session(session)
     }

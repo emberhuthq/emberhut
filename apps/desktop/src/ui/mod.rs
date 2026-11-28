@@ -20,6 +20,7 @@ pub(crate) mod look;
 mod machines;
 mod message;
 mod message_menu;
+pub(crate) mod move_to_task;
 mod needs;
 mod pairing;
 pub(crate) mod palette;

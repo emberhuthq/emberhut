@@ -57,6 +57,7 @@ use super::{
     Backend, Error, FreshState, RoomEvent, SharedBytes, StateReply, TooLarge, UploadSource,
 };
 use crate::config::{AppFiles, Server, ServerUrl};
+use crate::wire::{MoveToTask, MovedToTask, SESSION_TASK_ROUTE};
 
 /// `emberhut-client`, as the app's backend.
 #[derive(Debug)]
@@ -447,6 +448,14 @@ impl Backend for EmberhutBackend {
         self.client.change_session(id, settings).map_err(error)
     }
 
+    fn move_session(&self, id: &SessionId, task: TaskId) -> Result<TaskId, Error> {
+        let moved: MovedToTask = self
+            .client
+            .post_to_session(id, SESSION_TASK_ROUTE, &MoveToTask { task })
+            .map_err(error)?;
+        Ok(moved.task)
+    }
+
     fn open_session(&self, session: &OpenSession) -> Result<OpenedSession, Error> {
         self.client.open_session(session).map_err(error)
     }
@@ -806,6 +815,32 @@ mod tests {
             requests[1].json(),
             json!({"decision": "approve", "payloadHash": "cd".repeat(32)})
         );
+    }
+
+    #[test]
+    fn a_session_moves_to_a_task_or_says_why_not() {
+        let server = TestServer::start(3, |request| match request.json()["task"].as_i64() {
+            Some(7) => Reply::json(200, &json!({"ok": true, "task": 7})),
+            Some(8) => Reply::json(
+                400,
+                &json!({"ok": false, "error": "T-8 is done: reopen it first"}),
+            ),
+            _ => Reply::json(404, &json!({"ok": false, "error": "no such task"})),
+        });
+        let backend = backend(&server);
+        let session = SessionId::from("r-1");
+        assert_eq!(
+            backend.move_session(&session, TaskId::new(7)).unwrap(),
+            TaskId::new(7)
+        );
+        let done = backend.move_session(&session, TaskId::new(8)).unwrap_err();
+        assert_eq!(done.server_message(), Some("T-8 is done: reopen it first"));
+        let unknown = backend.move_session(&session, TaskId::new(9)).unwrap_err();
+        assert_eq!(unknown.server_message(), Some("no such task"));
+        let requests = server.finish();
+        assert_eq!(requests[0].method, "POST");
+        assert_eq!(requests[0].target, "/api/runner/sessions/r-1/task");
+        assert_eq!(requests[0].json(), json!({"task": 7}));
     }
 
     #[test]

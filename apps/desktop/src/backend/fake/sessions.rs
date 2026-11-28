@@ -1,11 +1,11 @@
 //! The fake's runner sessions: transcripts by session, scripted live streams, and the answers to
-//! messages, Stop, settings, new sessions, folders, branches and external threads' steps, queued per route with
+//! messages, Stop, settings, moves to another task, new sessions, folders, branches and external threads' steps, queued per route with
 //! a plain default once a queue is empty.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, PoisonError};
 
-use emberhut_api::ids::{SessionId, TurnId};
+use emberhut_api::ids::{SessionId, TaskId, TurnId};
 use emberhut_api::runner::actions::SentToSession;
 use emberhut_api::runner::new_session::{BranchList, FolderList, OpenedSession};
 use emberhut_api::runner::transcript::{SessionLive, Transcript};
@@ -23,6 +23,8 @@ pub(crate) struct SessionReplies {
     sends: Mutex<VecDeque<Result<SentToSession, Error>>>,
     /// Stop, Stop this turn and settings, in turn.
     actions: Mutex<VecDeque<Result<(), Error>>>,
+    /// Moves to another task, in turn.
+    moves: Mutex<VecDeque<Result<(), Error>>>,
     opens: Mutex<VecDeque<Result<OpenedSession, Error>>>,
     folders: Mutex<VecDeque<Result<FolderList, Error>>>,
     branches: Mutex<VecDeque<Result<BranchList, Error>>>,
@@ -76,6 +78,11 @@ impl SessionReplies {
         push(&self.actions, reply);
     }
 
+    /// Queues the answer to the next move to another task (by default it goes through).
+    pub(crate) fn push_move(&self, reply: Result<(), Error>) {
+        push(&self.moves, reply);
+    }
+
     /// Queues the answer to the next new session (by default `r-new` opens).
     pub(crate) fn push_open(&self, reply: Result<OpenedSession, Error>) {
         push(&self.opens, reply);
@@ -121,6 +128,11 @@ impl SessionReplies {
 
     pub(super) fn action(&self) -> Result<(), Error> {
         pop(&self.actions).unwrap_or(Ok(()))
+    }
+
+    /// The answer to a move to `task`: on it, unless a refusal was queued.
+    pub(super) fn moved(&self, task: TaskId) -> Result<TaskId, Error> {
+        pop(&self.moves).unwrap_or(Ok(())).map(|()| task)
     }
 
     pub(super) fn open(&self) -> Result<OpenedSession, Error> {

@@ -460,6 +460,15 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::send_to_session`].
     fn change_session(&self, id: &SessionId, settings: &SessionSettings) -> Result<(), Error>;
 
+    /// Moves a session to task `task` (on a server that keeps plans): its turns count there
+    /// from now on. The task it is on now, as the server says.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::send_to_session`]: 404 for a session or task the server doesn't have, 400
+    /// for a task that is done or archived, each with the server's reason.
+    fn move_session(&self, id: &SessionId, task: TaskId) -> Result<TaskId, Error>;
+
     /// Opens a session of the user's own with their first message.
     ///
     /// # Errors

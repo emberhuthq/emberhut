@@ -14,6 +14,7 @@ use super::chat::ChatView;
 use super::chat::ask::ShowRooms;
 use super::column::{self, Column};
 use super::files::status_line;
+use super::move_to_task::MoveToTask;
 use super::pairing::PairingForm;
 use super::palette::{Pal, pal};
 use super::pause::PauseSheet;
@@ -236,6 +237,8 @@ pub(crate) struct MainWindow {
     /// The spotlight (⌘K), over the window while it is up.
     pub(super) spotlight: Entity<SpotlightView>,
     pub(super) spotlight_open: bool,
+    /// Move to task…'s picker, over the window while it is up.
+    pub(super) move_picker: Option<Entity<super::move_to_task::MoveToTaskView>>,
     /// The Sessions screen.
     sessions: Entity<super::sessions::SessionsView>,
     /// A session's page, for the session the column shows.
@@ -339,6 +342,7 @@ impl MainWindow {
             task_page,
             spotlight,
             spotlight_open: false,
+            move_picker: None,
             sessions,
             session_page,
             viewer,
@@ -735,6 +739,9 @@ impl MainWindow {
         .on_action(cx.listener(|this, _: &OpenSpotlight, window, cx| {
             this.open_spotlight(window, cx);
         }))
+        .on_action(cx.listener(|this, action: &MoveToTask, window, cx| {
+            this.open_move_picker(action, window, cx);
+        }))
         .on_action(cx.listener(|this, action: &OpenAgentRoom, window, cx| {
             this.open(Page::Room(action.room), window, cx);
         }))
@@ -839,6 +846,7 @@ impl Render for MainWindow {
             .when(open && self.spotlight_open, |d| {
                 d.child(self.spotlight.clone())
             })
+            .when(open, |d| d.children(self.move_picker.clone()))
             .child(self.pause.clone())
             .child(self.viewer.clone())
             .children(status_line::view(&self.store, &p, cx))

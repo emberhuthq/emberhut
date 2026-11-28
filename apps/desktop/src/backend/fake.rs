@@ -166,6 +166,8 @@ pub(crate) enum Call {
     InterruptSession(SessionId),
     /// A session's settings changed.
     ChangeSession(SessionId, SessionSettings),
+    /// A session moved to a task.
+    MoveSession(SessionId, TaskId),
     /// A session of the user's own opened.
     OpenSession(OpenSession),
     /// A machine's folders, by the query string.
@@ -957,6 +959,11 @@ impl Backend for FakeBackend {
     fn change_session(&self, id: &SessionId, settings: &SessionSettings) -> Result<(), Error> {
         self.record(Call::ChangeSession(id.clone(), settings.clone()));
         self.sessions.action()
+    }
+
+    fn move_session(&self, id: &SessionId, task: TaskId) -> Result<TaskId, Error> {
+        self.record(Call::MoveSession(id.clone(), task));
+        self.sessions.moved(task)
     }
 
     fn open_session(&self, session: &OpenSession) -> Result<OpenedSession, Error> {
