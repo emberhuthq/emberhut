@@ -32,6 +32,17 @@ describe("a sheet's tapped action", () => {
     expect(files).toHaveBeenCalledTimes(1);
   });
 
+  it("on iOS runs the action when a sheet taken off the screen never says it's gone", () => {
+    const answer = vi.fn();
+    const sheet = sheetChoice(true);
+    sheet.choose(answer);
+    // A caller that unmounts its sheet on close: the Modal's onDismiss never comes, its unmount does.
+    sheet.unmounted();
+    expect(answer).toHaveBeenCalledTimes(1);
+    sheet.dismissed();
+    expect(answer).toHaveBeenCalledTimes(1);
+  });
+
   it("on Android runs at once: its Modal never says it's gone", () => {
     const openPicker = vi.fn();
     sheetChoice(false).choose(openPicker);

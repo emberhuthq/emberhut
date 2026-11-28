@@ -16,5 +16,9 @@ export function sheetChoice(waitForDismiss: boolean) {
       chosen = null;
       action?.();
     },
+    /** The sheet left the screen without its dismissal (its caller unmounted it): what was chosen still runs. */
+    unmounted() {
+      this.dismissed();
+    },
   };
 }
