@@ -967,6 +967,18 @@ impl Store {
         }
     }
 
+    /// Continue on "Light it" once lit with a plan's accounts: the step is done.
+    pub(crate) fn continue_lit(&mut self, cx: &mut Context<'_, Self>) {
+        let line = self.light_line();
+        self.step_done(SetupStep::Light, line, cx);
+    }
+
+    /// Whether the ember is lit (as last read).
+    #[must_use]
+    pub(crate) fn setup_is_lit(&self) -> bool {
+        self.setup.lit == LitCheck::Lit
+    }
+
     /// A provider was saved from "Light it": the step is done.
     pub(crate) fn setup_lit(&mut self, cx: &mut Context<'_, Self>) {
         self.setup.lit = LitCheck::Lit;
@@ -1055,8 +1067,12 @@ impl Store {
             self.setup.steps[SetupStep::Home.index()] = StepState::Done(self.home_line());
             self.show_setup(SetupStep::Light, cx);
         } else if !unlit && self.setup.open == Some(SetupStep::Light) {
-            let line = lit_line(self.credentials().saved());
-            self.step_done(SetupStep::Light, line, cx);
+            // Lit with a plan's accounts: the step stays, showing them, until Continue (more
+            // accounts can be added first).
+            if self.setup.plans.signed_in().next().is_none() {
+                let line = self.light_line();
+                self.step_done(SetupStep::Light, line, cx);
+            }
         }
         cx.notify();
     }

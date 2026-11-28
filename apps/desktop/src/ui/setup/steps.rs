@@ -714,6 +714,7 @@ fn always_on(p: &Pal) -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .min_w_0()
                 .text_size(px(12.5))
                 .text_color(p.muted)
                 .child(always_on_line()),

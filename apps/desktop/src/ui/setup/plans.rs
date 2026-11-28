@@ -124,73 +124,8 @@ impl SetupView {
         let store = self.store.read(cx);
         let plans = store.plans().clone();
         let here = store.signs_in_plans();
-        let entity = self.store.clone();
-        let signed_in = plans.signed_in().count();
-        let busy = plans.waiting.is_some() || plans.restarting;
         let body: Div = if here {
-            let sign_in = Button::new("setup-claude-sign-in")
-                .label(if plans.accounts.is_empty() {
-                    "Sign in with Claude"
-                } else {
-                    "Add another Claude account"
-                })
-                .disabled(busy)
-                .on_click(move |_, _, cx| entity.update(cx, Store::sign_in_with_claude));
-            let sign_in = if plans.accounts.is_empty() {
-                sign_in.primary()
-            } else {
-                sign_in.ghost()
-            };
-            let cancel_store = self.store.clone();
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(8.))
-                .children(plans.accounts.iter().enumerate().map(|(at, account)| {
-                    account_row(&self.store, account, at, &plans, signed_in, p)
-                }))
-                .when_some(plans.waiting.as_ref(), |d, _| {
-                    d.child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(10.))
-                            .child(working_line(
-                                p,
-                                "Finish signing in on Anthropic's page in your browser…",
-                            ))
-                            .child(
-                                Button::new("setup-claude-cancel")
-                                    .ghost()
-                                    .small()
-                                    .label("Cancel")
-                                    .on_click(move |_, _, cx| {
-                                        cancel_store.update(cx, Store::stop_waiting_for_sign_in);
-                                    }),
-                            ),
-                    )
-                })
-                .when(plans.restarting, |d| {
-                    d.child(working_line(p, "Starting your ember on your plan…"))
-                })
-                .when_some(plans.problem.clone(), |d, why| {
-                    d.child(
-                        div()
-                            .id("setup-claude-problem")
-                            .role(Role::Status)
-                            .text_size(px(12.5))
-                            .text_color(p.warn)
-                            .child(why),
-                    )
-                })
-                .child(div().flex().child(sign_in))
-                .when(signed_in > 1, |d| {
-                    d.child(moves_row(&self.store, plans.moves, busy, p))
-                })
-                .child(note(
-                    p,
-                    "Opens Anthropic's sign-in in your browser. Emberhut never sees your password.",
-                ))
+            self.claude_here(&plans, store.setup_is_lit(), p)
         } else {
             div().child(note(
                 p,
@@ -209,6 +144,94 @@ impl SetupView {
             self.fold_link(Fold::Claude, "Use an Anthropic API key instead", p, cx),
             Some(body),
         )
+    }
+
+    /// Claude's card on Emberhut here: the accounts, a sign-in under way, Continue once lit,
+    /// sign in (or add another), and the switch to move between them.
+    fn claude_here(&self, plans: &crate::store::setup::Plans, lit: bool, p: &Pal) -> Div {
+        let entity = self.store.clone();
+        let signed_in = plans.signed_in().count();
+        let busy = plans.waiting.is_some() || plans.restarting;
+        let sign_in = Button::new("setup-claude-sign-in")
+            .label(if plans.accounts.is_empty() {
+                "Sign in with Claude"
+            } else {
+                "Add another Claude account"
+            })
+            .disabled(busy)
+            .on_click(move |_, _, cx| entity.update(cx, Store::sign_in_with_claude));
+        let sign_in = if plans.accounts.is_empty() {
+            sign_in.primary()
+        } else {
+            sign_in.ghost()
+        };
+        let cancel_store = self.store.clone();
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .children(
+                plans.accounts.iter().enumerate().map(|(at, account)| {
+                    account_row(&self.store, account, at, plans, signed_in, p)
+                }),
+            )
+            .when_some(plans.waiting.as_ref(), |d, _| {
+                d.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.))
+                        .child(working_line(
+                            p,
+                            "Finish signing in on Anthropic's page in your browser…",
+                        ))
+                        .child(
+                            Button::new("setup-claude-cancel")
+                                .ghost()
+                                .small()
+                                .label("Cancel")
+                                .on_click(move |_, _, cx| {
+                                    cancel_store.update(cx, Store::stop_waiting_for_sign_in);
+                                }),
+                        ),
+                )
+            })
+            .when(plans.restarting, |d| {
+                d.child(working_line(p, "Starting your ember on your plan…"))
+            })
+            .when_some(plans.problem.clone(), |d, why| {
+                d.child(
+                    div()
+                        .id("setup-claude-problem")
+                        .role(Role::Status)
+                        .text_size(px(12.5))
+                        .text_color(p.warn)
+                        .child(why),
+                )
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .when(signed_in > 0 && lit && !busy, |d| {
+                        let store = self.store.clone();
+                        d.child(
+                            Button::new("setup-plans-continue")
+                                .primary()
+                                .label("Continue")
+                                .on_click(move |_, _, cx| store.update(cx, Store::continue_lit)),
+                        )
+                    })
+                    .child(sign_in),
+            )
+            .when(signed_in > 1, |d| {
+                d.child(moves_row(&self.store, plans.moves, busy, p))
+            })
+            .child(note(
+                p,
+                "Opens Anthropic's sign-in in your browser. Emberhut never sees your password.",
+            ))
     }
 
     /// A link that unfolds `fold` (or folds it again), opening the picker on its provider.
