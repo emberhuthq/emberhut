@@ -4,11 +4,13 @@
 //! being written, the date pickers. It shows the task the column shows.
 
 mod actions;
+mod activity;
 mod agents;
 mod decision;
 mod details;
 #[cfg(test)]
 mod media_tests;
+mod plan;
 mod reply;
 mod results;
 mod text;
@@ -59,6 +61,10 @@ pub(super) mod fold {
     pub(crate) const ALL_RUNS: &str = "fold:all-runs";
     /// Files and results under an ask.
     pub(crate) const RESULTS: &str = "fold:results";
+    /// The plan's steps folded before the current one.
+    pub(crate) const PLAN_EARLIER: &str = "fold:plan-earlier";
+    /// The plan's steps folded after the next ones.
+    pub(crate) const PLAN_LATER: &str = "fold:plan-later";
 }
 
 /// How often a page with running agents redraws, for their timers.
@@ -101,6 +107,8 @@ pub(crate) struct TaskView {
     scroll: ScrollHandle,
     /// A two-finger swipe over the page: right goes back.
     swipe: Swipe,
+    /// What the activity shows (on a server that keeps plans).
+    feed: crate::store::tasks::activity::Filter,
 }
 
 impl TaskView {
@@ -191,6 +199,7 @@ impl TaskView {
             decide_seen: None,
             scroll: ScrollHandle::new(),
             swipe: Swipe::default(),
+            feed: crate::store::tasks::activity::Filter::default(),
         }
     }
 
@@ -278,6 +287,7 @@ impl TaskView {
         self.stopping = false;
         self.ultra = None;
         self.tapped = None;
+        self.feed = crate::store::tasks::activity::Filter::default();
         self.scroll.set_offset(point(px(0.), px(0.)));
         if let Some(task) = task {
             Self::tick_while_live(task, cx);
@@ -559,12 +569,15 @@ impl TaskView {
     /// agents, runs, sessions), then the rest folded (since the ask, details, notes,
     /// history) and Stop on a working task.
     fn body(&self, part: &Part<'_>, cx: &Context<'_, Self>) -> AnyElement {
+        if part.read.keeps_plans() {
+            return self.planned_body(part, cx);
+        }
         let mut body = div().flex().flex_col();
         body = top::title_and_state(body, part, self, cx);
         body = reply::section(body, part, self, cx);
         body = top::standing(body, part, self, cx);
         body = results::section(body, part, self, cx);
-        body = work::subtasks(body, part);
+        body = work::subtasks(body, part, cx);
         body = work::finding(body, part, self, cx);
         body = agents::section(body, part);
         body = work::runs(body, part, self, cx);
@@ -573,6 +586,33 @@ impl TaskView {
         body = details::details(body, part, self, cx);
         body = details::notes(body, part, self, cx);
         body = details::history(body, part, self, cx);
+        body = details::stop(body, part, self, cx);
+        body.into_any_element()
+    }
+}
+
+impl TaskView {
+    /// The page's sections on a server that keeps plans, top to bottom: the title and its head
+    /// (state, now, needs you or blocked, ETA, the session at work), the plan, what needs the
+    /// user (the ask in its card, the reply box), then the activity (the turns of work with
+    /// the plan's changes, the files and the history, under one filter), the files and results,
+    /// subtasks, findings, agents, sessions, then the rest folded (since the ask, details,
+    /// notes) and Stop on a working task.
+    fn planned_body(&self, part: &Part<'_>, cx: &Context<'_, Self>) -> AnyElement {
+        let mut body = div().flex().flex_col();
+        body = plan::head(body, part, cx);
+        body = plan::section_of(body, part, self, cx);
+        body = plan::needs_you(body, part, self, cx);
+        body = reply::section(body, part, self, cx);
+        body = activity::section_of(body, part, self, cx);
+        body = results::section(body, part, self, cx);
+        body = work::subtasks(body, part, cx);
+        body = work::finding(body, part, self, cx);
+        body = agents::section(body, part);
+        body = work::sessions(body, part);
+        body = details::since_asked(body, part, self, cx);
+        body = details::details(body, part, self, cx);
+        body = details::notes(body, part, self, cx);
         body = details::stop(body, part, self, cx);
         body.into_any_element()
     }
