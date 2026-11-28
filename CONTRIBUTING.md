@@ -57,8 +57,10 @@ gitleaks dir --config .gitleaks-public.toml --redact .
 
 CI also measures library coverage (`cargo llvm-cov nextest`) and runs the tests and the
 release build on macOS and Windows too; on Windows it also runs the app's `--self-check` and
-builds, installs and uninstalls its installer. A maintainer merges a pull request only when the `ci-ok` check,
-which needs every other job, is green.
+builds, installs and uninstalls its installer. A maintainer merges a pull request only when the
+`ci-ok` check, which needs every other job, is green. A pull request that changes the release
+machinery (`.github/workflows/release.yml`, `xtask/`) also gets a dry run of the release
+workflow; how a release is cut is in [docs/releasing.md](docs/releasing.md).
 
 ## Code standards
 

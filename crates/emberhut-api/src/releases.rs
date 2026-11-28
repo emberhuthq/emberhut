@@ -22,6 +22,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest as _, Sha256};
 
 use crate::open_enum::open_enum;
 use crate::time::{Day, Timestamp};
@@ -35,6 +36,8 @@ open_enum! {
     pub enum Platform {
         /// The Mac app.
         Macos = "macos",
+        /// The Windows app.
+        Windows = "windows",
         /// The iPhone app (from the App Store's beta testing; its feed only says which build is newest).
         Ios = "ios",
         /// The Android app (on Play's internal track; as for iOS).
@@ -159,4 +162,101 @@ pub struct Asset {
     /// Its update signature: a minisign signature file, as text, whose trusted comment names
     /// the platform, arch, version, build, this `sha256` and the notes' SHA-256.
     pub signature: String,
+}
+
+/// The trusted comment a payload's update signature must carry: the line the signature also
+/// covers, which binds the payload to its feed entry.
+///
+/// It reads exactly
+/// `<product> <platform> <arch> <version> build <build> sha256:<hex> notes:<hex>`: `sha256` is
+/// the payload's SHA-256 and the last field the SHA-256 of `notes`' UTF-8 bytes as the feed
+/// carries them (no trimming, no normalising), both in lowercase hex. A feed can then neither
+/// relabel an old payload as a new release nor change the notes the app shows. The signer
+/// (`cargo xtask release feed`) and the app's verifier both call this, so they agree byte for
+/// byte.
+///
+/// ```
+/// use emberhut_api::releases::{Arch, Build, Platform, update_comment};
+///
+/// let comment = update_comment(
+///     "emberhut-desktop", &Platform::Windows, &Arch::X86_64, "0.1.0-rc.1", Build::new(10001),
+///     &[0xab; 32], "",
+/// );
+/// assert!(comment.starts_with("emberhut-desktop windows x86_64 0.1.0-rc.1 build 10001 sha256:abab"));
+/// // The SHA-256 of no bytes at all.
+/// assert!(comment.ends_with(
+///     " notes:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+/// ));
+/// ```
+#[must_use]
+pub fn update_comment(
+    product: &str,
+    platform: &Platform,
+    arch: &Arch,
+    version: &str,
+    build: Build,
+    sha256: &[u8; 32],
+    notes: &str,
+) -> String {
+    format!(
+        "{product} {platform} {arch} {version} build {build} sha256:{payload} notes:{notes}",
+        payload = hex(sha256),
+        notes = hex(&Sha256::digest(notes.as_bytes()).into()),
+    )
+}
+
+/// `bytes` as lowercase hex, two digits a byte.
+fn hex(bytes: &[u8; 32]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut text = String::with_capacity(64);
+    for byte in bytes {
+        text.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        text.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Arch, Build, Platform, update_comment};
+
+    #[test]
+    fn the_comment_names_the_platform_and_hashes_the_notes_as_they_are() {
+        let comment = |platform: &Platform, notes: &str| {
+            update_comment(
+                "emberhut-desktop",
+                platform,
+                &Arch::Arm64,
+                "0.3.0",
+                Build::new(15),
+                &[0x0f; 32],
+                notes,
+            )
+        };
+        let mac = comment(&Platform::Macos, "- Faster.\n");
+        assert!(
+            mac.starts_with(&format!(
+                "emberhut-desktop macos arm64 0.3.0 build 15 sha256:{} notes:",
+                "0f".repeat(32)
+            )),
+            "{mac}"
+        );
+        assert_eq!(
+            mac.len(),
+            mac.find(" notes:").unwrap() + " notes:".len() + 64
+        );
+        assert!(comment(&Platform::Windows, "- Faster.\n").contains(" windows arm64 "));
+        assert_ne!(
+            comment(&Platform::Macos, "- Faster."),
+            mac,
+            "a newline is part of the notes"
+        );
+    }
+
+    #[test]
+    fn windows_is_a_known_platform() {
+        assert_eq!(Platform::from("windows"), Platform::Windows);
+        assert_eq!(Platform::Windows.as_str(), "windows");
+        assert!(Platform::Windows.is_known());
+    }
 }

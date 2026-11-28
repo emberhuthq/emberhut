@@ -104,6 +104,31 @@ impl Layout {
     pub(crate) fn zip(&self, version: &str, arch: &str) -> PathBuf {
         self.out_dir().join(zip_name(version, arch))
     }
+
+    /// The disk image to hand out, `<target>/bundle/Emberhut-<version>-macos-<arch>.dmg`.
+    #[must_use]
+    pub(crate) fn dmg(&self, version: &str, arch: &str) -> PathBuf {
+        self.out_dir().join(dmg_name(version, arch))
+    }
+
+    /// The folder the disk image is made from: the app and an /Applications link.
+    #[must_use]
+    pub(crate) fn dmg_staging(&self) -> PathBuf {
+        self.out_dir().join("dmg")
+    }
+
+    /// Where a universal build's joined binaries go, `<target>/universal-apple-darwin/<profile>`,
+    /// beside cargo's per-target directories.
+    #[must_use]
+    pub(crate) fn universal_dir(&self, profile: &str) -> PathBuf {
+        self.target().join("universal-apple-darwin").join(profile)
+    }
+
+    /// The scratch folder the standalone server is signed and packed in.
+    #[must_use]
+    pub(crate) fn server_dir(&self) -> PathBuf {
+        self.out_dir().join("server")
+    }
 }
 
 /// The architecture as Apple names it in file names: `arm64` for Rust's `aarch64`.
@@ -121,11 +146,17 @@ pub(crate) fn zip_name(version: &str, arch: &str) -> String {
     format!("{DISPLAY_NAME}-{version}-macos-{arch}.zip")
 }
 
+/// The disk image's file name, `Emberhut-<version>-macos-<arch>.dmg`.
+#[must_use]
+pub(crate) fn dmg_name(version: &str, arch: &str) -> String {
+    format!("{DISPLAY_NAME}-{version}-macos-{arch}.dmg")
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    use super::{BUNDLE_DIR, DISPLAY_NAME, Layout, arch_label, zip_name};
+    use super::{BUNDLE_DIR, DISPLAY_NAME, Layout, arch_label, dmg_name, zip_name};
     use crate::workspace::Workspace;
 
     fn layout() -> Layout {
@@ -150,6 +181,27 @@ mod tests {
         assert_eq!(
             layout().zip("1.2.3", "x86_64"),
             Path::new("/work/emberhut/target/bundle/Emberhut-1.2.3-macos-x86_64.zip")
+        );
+    }
+
+    #[test]
+    fn the_disk_image_and_the_universal_binaries_have_fixed_places() {
+        assert_eq!(
+            dmg_name("0.1.0-rc.1", "universal"),
+            "Emberhut-0.1.0-rc.1-macos-universal.dmg"
+        );
+        let layout = layout();
+        assert_eq!(
+            layout.dmg("0.1.0", "arm64"),
+            Path::new("/work/emberhut/target/bundle/Emberhut-0.1.0-macos-arm64.dmg")
+        );
+        assert_eq!(
+            layout.dmg_staging(),
+            Path::new("/work/emberhut/target/bundle/dmg")
+        );
+        assert_eq!(
+            layout.universal_dir("dist"),
+            Path::new("/work/emberhut/target/universal-apple-darwin/dist")
         );
     }
 

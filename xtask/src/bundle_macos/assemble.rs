@@ -7,8 +7,9 @@ use std::process::{Command, Stdio};
 
 use anyhow::Context as _;
 
-use crate::bundle_macos::app::{EXECUTABLE, ICON_NAME, Layout, VERSION};
+use crate::bundle_macos::app::{EXECUTABLE, ICON_NAME, Layout};
 use crate::bundle_macos::build::Built;
+use crate::bundle_macos::plan::BundleVersion;
 use crate::bundle_macos::plist;
 use crate::bundle_macos::tool;
 use crate::cmd;
@@ -33,12 +34,17 @@ pub(crate) fn iconset_images() -> Vec<(String, u32)> {
 }
 
 /// Builds a fresh `Emberhut.app` at the layout's bundle path around `built`: the app's binary,
-/// and the hut's server beside it in `Contents/MacOS` when it was built.
+/// and the hut's server beside it in `Contents/MacOS` when it was built, with `version` in its
+/// `Info.plist`.
 ///
 /// # Errors
 ///
 /// Fails when a file can't be written or `sips`/`iconutil` fail.
-pub(crate) fn assemble(layout: &Layout, built: &Built) -> anyhow::Result<()> {
+pub(crate) fn assemble(
+    layout: &Layout,
+    built: &Built,
+    version: &BundleVersion,
+) -> anyhow::Result<()> {
     let bundle = layout.app_bundle();
     say(&format!("Assembling {}", bundle.display()));
     remove_dir_if_present(&bundle)?;
@@ -54,7 +60,7 @@ pub(crate) fn assemble(layout: &Layout, built: &Built) -> anyhow::Result<()> {
         copy(server, &layout.bundled_server())?;
     }
     let info = contents.join("Info.plist");
-    fs::write(&info, plist::info_plist(VERSION))
+    fs::write(&info, plist::info_plist_for(version))
         .with_context(|| format!("writing {}", info.display()))?;
     make_icon(layout, &resources.join(format!("{ICON_NAME}.icns")))
 }

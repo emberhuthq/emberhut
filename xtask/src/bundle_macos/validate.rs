@@ -2,8 +2,9 @@
 
 use std::fmt;
 
+use crate::bundle_macos::app::VERSION;
 use crate::bundle_macos::args::BundleArgs;
-use crate::bundle_macos::plan::{BuildProfile, BundlePlan, Notarization, Signing};
+use crate::bundle_macos::plan::{BuildProfile, BundlePlan, BundleVersion, Notarization, Signing};
 
 /// A combination of `bundle-macos` options that can't work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,8 +13,10 @@ pub(crate) enum FlagError {
     EmptyIdentity,
     /// `--notarize` without a real signing identity: Apple rejects ad hoc signatures.
     NotarizeNeedsIdentity,
-    /// `--notarize` without a keychain profile (or with an empty one).
+    /// `--notarize` without a keychain profile or an API key (or with an empty one).
     NotarizeNeedsProfile,
+    /// `--notary-key` without its key id or issuer (or with an empty one).
+    NotaryKeyIncomplete,
 }
 
 impl fmt::Display for FlagError {
@@ -28,7 +31,11 @@ impl fmt::Display for FlagError {
             }
             Self::NotarizeNeedsProfile => {
                 "--notarize needs a notarytool keychain profile (--keychain-profile or \
-                 EMBERHUT_NOTARY_PROFILE)"
+                 EMBERHUT_NOTARY_PROFILE) or an App Store Connect API key (--notary-key)"
+            }
+            Self::NotaryKeyIncomplete => {
+                "--notary-key needs --notary-key-id and --notary-issuer (or \
+                 EMBERHUT_NOTARY_KEY_ID and EMBERHUT_NOTARY_ISSUER)"
             }
         })
     }
@@ -49,6 +56,11 @@ pub(crate) fn signing(sign: Option<&str>) -> Result<Signing, FlagError> {
     }
 }
 
+/// `value` trimmed, unless that leaves nothing.
+fn filled(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
 impl BundleArgs {
     /// Checks how the options combine and turns them into a plan.
     ///
@@ -62,12 +74,7 @@ impl BundleArgs {
             if signing == Signing::AdHoc {
                 return Err(FlagError::NotarizeNeedsIdentity);
             }
-            match self.keychain_profile.as_deref().map(str::trim) {
-                None | Some("") => return Err(FlagError::NotarizeNeedsProfile),
-                Some(profile) => Some(Notarization {
-                    keychain_profile: profile.to_owned(),
-                }),
-            }
+            Some(self.notarization()?)
         } else {
             None
         };
@@ -83,7 +90,35 @@ impl BundleArgs {
             signing,
             notarization,
             install: self.install,
+            universal: self.universal,
+            dmg: self.dmg,
+            version: BundleVersion::development(VERSION),
         })
+    }
+
+    /// The notary credentials: the API key when given, else the keychain profile.
+    fn notarization(&self) -> Result<Notarization, FlagError> {
+        if let Some(key) = &self.notary_key {
+            return match (
+                filled(self.notary_key_id.as_deref()),
+                filled(self.notary_issuer.as_deref()),
+            ) {
+                (Some(key_id), Some(issuer)) if !key.as_os_str().is_empty() => {
+                    Ok(Notarization::ApiKey {
+                        key: key.clone(),
+                        key_id: key_id.to_owned(),
+                        issuer: issuer.to_owned(),
+                    })
+                }
+                _ => Err(FlagError::NotaryKeyIncomplete),
+            };
+        }
+        match filled(self.keychain_profile.as_deref()) {
+            None => Err(FlagError::NotarizeNeedsProfile),
+            Some(profile) => Ok(Notarization::Profile {
+                keychain_profile: profile.to_owned(),
+            }),
+        }
     }
 }
 
@@ -193,11 +228,60 @@ mod tests {
         .unwrap();
         assert_eq!(
             plan.notarization,
-            Some(Notarization {
+            Some(Notarization::Profile {
                 keychain_profile: "example-profile".into()
             })
         );
         assert!(plan.install && plan.automation);
+    }
+
+    #[test]
+    fn an_api_key_notarizes_in_place_of_a_profile() {
+        let notarize = BundleArgs {
+            notarize: true,
+            sign: Some("Example".into()),
+            notary_key: Some("/keys/AuthKey_ABC123.p8".into()),
+            notary_key_id: Some("ABC123".into()),
+            notary_issuer: Some("issuer".into()),
+            ..BundleArgs::bare()
+        };
+        assert_eq!(
+            notarize.plan().unwrap().notarization,
+            Some(Notarization::ApiKey {
+                key: "/keys/AuthKey_ABC123.p8".into(),
+                key_id: "ABC123".into(),
+                issuer: "issuer".into(),
+            })
+        );
+        let incomplete = BundleArgs {
+            notary_issuer: Some(" ".into()),
+            ..notarize
+        };
+        assert_eq!(
+            incomplete.plan().unwrap_err(),
+            FlagError::NotaryKeyIncomplete
+        );
+    }
+
+    #[test]
+    fn universal_and_dmg_are_planned_and_named() {
+        let plan = BundleArgs {
+            universal: true,
+            dmg: true,
+            ..BundleArgs::bare()
+        }
+        .plan()
+        .unwrap();
+        assert!(plan.universal && plan.dmg);
+        assert_eq!(
+            plan.targets(),
+            ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+        );
+        assert_eq!(plan.arch_label(), "universal");
+        assert_eq!(plan.version.release, None, "a development build by default");
+        let host = BundleArgs::bare().plan().unwrap();
+        assert_eq!(host.targets(), [] as [&str; 0]);
+        assert_ne!(host.arch_label(), "universal");
     }
 
     #[test]

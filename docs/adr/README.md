@@ -10,7 +10,7 @@ accepted ADR are allowed; a changed decision still needs a new ADR. Format:
 | [0001](0001-workspace-and-quality-bar.md) | Workspace layout and quality bar | Accepted |
 | [0002](0002-rust-server.md) | The server: axum, SeaORM on SQLite, opaque device tokens | Proposed |
 | [0003](0003-monorepo-layout.md) | Monorepo layout: Rust, mobile, web and shared packages | Accepted |
-| [0005](0005-releases-and-updates.md) | Releases and updates: semver and build, signed on the Mac, a private feed | Proposed |
+| [0005](0005-releases-and-updates.md) | Releases and updates: semver and build, signed on the Mac, a private feed | Proposed; superseded in part by 0032 |
 | [0006](0006-report-webview.md) | Reports in a web view: gpui-webview, on macOS only | Proposed |
 | [0007](0007-connectivity.md) | Connectivity: direct routes first, our relay last, and account sign-in | Accepted |
 | [0008](0008-end-to-end-encryption.md) | End-to-end encryption: sealed sessions between devices and machines | Proposed |
@@ -34,4 +34,5 @@ accepted ADR are allowed; a changed decision still needs a new ADR. Format:
 | [0028](0028-agent-model-providers.md) | The agent's model provider: chosen from the apps, handed to the CLI in its environment | Proposed |
 | [0029](0029-openai-bridge.md) | The OpenAI bridge: Anthropic's Messages API on loopback, answered by a Chat Completions endpoint | Proposed |
 | [0030](0030-the-hut-inside-the-app.md) | The hut inside the app: the desktop app runs the server on its own computer | Proposed |
+| [0032](0032-github-releases.md) | GitHub releases: built in CI, signed for macOS on the Mac, versions from the tag | Accepted |
 | [0035](0035-task-plans.md) | Task plans: a task's steps, ticked by its agent as it goes, a row per step | Proposed |

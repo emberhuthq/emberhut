@@ -27,14 +27,15 @@ crates/emberhut-client  the Rust client the desktop app uses
 packages/           TypeScript packages: the generated API client, design tokens
 deploy/             Docker image and compose file for self-hosting
 site/               the website, emberhut.com: static HTML on Cloudflare Pages
-xtask/              cargo xtask: macOS bundle, release
-docs/               architecture.md and the ADRs
+xtask/              cargo xtask: macOS bundle, release (docs/releasing.md)
+docs/               architecture.md, releasing.md and the ADRs
 assets/brand/       the Emberhut mark: vector masters, lockups and the social preview
 ```
 
 The Rust server is the single source of truth for the API. The OpenAPI document and the
 TypeScript client will be generated from it, with tests and CI holding both to it. See
-[docs/architecture.md](docs/architecture.md).
+[docs/architecture.md](docs/architecture.md). Releases are GitHub releases; how they are made is
+in [docs/releasing.md](docs/releasing.md).
 
 ## Build
 

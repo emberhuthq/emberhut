@@ -1,0 +1,107 @@
+name: Scan release assets
+description: >-
+  Unpacks every release asset in a folder (archives, the macOS disk image, the Windows
+  installer), turns each binary into its printable strings, and runs gitleaks over the result
+  with the repository's .gitleaks.toml (through binaries.toml, which adds allow lists for
+  third-party strings compiled into the binaries) and, when given, a second config. Any finding
+  fails the step. Run it from the repository root, after a checkout.
+
+inputs:
+  dir:
+    description: The folder holding the assets.
+    required: true
+  extra-config:
+    description: The path of a second gitleaks config to scan with (empty for none).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Unpacking and scanning tools
+      shell: bash
+      env:
+        GITLEAKS_VERSION: 8.30.1
+        GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends 7zip msitools binutils
+        mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+        cd "$RUNNER_TEMP/gitleaks-bin"
+        curl -sSfLo gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+        echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
+        tar -xzf gitleaks.tar.gz gitleaks
+
+    - name: Unpack every asset and extract the binaries' strings
+      shell: bash
+      env:
+        ASSETS: ${{ inputs.dir }}
+      run: |
+        sevenzip=$(command -v 7zz || command -v 7z)
+        work="$RUNNER_TEMP/release-scan"
+        rm -rf "$work"
+        mkdir -p "$work/unpacked" "$work/text"
+        shopt -s nullglob
+        assets=("$ASSETS"/*)
+        if [ "${#assets[@]}" -eq 0 ]; then
+          echo "::error::no assets in $ASSETS"; exit 1
+        fi
+        for asset in "${assets[@]}"; do
+          name=$(basename "$asset")
+          dest="$work/unpacked/$name"
+          mkdir -p "$dest"
+          case "$name" in
+            *.tar.gz) tar -xzf "$asset" -C "$dest" ;;
+            *.zip) "$sevenzip" x -y -bd -o"$dest" "$asset" > /dev/null ;;
+            *.dmg)
+              # The image's /Applications link points out of it; 7-Zip refuses it (exit 2), and
+              # it holds nothing to scan.
+              "$sevenzip" x -y -bd -xr'!Applications' -o"$dest" "$asset" > /dev/null
+              # Some 7-Zip versions stop at the image's partition; unpack the file system too.
+              for inner in "$dest"/*.hfs "$dest"/*.hfsx "$dest"/*.apfs "$dest"/*.img; do
+                "$sevenzip" x -y -bd -o"$dest/fs" "$inner" > /dev/null
+                rm -f "$inner"
+              done
+              if ! find "$dest" -path '*Emberhut.app/Contents/MacOS/emberhut-desktop' -type f | grep -q .; then
+                echo "::error::$name unpacked without Emberhut.app's binary; it can't be scanned"; exit 1
+              fi
+              ;;
+            *.msi)
+              msiextract -C "$dest" "$asset" > /dev/null
+              if ! find "$dest" -iname 'emberhut-desktop.exe' -type f | grep -q .; then
+                echo "::error::$name unpacked without emberhut-desktop.exe; it can't be scanned"; exit 1
+              fi
+              ;;
+            *) cp "$asset" "$dest/" ;;
+          esac
+        done
+        # Text files are scanned as they are; every other file as its printable strings.
+        count=0
+        while IFS= read -r -d '' file; do
+          rel=${file#"$work/unpacked/"}
+          mkdir -p "$work/text/$(dirname "$rel")"
+          if [ ! -s "$file" ]; then
+            continue
+          elif grep -qI . "$file"; then
+            cp "$file" "$work/text/$rel"
+          else
+            strings -a -n 6 "$file" > "$work/text/$rel.strings.txt"
+          fi
+          count=$((count + 1))
+        done < <(find "$work/unpacked" -type f -print0)
+        echo "Prepared $count files from ${#assets[@]} assets for the scan"
+        echo "RELEASE_SCAN_TEXT=$work/text" >> "$GITHUB_ENV"
+
+    # binaries.toml is .gitleaks.toml plus allow lists for third-party strings in the binaries.
+    - name: gitleaks with the repository's rules
+      shell: bash
+      run: |
+        "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --no-banner --config .github/actions/release-scan/binaries.toml --redact --verbose "$RELEASE_SCAN_TEXT"
+
+    - name: gitleaks with the extra rules
+      if: inputs.extra-config != ''
+      shell: bash
+      env:
+        EXTRA_CONFIG: ${{ inputs.extra-config }}
+      run: |
+        "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --no-banner --config "$EXTRA_CONFIG" --redact "$RELEASE_SCAN_TEXT"

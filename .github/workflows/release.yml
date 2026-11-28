@@ -1,0 +1,492 @@
+name: Release
+
+# A GitHub release in three steps (docs/releasing.md, ADR 0032):
+#
+# 1. Pushing a tag vX.Y.Z-rc.N or vX.Y.Z runs the build stage: it checks the tag, builds the
+#    servers and the Windows installer, and opens a draft release with them.
+# 2. On the Mac that holds the Developer ID identity, `cargo xtask release mac --tag <tag>`
+#    builds, signs and notarizes the macOS disk image and server, uploads them to the draft and
+#    starts step 3. No Apple credential is in GitHub.
+# 3. The publish stage (`workflow_dispatch`, stage=publish, on the tag's ref) scans every asset,
+#    writes the updater's signed feeds and SHA256SUMS with the update key, and publishes.
+#
+# A pull request that changes the release machinery runs the same builds as a dry run: unsigned,
+# with no secrets and no environment, its outputs kept as the run's artifacts only.
+
+# `release mac` finds the build stage's run of a tag by this title.
+run-name: "Release ${{ github.event_name == 'pull_request' && format('dry run, #{0}', github.event.pull_request.number) || format('{0} ({1})', inputs.tag || github.ref_name, inputs.stage || 'build') }}"
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release tag (run the workflow on the same tag: --ref <tag>)"
+        required: true
+        type: string
+      stage:
+        description: "build: redo the tag's builds and draft. publish: scan, sign the feed and publish the draft."
+        required: true
+        type: choice
+        options: [build, publish]
+        default: build
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/actions/release-scan/**
+      - .github/release.yml
+      - xtask/**
+      - apps/desktop/wix/**
+      - crates/emberhut-api/src/releases.rs
+
+permissions: {}
+
+# One run per tag at a time, never cancelled; a pull request's dry run replaces its stale one.
+concurrency:
+  group: release-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || inputs.tag || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_BUILD_WARNINGS: deny
+  RUST_BACKTRACE: short
+  # The public half of the update key (apps/desktop/src/updates/keys.rs trusts the same key): the
+  # publish stage checks the feed it signed against it.
+  UPDATE_PUBLIC_KEY: RWRER1atPjEA/9GrQdW+h0cy57Fiy526c7fbp1tkAabdvdSNURP3nnyD
+
+# No job restores a cache: a release is built from the tagged sources and the lock file alone.
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      ref: ${{ steps.tag.outputs.ref }}
+      stage: ${{ steps.tag.outputs.stage }}
+      version: ${{ steps.numbers.outputs.EMBERHUT_VERSION }}
+      build: ${{ steps.numbers.outputs.EMBERHUT_BUILD }}
+      channel: ${{ steps.numbers.outputs.EMBERHUT_CHANNEL }}
+      prerelease: ${{ steps.numbers.outputs.EMBERHUT_PRERELEASE }}
+      msi-version: ${{ steps.numbers.outputs.EMBERHUT_MSI_VERSION }}
+      previous-tag: ${{ steps.numbers.outputs.EMBERHUT_PREVIOUS_TAG }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || '' }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The tag and the stage
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_STAGE: ${{ inputs.stage }}
+        run: |
+          case "$EVENT" in
+            pull_request)
+              # A dry run builds as the workspace version's first release candidate would.
+              version=$(cargo metadata --no-deps --format-version 1 --locked | jq -r '.packages[] | select(.name == "xtask") | .version')
+              tag="v${version}-rc.1"; ref=""; stage=dry-run ;;
+            push)
+              tag="$GITHUB_REF_NAME"; ref="refs/tags/$tag"; stage=build ;;
+            workflow_dispatch)
+              tag="$INPUT_TAG"; ref="refs/tags/$tag"; stage="$INPUT_STAGE"
+              if [ "$GITHUB_REF" != "refs/tags/$tag" ]; then
+                echo "::error::run the workflow on the tag itself: gh workflow run release.yml --ref $tag -f tag=$tag -f stage=$stage"
+                exit 1
+              fi ;;
+            *) echo "::error::unexpected event $EVENT"; exit 1 ;;
+          esac
+          {
+            echo "tag=$tag"
+            echo "ref=$ref"
+            echo "stage=$stage"
+          } >> "$GITHUB_OUTPUT"
+      - name: The numbers the tag gives
+        id: numbers
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          cargo xtask release version "$TAG" > "$RUNNER_TEMP/release.env"
+          cat "$RUNNER_TEMP/release.env"
+          cat "$RUNNER_TEMP/release.env" >> "$GITHUB_OUTPUT"
+      - name: The tagged commit is on main
+        if: steps.tag.outputs.stage != 'dry-run'
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$(git rev-parse HEAD) is not on main; tag a commit of main"; exit 1
+          fi
+      - name: CI passed on the tagged commit (waits up to an hour)
+        if: steps.tag.outputs.stage != 'dry-run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          for _ in $(seq 1 60); do
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=ci-ok&per_page=100" \
+              --jq '[.check_runs[] | {status, conclusion}]')
+            if jq -e 'any(.[]; .conclusion == "success")' <<< "$runs" > /dev/null; then
+              echo "ci-ok passed on $sha"; exit 0
+            fi
+            if jq -e 'length > 0 and all(.[]; .status == "completed")' <<< "$runs" > /dev/null; then
+              echo "::error::ci-ok did not pass on $sha"; exit 1
+            fi
+            echo "waiting for ci-ok on $sha"
+            sleep 60
+          done
+          echo "::error::no passing ci-ok on $sha after an hour"; exit 1
+
+  server:
+    name: server (${{ matrix.name }})
+    needs: plan
+    if: needs.plan.outputs.stage == 'build' || needs.plan.outputs.stage == 'dry-run'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runner: ubuntu-24.04
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+          - name: windows-x64
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      EMBERHUT_VERSION: ${{ needs.plan.outputs.version }}
+      EMBERHUT_BUILD: ${{ needs.plan.outputs.build }}
+      TARGET_NAME: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+          persist-credentials: false
+      - name: rustup (the Arm runner image may lack it)
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v rustup > /dev/null; then
+            curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - run: cargo build --profile dist -p emberhut-server --locked
+      - name: Package
+        run: |
+          name="emberhut-server-${EMBERHUT_VERSION}-${TARGET_NAME}"
+          mkdir -p "dist/$name"
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp target/dist/emberhut-server.exe "dist/$name/"
+          else
+            cp target/dist/emberhut-server "dist/$name/"
+          fi
+          cp LICENSE-MIT LICENSE-APACHE README.md "dist/$name/"
+          cd dist
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a -tzip -bd "$name.zip" "$name" > /dev/null
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+          rm -r "$name"
+          ls -l
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: server-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # The Windows installer: `cargo xtask bundle-windows` (apps/desktop/wix) builds the desktop
+  # app and the server and writes target/bundle/Emberhut-<version>-windows-x64.msi, with
+  # EMBERHUT_MSI_VERSION as its ProductVersion. It isn't Authenticode signed yet; once a
+  # certificate exists, signtool signs the two .exe files and the .msi here (docs/releasing.md).
+  windows:
+    name: windows installer
+    needs: plan
+    if: needs.plan.outputs.stage == 'build' || needs.plan.outputs.stage == 'dry-run'
+    runs-on: windows-2025
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      EMBERHUT_VERSION: ${{ needs.plan.outputs.version }}
+      EMBERHUT_BUILD: ${{ needs.plan.outputs.build }}
+      EMBERHUT_MSI_VERSION: ${{ needs.plan.outputs.msi-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+          persist-credentials: false
+      - name: WiX Toolset 5.0.2
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          echo "$USERPROFILE/.dotnet/tools" >> "$GITHUB_PATH"
+      - run: cargo xtask bundle-windows --dist
+      - name: The installer is where the release expects it
+        run: |
+          msi="target/bundle/Emberhut-${EMBERHUT_VERSION}-windows-x64.msi"
+          test -f "$msi" || { echo "::error::$msi is missing"; exit 1; }
+          mkdir -p dist
+          cp "$msi" dist/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-msi
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # Dry run only: the universal macOS app and server build, unsigned, so a change that breaks
+  # the Mac's part shows here. A release's macOS assets are made on the Mac (release mac).
+  macos:
+    name: macos (dry run, unsigned)
+    needs: plan
+    if: needs.plan.outputs.stage == 'dry-run'
+    runs-on: macos-15
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      EMBERHUT_VERSION: ${{ needs.plan.outputs.version }}
+      EMBERHUT_BUILD: ${{ needs.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: cargo xtask bundle-macos --dist --universal --dmg
+      - name: Collect the disk image
+        run: |
+          mkdir -p dist
+          cp "target/bundle/Emberhut-${EMBERHUT_VERSION}-macos-universal.dmg" dist/
+          lipo -info target/universal-apple-darwin/dist/emberhut-server
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-dmg-unsigned
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # Dry run only: the publish stage's scan and feed over the dry run's artifacts, the feed
+  # signed with a key made for this run.
+  dry-run-publish:
+    name: scan and feed (dry run)
+    needs: [plan, server, windows, macos]
+    if: ${{ !cancelled() && needs.plan.outputs.stage == 'dry-run' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - uses: ./.github/actions/release-scan
+        with:
+          dir: dist
+      - name: Feed and sums, signed with a throwaway key
+        run: |
+          cargo xtask release keygen --out-dir "$RUNNER_TEMP/key" > "$RUNNER_TEMP/key.txt"
+          public=$(sed -n 's/^public key: //p' "$RUNNER_TEMP/key.txt")
+          printf '%s\n' '## What'"'"'s Changed' '* ci: a dry run of the release by @example in https://github.com/emberhuthq/emberhut/pull/1' > "$RUNNER_TEMP/body.md"
+          cargo xtask release notes --github-body "$RUNNER_TEMP/body.md" --out "$RUNNER_TEMP/notes.txt"
+          cargo xtask release feed --tag "$TAG" --notes-file "$RUNNER_TEMP/notes.txt" \
+            --key-file "$RUNNER_TEMP/key/emberhut-update.key" --out-dir dist dist/*
+          expect=()
+          [ -f "dist/Emberhut-${TAG#v}-macos-universal.dmg" ] && expect+=(--expect macos)
+          [ -f "dist/Emberhut-${TAG#v}-windows-x64.msi" ] && expect+=(--expect windows)
+          cargo xtask release verify-feed --tag "$TAG" --dir dist --public-key "$public" "${expect[@]}"
+          cat dist/SHA256SUMS
+
+  # The build stage's end: the draft release, with CI's assets: every artifact of the run, so a
+  # job that builds more assets (a reusable workflow called after `plan`, say) only uploads them
+  # as artifacts and joins `needs` here. It holds no secret; the Mac adds its assets to the
+  # draft, then starts the publish stage.
+  draft:
+    name: draft release
+    needs: [plan, server, windows]
+    if: needs.plan.outputs.stage == 'build'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Open the draft (or reuse it) and upload the assets
+        run: |
+          ls -l dist
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2> /dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::$TAG is published already; a published release isn't changed"; exit 1
+            fi
+          else
+            args=(--draft --verify-tag --title "Emberhut $VERSION"
+              --notes "Draft: the macOS assets come from the Mac, then the publish stage writes the notes.")
+            if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+            gh release create "$TAG" "${args[@]}"
+          fi
+          gh release upload "$TAG" dist/* --clobber
+          {
+            echo "### Draft $TAG is ready for the Mac"
+            echo '```'
+            echo "cargo xtask release mac --tag $TAG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The publish stage, started by `release mac` once the draft has every asset. It scans and
+  # sums every asset on the draft, whichever job put it there. The only job with secrets: the
+  # update key and the private-word scan rules, from the tag-only environment.
+  publish:
+    name: publish
+    needs: plan
+    if: needs.plan.outputs.stage == 'publish'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+      PREVIOUS_TAG: ${{ needs.plan.outputs.previous-tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+          persist-credentials: false
+      - name: The draft holds the release's assets
+        run: |
+          gh release view "$TAG" --json isDraft,isPrerelease,assets > "$RUNNER_TEMP/draft.json"
+          if [ "$(jq -r .isDraft "$RUNNER_TEMP/draft.json")" != true ]; then
+            echo "::error::$TAG is not a draft"; exit 1
+          fi
+          if [ "$(jq -r .isPrerelease "$RUNNER_TEMP/draft.json")" != "$PRERELEASE" ]; then
+            echo "::error::$TAG's pre-release mark isn't $PRERELEASE"; exit 1
+          fi
+          # Every release has at least these; a job that adds assets to the draft adds to them,
+          # and whatever else the draft holds is downloaded, scanned and summed too.
+          required=(
+            "Emberhut-$VERSION-macos-universal.dmg"
+            "Emberhut-$VERSION-windows-x64.msi"
+            "emberhut-server-$VERSION-linux-arm64.tar.gz"
+            "emberhut-server-$VERSION-linux-x64.tar.gz"
+            "emberhut-server-$VERSION-macos-universal.tar.gz"
+            "emberhut-server-$VERSION-windows-x64.zip"
+          )
+          # A rerun after a failed publish finds the feeds and sums it wrote; they're made anew.
+          written='^(emberhut-desktop-(macos|windows)\.json|SHA256SUMS|SHA256SUMS\.minisig)$'
+          jq -r '.assets[].name' "$RUNNER_TEMP/draft.json" | grep -Ev "$written" | sort > "$RUNNER_TEMP/assets.txt" || true
+          missing=0
+          for name in "${required[@]}"; do
+            if ! grep -qxF "$name" "$RUNNER_TEMP/assets.txt"; then
+              echo "::error::the draft has no $name"; missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+          echo "The draft's assets:"; cat "$RUNNER_TEMP/assets.txt"
+      - name: Download every asset of the draft
+        run: |
+          mkdir -p dist
+          while read -r name; do
+            gh release download "$TAG" --dir dist --pattern "$name"
+          done < "$RUNNER_TEMP/assets.txt"
+          ls -l dist
+          if [ "$(find dist -type f | wc -l)" -ne "$(wc -l < "$RUNNER_TEMP/assets.txt")" ]; then
+            echo "::error::not every asset of the draft was downloaded"; exit 1
+          fi
+      - name: The private-word rules
+        env:
+          PRIVATE_WORDS_TOML: ${{ secrets.PRIVATE_WORDS_TOML }}
+        run: |
+          if [ -z "$PRIVATE_WORDS_TOML" ]; then echo "::error::PRIVATE_WORDS_TOML is not set"; exit 1; fi
+          umask 077
+          printf '%s\n' "$PRIVATE_WORDS_TOML" > "$RUNNER_TEMP/private-words.toml"
+      - uses: ./.github/actions/release-scan
+        with:
+          dir: dist
+          extra-config: ${{ runner.temp }}/private-words.toml
+      - name: Release notes
+        run: |
+          args=(-f "tag_name=$TAG")
+          if [ -n "$PREVIOUS_TAG" ]; then args+=(-f "previous_tag_name=$PREVIOUS_TAG"); fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" "${args[@]}" --jq .body > "$RUNNER_TEMP/generated.md"
+          cargo xtask release notes --github-body "$RUNNER_TEMP/generated.md" --out "$RUNNER_TEMP/feed-notes.txt"
+          cat "$RUNNER_TEMP/feed-notes.txt"
+      - name: The update key
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [ -z "$UPDATE_SIGNING_KEY" ]; then echo "::error::UPDATE_SIGNING_KEY is not set"; exit 1; fi
+          umask 077
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$RUNNER_TEMP/update.key"
+      - name: Feeds and sums, signed with the update key
+        run: |
+          cargo xtask release feed --tag "$TAG" --notes-file "$RUNNER_TEMP/feed-notes.txt" \
+            --key-file "$RUNNER_TEMP/update.key" --out-dir dist dist/*
+          rm -f "$RUNNER_TEMP/update.key"
+          cargo xtask release verify-feed --tag "$TAG" --dir dist --public-key "$UPDATE_PUBLIC_KEY" \
+            --expect macos --expect windows
+      - name: Scan what was written
+        run: |
+          meta="$RUNNER_TEMP/release-meta"
+          mkdir -p "$meta"
+          cp dist/*.json dist/SHA256SUMS "$RUNNER_TEMP/feed-notes.txt" "$RUNNER_TEMP/generated.md" "$meta/"
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --no-banner --config .gitleaks.toml --redact --verbose "$meta"
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --no-banner --config "$RUNNER_TEMP/private-words.toml" --redact "$meta"
+      - name: Publish
+        run: |
+          {
+            if [ "$PRERELEASE" = true ]; then
+              echo "> This is a release candidate (preview) of Emberhut $VERSION: the \"Release candidates\" update channel installs it; \"Stable\" waits for the final release."
+              echo
+            fi
+            echo "## Install"
+            echo
+            echo "- **macOS 13 or later** (Apple silicon and Intel): open \`Emberhut-$VERSION-macos-universal.dmg\` and drag Emberhut to Applications. It is signed and notarized by Apple."
+            echo "- **Windows 10 (version 2004) or later, x64**: run \`Emberhut-$VERSION-windows-x64.msi\`. It installs for your account only, with no administrator prompt."
+            echo
+            echo "  Windows: this preview installer isn't code-signed yet, so Microsoft Defender SmartScreen may show 'Windows protected your PC'. Choose More info → Run anyway. Check the download against SHA256SUMS first."
+            echo "- **The server alone** (the hut, for a computer without the app): the \`emberhut-server-$VERSION-*\` archives for Linux (x64, arm64), macOS (universal) and Windows (x64)."
+            echo "- **Checking a download**: \`sha256sum --check --ignore-missing SHA256SUMS\`. SHA256SUMS is signed with the update key: \`minisign -Vm SHA256SUMS -P $UPDATE_PUBLIC_KEY\`."
+            echo
+            cat "$RUNNER_TEMP/generated.md"
+          } > "$RUNNER_TEMP/release-notes.md"
+          gh release edit "$TAG" --title "Emberhut $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+          gh release upload "$TAG" --clobber dist/emberhut-desktop-macos.json dist/emberhut-desktop-windows.json dist/SHA256SUMS dist/SHA256SUMS.minisig
+          if [ "$PRERELEASE" = true ]; then
+            gh release edit "$TAG" --draft=false --prerelease
+          else
+            gh release edit "$TAG" --draft=false --latest
+          fi
+          echo "### Published $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the key and the rules
+        if: always()
+        run: rm -f "$RUNNER_TEMP/update.key" "$RUNNER_TEMP/private-words.toml"
