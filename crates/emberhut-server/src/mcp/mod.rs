@@ -8,6 +8,7 @@
 //! client's sake, and every request stands alone.
 //!
 //! - [`tokens`]: the room tokens a session calls with; the route checks them.
+//! - [`runner_token`]: the one token the runners' sessions call their own endpoint with.
 //! - `tools`: the `Tool` trait and the one list of the room's tools.
 //! - here: reading a message and answering it.
 
@@ -18,6 +19,7 @@ use emberhut_api::mcp::{
 };
 use serde_json::{Map, Value};
 
+pub mod runner_token;
 pub mod tokens;
 pub(crate) mod tools;
 pub mod worker_tokens;

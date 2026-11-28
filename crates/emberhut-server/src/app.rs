@@ -169,6 +169,10 @@ struct Inner {
     accounts: AccountService,
     transfer: TransferService,
     runner_mcp: Option<PathBuf>,
+    /// The base of the server's MCP URLs, as this machine's agent sessions reach it.
+    local_url: String,
+    /// The runner sessions' token.
+    runner_token: crate::mcp::runner_token::RunnerToken,
     /// Tasks carry plans.
     task_plans: bool,
     worker_sessions: Arc<dyn WorkerSessions>,
@@ -240,6 +244,10 @@ pub struct Dependencies {
     pub runners: Arc<dyn RunnerApi>,
     /// The file of MCP servers the runners' sessions get too (`{ "mcpServers": { ... } }`).
     pub runner_mcp: Option<PathBuf>,
+    /// The address the server's own agent sessions reach it at (the listen address; `127.0.0.1`
+    /// for one listening on every address), without a final `/`: the base of the MCP URLs they
+    /// are given, the runners' sessions' one too.
+    pub local_url: String,
     /// The assistant's workers, as the sessions `w-<task>` show them, when no worker runtime
     /// runs (no agent CLI is configured): `NoWorkers` by default. With one, the workers are
     /// shown by the workers service itself.
@@ -365,6 +373,7 @@ impl Default for Dependencies {
             transcripts: None,
             runners: Arc::new(NoRunners),
             runner_mcp: None,
+            local_url: "http://127.0.0.1:18990".to_owned(),
             worker_sessions: Arc::new(NoWorkerViews),
             assistant_tasks: Arc::new(NoWorkerViews),
             private_files: Vec::new(),
@@ -421,6 +430,7 @@ impl AppState {
             transcripts,
             runners,
             runner_mcp,
+            local_url,
             worker_sessions,
             assistant_tasks,
             mut private_files,
@@ -459,6 +469,7 @@ impl AppState {
             workers
         };
         let worker_tokens = crate::mcp::worker_tokens::WorkerTokens::new(Arc::clone(&random));
+        let runner_token = crate::mcp::runner_token::RunnerToken::new(Arc::clone(&random));
         let (secrets_dir_for_messaging, public_url_for_messaging) =
             (secrets_dir.clone(), public_url.clone());
         let direct_scheme = direct_scheme(&public_url);
@@ -861,6 +872,8 @@ impl AppState {
                 accounts,
                 transfer,
                 runner_mcp,
+                local_url,
+                runner_token,
                 task_plans,
                 worker_sessions,
                 assistant_tasks,
@@ -1234,6 +1247,20 @@ impl AppState {
     #[must_use]
     pub fn runner_mcp(&self) -> Option<&Path> {
         self.inner.runner_mcp.as_deref()
+    }
+
+    /// The URL of the server's MCP endpoint at `path`, as this machine's agent sessions reach
+    /// it.
+    #[must_use]
+    pub fn mcp_url(&self, path: &str) -> String {
+        format!("{}{path}", self.inner.local_url)
+    }
+
+    /// The runner sessions' token, which lets the runners' sessions call their own MCP
+    /// endpoint (`POST` [`emberhut_api::paths::MCP_RUNNER`]).
+    #[must_use]
+    pub fn runner_token(&self) -> &crate::mcp::runner_token::RunnerToken {
+        &self.inner.runner_token
     }
 
     /// The owner's calendar and reminders.

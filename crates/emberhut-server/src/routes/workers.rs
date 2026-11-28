@@ -111,6 +111,7 @@ pub(super) async fn mcp_worker(
         room,
         worker: Some(task),
         session: None,
+        runner: false,
     };
     match mcp::answer(&body, &tools, &ctx).await {
         Answer::Reply(reply) => (StatusCode::OK, Json(reply)).into_response(),

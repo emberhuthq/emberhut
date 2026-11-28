@@ -5,8 +5,11 @@
 //! The task is the caller's own when it has one, and then the only one whose plan it may
 //! write (reading any is fine): a worker's is its task; a runner session's (the session its
 //! request names, [`emberhut_api::wire::mcp::SESSION_HEADER`]) the task it is linked to. Any
-//! other session of the assistant names the task, and may write any task's plan.
+//! other session of the assistant names the task, and may write any task's plan; but a call
+//! with the runner sessions' token writes only as a session linked to the task, and with no such
+//! session only reads.
 
+use emberhut_api::wire::mcp::{SESSION_HEADER, SESSION_HEADER_VALUE};
 use emberhut_core::task::plan::{AddStep, Edit, NewStep, StepRef, StepState};
 use emberhut_core::task::wire::KEY_PREFIX;
 use emberhut_core::task::{TaskId, Who};
@@ -167,18 +170,21 @@ fn eta(eta: Option<String>) -> Option<Option<String>> {
     eta.map(|eta| Some(eta).filter(|eta| !eta.trim().is_empty()))
 }
 
-/// Whose a call is: a worker's or a runner session's task, or any (the assistant's own
-/// sessions).
+/// Whose a call is: a worker's or a runner session's task, any (the assistant's own sessions),
+/// or none to write (the runner sessions' token without a session linked to a task).
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Scope {
     /// The caller's own tasks: it writes only theirs.
     Own(Vec<TaskId>),
     /// Any task.
     Any,
+    /// It reads any task's plan and writes none.
+    Reads,
 }
 
 /// Whose `ctx`'s call is: a worker's task; else the tasks its runner session is linked to
-/// (a session the server doesn't know, or linked to none, is as no session); else any.
+/// (a session the server doesn't know, or linked to none, is as no session); else, with the
+/// runner sessions' token, reads only; else any.
 async fn scope(ctx: &ToolContext) -> Result<Scope, ToolError> {
     if let Some(task) = ctx.worker {
         return Ok(Scope::Own(vec![task]));
@@ -194,7 +200,7 @@ async fn scope(ctx: &ToolContext) -> Result<Scope, ToolError> {
             return Ok(Scope::Own(tasks));
         }
     }
-    Ok(Scope::Any)
+    Ok(if ctx.runner { Scope::Reads } else { Scope::Any })
 }
 
 /// The task a call is about: the one it names, else the caller's own (when it has exactly
@@ -213,6 +219,11 @@ async fn task_of(
         None => None,
     };
     match (named, &scope) {
+        (_, Scope::Reads) if writes => Err(ToolError::refused(format!(
+            "Writing a plan needs the runner session working on its task: this call's \
+             {SESSION_HEADER} header names no session the server knows linked to a task (the \
+             runner's sessions send {SESSION_HEADER_VALUE}). Reading a plan needs no session."
+        ))),
         (Some(task), Scope::Own(own)) if writes && !own.contains(&task) => {
             Err(ToolError::refused(format!(
                 "You work on {}: you may read {}'s plan but not write it.",
@@ -226,7 +237,7 @@ async fn task_of(
             "Say which task (task): you work on {}.",
             keys(own)
         ))),
-        (None, Scope::Any) => Err(ToolError::refused(
+        (None, Scope::Any | Scope::Reads) => Err(ToolError::refused(
             "Say which task (task: its number or key, T-12).",
         )),
     }
@@ -240,7 +251,8 @@ fn keys(tasks: &[TaskId]) -> String {
         .join(", ")
 }
 
-/// Who writes: a worker, or the assistant.
+/// Who writes: a worker, or the assistant (a runner session too, whichever token it calls
+/// with: the history names the assistant, as it does for the session's other changes).
 const fn who(ctx: &ToolContext) -> Who {
     if ctx.worker.is_some() {
         Who::Worker

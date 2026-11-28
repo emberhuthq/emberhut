@@ -142,6 +142,10 @@ fn api() -> OpenApiRouter<AppState> {
             let (schemas, paths, method) = routes!(mcp::mcp_room);
             (schemas, paths, method.fallback(mcp::post_only))
         })
+        .routes({
+            let (schemas, paths, method) = routes!(mcp::mcp_runner);
+            (schemas, paths, method.fallback(mcp::post_only))
+        })
         .routes(routes!(history::history))
         .routes(routes!(uploads::upload))
         .routes(routes!(uploads::file))
