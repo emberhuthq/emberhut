@@ -69,6 +69,8 @@ pub(super) fn subtasks(mut body: Div, part: &Part<'_>, cx: &gpui_kit::App) -> Di
                 nested: false,
                 swipes: None,
                 ticked: part.read.is_ticked(subtask.id),
+                turn: 0,
+                sessions: &[],
             },
             cx,
         ));
@@ -214,6 +216,8 @@ fn findings_list(
                     nested: false,
                     swipes: None,
                     ticked: part.read.is_ticked(finding.id),
+                    turn: 0,
+                    sessions: &[],
                 },
                 cx,
             ));
