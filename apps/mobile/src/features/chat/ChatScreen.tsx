@@ -183,6 +183,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
           onStop={stop}
           onSend={send}
           disabled={waiting !== undefined}
+          hidden={waiting !== undefined}
         />
       </KeyboardStickyView>
     </Screen>
