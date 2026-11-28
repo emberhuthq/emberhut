@@ -111,8 +111,8 @@ pub(super) async fn mcp_room(
 /// One MCP message (JSON-RPC 2.0) from a runner's session: `initialize`, `ping`, `tools/list`
 /// or `tools/call`, with a task's plan and the task in full as its only tools. The bearer is
 /// the runner sessions' token, which the runners' shared MCP list hands out
-/// (`GET /api/runner/mcp`); the session header names the calling session, and only a session
-/// linked to a task writes that task's plan.
+/// (`GET /api/runner/mcp`); the session header names the calling session: one linked to tasks
+/// writes only their plans, and a call naming none writes the task it names.
 #[utoipa::path(
     post,
     // `emberhut_api::wire::mcp::RUNNER_PATH`; the macro takes only a literal path, and a test

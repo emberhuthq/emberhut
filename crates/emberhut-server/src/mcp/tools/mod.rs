@@ -293,8 +293,8 @@ pub(crate) struct ToolContext {
     /// ([`emberhut_api::wire::mcp::SESSION_HEADER`]): a session id in its checked form, else
     /// none.
     pub(crate) session: Option<String>,
-    /// The call came with the runner sessions' token: it writes a plan only as a session
-    /// [`Self::session`] names that is linked to the plan's task.
+    /// The call came with the runner sessions' token: a call that names no session linked to
+    /// a task ([`Self::session`]) and leaves the task out is told the session header is missing.
     pub(crate) runner: bool,
 }
 

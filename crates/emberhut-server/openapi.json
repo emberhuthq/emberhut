@@ -988,7 +988,7 @@
         "tags": [
           "mcp"
         ],
-        "summary": "One MCP message (JSON-RPC 2.0) from a runner's session: `initialize`, `ping`, `tools/list`\nor `tools/call`, with a task's plan and the task in full as its only tools. The bearer is\nthe runner sessions' token, which the runners' shared MCP list hands out\n(`GET /api/runner/mcp`); the session header names the calling session, and only a session\nlinked to a task writes that task's plan.",
+        "summary": "One MCP message (JSON-RPC 2.0) from a runner's session: `initialize`, `ping`, `tools/list`\nor `tools/call`, with a task's plan and the task in full as its only tools. The bearer is\nthe runner sessions' token, which the runners' shared MCP list hands out\n(`GET /api/runner/mcp`); the session header names the calling session: one linked to tasks\nwrites only their plans, and a call naming none writes the task it names.",
         "operationId": "mcp_runner",
         "requestBody": {
           "content": {
