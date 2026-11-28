@@ -22,9 +22,27 @@ mod files;
 mod health;
 #[cfg(unix)]
 mod install;
+// The install step (`install`) is built on Unix only; on Windows, what only it uses waits for
+// a Windows installer.
+#[cfg_attr(
+    windows,
+    expect(dead_code, reason = "used by the install step, built on Unix only")
+)]
 pub(crate) mod installer;
 mod keys;
+#[cfg_attr(
+    all(windows, not(test)),
+    expect(dead_code, reason = "used by the install step, built on Unix only")
+)]
 pub(crate) mod marker;
+#[cfg_attr(
+    windows,
+    expect(
+        dead_code,
+        unused_imports,
+        reason = "a Dock click passed on to a new copy is the install step's, built on Unix only"
+    )
+)]
 pub(crate) mod platform;
 pub(crate) mod record;
 pub(crate) mod self_check;
@@ -70,9 +88,17 @@ pub(crate) enum Unavailable {
     #[error("Emberhut has nowhere to keep an update on this Mac")]
     NoFiles,
     /// It runs from a place it can't replace itself in.
+    #[cfg_attr(
+        windows,
+        expect(dead_code, reason = "found by the install step, built on Unix only")
+    )]
     #[error("{0}")]
     Place(String),
     /// It isn't signed with a Developer ID (an ad-hoc signed app fails closed).
+    #[cfg_attr(
+        windows,
+        expect(dead_code, reason = "found by the install step, built on Unix only")
+    )]
     #[error("This copy of Emberhut isn't signed with a Developer ID, so it doesn't update itself")]
     NotDeveloperId,
     /// Something it needs to know couldn't be read.
