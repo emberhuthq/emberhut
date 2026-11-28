@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { ClaudeAccount, Machine } from "@/api";
-import { accountsOn, ago, countLine, hutKind, kindIcon, presenceLine, resourcesLine, room, runningLine } from "./huts";
+import { builtInTheme } from "@/theme/builtIn";
+import { contrast, paletteFrom } from "@/theme/colors";
+import {
+  accountsOn,
+  ago,
+  asOf,
+  countLine,
+  hutKind,
+  kindIcon,
+  pillLine,
+  resourcesLine,
+  room,
+  sessionsLine,
+  tinted,
+  track,
+  updatedLine,
+} from "./huts";
 
 const GB = 1024 ** 3;
 const now = new Date("2026-11-28T12:00:00Z");
@@ -54,19 +70,26 @@ describe("a hut's kind", () => {
 });
 
 describe("online or asleep", () => {
-  it("says an offline hut is asleep and when it was last seen", () => {
-    expect(presenceLine(machine({ state: "warn" }), now)).toBe("Online");
-    expect(presenceLine(machine({ state: "offline", seen: "2026-11-28T10:00:00Z" }), now)).toBe("Asleep · last seen 2 h ago");
-    expect(presenceLine(machine({ state: "stale", seen: null, age: 90 }), now)).toBe("Quiet · last seen 1 min ago");
-    expect(presenceLine(machine({ state: "unknown" }), now)).toBe("Not reported yet");
+  it("says it once, in the pill, with how long an asleep hut has been quiet", () => {
+    expect(pillLine(machine({ state: "warn" }), now)).toBe("Online");
+    expect(pillLine(machine({ state: "offline", seen: "2026-11-28T10:00:00Z" }), now)).toBe("Asleep · 2 h ago");
+    expect(pillLine(machine({ state: "stale", seen: null, age: 90 }), now)).toBe("Quiet · 1 min ago");
+    expect(pillLine(machine({ state: "unknown" }), now)).toBe("Not reported yet");
     expect(ago(30)).toBe("just now");
     expect(ago(3 * 86_400)).toBe("3 d ago");
+  });
+
+  it("dates an asleep hut's figures, and the page's last update", () => {
+    expect(asOf(machine({ state: "offline", seen: "2026-11-28T10:00:00Z" }), now)).toBe("as of 2 h ago");
+    expect(asOf(machine(), now)).toBeNull();
+    expect(updatedLine(new Date("2026-11-28T11:59:50Z"), now)).toBe("Updated just now");
+    expect(updatedLine(new Date("2026-11-28T11:57:00Z"), now)).toBe("Updated 3 min ago");
   });
 });
 
 describe("what runs there", () => {
-  it("counts its sessions, the running ones and the queued turns", () => {
-    expect(runningLine(machine())).toBe("Nothing running");
+  it("counts its sessions, the working ones and the queued turns", () => {
+    expect(sessionsLine(machine())).toBe("None");
     const session = (id: string, running: boolean) => ({
       id,
       title: id,
@@ -80,42 +103,67 @@ describe("what runs there", () => {
       limitedUntil: null,
     });
     const runner = { sessions: 1, queued: 2, open: 3, claude: null, claudeRss: null, rss: 0, cap: null };
-    expect(runningLine(machine({ runner, sessions: [session("a", true), session("b", false), session("c", false)] }))).toBe(
-      "3 sessions · 1 running · 2 queued",
+    expect(sessionsLine(machine({ runner, sessions: [session("a", true), session("b", false), session("c", false)] }))).toBe(
+      "3 open · 1 working · 2 queued",
     );
   });
 
-  it("reads its resources in one line", () => {
-    const hut = machine({
-      cpu: { cores: 8, load1: 1, load5: 1, load15: 1, usage: 0.12 },
-      memory: { total: 64 * GB, available: 46 * GB, used: 18 * GB, swapTotal: 0, swapUsed: 0, pressure: "normal" },
+  it("reads its resources in whole numbers, the GPU as a state", () => {
+    const gpu = (util: number | null) => ({
+      index: 0,
+      name: "Example GPU",
+      util,
+      memUsed: 0,
+      memTotal: GB,
+      temp: null,
+      power: null,
+      procs: [],
     });
-    expect(resourcesLine(hut)).toBe("CPU 12% · Memory 18.0 of 64.0 GB");
+    const hut = (gpus: ReturnType<typeof gpu>[]) =>
+      machine({
+        cpu: { cores: 8, load1: 1, load5: 1, load15: 1, usage: 0.12 },
+        memory: { total: 64 * GB, available: 46.2 * GB, used: 18 * GB, swapTotal: 0, swapUsed: 0, pressure: "normal" },
+        gpus,
+      });
+    expect(resourcesLine(hut([gpu(0.01)]))).toBe("CPU 12% · RAM 18 / 64 GB · GPU idle");
+    expect(resourcesLine(hut([gpu(0.1), gpu(0.45)]))).toBe("CPU 12% · RAM 18 / 64 GB · GPUs 45%");
+    expect(resourcesLine(hut([gpu(null)]))).toBe("CPU 12% · RAM 18 / 64 GB");
     expect(resourcesLine(machine())).toBeNull();
   });
 });
 
 describe("an account's room", () => {
-  it("is what the higher known use leaves", () => {
+  it("is what the higher known use leaves, said as left", () => {
     expect(room(account({ used5h: 28, used7d: 10 }), now)).toEqual({
       value: "72% left",
-      detail: "5-hour 28% used · week 10% used",
+      detail: "5-hour 72% left · week 90% left",
       share: 0.72,
       tone: "fine",
     });
-    expect(room(account({ used5h: 91, used7d: 40 }), now)).toMatchObject({ value: "9% left", tone: "low" });
   });
 
-  it("says an unknown 5-hour use is not reported, never 0% used", () => {
+  it("is red at 15% or less, amber to 40%, and says when it comes back", () => {
+    const tone = (used: number) => room(account({ used5h: used }), now).tone;
+    expect([tone(85), tone(84), tone(60), tone(59)]).toEqual(["out", "low", "low", "fine"]);
+    const low = room(account({ used5h: 91, used7d: 40, resets5h: "2026-11-28T13:20:00Z", resets7d: "2026-12-01T00:00:00Z" }), now);
+    expect(low.value).toBe("9% left · back in 1 h 20 m");
+    expect(room(account({ used5h: 10, resets5h: "2026-11-28T13:20:00Z" }), now).value).toBe("90% left");
+  });
+
+  it("says an unknown 5-hour use is not reported, and the room is from the week only", () => {
     const r = room(account({ used5h: null, used7d: 40 }), now);
-    expect(r.value).toBe("60% left");
-    expect(r.detail).toBe("5-hour not reported · week 40% used");
-    expect(r.detail).not.toContain("5-hour 0%");
+    expect(r.value).toBe("60% left · week only");
+    expect(r.detail).toBe("5-hour not reported · week 60% left");
   });
 
   it("says an account with no use known hasn't been checked yet, never 100% left", () => {
-    const r = room(account(), now);
-    expect(r).toEqual({ value: "Not checked yet", detail: "", share: null, tone: "unknown" });
+    expect(room(account(), now)).toEqual({ value: "Not checked yet", detail: "", share: null, tone: "unknown" });
+  });
+
+  it("says how old an asleep hut's figures are", () => {
+    expect(room(account({ used5h: 28, used7d: 10, checked: "2026-11-28T10:00:00Z" }), now, true).detail).toBe(
+      "5-hour 72% left · week 90% left · checked 2 h ago",
+    );
   });
 
   it("says why an account can't work", () => {
@@ -141,5 +189,18 @@ describe("the page's line", () => {
   it("counts the huts and the asleep ones", () => {
     expect(countLine([machine()])).toBe("1 hut");
     expect(countLine([machine(), machine({ id: "b", state: "offline" })])).toBe("2 huts · 1 asleep");
+  });
+});
+
+describe("the colours", () => {
+  it("make the pill's words and the bar's edge readable in both appearances", () => {
+    for (const scheme of ["light", "dark"] as const) {
+      const colors = paletteFrom(builtInTheme.tokens[scheme], scheme);
+      for (const ink of [colors.done, colors.warning, colors.danger, colors.textSecondary]) {
+        const { fill, text } = tinted(ink, colors.surface);
+        expect(contrast(text, fill)).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(contrast(track(colors.textSecondary, colors.surface).line, colors.surface)).toBeGreaterThanOrEqual(3);
+    }
   });
 });

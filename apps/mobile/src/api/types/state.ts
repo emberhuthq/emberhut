@@ -170,7 +170,12 @@ export interface ClaudeAccount {
   loggedIn?: boolean | null;
   used5h?: number | null;
   used7d?: number | null;
+  /** When its 5-hour and its week use start again. */
+  resets5h?: Instant | null;
+  resets7d?: Instant | null;
   limitedUntil?: Instant | null;
+  /** When its use was last read. */
+  checked?: Instant | null;
   /** The runner machine it's kept on (an id of GET /api/machines); none: not tied to one. */
   machine?: string | null;
   /** any, or the one kind of work it is kept for. */
