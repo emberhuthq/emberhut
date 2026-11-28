@@ -493,9 +493,10 @@ impl TaskService {
 const RECHECK_AFTER: SignedDuration = SignedDuration::from_hours(12);
 
 impl TaskService {
-    /// The tick's work: paused projects whose day has come are back (Main hears it), and an ask
+    /// The tick's work: paused projects whose day has come are back (Main hears it), an ask
     /// that waited 12 hours since it was last checked is handed to the assistant to check
-    /// again, quietly, once per check. Returns how many of each.
+    /// again, quietly, once per check, and runs whose end was missed are closed
+    /// ([`Self::sweep_runs`]). Returns how many projects and asks.
     ///
     /// # Errors
     ///
@@ -550,10 +551,11 @@ impl TaskService {
             .await?;
             rechecked += usize::from(told);
         }
+        self.sweep_runs().await?;
         Ok((resumed.len(), rechecked))
     }
 
-    /// Runs [`Self::tick`] every `every` until `stop`.
+    /// Runs [`Self::tick`] at once (start-up) and then every `every`, until `stop`.
     pub async fn keep_ticking(
         self,
         every: std::time::Duration,

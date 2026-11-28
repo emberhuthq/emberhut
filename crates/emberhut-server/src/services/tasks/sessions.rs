@@ -10,12 +10,27 @@ use std::collections::BTreeMap;
 
 use emberhut_core::task::TaskId;
 use emberhut_core::task::live::{NewRun, RunKind};
+use emberhut_core::thread::ThreadStatus;
 use emberhut_db::DbError;
+use jiff::{SignedDuration, Timestamp};
 
 use super::{TaskError, TaskService};
 
 /// A task link's kind for a coding thread or a runner session.
 pub(crate) const THREAD_LINK: &str = "thread";
+
+/// How a run whose end the server never heard is closed.
+pub(crate) const LOST: &str = "lost";
+
+/// How long an open run waits, after its session's last event, once the server's record of the
+/// session says it is not working or the session is no longer known: its turn's end may still
+/// be on its way.
+const LOST_AFTER: SignedDuration = SignedDuration::from_mins(10);
+
+/// How long an open run waits while the server's record of its session still says it works but
+/// nothing has been heard from it: a running turn reports what it does every few seconds, so
+/// half a day of silence means its end was missed (the server was down, the session went).
+const SILENT_AFTER: SignedDuration = SignedDuration::from_hours(12);
 
 /// Where a runner session's turn is, as its latest event says.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -118,6 +133,56 @@ impl TaskService {
             SessionTurn::Unknown => {}
         }
         Ok(())
+    }
+
+    /// Closes, as [`LOST`], every open thread run whose turn's end was missed, on a server that
+    /// keeps plans (the tasks' tick, and so start-up too): its session's record (kept from the
+    /// runners' events, and from the coding-thread app's listing) says it is not working, or
+    /// there is no record any more, for [`LOST_AFTER`] since it was last heard of; or the
+    /// record still says it works but nothing has been heard for [`SILENT_AFTER`]. How many it
+    /// closed.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskError::Db`].
+    pub async fn sweep_runs(&self) -> Result<usize, TaskError> {
+        if !self.task_plans {
+            return Ok(0);
+        }
+        let now = self.now();
+        let mut closed = 0;
+        for run in self.runs.open_threads().await? {
+            let record = self.threads.get(&run.machine, &run.thread).await?;
+            let opened = run
+                .started
+                .or(run.requested)
+                .unwrap_or(Timestamp::UNIX_EPOCH);
+            let heard = record
+                .as_ref()
+                .map_or(opened, |thread| opened.max(thread.updated_at));
+            let working = record.as_ref().is_some_and(|thread| {
+                matches!(
+                    thread.status,
+                    ThreadStatus::Queued | ThreadStatus::Running | ThreadStatus::Other(_)
+                )
+            });
+            let wait = if working { SILENT_AFTER } else { LOST_AFTER };
+            if now.duration_since(heard) < wait {
+                continue;
+            }
+            let last = record.as_ref().and_then(|thread| thread.last.as_deref());
+            if self.runs.close(run.id, LOST, last, now).await? {
+                closed += 1;
+                tracing::info!(
+                    run = run.id.get(),
+                    machine = %run.machine,
+                    session = %run.thread,
+                    status = record.as_ref().map_or("gone", |thread| thread.status.as_str()),
+                    "a run's end was missed: closed as lost"
+                );
+            }
+        }
+        Ok(closed)
     }
 
     /// The tasks the session `session` is linked to, the oldest first.
