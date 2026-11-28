@@ -883,3 +883,113 @@ pub(crate) async fn a_runner_event_is_taken_when_its_tasks_bookkeeping_fails() {
     );
     assert_eq!(page_runs(&app, id).await, 0);
 }
+
+/// How many times the links table was written since [`count_link_writes`].
+async fn link_writes(app: &TestApp) -> i64 {
+    let conn = sea_orm::Database::connect(app.url.as_str()).await.unwrap();
+    let row = sea_orm::ConnectionTrait::query_one_raw(
+        &conn,
+        sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Sqlite,
+            "SELECT COUNT(*) AS n FROM link_writes",
+        ),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let n = row.try_get::<i64>("", "n").unwrap();
+    conn.close().await.unwrap();
+    n
+}
+
+/// Counts every write of the links table from now on.
+async fn count_link_writes(app: &TestApp) {
+    let conn = sea_orm::Database::connect(app.url.as_str()).await.unwrap();
+    for statement in [
+        "CREATE TABLE link_writes (at INTEGER)",
+        "CREATE TRIGGER count_links BEFORE INSERT ON links BEGIN INSERT INTO link_writes VALUES (1); END",
+    ] {
+        sea_orm::ConnectionTrait::execute_unprepared(&conn, statement)
+            .await
+            .unwrap();
+    }
+    conn.close().await.unwrap();
+}
+
+#[tokio::test]
+pub(crate) async fn a_session_is_linked_when_its_turn_is_sent_or_starts_not_on_every_event() {
+    let app = app(true).await;
+    let id = task(&app, "the lexer").await;
+    count_link_writes(&app).await;
+    let turn = json!({ "turn": { "id": "r-11c:1", "by": "assistant", "prompt": "Write it" } });
+    report(
+        &app,
+        &session_event(id, "r-11c", "turn_queued", "queued", turn.clone()),
+    )
+    .await;
+    report(
+        &app,
+        &session_event(id, "r-11c", "turn_started", "running", turn.clone()),
+    )
+    .await;
+    assert_eq!(link_writes(&app).await, 2, "queued, then started");
+    for doing in ["Reading", "Writing", "Testing"] {
+        report(
+            &app,
+            &session_event(
+                id,
+                "r-11c",
+                "activity",
+                "running",
+                json!({ "doing": doing }),
+            ),
+        )
+        .await;
+    }
+    report(
+        &app,
+        &session_event(
+            id,
+            "r-11c",
+            "note",
+            "running",
+            json!({ "text": "Half way" }),
+        ),
+    )
+    .await;
+    assert_eq!(
+        link_writes(&app).await,
+        2,
+        "no write for activity or a note"
+    );
+    assert!(
+        page(&app, id)
+            .await
+            .links
+            .iter()
+            .any(|link| link.reference == "r-11c")
+    );
+
+    // A session first seen mid-turn is linked once, by its first event.
+    for _ in 0..3 {
+        report(
+            &app,
+            &session_event(
+                id,
+                "r-22d",
+                "activity",
+                "running",
+                json!({ "doing": "Reading" }),
+            ),
+        )
+        .await;
+    }
+    assert_eq!(link_writes(&app).await, 3);
+    assert!(
+        page(&app, id)
+            .await
+            .links
+            .iter()
+            .any(|link| link.reference == "r-22d")
+    );
+}
