@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { RefreshControl, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import type { ReactNode, RefObject } from "react";
+import { RefreshControl, ScrollView, StyleSheet, View, type ScrollViewInstance, type StyleProp, type ViewStyle } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
 import { useBarInsets } from "./barInsets";
@@ -22,6 +22,8 @@ export interface ScreenProps {
   /** No background of its own: a sheet's material shows through. */
   transparent?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** A scrolling page's scroll view, for a page that scrolls to a part of itself. */
+  scrollRef?: RefObject<ScrollViewInstance | null>;
 }
 
 export function Screen({
@@ -34,6 +36,7 @@ export function Screen({
   underBars = false,
   transparent = false,
   style,
+  scrollRef,
 }: ScreenProps) {
   const theme = useTheme();
   const bars = useBarInsets();
@@ -43,6 +46,7 @@ export function Screen({
     <SafeAreaView edges={edges} style={[styles.fill, { backgroundColor: background }]}>
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[{ padding, gap: theme.spacing.md }, style]}
           // Under the see-through header and tab bar iOS insets the page itself, so a large title shrinks as it scrolls.
           contentInsetAdjustmentBehavior="automatic"
