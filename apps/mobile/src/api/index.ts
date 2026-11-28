@@ -62,14 +62,17 @@ export { createHealthCheck, healthTimeoutMs, type HealthCheck } from "./health";
 export { ApiError, StorageError } from "./errors";
 export { isServerPath, type Fetch, type UploadFile } from "./fetch";
 export {
+  contractWords,
   createDialect,
   dialect,
   fromServer,
+  hasWireDialect,
   identityDialect,
   jsonFromServer,
   jsonToServer,
   parseDialect,
   toServer,
+  withTaskKeyPrefix,
   type Dialect,
   type DialectTable,
 } from "./dialect";
@@ -84,7 +87,9 @@ export {
   OWNER,
   PUSH_CHANNEL,
   TASK_KEY_PATTERN,
+  CONTRACT_TASK_KEY_PREFIX,
   TASK_KEY_PREFIX,
+  taskKeyPrefixFrom,
   taskKey,
   type Author,
 } from "./wire";

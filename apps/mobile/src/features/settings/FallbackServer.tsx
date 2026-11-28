@@ -1,6 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import { Alert } from "react-native";
-import { dialect } from "@/api";
+import { hasWireDialect } from "@/api";
 import { inBackground } from "@/log";
 import { fallbackStore, sessionStore } from "@/services";
 import { useFallback, useSession } from "@/state/hooks";
@@ -54,7 +54,7 @@ export function FallbackServer() {
           opens={false}
         />
       ) : null}
-      {!dialect.identity ? (
+      {hasWireDialect ? (
         <ListRow
           key="server-dialect"
           icon="language-outline"
@@ -64,7 +64,7 @@ export function FallbackServer() {
           }
         />
       ) : null}
-      {fallback && !dialect.identity ? (
+      {fallback && hasWireDialect ? (
         <ListRow
           key="fallback-dialect"
           icon="language-outline"

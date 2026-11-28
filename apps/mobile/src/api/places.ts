@@ -1,5 +1,5 @@
 import type { AuthSession } from "./auth";
-import { identityDialect, type Dialect } from "./dialect";
+import { contractWords, type Dialect } from "./dialect";
 import type { Fetch, UploadFile } from "./fetch";
 import { EmberhutHttp } from "./http";
 import type { ServerAddress, Slot } from "./server";
@@ -23,8 +23,8 @@ export interface ServerHttpOptions {
 /** The reserved .invalid name: a request before any server was kept fails at once. */
 const nowhere = "http://server.invalid";
 
-/** The words to speak to a server: this build's dialect if it speaks it, the app's own otherwise. */
-const wordsFor = (address: ServerAddress, dialect: Dialect): Dialect => (address.speaksDialect ? dialect : identityDialect);
+/** The words to speak to a server: this build's dialect if it speaks it, the contract's otherwise (task keys in the app's prefix). */
+const wordsFor = (address: ServerAddress, dialect: Dialect): Dialect => (address.speaksDialect ? dialect : contractWords);
 
 /**
  * The HTTP clients: `inUse` sends to whichever server `using` names at each request (its address, its session, its

@@ -13,6 +13,7 @@ import {
   createServerAddress,
   createServerHttp,
   dialect,
+  hasWireDialect,
   slotPrefix,
   type Fetch,
   type SecureStorage,
@@ -105,7 +106,7 @@ export const fallbackStore = createFallbackStore({
 sessionStore.subscribe((now, before) => {
   const using = fallbackStore.getState().using;
   const words = (s: typeof now) => (using === "server" ? s.speaksDialect : s.fallback?.speaksDialect);
-  if (!dialect.identity && words(now) !== words(before)) serverChanged();
+  if (hasWireDialect && words(now) !== words(before)) serverChanged();
 });
 export const connectionStore = createConnectionStore();
 export const pushStore = createPushStore({

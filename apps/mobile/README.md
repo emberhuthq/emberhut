@@ -128,6 +128,15 @@ That includes what you type, so with the example above "T-4" goes to the server 
 or one string the app passes to or takes from the server some other way. A malformed dialect stops `app.config.ts`.
 Metro inlines the variable when it bundles, so restart it (`expo start --clear`) after changing it.
 
+### Showing task keys with another prefix
+
+`EXPO_PUBLIC_EMBERHUT_TASK_KEY_PREFIX` (letters and digits ending in a dash, e.g. `WK-`) is how the build shows task
+keys: in messages, chips, rows and searches, task 12 reads `WK-12` instead of the contract's `T-12`. Every server's
+answers are read into it and requests written back in the server's own spelling. A server that doesn't speak the
+build's dialect is spoken to in the contract's words with `T-` read as the build's prefix both ways. With a dialect, a
+`prefixes` pair whose app side is `T-` now ends in the build's prefix, and a pair left the same on both sides is
+dropped, so a server that already spells keys that way keeps them as they are. Unset or empty, keys read `T-`.
+
 ## The emberhut.com account
 
 Off unless the build turns it on (ADR 0007, section 5). It finds your machines; it never lets anyone into one.
