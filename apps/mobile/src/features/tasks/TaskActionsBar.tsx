@@ -150,14 +150,12 @@ export function TaskActionsBar({
           <Button label="Talk" variant="secondary" onPress={talk} accessibilityLabel="Talk to Emberhut about this" block />
         </Grow>
       </View>
-      {more && (
-        <ActionSheet
-          visible
-          title="Other answers"
-          actions={plan.others.map((choice) => ({ label: answerLabel(choice), onPress: () => answer(choice) }))}
-          onClose={() => setMore(false)}
-        />
-      )}
+      <ActionSheet
+        visible={more}
+        title="Other answers"
+        actions={plan.others.map((choice) => ({ label: answerLabel(choice), onPress: () => answer(choice) }))}
+        onClose={() => setMore(false)}
+      />
     </View>
   );
 }

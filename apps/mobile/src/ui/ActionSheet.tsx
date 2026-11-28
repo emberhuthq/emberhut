@@ -1,7 +1,9 @@
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { minTap, useTheme } from "@/theme";
 import { Icon, type IconName } from "./Icon";
+import { sheetChoice } from "./sheetChoice";
 import { Text } from "./Text";
 
 export interface SheetAction {
@@ -18,12 +20,24 @@ export interface ActionSheetProps {
   onClose: () => void;
 }
 
-/** What a long press offers, from the bottom of the screen; a tap outside closes it. */
+/**
+ * What a long press offers, from the bottom of the screen; a tap outside closes it. A tapped action runs once the sheet
+ * is gone (sheetChoice.ts), so keep the sheet mounted and close it with `visible`: unmounted, it never says it's gone.
+ */
 export function ActionSheet({ visible, title, actions, onClose }: ActionSheetProps) {
   const { colors, radius, spacing } = useTheme();
   const insets = useSafeAreaInsets();
+  const [choice] = useState(() => sheetChoice(Platform.OS === "ios"));
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={choice.dismissed}
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
       <View
         style={{
@@ -49,7 +63,7 @@ export function ActionSheet({ visible, title, actions, onClose }: ActionSheetPro
             key={action.label}
             onPress={() => {
               onClose();
-              action.onPress();
+              choice.choose(action.onPress);
             }}
             accessibilityRole="button"
             style={({ pressed }) => [
