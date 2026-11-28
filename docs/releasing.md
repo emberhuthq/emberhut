@@ -62,8 +62,10 @@ Before publishing (the **publish** job):
 - it holds at least the six built assets below; whatever else is on the draft is downloaded,
   scanned and listed in `SHA256SUMS` too (feeds and sums from an earlier attempt are made anew);
 - every asset, unpacked (archives, the disk image, the installer), and every binary's strings
-  pass gitleaks with the repository's `.gitleaks.toml` and with the private rules in
-  `PRIVATE_WORDS_TOML`; so do the feeds, the sums and the notes it writes;
+  pass gitleaks with the repository's `.gitleaks.toml` (through
+  `.github/actions/release-scan/binaries.toml`, which allows only the few addresses that
+  dependencies compile into the binaries) and with the private rules in `PRIVATE_WORDS_TOML`;
+  so do the feeds, the sums and the notes it writes;
 - the feeds and sums it signed verify against the public update key the app trusts.
 
 A pull request that changes the release machinery (the workflow, `xtask/`, the installer's

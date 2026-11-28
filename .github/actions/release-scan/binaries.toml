@@ -1,0 +1,22 @@
+# gitleaks: the repository's rules (.gitleaks.toml) for the files of the release's assets, with
+# allow lists for what third-party code compiled into the binaries carries. Each entry is one
+# value or one narrow pattern, so anything else still fails the scan. Run gitleaks from the
+# repository root: it reads the `[extend]` path relative to the working directory.
+title = "emberhut (release assets)"
+
+[extend]
+path = ".gitleaks.toml"
+
+[[allowlists]]
+description = "Addresses in dependencies' own strings: OpenSSL's assembly credits (ring's code) and a root certificate's subject (webpki-roots)"
+targetRules = ["email-address"]
+regexTarget = "match"
+regexes = ['''^appro@openssl\.org$''', '''^info@e-szigno\.hu$''']
+
+[[allowlists]]
+description = "Bytes of a binary that happen to read like an address with an upper-case domain ending; a real address in a binary's strings is lower case"
+targetRules = ["email-address"]
+condition = "AND"
+paths = ['''\.strings\.txt$''']
+regexTarget = "match"
+regexes = ['''\.[A-Z]{2,}$''']

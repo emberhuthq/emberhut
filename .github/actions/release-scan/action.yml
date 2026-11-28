@@ -2,8 +2,9 @@ name: Scan release assets
 description: >-
   Unpacks every release asset in a folder (archives, the macOS disk image, the Windows
   installer), turns each binary into its printable strings, and runs gitleaks over the result
-  with the repository's .gitleaks.toml and, when given, a second config. Any finding fails the
-  step. Run it from the repository root, after a checkout.
+  with the repository's .gitleaks.toml (through binaries.toml, which adds allow lists for
+  third-party strings compiled into the binaries) and, when given, a second config. Any finding
+  fails the step. Run it from the repository root, after a checkout.
 
 inputs:
   dir:
@@ -91,10 +92,11 @@ runs:
         echo "Prepared $count files from ${#assets[@]} assets for the scan"
         echo "RELEASE_SCAN_TEXT=$work/text" >> "$GITHUB_ENV"
 
+    # binaries.toml is .gitleaks.toml plus allow lists for third-party strings in the binaries.
     - name: gitleaks with the repository's rules
       shell: bash
       run: |
-        "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --no-banner --config .gitleaks.toml --redact --verbose "$RELEASE_SCAN_TEXT"
+        "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --no-banner --config .github/actions/release-scan/binaries.toml --redact --verbose "$RELEASE_SCAN_TEXT"
 
     - name: gitleaks with the extra rules
       if: inputs.extra-config != ''
