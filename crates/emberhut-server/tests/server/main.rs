@@ -76,6 +76,7 @@ mod push_fcm;
 mod push_looking;
 mod refs;
 mod room_tools;
+mod runner_plans;
 mod runner_tools;
 mod runners;
 mod same_task;

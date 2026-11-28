@@ -983,6 +983,75 @@
         ]
       }
     },
+    "/mcp/runner": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "One MCP message (JSON-RPC 2.0) from a runner's session: `initialize`, `ping`, `tools/list`\nor `tools/call`, with a task's plan and the task in full as its only tools. The bearer is\nthe runner sessions' token, which the runners' shared MCP list hands out\n(`GET /api/runner/mcp`); the session header names the calling session, and only a session\nlinked to a task writes that task's plan.",
+        "operationId": "mcp_runner",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RpcRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The request's answer: its result, or a JSON-RPC error (an unknown method). A tool call always has a result, `isError` when it failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpcResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "A notification, taken; no body"
+          },
+          "400": {
+            "description": "Not JSON, or not one JSON-RPC message (a JSON-RPC error)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpcResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not the runner sessions' token this server process handed out (a token from before a restart is a stranger's)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is over the server's limit (a JSON-RPC error)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpcResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/history": {
       "get": {
         "tags": [
@@ -2592,7 +2661,7 @@
         "tags": [
           "runners"
         ],
-        "summary": "The MCP servers the runners' sessions get too, as the server's operator listed them (none\nwhen no list is configured). On a server that keeps tasks' plans, the entry for the server's\nown MCP endpoint gets the session header too, so each session's calls name the session.",
+        "summary": "The MCP servers the runners' sessions get too, as the server's operator listed them (none\nwhen no list is configured). On a server that keeps tasks' plans, the list always has the\nserver's own entry: its runner sessions' endpoint, with the runner sessions' token and the\nsession header, so each session keeps its task's plan and its calls name the session. An\nentry the operator listed for one of the server's own endpoints is kept instead, and gets the\nsession header (and, for the runner sessions' endpoint, the token) when it doesn't set them.",
         "operationId": "mcp",
         "responses": {
           "200": {

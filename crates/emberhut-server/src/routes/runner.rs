@@ -217,8 +217,11 @@ pub(super) async fn machine(
 }
 
 /// The MCP servers the runners' sessions get too, as the server's operator listed them (none
-/// when no list is configured). On a server that keeps tasks' plans, the entry for the server's
-/// own MCP endpoint gets the session header too, so each session's calls name the session.
+/// when no list is configured). On a server that keeps tasks' plans, the list always has the
+/// server's own entry: its runner sessions' endpoint, with the runner sessions' token and the
+/// session header, so each session keeps its task's plan and its calls name the session. An
+/// entry the operator listed for one of the server's own endpoints is kept instead, and gets the
+/// session header (and, for the runner sessions' endpoint, the token) when it doesn't set them.
 #[utoipa::path(
     get,
     path = "/api/runner/mcp",
@@ -231,10 +234,53 @@ pub(super) async fn machine(
 )]
 pub(super) async fn mcp(State(app): State<AppState>, Runner(machine): Runner) -> Json<SharedMcp> {
     app.runners().heard(&machine);
-    let Some(path) = app.runner_mcp() else {
-        return Json(SharedMcp::default());
+    let servers = match app.runner_mcp() {
+        Some(path) => listed_mcp(path).await,
+        None => Map::new(),
     };
-    let servers = match tokio::fs::read_to_string(path).await {
+    if !app.task_plans() {
+        return Json(SharedMcp {
+            mcp_servers: servers,
+        });
+    }
+    let token = match app.runner_token().get() {
+        Ok(token) => Some(token),
+        Err(error) => {
+            tracing::error!(%error, "the runner sessions' token could not be made");
+            None
+        }
+    };
+    let bearer = token.map(|token| format!("Bearer {}", token.as_str()));
+    let mut servers: Map<String, Value> = servers
+        .into_iter()
+        .map(|(name, entry)| (name, with_session(entry, bearer.as_deref())))
+        .collect();
+    let listed = servers.contains_key(emberhut_api::mcp::SERVER_NAME)
+        || servers.values().any(|entry| ours(entry).is_some());
+    if let (false, Some(bearer)) = (listed, bearer) {
+        let mut headers = Map::new();
+        headers.insert("Authorization".to_owned(), Value::from(bearer));
+        headers.insert(
+            emberhut_api::wire::mcp::SESSION_HEADER.to_owned(),
+            Value::from(emberhut_api::wire::mcp::SESSION_HEADER_VALUE),
+        );
+        servers.insert(
+            emberhut_api::mcp::SERVER_NAME.to_owned(),
+            serde_json::json!({
+                "type": "http",
+                "url": app.mcp_url(emberhut_api::paths::MCP_RUNNER),
+                "headers": headers,
+            }),
+        );
+    }
+    Json(SharedMcp {
+        mcp_servers: servers,
+    })
+}
+
+/// The servers the operator's file at `path` lists (none when it can't be read).
+async fn listed_mcp(path: &std::path::Path) -> Map<String, Value> {
+    match tokio::fs::read_to_string(path).await {
         Ok(text) => {
             if let Ok(Value::Object(mut file)) = serde_json::from_str::<Value>(&text) {
                 match file.remove("mcpServers") {
@@ -250,45 +296,52 @@ pub(super) async fn mcp(State(app): State<AppState>, Runner(machine): Runner) ->
             tracing::warn!(%error, path = %path.display(), "the runners' MCP list could not be read");
             Map::new()
         }
-    };
-    let servers = if app.task_plans() {
-        servers
-            .into_iter()
-            .map(|(name, entry)| (name, with_session(entry)))
-            .collect()
-    } else {
-        servers
-    };
-    Json(SharedMcp {
-        mcp_servers: servers,
-    })
+    }
+}
+
+/// Which of the server's own MCP endpoints `entry` of the shared list points at, by its URL's
+/// path: the room's ([`emberhut_api::wire::mcp::ROOM_PATH`]) or the runner sessions'
+/// ([`emberhut_api::wire::mcp::RUNNER_PATH`]).
+fn ours(entry: &Value) -> Option<&'static str> {
+    let url = entry.get("url").and_then(Value::as_str)?;
+    let url = url.split(['?', '#']).next().unwrap_or_default();
+    let url = url.trim_end_matches('/');
+    [
+        emberhut_api::wire::mcp::ROOM_PATH,
+        emberhut_api::wire::mcp::RUNNER_PATH,
+    ]
+    .into_iter()
+    .find(|path| url.ends_with(path))
 }
 
 /// `entry` of the shared MCP list, with the session header
 /// ([`emberhut_api::wire::mcp::SESSION_HEADER`], the session's id from the variable the runner
-/// sets) when its URL is this server's MCP endpoint and it doesn't set that header itself.
-fn with_session(mut entry: Value) -> Value {
-    let ours = entry.get("url").and_then(Value::as_str).is_some_and(|url| {
-        let url = url.split(['?', '#']).next().unwrap_or_default();
-        url.trim_end_matches('/')
-            .ends_with(emberhut_api::wire::mcp::ROOM_PATH)
-    });
-    if !ours {
+/// sets) when its URL is one of this server's MCP endpoints and it doesn't set that header
+/// itself; pointing at the runner sessions' endpoint with no `Authorization`, with `bearer`.
+fn with_session(mut entry: Value, bearer: Option<&str>) -> Value {
+    let Some(path) = ours(&entry) else {
         return entry;
-    }
+    };
     if let Value::Object(fields) = &mut entry {
         let headers = fields
             .entry("headers")
             .or_insert_with(|| Value::Object(Map::new()));
-        if let Value::Object(headers) = headers
-            && !headers
-                .keys()
-                .any(|name| name.eq_ignore_ascii_case(emberhut_api::wire::mcp::SESSION_HEADER))
-        {
-            headers.insert(
-                emberhut_api::wire::mcp::SESSION_HEADER.to_owned(),
-                Value::from(emberhut_api::wire::mcp::SESSION_HEADER_VALUE),
-            );
+        if let Value::Object(headers) = headers {
+            let has = |headers: &Map<String, Value>, wanted: &str| {
+                headers.keys().any(|name| name.eq_ignore_ascii_case(wanted))
+            };
+            if !has(headers, emberhut_api::wire::mcp::SESSION_HEADER) {
+                headers.insert(
+                    emberhut_api::wire::mcp::SESSION_HEADER.to_owned(),
+                    Value::from(emberhut_api::wire::mcp::SESSION_HEADER_VALUE),
+                );
+            }
+            if let Some(bearer) = bearer
+                && path == emberhut_api::wire::mcp::RUNNER_PATH
+                && !has(headers, header::AUTHORIZATION.as_str())
+            {
+                headers.insert("Authorization".to_owned(), Value::from(bearer));
+            }
         }
     }
     entry
