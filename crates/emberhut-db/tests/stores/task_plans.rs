@@ -321,3 +321,71 @@ async fn the_open_thread_runs_are_listed_the_oldest_first() {
         .collect();
     assert_eq!(open, [first.id, last.id], "open, of threads only");
 }
+
+#[tokio::test]
+async fn a_task_made_for_a_session_says_so_and_a_moved_sessions_open_run_follows_it() {
+    use emberhut_core::task::live::{NewRun, RunKind};
+
+    let (dir, db) = database().await;
+    let tasks = db.tasks();
+    let new = |title: &str| NewTask {
+        title: title.to_owned(),
+        ..NewTask::default()
+    };
+    let made = tasks
+        .create(new("Tidy up"), Who::Person, at(0))
+        .await
+        .unwrap();
+    let other = tasks
+        .create(new("The lexer"), Who::Person, at(0))
+        .await
+        .unwrap();
+    assert_eq!(tasks.made_for_session(made.id).await.unwrap(), None);
+    assert!(tasks.set_made_for_session(made.id, "r-1e8").await.unwrap());
+    assert!(
+        !tasks
+            .set_made_for_session(TaskId::new(999), "r-1e8")
+            .await
+            .unwrap()
+    );
+    drop(db);
+    let db = reopen(&dir).await;
+    let tasks = db.tasks();
+    assert_eq!(
+        tasks.made_for_session(made.id).await.unwrap().as_deref(),
+        Some("r-1e8"),
+        "kept"
+    );
+    assert_eq!(tasks.made_for_session(other.id).await.unwrap(), None);
+
+    let runs = db.runs();
+    let (run, _) = runs
+        .open_thread_once(
+            NewRun {
+                task: made.id,
+                machine: "build".to_owned(),
+                thread: "r-1e8".to_owned(),
+                kind: RunKind::Thread,
+                asked: None,
+                started: true,
+            },
+            at(1),
+        )
+        .await
+        .unwrap();
+    assert!(runs.move_to(run.id, other.id).await.unwrap());
+    assert_eq!(
+        runs.open_thread("build", "r-1e8")
+            .await
+            .unwrap()
+            .unwrap()
+            .task,
+        Some(other.id)
+    );
+    assert_eq!(runs.of_task(made.id, 10).await.unwrap().len(), 0);
+    assert!(runs.close(run.id, "completed", None, at(2)).await.unwrap());
+    assert!(
+        !runs.move_to(run.id, made.id).await.unwrap(),
+        "an ended run stays where it ended"
+    );
+}

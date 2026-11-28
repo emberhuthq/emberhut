@@ -797,6 +797,37 @@ impl TaskStore {
         active.update(&self.conn).await?;
         Ok(())
     }
+
+    /// Marks the task as made automatically for the runner session `session`; `false` when
+    /// there is no such task.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn set_made_for_session(&self, id: TaskId, session: &str) -> Result<bool, DbError> {
+        Ok(issue::Entity::update_many()
+            .col_expr(
+                issue::Column::MadeForSession,
+                Expr::value(session.to_owned()),
+            )
+            .filter(issue::Column::Id.eq(id.get()))
+            .exec(&self.conn)
+            .await?
+            .rows_affected
+            > 0)
+    }
+
+    /// The runner session the task was made for automatically, if it was.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn made_for_session(&self, id: TaskId) -> Result<Option<String>, DbError> {
+        Ok(issue::Entity::find_by_id(id.get())
+            .one(&self.conn)
+            .await?
+            .and_then(|row| row.made_for_session))
+    }
 }
 
 /// The `kind` of a finding's row.

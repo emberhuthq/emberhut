@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use emberhut_core::task::live::{NewRun, Run, RunKind};
 use emberhut_core::task::{RunId, TaskId};
 use jiff::Timestamp;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection,
     EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, QuerySelect,
@@ -146,6 +147,23 @@ impl RunStore {
         active.started = Set(Some(millis(now)));
         active.update(&self.conn).await?;
         Ok(true)
+    }
+
+    /// Moves the open run `id` to the task `task` (its session moved there); `false` when it
+    /// has ended, or there is no such run.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn move_to(&self, id: RunId, task: TaskId) -> Result<bool, DbError> {
+        Ok(run::Entity::update_many()
+            .col_expr(run::Column::Task, Expr::value(task.get()))
+            .filter(run::Column::Id.eq(id.get()))
+            .filter(run::Column::Ended.is_null())
+            .exec(&self.conn)
+            .await?
+            .rows_affected
+            > 0)
     }
 
     /// A task's runs, newest first, `limit` at most.

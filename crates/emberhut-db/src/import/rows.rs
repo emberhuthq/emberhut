@@ -249,7 +249,7 @@ imported! {
         /// Who else asked for it, as JSON text.
         requested_by: Option<String>,
     }
-    fresh { plan_updated, plan_last_step, unplanned_turn }
+    fresh { plan_updated, plan_last_step, unplanned_turn, made_for_session }
 }
 
 imported! {

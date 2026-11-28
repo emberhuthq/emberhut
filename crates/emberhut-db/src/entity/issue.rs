@@ -115,6 +115,8 @@ pub(crate) struct Model {
     pub(crate) plan_last_step: Option<i32>,
     /// When the last turn of work on it ended with its plan empty.
     pub(crate) unplanned_turn: Option<i64>,
+    /// The runner session it was made for automatically.
+    pub(crate) made_for_session: Option<String>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
