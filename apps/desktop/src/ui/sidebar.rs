@@ -530,11 +530,11 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
         rows.push(
             tip_for(
                 machines,
-                "Your machines, live: CPU, memory, GPUs, disks and the sessions on each",
+                "Your huts: online or asleep, their accounts' room, CPU, memory, disks, sessions",
                 &OpenMachines,
             )
             .child(icon(IconName::Cpu, p.muted, 14.))
-            .child("Machines")
+            .child("Huts")
             .on_click(cx.listener(|this, _, window, cx| this.open(Page::Machines, window, cx))),
         );
         let in_settings = matches!(column, Some(Page::Settings | Page::SettingsPane(_)));

@@ -397,9 +397,8 @@ impl Account {
         self.attempt += 1;
         self.phase = Phase::SignedOut;
         self.forget_machines();
-        self.note = Some(
-            "Signed out of your account. This device stays signed in to its machines.".to_owned(),
-        );
+        self.note =
+            Some("Signed out of your account. This device stays signed in to its huts.".to_owned());
         if let Some(window) = self.window.take() {
             window.cancel();
         }

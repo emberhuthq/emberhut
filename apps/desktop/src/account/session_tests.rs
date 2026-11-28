@@ -305,7 +305,7 @@ fn unlinking_deletes_the_machine_from_the_account() {
     http.answer(Method::Delete, &url, 404, &directory_error("not-found"));
     assert_eq!(
         session.unlink(&id).unwrap_err().to_string(),
-        "That machine isn't in this account any more."
+        "That hut isn't in this account any more."
     );
 }
 
@@ -360,11 +360,11 @@ fn adding_this_computer_shows_the_directorys_refusal_in_words() {
     for (code, words) in [
         (
             "linked-elsewhere",
-            "This machine is linked to another account. Unlink it there first.",
+            "This hut is linked to another account. Unlink it there first.",
         ),
         (
             "account-full",
-            "This account has all the machines it can hold. Unlink one first.",
+            "This account has all the huts it can hold. Unlink one first.",
         ),
     ] {
         let (session, http, _) = signed_in("a1");

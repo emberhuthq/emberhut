@@ -935,7 +935,7 @@ pub(crate) enum Error {
     Local(#[source] Cause),
     /// A pairing from a link was answered by another machine than the link names, or by one
     /// that didn't say which it is.
-    #[error("This server didn't prove it is the machine you meant.")]
+    #[error("This server didn't prove it is the hut you meant.")]
     WrongMachine,
 }
 

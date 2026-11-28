@@ -170,7 +170,7 @@ impl SettingsView {
             )
     }
 
-    /// Devices' blocks: the devices, pairing another, pairing this one, the machines.
+    /// Devices' blocks: the devices, pairing another, pairing this one, the huts.
     pub(super) fn devices_blocks(
         &mut self,
         scale: f32,
@@ -201,7 +201,7 @@ impl SettingsView {
             "machines-row",
             p,
             (IconName::Cpu, category_color(5)),
-            "Machines",
+            "Huts",
             machines,
             &names,
         )
@@ -212,7 +212,7 @@ impl SettingsView {
             &["machines"],
             section(
                 p,
-                "Computers your ember works on",
+                "Huts your ember works on",
                 None,
                 vec![row.into_any_element()],
                 None,

@@ -87,8 +87,8 @@ impl Store {
 fn routes_reach(link: &PairingLink, server: &ServerUrl) -> Result<(), String> {
     if link.routes().is_empty() {
         return Err(
-            "This link names no address for its machine; pairing through the relay comes in a \
-             later version. Type the code on a device that talks to the machine instead."
+            "This link names no address for its hut; pairing through the relay comes in a later \
+             version. Type the code on a device that talks to the hut instead."
                 .to_owned(),
         );
     }
@@ -99,7 +99,7 @@ fn routes_reach(link: &PairingLink, server: &ServerUrl) -> Result<(), String> {
     }
     let first = link.routes().first().map_or("", String::as_str);
     Err(format!(
-        "This link is for the machine at {first}, and this app talks to {server}. Set this \
+        "This link is for the hut at {first}, and this app talks to {server}. Set this \
          app's server to one of the link's addresses, or type the code."
     ))
 }
@@ -248,7 +248,7 @@ mod tests {
         assert_eq!(
             paired(&store, link(&["http://127.0.0.1:8791"]), cx),
             Some(Err(
-                "This server didn't prove it is the machine you meant.".to_owned()
+                "This server didn't prove it is the hut you meant.".to_owned()
             ))
         );
     }

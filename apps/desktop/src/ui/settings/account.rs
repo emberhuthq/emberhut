@@ -15,8 +15,8 @@ use crate::ui::palette::Pal;
 use crate::ui::widgets::{dot, group};
 
 /// What the account is, said once, while signed out.
-const ABOUT: &str = "Your emberhut.com account lists your machines on every device you sign in on, \
-    and lets them use the emberhut.com relay. It never lets anyone into a machine: devices still \
+const ABOUT: &str = "Your emberhut.com account lists your huts on every device you sign in on, \
+    and lets them use the emberhut.com relay. It never lets anyone into a hut: devices still \
     pair with a code.";
 
 /// The Account group.
@@ -61,8 +61,8 @@ fn signed_in(mut group: Div, account: &Entity<Account>, read: &Account, p: &Pal)
         group = group.child(muted(format!("Signed in until the app quits: {why}."), p));
     }
     match read.machines() {
-        None => group = group.child(muted("Fetching your machines…", p)),
-        Some([]) => group = group.child(muted("No machines in your account yet.", p)),
+        None => group = group.child(muted("Fetching your huts…", p)),
+        Some([]) => group = group.child(muted("No huts in your account yet.", p)),
         Some(machines) => {
             let now = Timestamp::now();
             for machine in machines {
@@ -84,9 +84,9 @@ fn signed_in(mut group: Div, account: &Entity<Account>, read: &Account, p: &Pal)
                     Button::new("account-add-this")
                         .small()
                         .label(if linking {
-                            "Adding this computer…"
+                            "Adding this hut…"
                         } else {
-                            "Add this computer to your account"
+                            "Add this hut to your account"
                         })
                         .disabled(linking || cant_add.is_some())
                         .on_click(on(account, Account::add_this_computer)),

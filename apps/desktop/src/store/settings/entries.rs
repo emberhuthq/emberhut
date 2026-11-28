@@ -552,13 +552,23 @@ pub(crate) const ENTRIES: &[Entry] = &[
     ]),
     everyday(
         "pair",
-        "Add a phone or computer",
+        "Add a phone or a hut",
         Line::Fixed("One code (and QR), works once for 10 minutes"),
         Group::Devices,
         Destination::Group,
         IconName::QrCode,
     )
-    .also(&["pair", "qr", "code", "link", "new device", "pair another"]),
+    .also(&[
+        "pair",
+        "qr",
+        "code",
+        "link",
+        "new device",
+        "pair another",
+        "add a hut",
+        "add a computer",
+        "add a machine",
+    ]),
     everyday(
         "sign-in-here",
         "Sign this computer in",
@@ -575,14 +585,24 @@ pub(crate) const ENTRIES: &[Entry] = &[
     ]),
     everyday(
         "machines",
-        "Machines",
-        Line::Fixed("The computers your ember works on"),
+        "Huts",
+        Line::Fixed("The computers your ember works on: online or asleep, room left"),
         Group::Devices,
         Destination::Machines,
         IconName::Server,
     )
-    .at("Computers your ember works on")
-    .also(&["computers", "runner", "helpers", "cpu", "gpu", "memory"]),
+    .at("Huts your ember works on")
+    .also(&[
+        "machines",
+        "computers",
+        "add a hut",
+        "runner",
+        "helpers",
+        "accounts",
+        "cpu",
+        "gpu",
+        "memory",
+    ]),
     // Connections.
     everyday(
         "sources",
@@ -764,6 +784,7 @@ pub(crate) const ENTRIES: &[Entry] = &[
         "poll",
         "debug",
         "machine id",
+        "hut id",
         "logs",
     ])
     .technical(Some(Fold::Diagnostics)),
@@ -858,18 +879,14 @@ mod tests {
         ),
         ("Devices › Pair another device", "pair", Group::Devices),
         ("Devices › Sign-in mode", "diagnostics", Group::Advanced),
-        ("This phone › Machine id", "diagnostics", Group::Advanced),
+        ("This phone › Hut id", "diagnostics", Group::Advanced),
         (
             "This phone › connection status row",
             "on-duty",
             Group::Ember,
         ),
         ("Notifications row", "phone-push", Group::Advanced),
-        (
-            "Where Emberhut works › Machines",
-            "machines",
-            Group::Devices,
-        ),
+        ("Where Emberhut works › Huts", "machines", Group::Devices),
         (
             "Where Emberhut works › runners, workers",
             "workplaces",

@@ -143,7 +143,7 @@ impl NewSessionView {
                 button.ghost()
             });
         }
-        field(p, "Machine", row)
+        field(p, "Hut", row)
     }
 
     fn folder_rows(&self, p: &Pal, cx: &Context<'_, Self>) -> Div {
