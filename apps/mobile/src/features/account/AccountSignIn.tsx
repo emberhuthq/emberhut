@@ -59,7 +59,7 @@ export function AccountSignIn() {
   return (
     <Section
       title="Sign in to your account"
-      footer="Your account lists your machines on each device you sign in on. It never lets anyone into one: pairing still takes a code from the machine."
+      footer="Your account lists your huts on each device you sign in on. It never lets anyone into one: pairing still takes a code from the hut."
     >
       <View key="form" style={{ padding: spacing.lg, gap: spacing.md }}>
         {sent ? (

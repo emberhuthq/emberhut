@@ -12,7 +12,7 @@ import { ListRow, Screen, Section } from "@/ui";
 
 /**
  * Everything without a tab of its own: Today, the Sessions list while the server keeps task plans (Tasks shows the work
- * running then), what your ember knows about you, Emberhut's browser, the rooms, the machines, Party and Settings, and
+ * running then), what your ember knows about you, Emberhut's browser, the rooms, the huts, Party and Settings, and
  * the emberhut.com account in builds that have it.
  */
 export function MoreScreen({ navigation }: TabScreenProps<"More">) {
@@ -73,8 +73,8 @@ export function MoreScreen({ navigation }: TabScreenProps<"More">) {
         <ListRow
           key="machines"
           icon="hardware-chip-outline"
-          title="Machines"
-          subtitle="Your runner machines: CPU, memory, GPUs, disks, sessions"
+          title="Huts"
+          subtitle="Your computers: online or asleep, accounts' room, what runs there"
           onPress={() => navigation.navigate("Machines")}
         />
         <ListRow
@@ -98,7 +98,7 @@ export function MoreScreen({ navigation }: TabScreenProps<"More">) {
             key="account"
             icon="person-circle-outline"
             title="Account"
-            subtitle="Your emberhut.com account and the machines it finds"
+            subtitle="Your emberhut.com account and the huts it finds"
             onPress={() => navigation.navigate("Account")}
           />
         ) : null}

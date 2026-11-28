@@ -71,13 +71,13 @@ export function linkErrorText(error: PairingLinkError): string {
     case "tooLong":
       return "That pairing link is too long to be one Emberhut made.";
     case "missing":
-      return error.key === "id" ? "That pairing link doesn't say which machine it is for." : "That pairing link has no code.";
+      return error.key === "id" ? "That pairing link doesn't say which hut it is for." : "That pairing link has no code.";
     case "repeated":
-      return `That pairing link has more than one ${error.key === "id" ? "machine" : "code"}.`;
+      return `That pairing link has more than one ${error.key === "id" ? "hut" : "code"}.`;
     case "tooManyRoutes":
     case "emptyRoute":
       return "That pairing link's addresses can't be read.";
     case "id":
-      return "That pairing link's machine id can't be read.";
+      return "That pairing link's hut id can't be read.";
   }
 }

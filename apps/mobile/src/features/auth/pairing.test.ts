@@ -202,7 +202,7 @@ describe("the machine a pairing answer proves", () => {
       const { server, store } = setup(async () => "none");
       await store.getState().start();
       expect(await store.getState().pairLink(link(["https://emberhut.example"]))).toBe(false);
-      expect(store.getState().pairError).toMatch(/Can't reach the machine/);
+      expect(store.getState().pairError).toMatch(/Can't reach the hut/);
       const relayOnly = ["wss://relay.example/v1/sealed/" + machine.id, "http://emberhut.example:18990"];
       expect(await store.getState().pairLink(link(relayOnly))).toBe(false);
       expect(store.getState().pairError).toMatch(/None of the link's addresses/);
@@ -214,7 +214,7 @@ describe("the machine a pairing answer proves", () => {
       await store.getState().start();
       store.getState().pinMachine({ id: other.id, name: "Room 2" });
       expect(await store.getState().pairLink(link(["https://emberhut.example"]))).toBe(false);
-      expect(store.getState().pairError).toBe("That pairing link is for another machine, not Room 2.");
+      expect(store.getState().pairError).toBe("That pairing link is for another hut, not Room 2.");
     });
   });
 });

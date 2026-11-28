@@ -114,7 +114,7 @@ export function suggestions(now: Now): Row[] {
   if (now.signedIn) {
     rows.push(
       now.otherDevices
-        ? ["pair", "Add a phone or computer", "One code, works once for 10 minutes"]
+        ? ["pair", "Add a phone or a hut", "One code, works once for 10 minutes"]
         : ["pair", "Pair a computer", "One QR code, works once for 10 minutes"],
     );
   }

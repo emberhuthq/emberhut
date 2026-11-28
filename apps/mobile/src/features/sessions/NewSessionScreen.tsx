@@ -111,14 +111,12 @@ export function NewSessionScreen({ navigation }: RootScreenProps<"NewSession">) 
   };
 
   if (machine === "") {
-    if (machines.isPending) return <Loading label="Asking the machines…" />;
+    if (machines.isPending) return <Loading label="Asking the huts…" />;
     if (isOlderServer(machines.error) || machines.data)
-      return (
-        <EmptyState icon="hardware-chip-outline" title="No machine to start on" message={noMachineText(machines.data !== undefined)} />
-      );
+      return <EmptyState icon="hardware-chip-outline" title="No hut to start on" message={noMachineText(machines.data !== undefined)} />;
     return (
       <ErrorState
-        message={machines.error?.message ?? "Can't read the machines"}
+        message={machines.error?.message ?? "Can't read the huts"}
         onRetry={() => inBackground(machines.refetch(), "NewSessionScreen: refetch")}
       />
     );
@@ -140,7 +138,7 @@ export function NewSessionScreen({ navigation }: RootScreenProps<"NewSession">) 
 
   const sheet: { title: string; actions: { label: string; onPress: () => void }[] } | null =
     picking === "machine"
-      ? { title: "Machine", actions: offered.map((m) => ({ label: m.name, onPress: () => switchMachine(m.id) })) }
+      ? { title: "Hut", actions: offered.map((m) => ({ label: m.name, onPress: () => switchMachine(m.id) })) }
       : picking === "account"
         ? {
             title: "Claude account",
@@ -163,13 +161,13 @@ export function NewSessionScreen({ navigation }: RootScreenProps<"NewSession">) 
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} keyboardShouldPersistTaps="handled">
           {offered.length <= segmentedMachines ? (
             <Segmented
-              accessibilityLabel="Machine"
+              accessibilityLabel="Hut"
               options={offered.map((m) => ({ value: m.id, label: m.name }))}
               value={machine}
               onChange={switchMachine}
             />
           ) : (
-            <ListRow icon="hardware-chip-outline" title={place} subtitle="Machine" onPress={() => setPicking("machine")} />
+            <ListRow icon="hardware-chip-outline" title={place} subtitle="Hut" onPress={() => setPicking("machine")} />
           )}
           <Section title="Folder">
             <ListRow
@@ -264,5 +262,5 @@ export function NewSessionScreen({ navigation }: RootScreenProps<"NewSession">) 
 /** Why there's nothing to pick: the server lists no machine it places work on, or doesn't list machines at all yet. */
 const noMachineText = (listed: boolean): string =>
   listed
-    ? "None of the server's machines takes new sessions now. The Machines page says why."
-    : "Emberhut's server is on older code: it doesn't list its machines, so a session can't be started here yet.";
+    ? "None of the server's huts takes new sessions now. The Huts page says why."
+    : "Emberhut's server is on older code: it doesn't list its huts, so a session can't be started here yet.";

@@ -65,7 +65,7 @@ function AccountMachines() {
   }, [signedOutError, leave]);
 
   const confirmSignOut = () =>
-    Alert.alert("Sign out of your account?", "This phone stops listing your machines. It stays paired with its server.", [
+    Alert.alert("Sign out of your account?", "This phone stops listing your huts. It stays paired with its server.", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign out", style: "destructive", onPress: leave },
     ]);
@@ -111,12 +111,12 @@ function AccountMachines() {
   const email = user?.primaryEmailAddress?.emailAddress;
   return (
     <>
-      <Section title="Your machines" footer="Tap one to pair this phone with it: it still takes a code or QR code from that machine.">
+      <Section title="Your huts" footer="Tap one to pair this phone with it: it still takes a code or QR code from that hut.">
         {machines.data?.length === 0 ? (
           <ListRow
             key="none"
             icon="desktop-outline"
-            title="No machines yet"
+            title="No huts yet"
             subtitle="Add one from the desktop app, or with emberhut-server link."
           />
         ) : null}

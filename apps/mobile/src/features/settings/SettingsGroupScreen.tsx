@@ -144,7 +144,7 @@ function useNavigate() {
   return (screen: "Credentials" | "AboutYou" | "Machines") => navigation.navigate(screen);
 }
 
-/** Devices: this phone's alerts, the signed-in devices, pairing another, the machines. */
+/** Devices: this phone's alerts, the signed-in devices, pairing another, the huts. */
 function DevicesRows() {
   const signedIn = useSession((s) => s.status === "signedIn");
   const state = useEmberhutState();
@@ -158,12 +158,12 @@ function DevicesRows() {
       ) : null}
       <Devices auth={state.data?.auth} />
       {signedIn ? <PairAnother /> : null}
-      <Section title="Computers your ember works on">
+      <Section title="Huts your ember works on">
         <ListRow
           key="machines"
           icon="hardware-chip-outline"
-          title="Machines"
-          subtitle="CPU, memory, GPUs, disks, sessions"
+          title="Huts"
+          subtitle="Online or asleep, accounts' room, CPU, memory, sessions"
           onPress={() => navigate("Machines")}
         />
       </Section>
@@ -241,7 +241,7 @@ function AdvancedRows() {
         ) : null}
         {machineId ? (
           // The id its key proved at pairing, to compare with the one the server prints.
-          <ListRow key="machine" icon="finger-print-outline" title="Machine id" subtitle={machineId} />
+          <ListRow key="machine" icon="finger-print-outline" title="Hut id" subtitle={machineId} />
         ) : null}
       </Section>
       <Environments show="workplaces" />
