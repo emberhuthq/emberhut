@@ -1,0 +1,259 @@
+name: Runner release
+
+# The runner's downloads (crates/emberhut-runner): one archive per platform, each holding a
+# static binary, plus the two installers with the release's version written in. The release
+# workflow calls this with the release's version and puts every artifact it uploads on the draft
+# release; this workflow never touches a release itself. A pull request that changes the runner
+# or its build runs the same jobs as a dry run (the crate's version with -dev.<run number>), its
+# outputs kept as the run's artifacts only.
+#
+# Artifacts: runner-linux-x64, runner-linux-arm64, runner-macos-arm64, runner-macos-x64 and
+# runner-windows-x64, each holding only emberhut-runner-<version>-<os-arch>.tar.gz (.zip on
+# Windows); and runner-installers, holding install-runner.sh and install-runner.ps1. No checksum
+# files: the release's publish stage hashes every asset into SHA256SUMS.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "The release's version (X.Y.Z or X.Y.Z-rc.N, no v)"
+        required: true
+        type: string
+      dry-run:
+        description: "A dry run: the artifacts are kept for a week, not two, and builds reuse the cache"
+        required: false
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - crates/emberhut-runner/**
+      - Cargo.lock
+      - .github/workflows/runner-release.yml
+
+permissions:
+  contents: read
+
+# A pull request's dry run replaces its stale one; a release's builds are never cancelled. The
+# calling workflow's name is part of the group, so a release's call and a pull request's own run
+# never share one.
+concurrency:
+  group: runner-release-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || inputs.version }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_BUILD_WARNINGS: deny
+  RUST_BACKTRACE: short
+
+jobs:
+  plan:
+    name: runner version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      dry-run: ${{ steps.version.outputs.dry-run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            crate=$(cargo metadata --no-deps --format-version 1 --locked | jq -r '.packages[] | select(.name == "emberhut-runner") | .version')
+            version="${crate}-dev.${GITHUB_RUN_NUMBER}"
+            dry_run=true
+          else
+            version="$INPUT_VERSION"
+            dry_run="${INPUT_DRY_RUN:-false}"
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::not a version: '$version' (X.Y.Z or X.Y.Z-rc.N, no v)"; exit 1
+          fi
+          echo "version $version, dry run $dry_run"
+          {
+            echo "version=$version"
+            echo "dry-run=$dry_run"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: runner ${{ matrix.name }}
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux: static musl binaries. sqlx-sqlite compiles SQLite's C code (and ring its own),
+          # so the build needs a C compiler for musl: cargo-zigbuild uses zig's, which carries
+          # musl's headers. TLS is rustls; there is no OpenSSL to link.
+          - name: linux-x64
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+            zig: zig-x86_64-linux-0.14.1
+            zig-sha256: 24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
+          - name: linux-arm64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+            zig: zig-aarch64-linux-0.14.1
+            zig-sha256: f7a654acc967864f7a050ddacfaa778c7504a0eca8d2b678839c21eea47c992b
+          - name: macos-arm64
+            target: aarch64-apple-darwin
+            runner: macos-15
+          # Built on the Apple silicon runner too; the check runs it under Rosetta when the
+          # runner has Rosetta.
+          - name: macos-x64
+            target: x86_64-apple-darwin
+            runner: macos-15
+          # The C runtime linked in, so the binary needs no Visual C++ redistributable.
+          - name: windows-x64
+            target: x86_64-pc-windows-msvc
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TARGET: ${{ matrix.target }}
+      NAME: ${{ matrix.name }}
+      # The binary's version (`emberhut-runner --version`, the health route) is the release's.
+      EMBERHUT_RUNNER_VERSION: ${{ needs.plan.outputs.version }}
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: rustup (the Arm runner image may lack it)
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v rustup > /dev/null; then
+            curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      # The toolchain rust-toolchain.toml pins, with the target's standard library.
+      - run: rustup target add "$TARGET"
+      # A release is built from the tagged sources and the lock file alone; only dry runs reuse
+      # a cache.
+      - if: needs.plan.outputs.dry-run == 'true'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.target }}
+      - name: zig (checksum verified)
+        if: matrix.zig != ''
+        env:
+          ZIG: ${{ matrix.zig }}
+          ZIG_SHA256: ${{ matrix.zig-sha256 }}
+        run: |
+          cd "$RUNNER_TEMP"
+          version="${ZIG##*-}"
+          curl -sSfLo zig.tar.xz "https://ziglang.org/download/${version}/${ZIG}.tar.xz"
+          echo "${ZIG_SHA256}  zig.tar.xz" | sha256sum --check --strict
+          tar -xJf zig.tar.xz
+          echo "$RUNNER_TEMP/$ZIG" >> "$GITHUB_PATH"
+      - if: matrix.zig != ''
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-zigbuild@0.24.1
+      - name: Build
+        shell: bash
+        env:
+          # No symbols, and the build machine's paths (the checkout, cargo's registry) remapped in
+          # what stays, so the release's scan of the binaries finds nothing of the machine.
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+        run: |
+          flags="--remap-path-prefix=$GITHUB_WORKSPACE=/emberhut --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
+          # Windows: the C runtime linked in, so the binary needs no redistributable.
+          if [ "$RUNNER_OS" = Windows ]; then flags="$flags -C target-feature=+crt-static"; fi
+          export RUSTFLAGS="$flags"
+          if [ "$RUNNER_OS" = Linux ]; then
+            zig version
+            cargo zigbuild --release -p emberhut-runner --locked --target "$TARGET"
+          else
+            cargo build --release -p emberhut-runner --locked --target "$TARGET"
+          fi
+      - name: The binary runs and is static
+        run: |
+          exe=""
+          if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
+          bin="target/$TARGET/release/emberhut-runner$exe"
+          case "$TARGET" in
+            *-linux-musl)
+              file "$bin"
+              file "$bin" | grep -q 'statically linked' || { echo "::error::$bin is not statically linked"; exit 1; } ;;
+            *-apple-darwin)
+              otool -L "$bin" ;;
+          esac
+          if [ "$TARGET" = x86_64-apple-darwin ] && [ "$(uname -m)" = arm64 ] && ! arch -x86_64 /usr/bin/true 2> /dev/null; then
+            echo "::notice::no Rosetta on this runner, so the x86_64 binary isn't run"
+            exit 0
+          fi
+          "$bin" --version | tee "$RUNNER_TEMP/version.txt"
+          grep -qF "$VERSION" "$RUNNER_TEMP/version.txt" || { echo "::error::the binary's version isn't $VERSION"; exit 1; }
+      - name: Package
+        run: |
+          exe=""
+          if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
+          dir="emberhut-runner-${VERSION}-${NAME}"
+          mkdir -p "dist/$dir"
+          cp "target/$TARGET/release/emberhut-runner$exe" "dist/$dir/"
+          cp LICENSE-MIT LICENSE-APACHE "dist/$dir/"
+          if [ -f crates/emberhut-runner/README.md ]; then cp crates/emberhut-runner/README.md "dist/$dir/"; fi
+          cd dist
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a -tzip -bd "$dir.zip" "$dir" > /dev/null
+          else
+            tar -czf "$dir.tar.gz" "$dir"
+          fi
+          rm -r "$dir"
+          ls -l
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runner-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: ${{ needs.plan.outputs.dry-run == 'true' && 7 || 14 }}
+
+  installers:
+    name: runner installers
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Write the version in
+        run: |
+          src=crates/emberhut-runner/install
+          out="$RUNNER_TEMP/installers"
+          mkdir -p "$out"
+          sed "s/^SCRIPT_VERSION=\"\"\$/SCRIPT_VERSION=\"$VERSION\"/" "$src/install-runner.sh" > "$out/install-runner.sh"
+          sed "s/^\\\$ScriptVersion = \"\"\$/\$ScriptVersion = \"$VERSION\"/" "$src/install-runner.ps1" > "$out/install-runner.ps1"
+          grep -qx "SCRIPT_VERSION=\"$VERSION\"" "$out/install-runner.sh"
+          grep -qx "\$ScriptVersion = \"$VERSION\"" "$out/install-runner.ps1"
+          chmod +x "$out/install-runner.sh"
+          sh -n "$out/install-runner.sh"
+          shellcheck -s sh "$out/install-runner.sh"
+      - name: The PowerShell installer parses
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $file = Join-Path $env:RUNNER_TEMP "installers/install-runner.ps1"
+          [void][System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { $_.ToString() }; exit 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runner-installers
+          path: ${{ runner.temp }}/installers/
+          if-no-files-found: error
+          retention-days: ${{ needs.plan.outputs.dry-run == 'true' && 7 || 14 }}
