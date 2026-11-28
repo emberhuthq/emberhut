@@ -117,6 +117,10 @@ to confirm it (fact_confirm, only when they say so in their own message). When t
 corrects you, log it with correction_log and the lesson that would have avoided it; your \
 standing and trial rules follow. Keep health and money only when the owner brings them up.";
 
+/// What goes before an updated profile at the start of a turn.
+const PROFILE_CHANGED: &str =
+    "(What you always know about the user changed since this session started. It is now:)";
+
 /// Characters of an assistant's note shown as the room's status line.
 const STEP_LENGTH: usize = 90;
 /// Characters of a command shown in a step line.
@@ -210,6 +214,9 @@ struct Session {
     requests: u64,
     /// Lines read from its output so far.
     heard: u64,
+    /// What it was last told the assistant always knows about the owner (none: an agent's
+    /// session, or no profile).
+    profile: Option<String>,
 }
 
 impl Session {
@@ -496,6 +503,10 @@ impl ClaudeAssistant {
     }
 
     /// Answers one turn on `room`'s session.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one turn on its session, restarts and account moves included, in order"
+    )]
     async fn turn(
         &self,
         turn: &Turn,
@@ -539,6 +550,14 @@ impl ClaudeAssistant {
                 .await?
         };
         let mut prompt = turn.prompt.clone();
+        // A session lives for days: what it always knows is brought up to date with the turn.
+        if session.profile.is_some()
+            && let Some(about) = self.about(room).await
+            && session.profile.as_deref() != Some(about.as_str())
+        {
+            prompt = format!("{PROFILE_CHANGED}\n{about}\n\n{prompt}");
+            session.profile = Some(about);
+        }
         loop {
             let heard = session.heard;
             let read = self
@@ -681,6 +700,11 @@ impl ClaudeAssistant {
             kept.id.as_deref(),
         );
         let pipes = self.spawner.spawn(&launch)?;
+        let about = if setup.is_none() {
+            self.about(room).await
+        } else {
+            None
+        };
         let mut session = Session {
             pipes,
             agent: agent.fingerprint().map(str::to_owned),
@@ -689,11 +713,12 @@ impl ClaudeAssistant {
             used_at: self.clock.now(),
             requests: 0,
             heard: 0,
+            profile: about.clone(),
         };
         let id = session.request_id("init");
         if !session.pipes.send(stream::initialize(
             &id,
-            &self.system_prompt(room, setup).await?,
+            &self.system_prompt(room, setup, about.as_deref()).await?,
         )) {
             return Err(ClaudeError::SessionEnded);
         }
@@ -802,10 +827,35 @@ impl ClaudeAssistant {
 
     /// The system prompt after the CLI's own: the server's rules, the room, the configured
     /// prompt; for a configured agent's room, its own prompt (`agent`) alone.
+    /// What a session in `room` is told the assistant always knows about the owner (the
+    /// profile, and the room's project's slice); none without a profile, or when it can't be
+    /// made (logged).
+    async fn about(&self, room: RoomId) -> Option<String> {
+        let profile = self.profile.as_ref()?;
+        let project = match self.rooms.list().await {
+            Ok(rooms) => rooms
+                .into_iter()
+                .find(|known| known.id == room)
+                .and_then(|known| known.project),
+            Err(error) => {
+                tracing::warn!(%room, %error, "the room's project is not known: the profile alone");
+                None
+            }
+        };
+        match profile.for_prompt(project).await {
+            Ok(about) => Some(about),
+            Err(error) => {
+                tracing::warn!(%room, %error, "the owner's profile could not be made");
+                None
+            }
+        }
+    }
+
     async fn system_prompt(
         &self,
         room: RoomId,
         agent: Option<&agent_room::AgentSetup>,
+        about: Option<&str>,
     ) -> Result<String, DbError> {
         if let Some(setup) = agent {
             return Ok(setup.prompt.clone());
@@ -854,20 +904,9 @@ impl ClaudeAssistant {
                 prompt.push_str(rules.trim());
             }
         }
-        if let Some(profile) = &self.profile {
-            let project = rooms
-                .iter()
-                .find(|known| known.id == room)
-                .and_then(|known| known.project);
-            match profile.for_prompt(project).await {
-                Ok(about) => {
-                    prompt.push_str("\n\n");
-                    prompt.push_str(&about);
-                }
-                Err(error) => {
-                    tracing::warn!(%room, %error, "the session starts without the owner's profile");
-                }
-            }
+        if let Some(about) = about {
+            prompt.push_str("\n\n");
+            prompt.push_str(about);
         }
         Ok(prompt)
     }
