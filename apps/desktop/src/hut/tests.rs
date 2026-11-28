@@ -5,6 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::io;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -219,18 +220,27 @@ pub(crate) struct Setup {
     world: Shared,
 }
 
-/// Writes an executable file at `path`.
+/// Writes an executable file at `path` (on Windows, its `.exe` name makes it one).
 fn executable(path: &Path, text: &str) {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, text).unwrap();
+    #[cfg(unix)]
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+/// `name` as a program's file name on this system (`.exe` on Windows).
+fn exe(name: &str) -> String {
+    format!("{name}{}", std::env::consts::EXE_SUFFIX)
 }
 
 impl Setup {
     pub(crate) fn new(os: Os) -> Self {
         let dir = tempfile::tempdir().unwrap();
-        executable(&dir.path().join("app/emberhut-server"), "server");
-        executable(&dir.path().join("bin/claude"), "agent");
+        executable(
+            &dir.path().join("app").join(exe("emberhut-server")),
+            "server",
+        );
+        executable(&dir.path().join("bin").join(exe("claude")), "agent");
         let setup = Self {
             os,
             world: Arc::new(Mutex::new(World {
@@ -283,7 +293,10 @@ impl Setup {
 
     fn paths(&self) -> HutPaths {
         let vars = BTreeMap::from([("PATH", self.dir.path().join("bin").into_os_string())]);
-        self.paths_with(self.dir.path().join("app/emberhut-desktop"), vars)
+        self.paths_with(
+            self.dir.path().join("app").join(exe("emberhut-desktop")),
+            vars,
+        )
     }
 
     fn options() -> HutOptions {
@@ -339,34 +352,52 @@ fn the_server_is_found_in_the_bundle_then_beside_the_app_then_where_the_variable
     let none = BTreeMap::new;
     // In a bundle, the app's executable and the server are both in Contents/MacOS.
     let bundle = root.join("Emberhut.app/Contents/MacOS");
-    executable(&bundle.join("emberhut-server"), "bundled");
-    let paths = setup.paths_with(bundle.join("emberhut-desktop"), none());
-    assert_eq!(paths.server(), Some(bundle.join("emberhut-server")));
+    executable(&bundle.join(exe("emberhut-server")), "bundled");
+    let paths = setup.paths_with(bundle.join(exe("emberhut-desktop")), none());
+    assert_eq!(paths.server(), Some(bundle.join(exe("emberhut-server"))));
 
     // A build from source: beside the app's binary.
-    let paths = setup.paths_with(root.join("app/emberhut-desktop"), none());
-    assert_eq!(paths.server(), Some(root.join("app/emberhut-server")));
+    let paths = setup.paths_with(root.join("app").join(exe("emberhut-desktop")), none());
+    assert_eq!(
+        paths.server(),
+        Some(root.join("app").join(exe("emberhut-server")))
+    );
 
     // Neither: the variable, and only when it names a program.
-    let named = root.join("elsewhere/emberhut-server");
+    let named = root.join("elsewhere").join(exe("emberhut-server"));
     let vars = || BTreeMap::from([("EMBERHUT_SERVER_BIN", named.clone().into_os_string())]);
-    let paths = setup.paths_with(root.join("nowhere/emberhut-desktop"), vars());
+    let paths = setup.paths_with(root.join("nowhere").join(exe("emberhut-desktop")), vars());
     assert_eq!(paths.server(), None, "nothing there yet");
     std::fs::create_dir_all(named.parent().unwrap()).unwrap();
     std::fs::write(&named, "not executable").unwrap();
-    assert_eq!(paths.server(), None, "a file it can't run");
-    std::fs::set_permissions(&named, std::fs::Permissions::from_mode(0o700)).unwrap();
+    #[cfg(unix)]
+    {
+        assert_eq!(paths.server(), None, "a file it can't run");
+        std::fs::set_permissions(&named, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    // Windows runs a file by its name: one that isn't an `.exe` isn't a program.
+    #[cfg(windows)]
+    {
+        let script = root.join("elsewhere").join("emberhut-server.cmd");
+        std::fs::write(&script, "not a program").unwrap();
+        let vars = BTreeMap::from([("EMBERHUT_SERVER_BIN", script.into_os_string())]);
+        let paths = setup.paths_with(root.join("nowhere").join(exe("emberhut-desktop")), vars);
+        assert_eq!(paths.server(), None, "a file it can't run");
+    }
     assert_eq!(paths.server(), Some(named.clone()));
 
     // Beside the app wins over the variable.
-    let paths = setup.paths_with(root.join("app/emberhut-desktop"), vars());
-    assert_eq!(paths.server(), Some(root.join("app/emberhut-server")));
+    let paths = setup.paths_with(root.join("app").join(exe("emberhut-desktop")), vars());
+    assert_eq!(
+        paths.server(),
+        Some(root.join("app").join(exe("emberhut-server")))
+    );
 }
 
 #[test]
 fn without_a_server_the_hut_is_unavailable_and_says_so() {
     let setup = Setup::new(Os::Linux);
-    std::fs::remove_file(setup.dir.path().join("app/emberhut-server")).unwrap();
+    std::fs::remove_file(setup.dir.path().join("app").join(exe("emberhut-server"))).unwrap();
     let hut = setup.hut();
     assert!(!hut.available());
     let error = hut.start_now().unwrap_err();
@@ -404,20 +435,54 @@ fn the_folders_are_the_systems_own() {
             unit: home.join(".config/systemd/user/emberhut-hut.service"),
         }
     );
+    let root = setup.dir.path().join("xdg");
     let xdg = BTreeMap::from([
-        ("XDG_DATA_HOME", OsString::from("/xdg/data")),
-        ("XDG_STATE_HOME", OsString::from("/xdg/state")),
-        ("XDG_CONFIG_HOME", OsString::from("/xdg/config")),
+        ("XDG_DATA_HOME", root.join("data").into_os_string()),
+        ("XDG_STATE_HOME", root.join("state").into_os_string()),
+        ("XDG_CONFIG_HOME", root.join("config").into_os_string()),
     ]);
-    let paths = setup.paths_with(setup.dir.path().join("app/emberhut-desktop"), xdg);
-    assert_eq!(paths.data(), Path::new("/xdg/data/emberhut/hut"));
-    assert_eq!(paths.log(), Path::new("/xdg/state/emberhut/hut.log"));
+    let paths = setup.paths_with(
+        setup.dir.path().join("app").join(exe("emberhut-desktop")),
+        xdg,
+    );
+    assert_eq!(paths.data(), root.join("data/emberhut/hut"));
+    assert_eq!(paths.log(), root.join("state/emberhut/hut.log"));
     assert_eq!(
         *paths.manager(),
         super::Manager::Systemd {
-            unit: PathBuf::from("/xdg/config/systemd/user/emberhut-hut.service"),
+            unit: root.join("config/systemd/user/emberhut-hut.service"),
         }
     );
+}
+
+#[test]
+fn on_windows_the_hut_is_in_the_local_app_data_folder_with_no_service() {
+    let setup = Setup::new(Os::Windows);
+    let home = setup.home();
+    let paths = setup.paths();
+    let local = home.join("AppData").join("Local").join("Emberhut");
+    assert_eq!(paths.data(), local.join("Hut"));
+    assert_eq!(paths.log(), local.join("Logs").join("hut.log"));
+    assert_eq!(*paths.manager(), super::Manager::None);
+
+    let elsewhere = setup.dir.path().join("local");
+    let vars = BTreeMap::from([("LOCALAPPDATA", elsewhere.clone().into_os_string())]);
+    let paths = setup.paths_with(
+        setup.dir.path().join("app").join(exe("emberhut-desktop")),
+        vars,
+    );
+    assert_eq!(paths.data(), elsewhere.join("Emberhut").join("Hut"));
+    assert_eq!(
+        paths.log(),
+        elsewhere.join("Emberhut").join("Logs").join("hut.log")
+    );
+    // A relative folder is no place for the database: the home folder's is used.
+    let vars = BTreeMap::from([("LOCALAPPDATA", OsString::from("relative"))]);
+    let paths = setup.paths_with(
+        setup.dir.path().join("app").join(exe("emberhut-desktop")),
+        vars,
+    );
+    assert_eq!(paths.data(), local.join("Hut"));
 }
 
 #[test]
@@ -446,7 +511,10 @@ fn a_hut_not_running_is_started_on_the_first_port_with_its_files_the_users_own()
     let world = setup.world();
     assert_eq!(world.spawned.len(), 1);
     let serve = &world.spawned[0];
-    assert_eq!(serve.program, setup.dir.path().join("app/emberhut-server"));
+    assert_eq!(
+        serve.program,
+        setup.dir.path().join("app").join(exe("emberhut-server"))
+    );
     assert_eq!(
         serve.words(),
         [
@@ -454,11 +522,17 @@ fn a_hut_not_running_is_started_on_the_first_port_with_its_files_the_users_own()
             "--listen".to_owned(),
             "127.0.0.1:18990".to_owned(),
             "--database-url".to_owned(),
-            format!("sqlite://{}", data.join("emberhut.db").display()),
+            database_url(&data.join("emberhut.db")).unwrap(),
             "--secrets-dir".to_owned(),
             data.join("secrets").display().to_string(),
             "--agent-command".to_owned(),
-            setup.dir.path().join("bin/claude").display().to_string(),
+            setup
+                .dir
+                .path()
+                .join("bin")
+                .join(exe("claude"))
+                .display()
+                .to_string(),
         ]
     );
     assert_eq!(serve.dir.as_deref(), Some(data.as_path()));
@@ -472,9 +546,12 @@ fn a_hut_not_running_is_started_on_the_first_port_with_its_files_the_users_own()
     );
     drop(world);
 
+    // Owner-only on Unix; on Windows the user's own app data folder keeps them the user's.
+    #[cfg(unix)]
     for dir in [data.clone(), data.join("secrets")] {
         assert_eq!(crate::private_files::mode(&dir), 0o700, "{}", dir.display());
     }
+    #[cfg(unix)]
     for file in ["hut.json", "emberhut.db"] {
         assert_eq!(
             crate::private_files::mode(&data.join(file)),
@@ -592,7 +669,7 @@ fn a_new_build_of_the_server_restarts_the_hut_once() {
 
     // The app updated: a new binary in its place.
     executable(
-        &setup.dir.path().join("app/emberhut-server"),
+        &setup.dir.path().join("app").join(exe("emberhut-server")),
         "a newer server",
     );
     let hut = setup.hut();
@@ -619,7 +696,10 @@ fn a_new_build_restarts_a_hut_kept_lit_by_systemd() {
         at_login: true,
     };
     setup.hut().keep_lit_now(keep).unwrap();
-    executable(&setup.dir.path().join("app/emberhut-server"), "newer");
+    executable(
+        &setup.dir.path().join("app").join(exe("emberhut-server")),
+        "newer",
+    );
     setup.world().ran.clear();
     assert_eq!(setup.hut().start_now().unwrap(), url(18990));
     assert_eq!(
@@ -685,7 +765,7 @@ fn a_pairing_code_is_made_by_the_servers_pair_in_the_huts_database() {
             "pair".to_owned(),
             "--json".to_owned(),
             "--database-url".to_owned(),
-            format!("sqlite://{}", data.join("emberhut.db").display()),
+            database_url(&data.join("emberhut.db")).unwrap(),
             "--listen".to_owned(),
             "127.0.0.1:18990".to_owned(),
         ]
@@ -929,7 +1009,12 @@ fn keeping_the_hut_lit_on_macos_loads_its_launch_agent_and_unloads_it() {
     assert!(
         text.contains(&format!(
             "<string>{}</string>",
-            setup.dir.path().join("app/emberhut-server").display()
+            setup
+                .dir
+                .path()
+                .join("app")
+                .join(exe("emberhut-server"))
+                .display()
         )),
         "{text}"
     );
@@ -1018,7 +1103,7 @@ fn the_calls_are_tasks_on_the_background_executor(cx: &mut TestAppContext) {
     assert_eq!(status.url, Some(url(18990)));
     assert_eq!(
         status.server,
-        Some(setup.dir.path().join("app/emberhut-server"))
+        Some(setup.dir.path().join("app").join(exe("emberhut-server")))
     );
     let stopped = cx.update(|cx| hut.stop(cx));
     cx.run_until_parked();
@@ -1047,7 +1132,10 @@ fn a_test_run_names_the_first_port_and_leaves_the_service_out() {
 
     let setup = Setup::new(Os::Linux);
     let no_service = BTreeMap::from([(SERVICE_ENV, OsString::from("none"))]);
-    let paths = setup.paths_with(setup.dir.path().join("app/emberhut-desktop"), no_service);
+    let paths = setup.paths_with(
+        setup.dir.path().join("app").join(exe("emberhut-desktop")),
+        no_service,
+    );
     assert_eq!(*paths.manager(), super::Manager::None);
     assert!(matches!(
         setup.paths().manager(),

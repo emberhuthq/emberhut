@@ -28,6 +28,8 @@ pub(crate) enum Os {
     Mac,
     /// Linux: the XDG folders, and a systemd user unit.
     Linux,
+    /// Windows: the user's local application data folder, and no service manager yet.
+    Windows,
     /// Anything else: the XDG layout under the home folder, and no service manager.
     Other,
 }
@@ -40,6 +42,8 @@ impl Os {
             Self::Mac
         } else if cfg!(target_os = "linux") {
             Self::Linux
+        } else if cfg!(windows) {
+            Self::Windows
         } else {
             Self::Other
         }
@@ -64,11 +68,11 @@ pub(crate) struct Place {
 }
 
 impl Place {
-    /// This process's place: `$HOME`, its environment and its executable. `None` without a
-    /// home folder.
+    /// This process's place: the home folder ([`HOME_VAR`]), its environment and its
+    /// executable. `None` without a home folder.
     #[must_use]
     pub(crate) fn system() -> Option<Self> {
-        let home = std::env::var_os("HOME")
+        let home = std::env::var_os(HOME_VAR)
             .filter(|home| !home.is_empty())
             .map(PathBuf::from)?;
         Some(Self {
@@ -80,6 +84,10 @@ impl Place {
         })
     }
 }
+
+/// The variable that names the user's home folder: `HOME`, or on Windows `USERPROFILE`
+/// (`C:\Users\<name>`; Windows sets no `HOME` itself).
+pub(crate) const HOME_VAR: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
 
 /// This process's user id.
 #[cfg(unix)]
@@ -126,13 +134,15 @@ pub(crate) struct HutPaths {
 impl HutPaths {
     /// The places for `place`:
     ///
-    /// - the data folder: macOS `~/Library/Application Support/Emberhut/Hut`, elsewhere
-    ///   `$XDG_DATA_HOME/emberhut/hut` (`~/.local/share/emberhut/hut`);
-    /// - the log: macOS `~/Library/Logs/Emberhut/hut.log`, elsewhere
-    ///   `$XDG_STATE_HOME/emberhut/hut.log` (`~/.local/state/emberhut/hut.log`);
+    /// - the data folder: macOS `~/Library/Application Support/Emberhut/Hut`, Windows
+    ///   `%LOCALAPPDATA%\Emberhut\Hut`, elsewhere `$XDG_DATA_HOME/emberhut/hut`
+    ///   (`~/.local/share/emberhut/hut`);
+    /// - the log: macOS `~/Library/Logs/Emberhut/hut.log`, Windows
+    ///   `%LOCALAPPDATA%\Emberhut\Logs\hut.log`, elsewhere `$XDG_STATE_HOME/emberhut/hut.log`
+    ///   (`~/.local/state/emberhut/hut.log`);
     /// - the service: macOS the launch agent `~/Library/LaunchAgents/com.emberhut.hut.plist`,
     ///   Linux the unit `$XDG_CONFIG_HOME/systemd/user/emberhut-hut.service` (none when
-    ///   [`SERVICE_ENV`] says so).
+    ///   [`SERVICE_ENV`] says so), Windows none yet: the hut runs as the app's child there.
     #[must_use]
     pub(crate) fn new(place: Place) -> Self {
         let Place {
@@ -166,6 +176,20 @@ impl HutPaths {
                         .join("Hut"),
                     library.join("Logs").join("Emberhut").join("hut.log"),
                     manager,
+                )
+            }
+            Os::Windows => {
+                // The folder the system keeps per user and per machine (not roamed): a
+                // database and its log don't belong in the roaming profile.
+                let local = var("LOCALAPPDATA")
+                    .map(PathBuf::from)
+                    .filter(|dir| dir.is_absolute())
+                    .unwrap_or_else(|| home.join("AppData").join("Local"))
+                    .join("Emberhut");
+                (
+                    local.join("Hut"),
+                    local.join("Logs").join("hut.log"),
+                    Manager::None,
                 )
             }
             Os::Linux | Os::Other => {
@@ -337,9 +361,13 @@ fn is_executable(path: &Path) -> bool {
         use std::os::unix::fs::PermissionsExt as _;
         metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
     }
+    // Windows runs a file by its extension: only a program (`.exe`) counts.
     #[cfg(not(unix))]
     {
         metadata.is_file()
+            && path
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
     }
 }
 
