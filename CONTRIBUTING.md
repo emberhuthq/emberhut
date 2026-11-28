@@ -27,6 +27,10 @@ and the pnpm version pinned in `package.json` (`npm install -g pnpm@<that versio
 `corepack enable` on Node versions that still ship corepack), then
 `pnpm install --frozen-lockfile`.
 
+On Windows you need the Visual Studio Build Tools with the "Desktop development with C++"
+workload (MSVC and the Windows SDK), and for the installer the WiX Toolset v5 (`dotnet tool
+install --global wix --version 5.0.2`); see apps/desktop/README.md, "Building on Windows".
+
 On macOS the Xcode command line tools are enough: gpui-kit builds GPUI with its runtime
 shaders, so the Metal shaders are compiled by the system when the app starts, not by
 `xcrun metal` at build time (see apps/desktop/README.md, "Metal shaders").
@@ -52,7 +56,8 @@ gitleaks dir --config .gitleaks-public.toml --redact .
 ```
 
 CI also measures library coverage (`cargo llvm-cov nextest`) and runs the tests and the
-release build on macOS too. A maintainer merges a pull request only when the `ci-ok` check,
+release build on macOS and Windows too; on Windows it also runs the app's `--self-check` and
+builds, installs and uninstalls its installer. A maintainer merges a pull request only when the `ci-ok` check,
 which needs every other job, is green.
 
 ## Code standards
