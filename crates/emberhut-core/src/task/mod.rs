@@ -23,6 +23,7 @@ pub mod live;
 pub mod plan;
 pub mod rollup;
 pub mod search;
+pub mod session;
 pub mod wire;
 
 macro_rules! task_id {
