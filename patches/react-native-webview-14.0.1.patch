@@ -1,0 +1,17 @@
+diff --git a/apple/RNCWebViewImpl.m b/apple/RNCWebViewImpl.m
+index 38904266dc37b006274104f4680778ffbfece369..fcd68d66272d700bf21948b5759c1e5bb76d5857 100644
+--- a/apple/RNCWebViewImpl.m
++++ b/apple/RNCWebViewImpl.m
+@@ -1199,6 +1199,12 @@ - (void)                    webView:(WKWebView *)webView
+   if ([[challenge protectionSpace] authenticationMethod] == NSURLAuthenticationMethodHTTPBasic) {
+     NSString *username = [_basicAuthCredential valueForKey:@"username"];
+     NSString *password = [_basicAuthCredential valueForKey:@"password"];
++    // A credential the server refused is refused again: answering every challenge with it loops for good, and the page
++    // never loads nor fails. After a refusal the protection space is rejected, so the 401 arrives as the page's answer.
++    if (challenge.previousFailureCount > 0) {
++      completionHandler(NSURLSessionAuthChallengeRejectProtectionSpace, nil);
++      return;
++    }
+     if (username && password) {
+       NSURLCredential *credential = [NSURLCredential credentialWithUser:username password:password persistence:NSURLCredentialPersistenceNone];
+       completionHandler(NSURLSessionAuthChallengeUseCredential, credential);

@@ -38,6 +38,23 @@ export function screenSize(width: number, height: number): string {
 `;
 }
 
+/**
+ * The stream's health, for the app: every 2 s, how many pictures it got so far and whether its connection is open. The
+ * stream's page keeps both itself (window.videoChunksReceived, counted on the page or in its socket worker, and its
+ * socket as window.selkiesTransport). A page that never loads runs none of this: the app's clock covers that.
+ */
+const streamReport = `
+(() => {
+  const report = () => {
+    const t = window.selkiesTransport;
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: "emberhut-stream", chunks: Number(window.videoChunksReceived) || 0, open: !!t && t.readyState === 1 }));
+    } catch (e) {}
+  };
+  report();
+  setInterval(report, 2000);
+})();
+`;
 /** While you drive, from the app's own controls: a key with modifiers, text typed on the phone's keyboard, a paste. */
 const driveHelpers = `
 (() => {
@@ -155,6 +172,7 @@ export const resetZoomScript = "window.__emberhutResetZoom && __emberhutResetZoo
 export function injected(mode: "control" | "view", screen: { width: number; height: number } | null | undefined): string {
   const parts = [
     streamOnly,
+    streamReport,
     mode === "view" && screen ? screenSize(screen.width, screen.height) : "",
     mode === "control" ? driveHelpers + touchAsMouse : "",
   ];

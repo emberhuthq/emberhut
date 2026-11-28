@@ -179,6 +179,14 @@ describe("the API client, built with a dialect", () => {
     expect(seen).toEqual([{ text: "", doing: "Working on T-7" }]);
   });
 
+  it("hands on the live view's sign-in as the server gave it, never in the app's words", async () => {
+    const { server, api } = fakeApi({ dialect: words });
+    const sent = { ok: true, url: "https://view.example.test/", user: "person", password: "person", mode: "control" };
+    server.on("GET", "/api/browser/session", () => json(200, sent));
+    const session = await api.browser.session("phone-1");
+    expect({ user: session.user, password: session.password }).toEqual({ user: "person", password: "person" });
+  });
+
   it("sends a file address's token as it is", async () => {
     const storage = memoryStorage({ "emberhut.refresh": "refresh-0", "emberhut.install": "i" });
     const { server, clock, auth, http } = fakeApi({ dialect: words, storage });
