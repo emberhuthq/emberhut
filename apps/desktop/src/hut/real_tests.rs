@@ -33,8 +33,12 @@ fn a_real_hut_starts_pairs_this_app_and_stops() {
         .map(PathBuf::from)
         .unwrap();
     let temporary = std::env::temp_dir();
+    // Compared as the system resolves them: on Windows one may be written with a short name
+    // (`RUNNER~1`) and the other in full.
+    let real = |path: &PathBuf| std::fs::canonicalize(path).unwrap_or_else(|_| path.clone());
+    let (real_home, real_temporary) = (real(&home), real(&temporary));
     assert!(
-        home.starts_with(&temporary) && home != temporary,
+        real_home.starts_with(&real_temporary) && real_home != real_temporary,
         "the home folder must be a folder in {}, not {}",
         temporary.display(),
         home.display()
