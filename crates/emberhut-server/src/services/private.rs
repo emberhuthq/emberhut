@@ -81,6 +81,7 @@ pub fn resolved(path: &Path) -> Option<PathBuf> {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn a_private_folder_holds_its_files_and_a_link_to_one_is_caught_by_its_real_path() {
         let dir = tempfile::tempdir().unwrap();

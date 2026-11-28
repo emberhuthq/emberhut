@@ -200,12 +200,19 @@ async fn send_file_refuses_a_secret_directly_and_through_a_link() {
     let key = secrets.join("openai.key");
     std::fs::write(&key, b"sk-not-a-real-key").unwrap();
     let dir = shown_dir();
-    let link = dir.path().join("chart.png");
-    std::os::unix::fs::symlink(&key, &link).unwrap();
-    let folder_link = dir.path().join("reports");
-    std::os::unix::fs::symlink(&secrets, &folder_link).unwrap();
+    // (Links need Unix here: on Windows, making one takes a privilege.)
+    #[cfg(unix)]
+    let links = {
+        let link = dir.path().join("chart.png");
+        std::os::unix::fs::symlink(&key, &link).unwrap();
+        let folder_link = dir.path().join("reports");
+        std::os::unix::fs::symlink(&secrets, &folder_link).unwrap();
+        vec![link, folder_link.join("openai.key")]
+    };
+    #[cfg(not(unix))]
+    let links = Vec::new();
 
-    for path in [key.clone(), link, folder_link.join("openai.key")] {
+    for path in std::iter::once(key.clone()).chain(links) {
         let refused = app
             .call_tool("send_file", json!({ "path": path.display().to_string() }))
             .await;
@@ -258,6 +265,8 @@ async fn send_file_refuses_a_secret_directly_and_through_a_link() {
     );
 }
 
+// Unix only: each file is reached through a link, which on Windows takes a privilege to make.
+#[cfg(unix)]
 #[tokio::test]
 async fn send_file_refuses_what_a_runner_is_never_sent() {
     let app = TestApp::new().await;
