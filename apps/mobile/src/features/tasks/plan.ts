@@ -132,7 +132,11 @@ export function stepLink(link: string | null | undefined): { kind: "web" | "serv
     const shown = parts.length <= 2 ? parts.join("/") : `…/${parts.slice(-2).join("/")}`;
     return { kind: "web", text: shown ? `${host}/${shown}` : host };
   }
-  if (isServerPath(given)) return { kind: "server", text: given.split("/").filter(Boolean).pop() ?? given };
+  if (isServerPath(given)) {
+    // A file's name when the path ends in one; an artifact's bare number says nothing.
+    const last = given.split(/[/?#]/).filter(Boolean).pop() ?? "";
+    return { kind: "server", text: /\.[A-Za-z0-9]+$/.test(last) ? last : "The file" };
+  }
   return { kind: "text", text: given };
 }
 

@@ -95,7 +95,7 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
         id: -step.id,
         kind: read.kind === "web" ? "link" : "file",
         name: `From: ${step.title}`,
-        caption: read.text,
+        caption: read.kind === "server" && step.note ? step.note : read.text,
         url: link,
         at: step.finished ?? step.updated,
       },
