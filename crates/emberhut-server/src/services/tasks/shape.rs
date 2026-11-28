@@ -134,6 +134,8 @@ pub(crate) struct Extras {
     pub(crate) requested_by: Option<api::tasks::RequestedBy>,
     /// The person's last tap on its send card.
     pub(crate) send: Option<api::tasks::TaskSend>,
+    /// Its plan at a glance, on a server that keeps plans.
+    pub(crate) plan: Option<api::task_plan::PlanSummary>,
 }
 
 /// A task as the contract writes it.
@@ -189,7 +191,7 @@ pub(crate) fn issue(t: &Task, extras: Extras) -> api::tasks::Issue {
         requested: extras.requested,
         requested_by: extras.requested_by,
         send: extras.send,
-        plan: None,
+        plan: extras.plan,
     }
 }
 

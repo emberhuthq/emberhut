@@ -25,6 +25,9 @@ pub struct DisplayService {
     settings: SettingStore,
     log: LogStore,
     clock: Arc<dyn Clock>,
+    /// The server keeps tasks' plans: the switch the apps read, set by the server's flag and
+    /// never by a saved setting.
+    task_plans: bool,
 }
 
 impl DisplayService {
@@ -35,16 +38,27 @@ impl DisplayService {
             settings,
             log,
             clock,
+            task_plans: false,
         }
     }
 
-    /// The switches: the ones last saved, or [`DEFAULT_UI`].
+    /// The same service, saying whether the server keeps tasks' plans (`DisplayUi::task_plans`).
+    #[must_use]
+    pub fn with_task_plans(mut self, on: bool) -> Self {
+        self.task_plans = on;
+        self
+    }
+
+    /// The switches: the ones last saved, or [`DEFAULT_UI`]; whether tasks carry plans is the
+    /// server's own.
     ///
     /// # Errors
     ///
     /// [`DbError`].
     pub async fn ui(&self) -> Result<DisplayUi, DbError> {
-        Ok(self.settings.get(&UI).await?.unwrap_or(DEFAULT_UI))
+        let mut ui = self.settings.get(&UI).await?.unwrap_or(DEFAULT_UI);
+        ui.task_plans = self.task_plans;
+        Ok(ui)
     }
 
     /// Changes the switches `change` gives (`{ hideGoals?, hideProjects? }`); a switch left out,
