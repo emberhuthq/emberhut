@@ -52,12 +52,8 @@ async fn serves_on_a_socket_and_stops_when_asked() {
 #[tokio::test]
 async fn the_pair_command_refuses_to_make_a_database() {
     let dir = tempfile::tempdir().unwrap();
-    let url = format!("sqlite://{}", dir.path().join("elsewhere.db").display());
-    let config = pair_config(
-        url.parse().unwrap(),
-        "127.0.0.1:18990".parse().unwrap(),
-        None,
-    );
+    let url = emberhut_db::DatabaseUrl::from_path(&dir.path().join("elsewhere.db")).unwrap();
+    let config = pair_config(url, "127.0.0.1:18990".parse().unwrap(), None);
     let refused = emberhut_server::make_pairing_code(&config).await;
     assert!(
         matches!(
@@ -228,7 +224,9 @@ async fn serve_refuses_report_mode_with_a_public_url_before_opening_anything() {
 
     let dir = tempfile::tempdir().unwrap();
     let database = dir.path().join("emberhut.db");
-    let url = format!("sqlite://{}", database.display());
+    let url = emberhut_db::DatabaseUrl::from_path(&database)
+        .unwrap()
+        .to_string();
     let cli = Cli::try_parse_from([
         "emberhut-server",
         "--auth-mode",

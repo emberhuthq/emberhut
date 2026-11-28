@@ -21,9 +21,12 @@ use crate::common::{at, tokens};
 /// A source database in `dir` with one invented table, made the way any program would.
 async fn source(dir: &Path) -> std::path::PathBuf {
     let path = dir.join("source.db");
-    let conn = sea_orm::Database::connect(format!("sqlite://{}?mode=rwc", path.display()))
-        .await
-        .unwrap();
+    let conn = sea_orm::Database::connect(format!(
+        "{}?mode=rwc",
+        DatabaseUrl::from_path(&path).unwrap()
+    ))
+    .await
+    .unwrap();
     for sql in [
         "CREATE TABLE notes (id integer primary key, n integer, x real, t text COLLATE NOCASE, b blob)",
         "INSERT INTO notes VALUES (1, 3, 1.5, 'Abc', x'00ff')",
@@ -106,7 +109,7 @@ async fn an_exact_archive_passes_and_the_file_stands_alone() {
     for sibling in ["emberhut.db-wal", "emberhut.db-shm"] {
         assert!(!dir.path().join(sibling).exists(), "{sibling} was left");
     }
-    let url: DatabaseUrl = format!("sqlite://{}", target.display()).parse().unwrap();
+    let url: DatabaseUrl = DatabaseUrl::from_path(&target).unwrap();
     Database::open_existing(&url).await.unwrap();
 }
 
@@ -245,9 +248,7 @@ async fn devices_sessions_and_browser_profiles_are_kept_into_an_unused_database_
     let old_dir = tempfile::tempdir().unwrap();
     let new_dir = tempfile::tempdir().unwrap();
     let url = |dir: &tempfile::TempDir| -> DatabaseUrl {
-        format!("sqlite://{}", dir.path().join("emberhut.db").display())
-            .parse()
-            .unwrap()
+        DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap()
     };
     let old = Database::connect(&url(&old_dir)).await.unwrap();
     old.sessions()
@@ -316,11 +317,8 @@ async fn devices_sessions_and_browser_profiles_are_kept_into_an_unused_database_
 #[tokio::test]
 async fn the_machine_the_old_database_was_served_as_is_kept_too() {
     let dir = tempfile::tempdir().unwrap();
-    let url = |name: &str| -> DatabaseUrl {
-        format!("sqlite://{}", dir.path().join(name).display())
-            .parse()
-            .unwrap()
-    };
+    let url =
+        |name: &str| -> DatabaseUrl { DatabaseUrl::from_path(&dir.path().join(name)).unwrap() };
     let old = Database::connect(&url("old.db")).await.unwrap();
     old.settings()
         .set(&MACHINE_ID, &"machine-a".to_owned())
@@ -444,9 +442,7 @@ fn file_record(path: &str, sha256: &str) -> FileRecord {
 )]
 async fn a_later_import_adds_to_a_database_in_use() {
     let dir = tempfile::tempdir().unwrap();
-    let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
-        .parse()
-        .unwrap();
+    let url: DatabaseUrl = DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
     let missing = ImportTarget::open_existing(&url, dir.path()).await;
     assert!(matches!(missing, Err(DbError::Missing(_))), "never made");
     // The server, running all along.

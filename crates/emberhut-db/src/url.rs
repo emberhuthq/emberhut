@@ -26,6 +26,39 @@ pub struct DatabaseUrl {
 }
 
 impl DatabaseUrl {
+    /// The URL of the SQLite file at `path`: `sqlite://` and the path percent-encoded, all but
+    /// letters, digits and `/-._~`, so a space, `?`, `#` or `%` in it, and on Windows the drive's
+    /// `:` and the `\` separators, are read as part of the path (the driver decodes it; a
+    /// Windows path written as is isn't a URL its connector takes).
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use emberhut_db::DatabaseUrl;
+    ///
+    /// let url = DatabaseUrl::from_path(Path::new("/srv/my data/emberhut.db")).unwrap();
+    /// assert_eq!(url.as_str(), "sqlite:///srv/my%20data/emberhut.db");
+    /// assert_eq!(url.path(), Path::new("/srv/my data/emberhut.db"));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As [`DatabaseUrl::from_str`]: a path that isn't UTF-8 is [`InvalidDatabaseUrl::Malformed`],
+    /// an empty one [`InvalidDatabaseUrl::NoFile`].
+    pub fn from_path(path: &Path) -> Result<Self, InvalidDatabaseUrl> {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        let mut url = String::from("sqlite://");
+        for &byte in path.as_os_str().as_encoded_bytes() {
+            if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) {
+                url.push(char::from(byte));
+            } else {
+                url.push('%');
+                url.push(char::from(HEX[usize::from(byte >> 4)]));
+                url.push(char::from(HEX[usize::from(byte & 0x0F)]));
+            }
+        }
+        url.parse()
+    }
+
     /// The URL as text.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -131,6 +164,25 @@ mod tests {
         assert_eq!(url.path(), Path::new("/var/lib/emberhut/emberhut.db"));
         let relative: DatabaseUrl = "sqlite://emberhut.db?mode=rwc".parse().unwrap();
         assert_eq!(relative.path(), Path::new("emberhut.db"));
+    }
+
+    #[test]
+    fn a_path_is_one_url_whatever_its_characters() {
+        let path = Path::new("/a/100% sure?#/x.db");
+        let url = DatabaseUrl::from_path(path).unwrap();
+        assert_eq!(url.as_str(), "sqlite:///a/100%25%20sure%3F%23/x.db");
+        assert_eq!(url.path(), path);
+        // A Windows path, with its drive and backslashes, is taken whole.
+        let windows = DatabaseUrl::from_path(Path::new(r"C:\Users\Ada\emberhut.db")).unwrap();
+        assert_eq!(
+            windows.as_str(),
+            "sqlite://C%3A%5CUsers%5CAda%5Cemberhut.db"
+        );
+        assert_eq!(windows.path(), Path::new(r"C:\Users\Ada\emberhut.db"));
+        assert!(matches!(
+            DatabaseUrl::from_path(Path::new("")),
+            Err(InvalidDatabaseUrl::NoFile)
+        ));
     }
 
     #[test]

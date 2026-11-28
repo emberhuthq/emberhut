@@ -1669,9 +1669,7 @@ mod tests {
 
     /// The middleware around two misbehaving routes.
     async fn misbehaving(dir: &tempfile::TempDir) -> Router {
-        let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
-            .parse()
-            .unwrap();
+        let url: DatabaseUrl = DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
         let db = Database::connect(&url).await.unwrap();
         let state = AppState::new(&db, Dependencies::default(), AuthMode::Enforce);
         #[expect(

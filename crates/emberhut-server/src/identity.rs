@@ -579,9 +579,7 @@ mod tests {
     async fn the_database_remembers_the_key_it_was_served_with() {
         let dir = tempfile::tempdir().unwrap();
         let url: emberhut_db::DatabaseUrl =
-            format!("sqlite://{}", dir.path().join("emberhut.db").display())
-                .parse()
-                .unwrap();
+            emberhut_db::DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
         let db = emberhut_db::Database::connect(&url).await.unwrap();
         let settings = db.settings();
         let path = dir.path().join("machine.key");

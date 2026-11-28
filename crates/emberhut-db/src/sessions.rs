@@ -411,9 +411,7 @@ mod tests {
     #[tokio::test]
     async fn only_the_hashes_of_tokens_are_stored() {
         let dir = tempfile::tempdir().unwrap();
-        let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
-            .parse()
-            .unwrap();
+        let url: DatabaseUrl = DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
         let db = Database::connect(&url).await.unwrap();
         let now = Timestamp::from_second(1_800_000_000).unwrap();
         let tokens = IssuedTokens::issue(&OsRandom, now).unwrap();

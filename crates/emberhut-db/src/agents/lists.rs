@@ -316,9 +316,7 @@ mod tests {
     #[tokio::test]
     async fn a_fixed_core_policy_in_the_table_anyway_is_the_owners() {
         let dir = tempfile::tempdir().unwrap();
-        let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
-            .parse()
-            .unwrap();
+        let url: DatabaseUrl = DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
         let db = Database::connect(&url).await.unwrap();
         let agents = db.agents();
         let now = Timestamp::UNIX_EPOCH;

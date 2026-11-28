@@ -101,7 +101,7 @@ pub(crate) async fn a_signed_in_device_gets_the_database_and_the_files() {
     let restored = tempfile::tempdir().unwrap();
     let file = restored.path().join("emberhut.db");
     std::fs::write(&file, &files["emberhut.db"]).unwrap();
-    let url: DatabaseUrl = format!("sqlite://{}", file.display()).parse().unwrap();
+    let url: DatabaseUrl = DatabaseUrl::from_path(&file).unwrap();
     let db = Database::open_existing(&url).await.unwrap();
     let chat = db.snapshots().read(RoomId::MAIN).await.unwrap().chat;
     let texts: Vec<&str> = chat.iter().map(|message| message.text.as_str()).collect();
