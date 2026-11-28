@@ -1,7 +1,8 @@
 //! The activity on a task's page that shows its plan: one feed, newest first, under a filter
 //! (All · Turns · Plan · Files). A turn of work reads as one entry beside its time (the live one
 //! with the amber spinner): what it came to in one line, what it was asked, its receipts (✓
-//! Ticked, – Skipped, ⚠ Blocked, a file made) and its session with `Open session ›`. The plan's
+//! Ticked, – Skipped, ⚠ Blocked, a file made) and its session with `Open session ›` and Move to
+//! task…. The plan's
 //! other changes, files and the history's steps are one line each. The whole transcript is the
 //! session's own page.
 
@@ -14,9 +15,11 @@ use super::{Part, TaskView, fold, section};
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
 use crate::store::tasks::activity::{self, Event, EventKind, Filter, Item, Turn};
+use crate::store::tasks::moving::Moving;
 use crate::store::tasks::runs::RunState;
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
+use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
 use crate::ui::sessions::{self, Open};
 use crate::ui::tasks::marks::glyph;
@@ -212,33 +215,8 @@ fn turn_row(part: &Part<'_>, turn: &Turn, quarter: u8) -> AnyElement {
                 .children(turn.receipts.iter().map(|event| receipt(p, event))),
         );
     }
-    if let Some((session, label)) = turn.session.clone() {
-        let place = SessionPlace::Session(SessionRef::whole(session));
-        let store = part.store.clone();
-        text = text.child(tab_stop(
-            div()
-                .id(ElementId::Name(
-                    format!("activity-session-{}", turn.run).into(),
-                ))
-                .button_named(format!("Open session: {label}"))
-                .hint("Opens the session this turn ran in")
-                .border_1()
-                .rounded(px(5.))
-                .flex()
-                .items_center()
-                .gap(px(5.))
-                .text_size(px(11.5))
-                .cursor_pointer()
-                .hover(|d| d.bg(p.hover))
-                .child(glyph(IconName::SquareTerminal, p.faint, 12.))
-                .child(div().text_color(p.muted).child(label))
-                .child(div().text_color(p.faint).child("·"))
-                .child(div().text_color(p.accent).child("Open session ›"))
-                .on_click(move |_, window, cx| {
-                    sessions::push(&store, Open::Place(place.clone()), window, cx);
-                }),
-            p,
-        ));
+    if let Some(entry) = session_entry(part, turn) {
+        text = text.child(entry);
     }
     div()
         .id(ElementId::Name(format!("activity-{}", turn.run).into()))
@@ -256,6 +234,58 @@ fn turn_row(part: &Part<'_>, turn: &Turn, quarter: u8) -> AnyElement {
         .child(time(part, turn.at))
         .child(text)
         .into_any_element()
+}
+
+/// The session a turn ran in: `Open session ›`, and with plans Move to task….
+fn session_entry(part: &Part<'_>, turn: &Turn) -> Option<Div> {
+    let p = part.p;
+    let (session, label) = turn.session.clone()?;
+    let moving = part.read.keeps_plans().then(|| {
+        part.page
+            .and_then(|page| page.sessions.iter().find(|s| s.id == session))
+            .map_or_else(
+                || Moving::new(session.clone(), &label, vec![part.task.id]),
+                |listed| Moving::on_task(listed, part.task.id),
+            )
+    });
+    let place = SessionPlace::Session(SessionRef::whole(session));
+    let store = part.store.clone();
+    let open = tab_stop(
+        div()
+            .id(ElementId::Name(
+                format!("activity-session-{}", turn.run).into(),
+            ))
+            .button_named(format!("Open session: {label}"))
+            .hint("Opens the session this turn ran in")
+            .border_1()
+            .rounded(px(5.))
+            .flex()
+            .items_center()
+            .gap(px(5.))
+            .text_size(px(11.5))
+            .cursor_pointer()
+            .hover(|d| d.bg(p.hover))
+            .child(glyph(IconName::SquareTerminal, p.faint, 12.))
+            .child(div().text_color(p.muted).child(label))
+            .child(div().text_color(p.faint).child("·"))
+            .child(div().text_color(p.accent).child("Open session ›"))
+            .on_click(move |_, window, cx| {
+                sessions::push(&store, Open::Place(place.clone()), window, cx);
+            }),
+        p,
+    );
+    let run = turn.run;
+    Some(
+        div()
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .child(open)
+            .children(moving.map(|moving| {
+                let id = ElementId::Name(format!("activity-session-move-{run}").into());
+                move_to_task::link(id, moving, p)
+            })),
+    )
 }
 
 /// A receipt under a turn: `✓ Ticked: <step>` and the like, in its colour.

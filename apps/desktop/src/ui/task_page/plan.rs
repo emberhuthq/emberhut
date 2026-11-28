@@ -3,7 +3,7 @@
 //!
 //! - the head under the title, a few short lines: its state (amber spinner while it runs, and
 //!   `quiet 25m` when nothing moved for a while), Now (the current step), Needs you or
-//!   Blocked, the ETA, and the session at work with Open session;
+//!   Blocked, the ETA, and the session at work with Open session and Move to task…;
 //! - the plan: its summary (`4 of 9 done · 1 blocked · 1 skipped`) over a bar of one segment
 //!   a step, then the checklist: done steps ticked and dimmed, the current one lit amber with
 //!   how long it has run, a blocked one with what blocks it, a skipped one struck through,
@@ -23,10 +23,12 @@ use super::{Part, TaskView, fold};
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
 use crate::store::sessions::words::short_title;
+use crate::store::tasks::moving::Moving;
 use crate::store::tasks::plan::{self, Item, StepRow};
 use crate::store::tasks::{clock, words};
 use crate::ui::a11y::Accessible as _;
 use crate::ui::controls::tab_stop;
+use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
 use crate::ui::reads::reads;
 use crate::ui::sessions::{self, Open};
@@ -188,7 +190,7 @@ fn state_line(part: &Part<'_>, turn: u8) -> Div {
 
 /// The session at work: `<title> on <machine> · updated 1 minute ago · Open session ›`; a
 /// running one first, else the newest.
-fn session_line(part: &Part<'_>) -> Option<gpui_kit::Stateful<Div>> {
+fn session_line(part: &Part<'_>) -> Option<Div> {
     let p = part.p;
     let sessions = &part.page?.sessions;
     let session = sessions
@@ -211,14 +213,15 @@ fn session_line(part: &Part<'_>) -> Option<gpui_kit::Stateful<Div>> {
     }
     let place = SessionPlace::Session(SessionRef::whole(session.id.clone()));
     let store = part.store.clone();
-    Some(tab_stop(
+    let open = tab_stop(
         div()
             .id("task-head-session")
             .button_named(format!("Open session: {words}"))
             .hint("Opens the session at work on this task")
             .border_1()
             .rounded(px(7.))
-            .mt(px(6.))
+            .flex_1()
+            .min_w_0()
             .px(px(6.))
             .py(px(4.))
             .flex()
@@ -246,7 +249,19 @@ fn session_line(part: &Part<'_>) -> Option<gpui_kit::Stateful<Div>> {
                 sessions::push(&store, Open::Place(place.clone()), window, cx);
             }),
         p,
-    ))
+    );
+    let moving = Moving::on_task(session, part.task.id);
+    Some(
+        div()
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .mt(px(6.))
+            .child(open)
+            .when(part.read.keeps_plans(), |d| {
+                d.child(move_to_task::link("task-head-session-move", moving, p))
+            }),
+    )
 }
 
 /// The plan: its summary, its bar and its checklist; "No plan yet" while it is empty. Nothing

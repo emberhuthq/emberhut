@@ -6,6 +6,7 @@ use emberhut_api::ids::TaskId;
 use emberhut_api::task_page::Run;
 use emberhut_api::tasks::TaskStatus;
 use gpui_kit::assets::IconName;
+use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::prelude::*;
 use gpui_kit::{Div, ElementId, FontWeight, div, px};
 
@@ -14,9 +15,11 @@ use super::thumb::thumb;
 use super::{Part, TaskView, fold, fold_row, section};
 use crate::store::Page;
 use crate::store::files::RemoteFile;
+use crate::store::tasks::moving::Moving;
 use crate::store::tasks::runs::{self, RunState, RunStatus};
 use crate::store::tasks::{counts, findings};
 use crate::ui::column;
+use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
 use crate::ui::tasks::marks::{glyph, landed_mark, progress};
 use crate::ui::tasks::row::{self, Look};
@@ -462,7 +465,8 @@ fn run_media(
 }
 
 /// The task's sessions on the runners: each one's state, title, where it runs and what it does;
-/// with plans, an `Open session` at its end says what a click does.
+/// with plans, an `Open session` at its end says what a click does, and its right-click menu has
+/// Move to task….
 pub(super) fn sessions(mut body: Div, part: &Part<'_>) -> Div {
     let plans = part.read.keeps_plans();
     let Some(sessions) = part
@@ -538,7 +542,16 @@ pub(super) fn sessions(mut body: Div, part: &Part<'_>) -> Div {
                         .child("Open session"),
                 )
             });
-        body = body.child(crate::ui::sessions::link(part.store, place, id, row, p));
+        let entry = crate::ui::sessions::link(part.store, place, id, row, p);
+        body =
+            if plans {
+                let moving = Moving::on_task(session, part.task.id);
+                body.child(entry.context_menu(move |menu, _, _| {
+                    menu.item(move_to_task::menu_item(moving.clone()))
+                }))
+            } else {
+                body.child(entry)
+            };
     }
     body
 }

@@ -37,6 +37,16 @@ impl Moving {
         Self::new(session.id.clone(), &session.title, session.tasks.clone())
     }
 
+    /// `session`, as task `task`'s page lists it: on that task too.
+    #[must_use]
+    pub(crate) fn on_task(session: &RunnerSession, task: TaskId) -> Self {
+        let mut moving = Self::of(session);
+        if !moving.from.contains(&task) {
+            moving.from.push(task);
+        }
+        moving
+    }
+
     /// Session `session` titled `title`, on `from`.
     #[must_use]
     pub(crate) fn new(session: SessionId, title: &str, from: Vec<TaskId>) -> Self {
@@ -219,5 +229,15 @@ mod tests {
         let moving = Moving::of(&session);
         assert_eq!(moving.title, "Fix the oven");
         assert_eq!(moving.from, [TaskId::new(2)]);
+        let paged = Moving::on_task(&session, TaskId::new(5));
+        assert_eq!(
+            paged.from,
+            [TaskId::new(2), TaskId::new(5)],
+            "the page's task too"
+        );
+        assert_eq!(
+            Moving::on_task(&session, TaskId::new(2)).from,
+            [TaskId::new(2)]
+        );
     }
 }

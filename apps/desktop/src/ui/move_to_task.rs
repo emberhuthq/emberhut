@@ -419,6 +419,28 @@ pub(crate) fn button(id: impl Into<ElementId>, moving: Moving) -> Button {
         .on_click(move |_: &ClickEvent, window, cx| ask(&moving, window, cx))
 }
 
+/// The action as a quiet link at the end of a line (a task page's session lines).
+pub(crate) fn link(id: impl Into<ElementId>, moving: Moving, p: &Pal) -> impl IntoElement {
+    super::controls::tab_stop(
+        div()
+            .id(id)
+            .button_named(format!("Move “{}” to another task", moving.title))
+            .hint("Count this session's work on another task")
+            .border_1()
+            .rounded(px(5.))
+            .px(px(4.))
+            .flex_none()
+            .text_size(px(11.5))
+            .text_color(p.muted)
+            .cursor_pointer()
+            .hover(|d| d.text_color(p.accent))
+            .child(LABEL)
+            .on_click(move |_: &ClickEvent, window, cx| ask(&moving, window, cx)),
+        p,
+    )
+    .test_support()
+}
+
 /// The action as an item of a row's right-click menu.
 pub(crate) fn menu_item(moving: Moving) -> PopupMenuItem {
     PopupMenuItem::new(LABEL).on_click(move |_: &ClickEvent, window, cx| ask(&moving, window, cx))
@@ -506,5 +528,83 @@ mod tests {
                 assert!(!picker.busy);
             })
             .unwrap();
+    }
+
+    /// The task page's head offers Move to task… for its session: the picker comes up over the
+    /// main window, and once the server takes the move, the task picked opens over the page.
+    #[gpui_kit::test]
+    fn from_a_task_page_the_session_moves_and_its_new_task_opens(cx: &mut TestAppContext) {
+        use gpui_kit::{VisualTestContext, size};
+
+        use crate::store::Page;
+        use crate::ui::window::{self, MainWindow};
+
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            cx.set_global(Pal::new(&crate::theme::built_in(), false));
+            window::bind_keys(cx);
+        });
+        let backend = Arc::new(FakeBackend::new([]));
+        let session = json!({"id": "r-1", "machine": "pc", "title": "A session", "project": "",
+            "status": "running", "updatedAt": "2026-11-28T08:00:00Z", "place": "PC",
+            "doing": null, "account": null, "accountName": null, "ask": null, "last": null,
+            "direct": true, "model": null, "tasks": [1]});
+        backend.put_task(crate::fixtures::task_page(
+            1,
+            json!({"sessions": [session]}),
+        ));
+        let shared = Arc::clone(&backend) as Arc<dyn crate::backend::Backend>;
+        let store = cx.new(|_| Store::for_tests(shared));
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            MainWindow::new(
+                store.clone(),
+                crate::ui::report::ReportSize::default(),
+                window,
+                cx,
+            )
+        });
+        cx.simulate_resize(size(px(1440.), px(900.)));
+        store.update(cx, |store, cx| {
+            let state = crate::fixtures::state(json!({
+                "ui": {"hideProjects": true, "hideGoals": true, "taskPlans": true},
+                "issues": [issue(1, "working", json!({})), issue(2, "todo", json!({}))],
+            }));
+            store.take_state_for_tests(state, cx);
+        });
+        view.update_in(cx, |main, window, cx| {
+            main.open_task(TaskId::new(1), window, cx);
+        });
+        cx.run_until_parked();
+        let click = |cx: &mut VisualTestContext, id: &'static str| {
+            cx.update(|window, cx| {
+                window.render_frame(cx);
+                window.click(id, cx);
+            });
+            cx.run_until_parked();
+        };
+        click(cx, "task-head-session-move");
+        view.read_with(cx, |main, _| {
+            assert!(main.move_picker.is_some(), "the picker is up");
+        });
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            assert!(window.try_find("move-target-2").is_some(), "the other task");
+            assert!(
+                window.try_find("move-target-1").is_none(),
+                "not the task it is on"
+            );
+        });
+        click(cx, "move-target-2");
+        assert!(
+            backend
+                .calls()
+                .contains(&Call::MoveSession(SessionId::from("r-1"), TaskId::new(2)))
+        );
+        view.read_with(cx, |main, cx| {
+            assert_eq!(main.column_page(cx), Some(Page::Task(TaskId::new(2))));
+        });
+        view.read_with(cx, |main, _| {
+            assert!(main.move_picker.is_none(), "the picker closed");
+        });
     }
 }

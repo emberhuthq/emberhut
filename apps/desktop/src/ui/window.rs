@@ -376,7 +376,7 @@ impl MainWindow {
     }
 
     /// The page this window's column shows, if it is open.
-    #[cfg(feature = "automation")]
+    #[cfg(any(test, feature = "automation"))]
     #[must_use]
     pub(crate) fn column_page(&self, cx: &App) -> Option<Page> {
         self.column.read(cx).current()
