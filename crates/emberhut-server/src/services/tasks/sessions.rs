@@ -50,9 +50,11 @@ pub enum SessionTurn<'a> {
 
 impl TaskService {
     /// A runner's event about the session `session` on `machine`, which works on the task
-    /// `task`: the session is linked to the task, and its turn opens, starts or closes the
-    /// task's run (a finished turn is a turn of work on it, [`Self::turn_ended`]). Nothing
-    /// for a task that isn't there. Taking the same event twice changes nothing.
+    /// `task`: its turn opens, starts or closes the task's run (a finished turn is a turn of
+    /// work on it, [`Self::turn_ended`]). The session is linked to the task when `link` (a turn
+    /// queued or started, a session seen for the first time) or when its run opens now, not on
+    /// every event. Nothing for a task that isn't there. Taking the same event twice changes
+    /// nothing.
     ///
     /// # Errors
     ///
@@ -63,14 +65,17 @@ impl TaskService {
         machine: &str,
         session: &str,
         turn: SessionTurn<'_>,
+        link: bool,
     ) -> Result<(), TaskError> {
         if self.tasks.get(task).await?.is_none() {
             tracing::debug!(task = %task.key(), session, "a session names a task that isn't there");
             return Ok(());
         }
-        self.links
-            .link(task, THREAD_LINK, session, Some(machine))
-            .await?;
+        if link {
+            self.links
+                .link(task, THREAD_LINK, session, Some(machine))
+                .await?;
+        }
         let now = self.now();
         match turn {
             SessionTurn::Queued { asked } | SessionTurn::Running { asked } => {
@@ -89,6 +94,12 @@ impl TaskService {
                         now,
                     )
                     .await?;
+                if opened && !link {
+                    // Its queued and started events were missed.
+                    self.links
+                        .link(task, THREAD_LINK, session, Some(machine))
+                        .await?;
+                }
                 if started && !opened {
                     self.runs.start(run.id, now).await?;
                 }

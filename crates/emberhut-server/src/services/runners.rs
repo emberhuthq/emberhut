@@ -618,11 +618,14 @@ impl RunnerService {
                     last: thread.last.as_deref(),
                 },
             };
+            // The link is written when a turn is sent or starts, or the session is new, not
+            // on every event (an `activity` comes every few seconds).
+            let link = was.is_none() || matches!(kind.as_str(), "turn_queued" | "turn_started");
             // The task's bookkeeping never fails the event: its note and account lines go on.
             if let Err(error) = self
                 .parts
                 .tasks
-                .session_turn(task, machine, &id, turn)
+                .session_turn(task, machine, &id, turn, link)
                 .await
             {
                 tracing::warn!(
