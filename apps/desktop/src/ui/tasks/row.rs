@@ -10,6 +10,7 @@
 
 use emberhut_api::health_today::HealthToday;
 use emberhut_api::tasks::{Issue, TaskStatus};
+use emberhut_api::work::RunnerSession;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
 use gpui_kit::prelude::*;
@@ -47,6 +48,11 @@ pub(crate) struct Look<'a> {
     pub(crate) swipes: Option<&'a RowSwipes>,
     /// Its tick was just pressed: the check shows ([`Store::is_ticked`]).
     pub(crate) ticked: bool,
+    /// How far the running mark has turned (see [`plan_marks::running`]).
+    pub(crate) turn: u8,
+    /// The sessions that work on tasks, gathered once for the list: a running task with no
+    /// news from them or its plan has gone quiet.
+    pub(crate) sessions: &'a [&'a RunnerSession],
 }
 
 /// Whether the user ticks `task` done right on its row: their own to-do with nothing under it.
@@ -76,10 +82,15 @@ pub(crate) fn row(
         .then(|| plan::row_plan(task))
         .flatten();
     let body = match &planned {
-        Some(planned) => planned_body(p, task, planned, quiet_of(store, task, cx).as_deref()),
+        Some(planned) => planned_body(
+            p,
+            task,
+            planned,
+            plan::quiet(task, look.sessions, jiff::Timestamp::now()).as_deref(),
+        ),
         None => row_body(p, task, look),
     };
-    let lead = lead_of(store, p, task, look, planned.as_ref(), cx);
+    let lead = lead_of(store, p, task, look, planned.as_ref());
     let chip = counts::deadline_chip(task.deadline.as_ref(), task.hard_deadline, look.today);
     let subtasks = task.sub.as_ref().filter(|_| !look.nested).map(|rollup| {
         let store = store.clone();
@@ -211,17 +222,9 @@ fn lead_of(
     task: &Issue,
     look: Look<'_>,
     planned: Option<&RowPlan>,
-    cx: &App,
 ) -> AnyElement {
     let id = task.id;
-    let mark = planned.and_then(|planned| {
-        plan_marks::lead(
-            p,
-            planned.lead,
-            ElementId::Name(format!("task-lead-{id}").into()),
-            cx,
-        )
-    });
+    let mark = planned.and_then(|planned| plan_marks::lead(p, planned.lead, look.turn));
     if let Some(mark) = mark {
         mark
     } else if tickable(task) && !look.nested {
@@ -233,13 +236,6 @@ fn lead_of(
     } else {
         status_icon(p, task).into_any_element()
     }
-}
-
-/// How long `task` has gone quiet, when it runs and nothing moved for a while.
-fn quiet_of(store: &Entity<Store>, task: &Issue, cx: &App) -> Option<String> {
-    let state = store.read(cx).state()?;
-    let sessions = crate::store::sessions::lists::all(state);
-    plan::quiet(task, &sessions, jiff::Timestamp::now())
 }
 
 /// A row's text with its plan: its title; its one line (the step it is on, what it waits on or

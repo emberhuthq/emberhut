@@ -35,13 +35,17 @@ use super::controls::tab_stop;
 use super::palette::{Pal, pal};
 use super::widgets::scroller;
 use crate::brand::APP_NAME;
-use crate::store::Store;
 use crate::store::lookup;
 use crate::store::tasks::clock;
 use crate::store::tasks::filter::TaskFilter;
 use crate::store::tasks::list::{self, TaskList};
 use crate::store::tasks::loose::{self as loose_sessions, Loose};
 use crate::store::tasks::search::Found;
+use crate::store::tasks::words;
+use crate::store::{Page, Store};
+
+/// How often the running marks turn.
+const TURN_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// The Tasks page.
 pub(crate) struct TasksView {
@@ -53,6 +57,8 @@ pub(crate) struct TasksView {
     scroll: ScrollHandle,
     /// The swipe over the rows.
     swipes: RowSwipes,
+    /// How far the running marks have turned.
+    turn: u8,
 }
 
 impl TasksView {
@@ -91,7 +97,39 @@ impl TasksView {
             adding: false,
             scroll: ScrollHandle::new(),
             swipes: RowSwipes::default(),
+            turn: 0,
         }
+        .turning(cx)
+    }
+
+    /// Turns the running marks a quarter once a second while the list shows a running task with
+    /// a plan (never under Reduce motion): one redraw a second rather than one a frame, which
+    /// a long list can't afford.
+    fn turning(self, cx: &mut Context<'_, Self>) -> Self {
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(TURN_EVERY).await;
+                let going = this.update(cx, |this, cx| {
+                    let store = this.store.read(cx);
+                    let runs = store.keeps_plans()
+                        && store.shows_page(Page::Tasks)
+                        && store.state().is_some_and(|state| {
+                            state.issues.iter().any(|task| {
+                                task.plan.is_some() && words::doing(task) == words::Doing::Running
+                            })
+                        });
+                    if runs && !crate::motion::reduced(cx) {
+                        this.turn = this.turn.wrapping_add(1);
+                        cx.notify();
+                    }
+                });
+                if going.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+        self
     }
 
     /// Adds the task typed in the New task field, and closes it.
@@ -239,6 +277,15 @@ impl Render for TasksView {
         } else {
             Loose::default()
         };
+        // Gathered once for every row: only a running task's row reads them.
+        let sessions: Vec<&emberhut_api::work::RunnerSession> = if store.keeps_plans() {
+            crate::store::sessions::lists::all(state)
+                .into_iter()
+                .filter(|session| !session.tasks.is_empty())
+                .collect()
+        } else {
+            Vec::new()
+        };
         let rows = Rows {
             store: &store_entity,
             read: store,
@@ -248,6 +295,8 @@ impl Render for TasksView {
             hides_projects,
             swipes: &self.swipes,
             cx,
+            turn: self.turn,
+            sessions: &sessions,
         };
         let search = store.tasks().search();
         if search.is_on() {
@@ -278,6 +327,9 @@ struct Rows<'a> {
     hides_projects: bool,
     swipes: &'a RowSwipes,
     cx: &'a App,
+    turn: u8,
+    /// The sessions that work on tasks, gathered once a render.
+    sessions: &'a [&'a emberhut_api::work::RunnerSession],
 }
 
 impl Rows<'_> {
@@ -297,6 +349,8 @@ impl Rows<'_> {
             nested: false,
             swipes: Some(self.swipes),
             ticked: self.read.is_ticked(task.id),
+            turn: self.turn,
+            sessions: self.sessions,
         };
         column = column.child(row::row(self.store, self.p, task, look, self.cx));
         if open {
