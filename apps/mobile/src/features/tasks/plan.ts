@@ -29,6 +29,12 @@ export const stepState = (state: string): StepState => (known.has(state) ? (stat
 /** No steps yet. */
 export const isEmptyPlan = (summary: PlanSummary): boolean => summary.total <= 0;
 
+/**
+ * A task page's plan has no steps yet. Decided by its steps, not its summary: a plan whose every step is skipped counts
+ * 0 of 0 but isn't "No plan yet". While the page hasn't brought its steps, the summary says.
+ */
+export const isPlanless = (plan: Plan): boolean => plan.steps.length === 0 && isEmptyPlan(plan.summary);
+
 /** How far along, 0…1; null while there is no plan. */
 export function planFraction(summary: PlanSummary): number | null {
   if (isEmptyPlan(summary)) return null;

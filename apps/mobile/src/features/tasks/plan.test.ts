@@ -15,6 +15,7 @@ import {
   activity,
   currentLine,
   firstLine,
+  isPlanless,
   isWebLink,
   pagePlan,
   pageStamp,
@@ -145,6 +146,15 @@ describe("a plan at a glance", () => {
     );
     expect(unplannedLine({ done: 0, total: 0 }, now)).toBeNull();
     expect(unplannedLine({ done: 1, total: 2, unplannedTurn: "2026-11-28T11:00:00Z" }, now)).toBeNull();
+  });
+});
+
+describe("no plan yet, on a task's page", () => {
+  it("is decided by the steps: a plan whose every step is skipped counts 0 of 0 but has a plan", () => {
+    expect(isPlanless({ steps: [step(1, "skipped"), step(2, "skipped")], summary: { done: 0, total: 0 } })).toBe(false);
+    expect(isPlanless({ steps: [], summary: { done: 0, total: 0 } })).toBe(true);
+    // The page not fetched yet: the summary says.
+    expect(isPlanless({ steps: [], summary: { done: 1, total: 4 } })).toBe(false);
   });
 });
 

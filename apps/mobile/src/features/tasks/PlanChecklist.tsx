@@ -5,7 +5,7 @@ import { STEP_STATE, type Plan } from "@/api";
 import { mix } from "@/theme/colors";
 import { useTheme } from "@/theme";
 import { Icon, SectionHeading, Text } from "@/ui";
-import { isEmptyPlan, planRows, stepLabel, stepLink, unplannedLine, type PlanRow } from "./plan";
+import { isPlanless, planRows, stepLabel, stepLink, unplannedLine, type PlanRow } from "./plan";
 import { foldChecklist, soFar } from "./planView";
 import { BlockedMark, Ring } from "./PlanMarks";
 import { useMinute } from "./useMinute";
@@ -22,7 +22,7 @@ export function PlanChecklist({ plan, onAnswer }: { plan: Plan; onAnswer?: () =>
   const now = useMinute();
   const rows = planRows(plan);
   // Steps counted but not listed: the page hasn't answered yet.
-  if (rows.length === 0) return isEmptyPlan(plan.summary) ? <NoPlan plan={plan} /> : null;
+  if (rows.length === 0) return isPlanless(plan) ? <NoPlan plan={plan} /> : null;
   const entries = foldChecklist(rows, open);
   return (
     <View style={{ gap: spacing.sm }}>
