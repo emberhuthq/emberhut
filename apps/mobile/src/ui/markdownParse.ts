@@ -28,6 +28,8 @@ export interface Span {
 export interface BlockOptions {
   /** Two sentences a paragraph: a wall of text broken up, as the chat does with Emberhut's answers. */
   split?: boolean;
+  /** A paragraph's lines stay on their own lines, as typed (your own messages); otherwise they join, as markdown does. */
+  breaks?: boolean;
 }
 
 /** "| a | b |" as its cells; the "|---|:--:|" divider as none. "\|" is a bar inside a cell, "<br>" a new line. */
@@ -56,7 +58,7 @@ export function parseBlocks(text: string, options: BlockOptions = {}): Block[] {
   let code: { lang: string; lines: string[] } | null = null;
 
   const flushPara = () => {
-    const joined = para.join(" ").trim();
+    const joined = para.join(options.breaks ? "\n" : " ").trim();
     para = [];
     if (joined === "") return;
     if (!options.split) {

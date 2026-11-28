@@ -10,6 +10,13 @@ describe("parseBlocks", () => {
     ]);
   });
 
+  it("keeps each line break of a paragraph when asked, as typed", () => {
+    expect(parseBlocks("Hi\nthree things:\nmilk\n\nthanks", { breaks: true })).toEqual([
+      { kind: "para", text: "Hi\nthree things:\nmilk" },
+      { kind: "para", text: "thanks" },
+    ]);
+  });
+
   it("breaks a wall of text every two sentences when asked", () => {
     const text = "First one. Second one! Third one? Fourth.";
     expect(parseBlocks(text, { split: true }).map((b) => (b.kind === "para" ? b.text : ""))).toEqual([

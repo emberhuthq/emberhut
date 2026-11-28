@@ -13,6 +13,8 @@ export interface MarkdownProps {
   color?: string;
   /** Two sentences a paragraph (Emberhut's answers in the chat). */
   split?: boolean;
+  /** A paragraph's lines stay on their own lines, as typed (your own messages). */
+  breaks?: boolean;
   /** A task key (`taskKey(123)`) is a link to its task. */
   taskRefs?: boolean;
   /** A tapped link; the system opens it by default. */
@@ -28,13 +30,14 @@ export const Markdown = memo(function Markdown({
   variant = "body",
   color,
   split = false,
+  breaks = false,
   taskRefs = false,
   onLink = (url) => inBackground(Linking.openURL(url), "Markdown: openURL"),
   image,
   selectable = false,
 }: MarkdownProps) {
   const theme = useTheme();
-  const blocks = useMemo(() => parseBlocks(text, { split }), [text, split]);
+  const blocks = useMemo(() => parseBlocks(text, { split, breaks }), [text, split, breaks]);
   const ink = color ?? theme.colors.text;
   // On your own bubble links keep the bubble's ink, underlined; elsewhere the accent.
   const linkColor = color ?? theme.colors.accent;

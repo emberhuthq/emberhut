@@ -56,7 +56,7 @@ export const UserBubble = memo(function UserBubble({ text, files, reply, onLink,
               <QuoteView quote={reply} onBubble />
             </Pressable>
           )}
-          {words && <Markdown text={text} color={colors.onBubbleMine} taskRefs onLink={onLink} image={inlineImage} />}
+          {words && <Markdown text={text} color={colors.onBubbleMine} breaks taskRefs onLink={onLink} image={inlineImage} />}
         </Pressable>
       ) : null}
     </View>
