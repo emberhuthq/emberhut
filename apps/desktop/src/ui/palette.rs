@@ -7,7 +7,7 @@ use gpui_kit::component::{Theme, ThemeColor, ThemeMode};
 use gpui_kit::{App, Global, Hsla, Window, WindowAppearance, rgb, transparent_black};
 
 use crate::assets::UI_FONT;
-use crate::color::{Rgb, mix, parse_hex};
+use crate::color::{Rgb, contrast_ratio, mix, parse_hex};
 use crate::material::Material;
 use crate::material::alpha::Sidebar;
 use crate::store::calendar::words::Tone;
@@ -56,6 +56,10 @@ pub(crate) struct Pal {
     pub(crate) mine: Hsla,
     /// Its text.
     pub(crate) on_mine: Hsla,
+    /// The assistant's chat bubble: the raised surface, taken toward the text until it stands
+    /// [`THEIRS_APART`] from the chat's surface (see [`theirs`]). Its words keep the text and
+    /// link colours.
+    pub(crate) theirs: Hsla,
     /// A message of the user's still waiting to be sent: their bubble paled into the surface,
     /// opaque, so its text is chosen for what is drawn rather than read through a translucent
     /// fill.
@@ -104,6 +108,14 @@ const PRESSED_DARK: f32 = 0.13;
 
 /// The share of the user's bubble left in a waiting message's fill, the rest the surface.
 const QUEUED: f32 = 0.6;
+
+/// How far the assistant's bubble stands from the chat's surface, at least, as a contrast
+/// ratio: enough to see where it ends. Some themes' raised surface sits closer than this (a
+/// dark one a shade off its surface), so the bubble would not show.
+const THEIRS_APART: f64 = 1.15;
+
+/// The most of the text colour taken into the assistant's bubble to set it apart.
+const THEIRS_MOST: f32 = 0.5;
 
 impl Global for Pal {}
 
@@ -177,6 +189,7 @@ impl Pal {
             hover: c(&tokens.text).opacity(hover),
             pressed: c(&tokens.text).opacity(if dark { PRESSED_DARK } else { PRESSED_LIGHT }),
             mine: color(mine),
+            theirs: color(theirs(tokens)),
             on_mine: if dark {
                 c(&tokens.text)
             } else {
@@ -611,6 +624,24 @@ pub(crate) fn calendar(tone: Tone, p: &Pal) -> CalendarColors {
 }
 
 /// A token's colour; a token that isn't one draws grey (and is logged).
+/// The assistant's bubble for `tokens`: their raised surface, with the text colour mixed in a
+/// step at a time (darker in light, lighter in dark) until it stands [`THEIRS_APART`] from the
+/// surface the chat is drawn on, and no further.
+fn theirs(tokens: &Tokens) -> Rgb {
+    let (raised, ground, ink) = (
+        hex(&tokens.surface_raised),
+        hex(&tokens.surface),
+        hex(&tokens.text),
+    );
+    let mut fill = raised;
+    let mut share = 0.0;
+    while contrast_ratio(fill, ground) < THEIRS_APART && share < THEIRS_MOST {
+        share += 0.01;
+        fill = mix(ink, raised, share);
+    }
+    fill
+}
+
 fn hex(token: &str) -> Rgb {
     parse_hex(token).unwrap_or_else(|| {
         log::warn!("the theme token {token:?} isn't a colour; drawing it grey");
@@ -627,7 +658,7 @@ fn color(value: Rgb) -> Hsla {
 #[cfg(test)]
 #[must_use]
 pub(crate) fn contrast(a: Hsla, b: Hsla) -> f64 {
-    crate::color::contrast_ratio(rgb_of(a), rgb_of(b))
+    contrast_ratio(rgb_of(a), rgb_of(b))
 }
 
 /// A colour as `0xRRGGBB`, its alpha left out.
@@ -866,6 +897,33 @@ mod tests {
                 assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
             }
         }
+    }
+
+    #[test]
+    fn the_assistants_bubble_stands_apart_from_the_chat_its_words_readable() {
+        for (preset, _, p) in every_palette() {
+            let apart = contrast(p.theirs, p.surface);
+            assert!(
+                apart >= THEIRS_APART,
+                "{preset} dark={}: {apart:.3} from the chat",
+                p.dark
+            );
+            // The text levels every theme holds to AA on its raised surface too.
+            let inks = [("text", p.text), ("muted", p.muted), ("faint", p.faint)];
+            for (name, ink) in inks {
+                let r = contrast(ink, p.theirs);
+                assert!(r >= AA, "{preset} dark={} {name}: {r:.2}", p.dark);
+            }
+        }
+    }
+
+    #[test]
+    fn paper_dark_lifts_the_assistants_bubble_off_a_raised_surface_too_close_to_the_chat() {
+        let page = preset_page("paper");
+        let p = Pal::new(&page, true);
+        assert!(contrast(p.surface_raised, p.surface) < THEIRS_APART);
+        assert_ne!(p.theirs, p.surface_raised);
+        assert!(contrast(p.theirs, p.surface) >= THEIRS_APART);
     }
 
     #[test]
