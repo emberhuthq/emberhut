@@ -65,8 +65,16 @@ wc -l notes.md"###,
         r###"python3 -I - <<'EOF'
 print('deploy: systemctl --user restart app; git push')
 EOF"###,
+        false,
+        r###"python's code from a heredoc that only prints"###,
+    ),
+    (
+        r###"python3 -I - <<'EOF'
+import subprocess
+subprocess.run(['git', 'push'])
+EOF"###,
         true,
-        r###"python reading a heredoc runs code the reader doesn't read"###,
+        r###"python's code from a heredoc that runs a command"###,
     ),
     (
         r###"git commit -m "push the merge, then deploy""###,
@@ -628,7 +636,10 @@ fn every_held_step_it_cannot_be_sure_of_says_why_and_has_no_repository() {
     let cases = [
         ("$G push", outward::unsure::VERB),
         ("./p.sh", outward::unsure::SCRIPT),
-        ("python3 -c 'print(1)'", outward::unsure::CODE),
+        (
+            "python3 -c 'import os; os.system(\"ls\")'",
+            outward::unsure::CODE,
+        ),
         ("echo push | xargs git", outward::unsure::PIPED),
         ("git -c alias.s=push s", outward::unsure::GIT),
         ("git rebase -x 'git push' main", outward::unsure::GIT_RUNS),

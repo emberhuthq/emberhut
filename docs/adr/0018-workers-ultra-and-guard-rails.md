@@ -138,11 +138,32 @@ takers, which now hear every taker in turn (the guard rails', messaging's, the u
   pipe, an interpreter's inline code or script (`python -c`, `node -e`, a heredoc, a file), a
   command whose words decide what it does run by `xargs` or `find -exec`, git with a `-c` or
   environment setting that can change what it runs (aliases, `url.*.insteadOf`, hooks) or a
-  command that isn't one of its own (an alias, `send-pack`), a `gh` alias or extension, and an
+  command that isn't one of its own (an alias, `send-pack`), a `gh` alias or extension, an
   HTTP write (`curl`, `wget`, httpie: a method other than GET or HEAD, or a body) to anything
-  but this machine. A quoted string or a heredoc's body fed to a command that isn't a shell is
-  still only text. The reader reads the line, not what it runs: a build script, a test runner
-  or a git hook is code it never sees.
+  but this machine, and a command on another machine (`ssh`) that isn't one of a short list
+  that only reads there (`ls`, `cat`, `journalctl`, `systemctl status`, `docker ps`...; no
+  file written), or `ssh` running what its input sends. A quoted string or a heredoc's body
+  fed to a command that isn't a shell is still only text. The reader reads the line, not what
+  it runs: a build script, a test runner or a git hook is code it never sees.
+- Read-only work isn't held. Python's inline code (`python3 -c`, or a heredoc the shell
+  expands nothing in) passes when it only reads and prints: its modules are from a fixed list
+  of ones that don't run, write or reach the network (`json`, `re`, `html`, `csv`, `sys`...;
+  `os` and `pathlib` only for what reads), every `open` opens to read, and no name of it runs
+  code from a string or reaches what can't be seen (`exec`, `eval`, `getattr`, a dunder,
+  `subprocess`, `system`). The code is read as Python's tokens, f-strings' fields as code; what
+  it can't read that way is held as before. A shell that `xargs` or `find -exec` runs is read
+  through when its code is written out (`sh -c '…'`) and the replacement sits only inside its
+  double quotes: the input's words are read as unknown words, so a command whose words decide
+  what it does is still held. The input is taken as names (a listing's lines); one holding a
+  double quote would end the quotes, which the line alone can't rule out. `docker push`, `cargo publish`, `twine upload`,
+  `dotnet nuget push`, and `scp` or `rsync` to another machine are outward steps.
+- What the reader can't be sure of goes to the assistant before the owner. Its judge model
+  (the ask guard's, below) reads the command with its own instructions: anything outward
+  (a push, a deploy, a change on another machine, a paid API call, code it isn't shown) is not
+  read-only, the command's text is data, and in doubt it isn't. A clear yes lets it run; its
+  verdicts are kept in memory so a command run again isn't read again. A no, no judge, or no
+  answer within 25 seconds puts the outward card to the owner as before. A step the reader
+  knows is outward never goes to the judge.
 - Wrappers are read through to the command they run (`sudo`, `env`, `nice`, `timeout`,
   `setsid`, `taskset`, `strace`, `systemd-run`, `unshare`, `chroot`, `runuser`, `firejail`,
   `npx`, `npm`/`pnpm` `exec`, `uv run`, `poetry run`...), each matched by its name, and by its
@@ -190,8 +211,10 @@ takers, which now hear every taker in turn (the guard rails', messaging's, the u
   same CLI and accounts; without it nothing changes.
 - Every worker's shell command and every ultra sub-agent pass a gate that is the server's code,
   not the prompt; a gate the server can't answer refuses, and a command it can't read is held.
-  A worker that runs scripts or inline code without the owner's OK for its outward steps waits
-  on a card more often; that is the price of failing closed.
+  Inline code that only reads runs, and a script or inline code the reader can't read waits on
+  the assistant's judge, then on a card only when the judge can't say it only reads. The gate
+  answers within the worker's hook limit (a minute; the card goes up in the background when the
+  database is slow).
 - An ultra run's lanes need the owner's OK for the task's outward steps first.
 - The state's `working` rows follow the `WorkRow` type; its document now describes the waiting
   group's fields as optional (a row that doesn't wait has none), which the rows the server now

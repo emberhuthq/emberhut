@@ -114,13 +114,13 @@ pub fn gate_settings(gate_url: &str, matcher: &str) -> String {
     .to_string();
     let quote = |x: &str| format!("'{}'", x.replace('\'', r"'\''"));
     let command = format!(
-        "curl -s -m 20 -f -X POST -H \"Authorization: Bearer ${MCP_TOKEN_VAR}\" -H 'Content-Type: application/json' --data-binary @- {} || printf '%s' {}",
+        "curl -s -m 50 -f -X POST -H \"Authorization: Bearer ${MCP_TOKEN_VAR}\" -H 'Content-Type: application/json' --data-binary @- {} || printf '%s' {}",
         quote(gate_url),
         quote(&deny)
     );
     json!({ "hooks": { "PreToolUse": [{
         "matcher": matcher,
-        "hooks": [{ "type": "command", "command": command, "timeout": 30 }],
+        "hooks": [{ "type": "command", "command": command, "timeout": 60 }],
     }]}})
     .to_string()
 }

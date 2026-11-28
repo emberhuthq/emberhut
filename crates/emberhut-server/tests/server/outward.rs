@@ -8,7 +8,7 @@ use emberhut_core::RoomId;
 use emberhut_core::task::{Status, TaskChange, Who};
 use emberhut_server::services::guard::{GuardConfig, NoJudge};
 
-use crate::guard_common::{FakeRemotes, guard_app, say, task};
+use crate::guard_common::{FakeJudge, FakeRemotes, guard_app, say, task};
 
 #[tokio::test]
 async fn the_owners_request_naming_it_covers_a_merge_and_their_ok_ends_with_the_job() {
@@ -78,5 +78,108 @@ async fn the_owners_request_naming_it_covers_a_merge_and_their_ok_ends_with_the_
         guard.covered_by(study).await.unwrap(),
         None,
         "a reopened job asks again"
+    );
+}
+
+#[tokio::test]
+async fn a_command_the_rules_cannot_read_goes_to_the_assistant_before_the_owner() {
+    let judge = Arc::new(FakeJudge::default());
+    *judge.answer.lock().unwrap() =
+        Some(r#"{"reads_only": true, "why": "it prints a report"}"#.to_owned());
+    let app = guard_app(
+        judge.clone(),
+        Arc::new(FakeRemotes::default()),
+        GuardConfig::default(),
+    )
+    .await;
+    let guard = app.state.guard();
+    let plain = say(&app, RoomId::MAIN, true, "look into the slow page").await;
+    let study = task(&app, "the slow page", Some(plain)).await;
+    let prompts = || judge.prompts.lock().unwrap().clone();
+
+    // Read-only by the rules: no one is asked.
+    let reads = r#"python3 -c "import json,sys; print(json.load(sys.stdin)['n'])""#;
+    assert_eq!(guard.hold_outward(study, reads, "/").await.unwrap(), None);
+    assert_eq!(prompts(), Vec::<String>::new());
+
+    // A script the rules can't read: the assistant reads it as only reading, and it runs.
+    let script = "python3 tools/report.py --since 2026-11-01";
+    assert_eq!(
+        guard.hold_outward(study, script, "/srv/app").await.unwrap(),
+        None
+    );
+    assert_eq!(prompts().len(), 1);
+    assert!(prompts()[0].contains(script), "{}", prompts()[0]);
+    assert!(prompts()[0].contains("inline code or a script"));
+    // Run again, it isn't read again.
+    assert_eq!(
+        guard.hold_outward(study, script, "/srv/app").await.unwrap(),
+        None
+    );
+    assert_eq!(prompts().len(), 1);
+
+    // A push the rules know: the owner's, never the assistant's.
+    let held = guard.hold_outward(study, "git push", "/").await.unwrap();
+    assert!(held.is_some_and(|w| w.starts_with("Outward actions")));
+    let held = guard
+        .hold_outward(study, "python3 -c 'print(1)' && npm publish", "/")
+        .await
+        .unwrap();
+    assert!(held.is_some());
+    assert_eq!(prompts().len(), 1, "no judge for a known outward step");
+
+    // The assistant says no, or doesn't answer: the owner is asked.
+    *judge.answer.lock().unwrap() =
+        Some(r#"{"reads_only": false, "why": "it uploads"}"#.to_owned());
+    assert!(
+        guard
+            .hold_outward(study, "./sync.sh", "/srv/app")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    *judge.answer.lock().unwrap() = None;
+    assert!(
+        guard
+            .hold_outward(study, "python3 other.py", "/")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        guard
+            .hold_outward(study, "python3 other.py", "/")
+            .await
+            .unwrap()
+            .is_some(),
+        "no answer isn't kept as a verdict"
+    );
+    assert_eq!(prompts().len(), 4);
+}
+
+#[tokio::test]
+async fn with_no_judge_a_command_the_rules_cannot_read_asks_the_owner() {
+    let app = guard_app(
+        Arc::new(NoJudge),
+        Arc::new(FakeRemotes::default()),
+        GuardConfig::default(),
+    )
+    .await;
+    let guard = app.state.guard();
+    let plain = say(&app, RoomId::MAIN, true, "look into the slow page").await;
+    let study = task(&app, "the slow page", Some(plain)).await;
+    assert!(
+        guard
+            .hold_outward(study, "./sync.sh", "/")
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        guard
+            .hold_outward(study, "grep -rn TODO src | head", "/")
+            .await
+            .unwrap(),
+        None
     );
 }

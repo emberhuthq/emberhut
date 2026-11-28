@@ -138,6 +138,9 @@ const OUTWARD_CARD: &str = "The ultra run's lead wants to push, merge or deploy:
 const LANE_UNGATED: &str = "Not started: a lane runs on a runner without the gate, so it starts only once the owner's words cover this task's push, merge and deploy steps. Run this part yourself (a sub-agent in your own session).";
 /// The outward step's card for a worker that doesn't lead an ultra run.
 const WORKER_OUTWARD_CARD: &str = "The worker wants to push, merge or deploy:";
+/// How long the gate waits for the owner's outward card to be put up before it answers the
+/// worker anyway (the card goes up in the background): its hook has a time limit.
+const CARD_WAIT: Duration = Duration::from_secs(8);
 
 /// Who an outward card is about: the ultra run's lead, or a plain worker.
 const fn held_back(ultra: bool) -> (&'static str, &'static str) {
@@ -662,7 +665,7 @@ impl WorkerService {
             let Some(waits) = self.guard().hold_outward(task, command, &cwd).await? else {
                 return Ok(None);
             };
-            self.ask_outward(task, command).await?;
+            self.outward_card(task, command).await?;
             return Ok(Some(waits.to_owned()));
         }
         if !t.ultra || !matches!(tool, "Agent" | "Task" | "Workflow") {
@@ -722,6 +725,25 @@ impl WorkerService {
             self.save_run(task, &run).await?;
         }
         Ok(None)
+    }
+
+    /// Puts the owner's outward card up for `command` ([`Self::ask_outward`]), in the
+    /// background when it takes longer than [`CARD_WAIT`] (a busy database): the worker hears
+    /// it waits either way, well inside its hook's time limit.
+    async fn outward_card(&self, task: TaskId, command: &str) -> Result<(), WorkerError> {
+        let this = self.clone();
+        let held = command.to_owned();
+        let card = tokio::spawn(async move { this.ask_outward(task, &held).await });
+        match tokio::time::timeout(CARD_WAIT, card).await {
+            Ok(Ok(asked)) => {
+                asked?;
+            }
+            Ok(Err(error)) => tracing::warn!(%error, "the outward card failed"),
+            Err(_) => {
+                tracing::info!(task = %task.key(), "the outward card goes up in the background");
+            }
+        }
+        Ok(())
     }
 
     async fn capped(&self, task: TaskId, run: &mut RunState, used: f64) -> Result<(), WorkerError> {
