@@ -11,18 +11,19 @@
 //! `thread_start` takes the folder and machine it is given, names the task in the session's
 //! meta and follows the session; `session_send`'s `task_id` is ignored. On a server that keeps
 //! plans, every session works for a task: `thread_start` with no `task_id` works for its parent
-//! session's tasks (`parent`, else the calling session), else for a task made for it.
+//! session's tasks (`parent`, else the calling session), else for a task made for it, and
+//! `session_move` moves a session to another task.
 
 use emberhut_api::wire::session_meta;
 use emberhut_core::task::session as task_session;
-use emberhut_core::task::{Owner, TaskId};
+use emberhut_core::task::{Owner, TaskId, Who};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use super::{Tool, ToolContext, ToolError, ToolOutput};
 use crate::services::runner_api::by;
 use crate::services::runners::{SessionId, WorkSession};
-use crate::services::tasks::SessionTask;
+use crate::services::tasks::{SessionMoveError, SessionTask};
 use crate::services::transfer::mb;
 
 /// What each runner machine has left.
@@ -381,6 +382,76 @@ impl Tool for SessionStop {
             Ok(_) => ToolOutput::text("Nothing was running."),
             Err(error) => ToolOutput::text(format!("Couldn't stop it: {error}")),
         })
+    }
+}
+
+/// The name of the tool that moves a session to another task, which only a server that keeps
+/// plans lists.
+pub(crate) const SESSION_MOVE: &str = "session_move";
+
+/// Moves a runner session to another task.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SessionMove;
+
+/// `session_move`'s arguments.
+#[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
+pub(crate) struct SessionMoveArgs {
+    /// The session's id (`r-…`).
+    #[garde(length(min = 1, max = 128))]
+    thread: String,
+    /// The task it works for from now on.
+    #[garde(range(min = 1))]
+    task_id: i64,
+}
+
+impl Tool for SessionMove {
+    type Args = SessionMoveArgs;
+
+    fn name(&self) -> &'static str {
+        SESSION_MOVE
+    }
+
+    fn description(&self) -> &'static str {
+        "Move a session on one of your runners (thread id r-…) to another task, when its work \
+         belongs there: its turns count on that task from now on, both tasks' histories say \
+         so, and a task that was made for the session and holds nothing else is archived. \
+         Not to a task that is done or archived."
+    }
+
+    async fn call(
+        &self,
+        ctx: &ToolContext,
+        args: SessionMoveArgs,
+    ) -> Result<ToolOutput, ToolError> {
+        let Ok(id) = SessionId::parse(&args.thread) else {
+            return Ok(ToolOutput::text(format!(
+                "Not moved: {} is not a runner session's id (r-…).",
+                args.thread
+            )));
+        };
+        let to = TaskId::new(args.task_id);
+        Ok(
+            match ctx
+                .app
+                .runners()
+                .move_session(&id, to, Who::Assistant)
+                .await
+            {
+                Ok(from) if from.is_empty() => {
+                    ToolOutput::text(format!("{id} works for {} now.", to.key()))
+                }
+                Ok(from) => {
+                    let keys: Vec<String> = from.iter().map(|task| task.key()).collect();
+                    ToolOutput::text(format!(
+                        "{id} moved from {} to {}.",
+                        keys.join(", "),
+                        to.key()
+                    ))
+                }
+                Err(SessionMoveError::Task(error)) => return Err(ToolError::failed(error)),
+                Err(error) => ToolOutput::text(format!("Not moved: {error}.")),
+            },
+        )
     }
 }
 

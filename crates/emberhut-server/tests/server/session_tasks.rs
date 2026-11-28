@@ -1,8 +1,10 @@
 //! Every runner session works for a task (`--task-plans`): the person's own sessions get a task
 //! made for them (opened from the app, or reported by a runner as theirs), with the plan asked
 //! for in the first message the server sends; a session started by another works for its
-//! parent's tasks; `thread_start` with no task makes one; sessions opened before the server
-//! made tasks for them are left as they are. With the flag off, none of it happens.
+//! parent's tasks; `thread_start` with no task makes one; a session moves to another task
+//! (`POST /api/runner/sessions/r-{id}/task`, and `session_move`), and a task made for it that is
+//! left empty is put away; sessions opened before the server made tasks for them are left as
+//! they are. With the flag off, none of it happens.
 #![expect(
     clippy::too_many_lines,
     reason = "each test walks one story through the endpoints from start to end"
@@ -12,7 +14,9 @@
     reason = "test helpers: a failure here fails the test that called them"
 )]
 
+use emberhut_api::error::ErrorBody;
 use emberhut_api::mcp::{CallToolResult, RpcResponse};
+use emberhut_api::runner::actions::MovedSession;
 use emberhut_api::tasks::{Issue, TaskStatus};
 use emberhut_api::wire::mcp::{ROOM_PATH, SESSION_HEADER};
 use emberhut_core::RoomId;
@@ -134,6 +138,17 @@ async fn open(app: &TestApp, text: &str) -> crate::common::Answer {
         Call::post("/api/runner/sessions")
             .token(&session)
             .json(&json!({ "machine": "build", "cwd": "/work/app", "text": text })),
+    )
+    .await
+}
+
+/// The person moves `session` to `body`'s task.
+async fn move_to(app: &TestApp, session: &str, body: &Value) -> crate::common::Answer {
+    let signed_in = app.sign_in().await;
+    app.call(
+        Call::post(&format!("/api/runner/sessions/{session}/task"))
+            .token(&signed_in)
+            .json(body),
     )
     .await
 }
@@ -303,6 +318,25 @@ pub(crate) async fn with_the_flag_off_no_session_gets_a_task() {
         text(&no_task),
         "Not started: pass task_id, the task the work is for."
     );
+    let moved = move_to(&app, "r-1e8", &json!({ "task": 1 })).await;
+    assert_eq!(moved.status, 404, "{}", moved.text);
+    assert!(!tool_names(&app).await.contains(&"session_move".to_owned()));
+    assert!(
+        tool_names(&self::app(true).await)
+            .await
+            .contains(&"session_move".to_owned())
+    );
+}
+
+async fn tool_names(app: &TestApp) -> Vec<String> {
+    let answer = app.rpc("tools/list", json!({})).await;
+    let reply: RpcResponse = answer.read_as();
+    reply.result.unwrap()["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap().to_owned())
+        .collect()
 }
 
 #[tokio::test]
@@ -596,6 +630,37 @@ pub(crate) async fn a_session_the_assistant_starts_with_no_task_gets_one() {
         format!("The build fails.\n\n{}", session_rule(&made.key()))
     );
 
+    // Its session moves to another task: the task made for it had nothing else, so it goes.
+    let build = task(&app, "The build").await;
+    report(
+        &app,
+        &event(
+            "r-77",
+            "session",
+            "idle",
+            opened["meta"].clone(),
+            Some(app.clock_now()),
+            json!({}),
+        ),
+    )
+    .await;
+    let moved = as_room(
+        &app,
+        None,
+        "session_move",
+        json!({ "thread": "r-77", "task_id": build.get() }),
+    )
+    .await;
+    assert_eq!(
+        text(&moved),
+        format!("r-77 moved from {} to {}.", made.key(), build.key())
+    );
+    assert_eq!(issue(&app, made).await.status, TaskStatus::Canceled);
+    assert_eq!(
+        history(&app, made).await.last().unwrap(),
+        &format!("Merged into {}", build.key())
+    );
+
     // A session that doesn't start leaves its task put away.
     app.runners.refuse("build", "/sessions", "no room");
     let refused = app
@@ -611,4 +676,210 @@ pub(crate) async fn a_session_the_assistant_starts_with_no_task_gets_one() {
     );
     let lost = *all_tasks(&app).await.last().unwrap();
     assert_eq!(issue(&app, lost).await.status, TaskStatus::Canceled);
+}
+
+#[tokio::test]
+pub(crate) async fn a_session_moves_to_another_task_with_its_run() {
+    let app = app(true).await;
+    app.runners.answer(
+        "build",
+        "/sessions",
+        json!({ "id": "r-1e8", "turn": "r-1e8:1", "cwd": "/work/app" }),
+    );
+    assert_eq!(open(&app, "Tidy the readme").await.status, 200);
+    let made = *all_tasks(&app).await.last().unwrap();
+    let meta = json!({ "direct": true, "task": made.get() });
+    let now = app.clock_now();
+    report(
+        &app,
+        &event(
+            "r-1e8",
+            "turn_started",
+            "running",
+            meta.clone(),
+            Some(now),
+            json!({ "turn": { "id": "r-1e8:1" } }),
+        ),
+    )
+    .await;
+    assert_eq!(
+        issue(&app, made).await.live.unwrap().state.as_str(),
+        "running"
+    );
+    let docs = task(&app, "The docs").await;
+
+    let answer = move_to(&app, "r-1e8", &json!({ "task": docs.get() })).await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    let moved: MovedSession = answer.read_as();
+    assert!(moved.ok);
+    assert_eq!(moved.task.get(), docs.get());
+    assert_eq!(linked(&app, "r-1e8").await, [docs]);
+    let live = issue(&app, docs).await.live.unwrap();
+    assert_eq!(live.state.as_str(), "running", "its open run moved with it");
+    assert_eq!(
+        history(&app, docs).await.last().unwrap(),
+        &format!("Session r-1e8 \"Tidy\" moved here from {}", made.key())
+    );
+    let left = history(&app, made).await;
+    assert_eq!(
+        left[left.len() - 2..],
+        [
+            format!("Session r-1e8 \"Tidy\" moved to {}", docs.key()),
+            format!("Merged into {}", docs.key())
+        ]
+    );
+    assert_eq!(issue(&app, made).await.status, TaskStatus::Canceled);
+
+    // Its meta still names the first task: its links win, and its turn ends on the new one.
+    report(
+        &app,
+        &event(
+            "r-1e8",
+            "turn_finished",
+            "idle",
+            meta.clone(),
+            Some(now),
+            json!({ "turn": { "id": "r-1e8:1", "outcome": "completed", "last": "Done." } }),
+        ),
+    )
+    .await;
+    assert_eq!(linked(&app, "r-1e8").await, [docs]);
+    let page = app.state.tasks().detail(docs).await.unwrap().unwrap();
+    let run = &page.runs.as_ref().unwrap()[0];
+    assert_eq!(run.thread, "r-1e8");
+    assert!(run.ended.is_some(), "closed on the task it moved to");
+
+    // Moved on again: the task it leaves wasn't made for it, so it stays.
+    let site = task(&app, "The site").await;
+    assert_eq!(
+        move_to(&app, "r-1e8", &json!({ "task": site.get() }))
+            .await
+            .status,
+        200
+    );
+    assert_eq!(issue(&app, docs).await.status, TaskStatus::Todo);
+    // Moving it where it is changes nothing.
+    assert_eq!(
+        move_to(&app, "r-1e8", &json!({ "task": site.get() }))
+            .await
+            .status,
+        200
+    );
+    assert_eq!(
+        history(&app, site)
+            .await
+            .iter()
+            .filter(|line| line.contains("moved here"))
+            .count(),
+        1
+    );
+
+    // A task made for a session with a note of its own stays when it leaves.
+    app.runners.answer(
+        "build",
+        "/sessions",
+        json!({ "id": "r-2", "turn": "r-2:1", "cwd": "/work/app" }),
+    );
+    assert_eq!(open(&app, "Look at the logs").await.status, 200);
+    let logs = *all_tasks(&app).await.last().unwrap();
+    report(
+        &app,
+        &event(
+            "r-2",
+            "session",
+            "idle",
+            json!({ "direct": true, "task": logs.get() }),
+            Some(now),
+            json!({}),
+        ),
+    )
+    .await;
+    app.state
+        .tasks()
+        .note(logs, Who::Person, "The logs are on the build box", false)
+        .await
+        .unwrap();
+    assert_eq!(
+        move_to(&app, "r-2", &json!({ "task": site.get() }))
+            .await
+            .status,
+        200
+    );
+    assert_eq!(issue(&app, logs).await.status, TaskStatus::Working);
+    assert_eq!(linked(&app, "r-2").await, [site]);
+}
+
+#[tokio::test]
+pub(crate) async fn a_move_needs_a_known_session_and_an_open_task() {
+    let app = app(true).await;
+    let lexer = task(&app, "The lexer").await;
+    report(
+        &app,
+        &event(
+            "r-1",
+            "session",
+            "idle",
+            json!({ "task": lexer.get() }),
+            Some(app.clock_now()),
+            json!({}),
+        ),
+    )
+    .await;
+    let refused = |status: u16, error: &str| (status, error.to_owned());
+    let tried = async |session: &str, body: Value| {
+        let answer = move_to(&app, session, &body).await;
+        (answer.status.as_u16(), answer.read_as::<ErrorBody>().error)
+    };
+    assert_eq!(
+        tried("r-0ff", json!({ "task": lexer.get() })).await,
+        refused(404, "no session r-0ff")
+    );
+    assert_eq!(
+        tried("r-1", json!({ "task": 999 })).await,
+        refused(404, "no task T-999")
+    );
+    assert_eq!(
+        tried("r-1", json!({})).await,
+        refused(400, "say which task: { task: <its id> }")
+    );
+    let done = app
+        .state
+        .tasks()
+        .create(
+            NewTask {
+                title: "Done one".to_owned(),
+                ..NewTask::default()
+            },
+            Who::Person,
+        )
+        .await
+        .unwrap()
+        .id;
+    app.state.tasks().todo_done(done, true).await.unwrap();
+    assert_eq!(
+        tried("r-1", json!({ "task": done.get() })).await,
+        refused(
+            400,
+            &format!("{} is done: a session can't move to it", done.key())
+        )
+    );
+    let away = task(&app, "Put away").await;
+    app.state.tasks().archive(away).await.unwrap();
+    assert_eq!(
+        tried("r-1", json!({ "task": away.get() })).await,
+        refused(
+            400,
+            &format!("{} is archived: a session can't move to it", away.key())
+        )
+    );
+    assert_eq!(linked(&app, "r-1").await, [lexer], "left where it was");
+
+    assert_eq!(
+        tried("r-XYZ", json!({ "task": lexer.get() })).await,
+        refused(404, "not a runner session's id")
+    );
+    let anonymous = app
+        .call(Call::post("/api/runner/sessions/r-1/task").json(&json!({ "task": lexer.get() })))
+        .await;
+    assert_eq!(anonymous.status, 401);
 }

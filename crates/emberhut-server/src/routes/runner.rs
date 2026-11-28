@@ -1,8 +1,8 @@
 //! The runners: what they report (`POST /api/runner/events`, `POST /api/runner/machine`, `GET
 //! /api/runner/mcp`, with their own token), the Machines view (`GET /api/machines`), the sessions
 //! list and the person's own new sessions (`/api/runner/sessions`), the folder and branch
-//! pickers, and one session's transcript, live stream, reply, stop, interrupt and settings
-//! (`/api/runner/sessions/r-{id}/...`), and one of the assistant's workers watched the same way
+//! pickers, and one session's transcript, live stream, reply, stop, interrupt, settings and
+//! task (`/api/runner/sessions/r-{id}/...`), and one of the assistant's workers watched the same way
 //! (`/api/runner/sessions/w-{id}/...`).
 //!
 //! The worker routes read the assistant's workers through
@@ -19,11 +19,13 @@ use axum::http::{HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use emberhut_api::error::{ErrorBody, OkReply};
 use emberhut_api::machines::MachinesPage;
+use emberhut_api::runner::actions::{MoveSession, MovedSession};
 use emberhut_api::runners::{
     Listing, NewSession, NewSessionReply, PickerQuery, RunnerReply, SendToSession,
     SessionSettingsReply, SessionsPage, SessionsQuery, SharedMcp, StepsQuery, Transcript,
 };
 use emberhut_core::RoomId;
+use emberhut_core::task::Who;
 use futures_util::StreamExt as _;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -34,6 +36,7 @@ use crate::extract::{JsonBody, SignedIn, Viewer};
 use crate::services::machines::MachineError;
 use crate::services::runner_api::RunnerError;
 use crate::services::runners::{DEFAULT_RUNNER, DirectSession, Filter, SessionError, SessionId};
+use crate::services::tasks::SessionMoveError;
 
 /// Asks proxies (nginx) not to buffer a stream.
 const NO_BUFFERING: (HeaderName, HeaderValue) = (
@@ -811,6 +814,71 @@ pub(super) async fn settings(
         .await
         .map(|session| Json(SessionSettingsReply { ok: true, session }))
         .map_err(|error| Refusal::of(&error))
+}
+
+/// Moves a runner session to another task, on a server that keeps plans: its link and its
+/// open run go there, both tasks' histories say so, and a task made for the session that is
+/// left with nothing of its own is put away.
+#[utoipa::path(
+    post,
+    path = "/api/runner/sessions/r-{id}/task",
+    tag = "runners",
+    security(("bearer" = [])),
+    params(("id" = String, Path, description = "The session's id after `r-`")),
+    request_body = MoveSession,
+    responses(
+        (status = 200, description = "Moved", body = MovedSession),
+        (status = 400, description = "No task in the body, or the task is done or archived", body = ErrorBody),
+        (status = 401, description = "No signed-in device (in either auth mode)", body = ErrorBody),
+        (status = 404, description = "No such session (or not a session's id) or task, or a server that keeps no plans (`ok: false`)", body = ErrorBody),
+    )
+)]
+pub(super) async fn move_to_task(
+    State(app): State<AppState>,
+    device: Result<SignedIn, ApiError>,
+    path: Result<Path<String>, PathRejection>,
+    body: Result<JsonBody, crate::extract::Invalid>,
+) -> Result<Json<MovedSession>, Refusal> {
+    SignedIn::acting(device)?;
+    // Every 404 here has a body: a session id that isn't one is no session too.
+    let id = session_id(path)
+        .map_err(|_| Refusal::not_ok(StatusCode::NOT_FOUND, "not a runner session's id"))?;
+    let Some(MoveSession { task }) = body
+        .ok()
+        .and_then(|JsonBody(body)| serde_json::from_value(body).ok())
+        .filter(|ask: &MoveSession| ask.task.get() > 0)
+    else {
+        return Err(Refusal::not_ok(
+            StatusCode::BAD_REQUEST,
+            "say which task: { task: <its id> }",
+        ));
+    };
+    match app
+        .runners()
+        .move_session(
+            &id,
+            emberhut_core::task::TaskId::new(task.get()),
+            Who::Person,
+        )
+        .await
+    {
+        Ok(_) => Ok(Json(MovedSession { ok: true, task })),
+        Err(
+            error @ (SessionMoveError::NotKept
+            | SessionMoveError::NoSession(_)
+            | SessionMoveError::NoTask(_)),
+        ) => Err(Refusal::not_ok(StatusCode::NOT_FOUND, error.to_string())),
+        Err(error @ SessionMoveError::Closed(..)) => {
+            Err(Refusal::not_ok(StatusCode::BAD_REQUEST, error.to_string()))
+        }
+        Err(error) => {
+            tracing::error!(%error, "a session could not be moved to another task");
+            Err(Refusal::not_ok(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Something went wrong on the server.",
+            ))
+        }
+    }
 }
 
 #[cfg(test)]

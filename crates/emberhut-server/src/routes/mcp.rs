@@ -13,7 +13,8 @@ use emberhut_api::mcp::{RpcRequest, RpcResponse, codes};
 
 use crate::app::AppState;
 use crate::mcp::tools::{
-    PLAN_TOOLS, ToolContext, ToolSet, agent_tools, family_tools, room_tools, runner_tools,
+    PLAN_TOOLS, SESSION_MOVE, ToolContext, ToolSet, agent_tools, family_tools, room_tools,
+    runner_tools,
 };
 use crate::mcp::{self, Answer};
 use crate::services::family::{FAMILY_ROOMS, NOT_AVAILABLE};
@@ -96,7 +97,7 @@ pub(super) async fn mcp_room(
     let tools = if app.task_plans() {
         tools
     } else {
-        tools.without(&PLAN_TOOLS)
+        tools.without(&PLAN_TOOLS).without(&[SESSION_MOVE])
     };
     let ctx = ToolContext {
         app,

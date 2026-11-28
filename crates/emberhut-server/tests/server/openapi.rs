@@ -120,6 +120,7 @@ fn the_document_lists_the_slice_s_routes() {
         ("POST", "/api/runner/sessions/r-{id}/stop"),
         ("POST", "/api/runner/sessions/r-{id}/interrupt"),
         ("POST", "/api/runner/sessions/r-{id}/settings"),
+        ("POST", "/api/runner/sessions/r-{id}/task"),
         ("GET", "/api/accounts"),
         ("POST", "/api/accounts/use"),
         ("POST", "/api/usage/check"),
@@ -1659,6 +1660,34 @@ const COVERED: &[Covered] = &[
         name: "the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers",
         test:
             crate::runners::the_runner_pages_need_a_session_a_session_id_and_a_runner_that_answers,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/task",
+        status: 200,
+        name: "a_session_moves_to_another_task_with_its_run",
+        test: crate::session_tasks::a_session_moves_to_another_task_with_its_run,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/task",
+        status: 400,
+        name: "a_move_needs_a_known_session_and_an_open_task",
+        test: crate::session_tasks::a_move_needs_a_known_session_and_an_open_task,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/task",
+        status: 401,
+        name: "a_move_needs_a_known_session_and_an_open_task",
+        test: crate::session_tasks::a_move_needs_a_known_session_and_an_open_task,
+    },
+    Covered {
+        method: "POST",
+        path: "/api/runner/sessions/r-{id}/task",
+        status: 404,
+        name: "a_move_needs_a_known_session_and_an_open_task",
+        test: crate::session_tasks::a_move_needs_a_known_session_and_an_open_task,
     },
     Covered {
         method: "GET",

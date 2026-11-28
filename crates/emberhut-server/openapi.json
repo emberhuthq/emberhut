@@ -3473,6 +3473,83 @@
         ]
       }
     },
+    "/api/runner/sessions/r-{id}/task": {
+      "post": {
+        "tags": [
+          "runners"
+        ],
+        "summary": "Moves a runner session to another task, on a server that keeps plans: its link and its\nopen run go there, both tasks' histories say so, and a task made for the session that is\nleft with nothing of its own is put away.",
+        "operationId": "move_to_task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The session's id after `r-`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveSession"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No task in the body, or the task is done or archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session (or not a session's id) or task, or a server that keeps no plans (`ok: false`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/runner/sessions/w-{id}/transcript": {
       "get": {
         "tags": [
@@ -16159,6 +16236,37 @@
           "text": {
             "type": "string",
             "description": "What happened, or what was said; empty when the server has none (it may send `null`)."
+          }
+        }
+      },
+      "MoveSession": {
+        "type": "object",
+        "description": "`POST .../task`: move the session to another task, on a server that keeps plans. Its link\nand its open run go to `task`, and both tasks' histories say so; a task the server made for\nthe session that is left with nothing of its own is put away (`Merged into T-n`). 404 for a\nsession or a task the server doesn't know (and on a server that doesn't keep plans), 400 for\na task that is done or archived, each with an [`ErrorBody`](crate::error::ErrorBody).",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/TaskId",
+            "description": "The task it works for from now on."
+          }
+        }
+      },
+      "MovedSession": {
+        "type": "object",
+        "description": "`POST .../task`'s answer.",
+        "required": [
+          "ok",
+          "task"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "Always `true`: a refusal is an `ErrorBody`."
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskId",
+            "description": "The task it works for now."
           }
         }
       },

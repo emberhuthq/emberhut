@@ -20,6 +20,7 @@ use serde_json::Value;
 use crate::app::AppState;
 
 pub(crate) use agent_set::{agent_tools, agent_worker_tools};
+pub(crate) use runners::SESSION_MOVE;
 pub(crate) use task_plan::PLAN_TOOLS;
 
 mod agent_memory;
@@ -122,6 +123,7 @@ pub(crate) fn room_tools() -> ToolSet {
         tool(runners::SessionSend),
         tool(runners::SessionSendFile),
         tool(runners::SessionStop),
+        tool(runners::SessionMove),
         tool(runners::Machines),
         tool(runners::AssistantAccount),
         tool(calls::MacRecord),

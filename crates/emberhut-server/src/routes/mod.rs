@@ -186,6 +186,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(runner::stop))
         .routes(routes!(runner::interrupt))
         .routes(routes!(runner::settings))
+        .routes(routes!(runner::move_to_task))
         .routes(routes!(runner::worker_transcript))
         .routes(routes!(runner::worker_live))
         .routes(routes!(runner::worker_send))
