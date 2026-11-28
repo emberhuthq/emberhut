@@ -7,6 +7,7 @@ import {
   currentPath,
   foldChecklist,
   nextSteps,
+  planGroups,
   planLists,
   planSegments,
   quietMinutes,
@@ -74,6 +75,25 @@ describe("the Tasks list's groups", () => {
     expect(lists.running.map((t) => t.id)).toEqual([2, 3]);
     expect(lists.blocked.map((t) => t.id)).toEqual([4]);
     expect(lists.open.map((t) => t.id)).toEqual([5]);
+  });
+});
+
+describe("the Tasks list's groups with sessions", () => {
+  const lists = { needs: 0, running: [issue(1)], blocked: [], open: [issue(2)] };
+
+  it("puts a running session with no task under Running, the rest under Sessions with no task", () => {
+    const groups = planGroups(lists, [session("r-run"), session("r-done", { status: "completed" })]);
+    expect(groups.map((g) => [g.key, g.tasks.map((t) => t.id), g.sessions.map((s) => s.id)])).toEqual([
+      ["running", [1], ["r-run"]],
+      ["open", [2], []],
+      ["sessions", [], ["r-done"]],
+    ]);
+  });
+
+  it("leaves Sessions with no task out while every session has a task, and any other empty group", () => {
+    expect(planGroups(lists, []).map((g) => g.key)).toEqual(["running", "open"]);
+    expect(planGroups(lists, [session("r-run")]).map((g) => g.key)).toEqual(["running", "open"]);
+    expect(planGroups({ needs: 0, running: [], blocked: [], open: [] }, [])).toEqual([]);
   });
 });
 

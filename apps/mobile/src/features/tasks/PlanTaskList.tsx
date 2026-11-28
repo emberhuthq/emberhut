@@ -2,16 +2,23 @@ import { useNavigation } from "@react-navigation/native";
 import type { ReactNode } from "react";
 import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import type { EmberhutState, Issue, RunnerSession } from "@/api";
-import { allSessions, isRunning } from "@/features/sessions/sessionList";
+import { allSessions } from "@/features/sessions/sessionList";
 import { useTheme } from "@/theme";
 import { Chip, ListRow, SectionHeading, Text, type ChipTone } from "@/ui";
 import { tasklessSessions } from "./plan";
-import { planLists, quietMinutes } from "./planView";
+import { planGroups, planLists, quietMinutes, type PlanGroup } from "./planView";
 import { PlanTaskRow } from "./PlanTaskRow";
 import { SessionItemRow } from "./SessionItemRow";
 import { useMinute } from "./useMinute";
 
 type Entry = { kind: "task"; task: Issue } | { kind: "session"; session: RunnerSession };
+
+const titles: Record<PlanGroup["key"], string> = {
+  running: "Running",
+  blocked: "Blocked",
+  open: "Open",
+  sessions: "Sessions with no task",
+};
 
 interface Group {
   key: string;
@@ -53,27 +60,18 @@ export function PlanTaskList({
   const sessions = tasklessSessions(state, now);
   const every = allSessions(state);
   const projects = new Map((state.ui?.hideProjects ? [] : (state.projects ?? [])).map((p) => [p.id, p.name]));
-  const tasks = (list: Issue[]): Entry[] => list.map((task) => ({ kind: "task", task }));
-  const loose = (list: RunnerSession[]): Entry[] => list.map((session) => ({ kind: "session", session }));
   const groups: Group[] = found
     ? []
-    : [
-        {
-          key: "running",
-          title: "Running",
-          tone: "muted" as const,
-          data: [...tasks(lists.running), ...loose(sessions.filter((s) => isRunning(s.status)))],
-        },
-        { key: "blocked", title: "Blocked", tone: "danger" as const, data: tasks(lists.blocked) },
-        { key: "open", title: "Open", tone: "muted" as const, data: tasks(lists.open) },
-        {
-          key: "sessions",
-          title: "Sessions with no task",
-          tone: "muted" as const,
-          footer: "Every session, with filters: More › Sessions.",
-          data: loose(sessions.filter((s) => !isRunning(s.status))),
-        },
-      ].filter((g) => g.data.length > 0);
+    : planGroups(lists, sessions).map((g) => ({
+        key: g.key,
+        title: titles[g.key],
+        tone: g.key === "blocked" ? "danger" : "muted",
+        footer: g.key === "sessions" ? "Every session, with filters: More › Sessions." : undefined,
+        data: [
+          ...g.tasks.map((task): Entry => ({ kind: "task", task })),
+          ...g.sessions.map((session): Entry => ({ kind: "session", session })),
+        ],
+      }));
   const empty = !found && lists.running.length + lists.blocked.length + lists.open.length === 0;
   return (
     <SectionList<Entry, Group>

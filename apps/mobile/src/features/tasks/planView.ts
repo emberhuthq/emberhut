@@ -11,6 +11,7 @@ import {
   type TaskMoment,
   type RunInfo,
 } from "@/api";
+import { isRunning } from "@/features/sessions/sessionList";
 import { parseInstant } from "@/format/time";
 import { flatTasks } from "./model";
 import { activity, isRunningTask, stepState, type ActivityItem, type PlanRow } from "./plan";
@@ -43,6 +44,28 @@ export function planLists(state: EmberhutState | undefined, gone: ReadonlySet<nu
     blocked: others.filter((t) => !isRunningTask(t) && isBlocked(t)),
     open: others.filter((t) => !isRunningTask(t) && !isBlocked(t)),
   };
+}
+
+/** One group of the Tasks list with plans: its tasks, then the sessions with no task that belong in it. */
+export interface PlanGroup {
+  key: "running" | "blocked" | "open" | "sessions";
+  tasks: Issue[];
+  sessions: RunnerSession[];
+}
+
+/**
+ * The Tasks list's groups, in order: Running (the tasks a run is going on, then the running sessions with no task),
+ * Blocked, Open, and Sessions with no task (the rest of `loose`). A group with nothing in it is left out, so Sessions
+ * with no task shows only while a session has no task (every new one gets a task: it's there for older ones).
+ */
+export function planGroups(lists: PlanLists, loose: readonly RunnerSession[]): PlanGroup[] {
+  const groups: PlanGroup[] = [
+    { key: "running", tasks: lists.running, sessions: loose.filter((s) => isRunning(s.status)) },
+    { key: "blocked", tasks: lists.blocked, sessions: [] },
+    { key: "open", tasks: lists.open, sessions: [] },
+    { key: "sessions", tasks: [], sessions: loose.filter((s) => !isRunning(s.status)) },
+  ];
+  return groups.filter((g) => g.tasks.length + g.sessions.length > 0);
 }
 
 export type Segment = "done" | "doing" | "blocked" | "todo";
