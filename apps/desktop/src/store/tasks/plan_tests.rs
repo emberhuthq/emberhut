@@ -251,6 +251,12 @@ fn steps_read_short_and_aloud() {
     );
     blocked.started = Some(emberhut_api::time::Timestamp::new("2026-11-28T08:52:00Z"));
     assert_eq!(so_far(&blocked, now()).as_deref(), Some("8m so far"));
+    blocked.started = Some(emberhut_api::time::Timestamp::new("2026-11-28T08:53:57Z"));
+    assert_eq!(
+        so_far(&blocked, now()).as_deref(),
+        Some("6m so far"),
+        "no seconds"
+    );
     assert_eq!(step_key(TaskId::new(4), 2), "plan-4-2");
     assert_eq!(
         link_label("https://github.com/example/app/pull/16?x=1"),
