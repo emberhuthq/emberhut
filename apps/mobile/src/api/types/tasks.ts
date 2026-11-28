@@ -342,10 +342,13 @@ export interface Issue {
   plan?: PlanSummary | null;
 }
 
-/** GET /api/tasks/<id>: the task with everything its page shows; its `plan` is the whole plan, step by step. */
-export interface TaskPage extends Omit<Issue, "plan"> {
+/**
+ * GET /api/tasks/<id>: the task with everything its page shows. The task is flattened into the page, so its own `plan`
+ * stays the plan at a glance and the whole plan, step by step, is `fullPlan`.
+ */
+export interface TaskPage extends Issue {
   /** On a server that keeps plans. */
-  plan?: Plan | null;
+  fullPlan?: Plan | null;
 }
 
 /** GET /api/tasks. Statuses are the server's raw ones, comma separated. */

@@ -141,20 +141,12 @@ export function stepLink(link: string | null | undefined): { kind: "web" | "serv
 }
 
 /**
- * The page's whole plan. The page's `plan` is the whole plan; a summary alone in its place (the task's own field) still
- * reads, as a plan with no steps listed.
+ * The page's whole plan (`fullPlan`); with only the task's plan at a glance (`plan`), a plan with no steps listed. Null
+ * on a server that keeps no plans.
  */
 export function pagePlan(page: TaskPage | undefined): Plan | null {
-  const plan: unknown = page?.plan;
-  if (!plan || typeof plan !== "object") return null;
-  if (Array.isArray((plan as Plan).steps) && (plan as Plan).summary) return plan as Plan;
-  if (typeof (plan as PlanSummary).total === "number") return { steps: [], summary: plan as PlanSummary };
-  return null;
-}
-
-/** The page as a task, its plan at a glance in the task's own field. */
-export function pageTask(page: TaskPage): Issue {
-  return { ...page, plan: pagePlan(page)?.summary ?? null };
+  if (page?.fullPlan) return { steps: page.fullPlan.steps ?? [], summary: page.fullPlan.summary };
+  return page?.plan ? { steps: [], summary: page.plan } : null;
 }
 
 /** A run is going on it now, or is about to start. */
