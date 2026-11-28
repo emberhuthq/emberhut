@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { Issue, Plan, RunnerSession } from "@/api";
 import { isRunning, shortTitle } from "@/features/sessions/sessionList";
 import { parseInstant, relative } from "@/format/time";
+import { isMovable } from "@/features/sessions/moveToTask";
 import { useMoveToTask, useSessionMenu } from "@/features/sessions/SessionMenu";
 import { useTheme } from "@/theme";
 import { Icon, Text, type TextTone } from "@/ui";
@@ -75,7 +76,7 @@ export function PlanHeader({
       {summary.eta && summary.done < summary.total ? (
         <Fact label="ETA" value={[summary.eta, updated ? `updated ${relative(updated)}` : null].filter(Boolean).join(" · ")} />
       ) : null}
-      {session ? <SessionLine session={session} /> : null}
+      {session ? <SessionLine session={session} task={task.id} /> : null}
       {!empty && fraction !== null ? (
         <View style={{ gap: spacing.xs, paddingTop: spacing.xs }}>
           <View style={styles.line}>
@@ -91,32 +92,46 @@ export function PlanHeader({
   );
 }
 
-/** The session at work, one tap away: its title, when it last moved, Open session; a long press offers Move to task…. */
-function SessionLine({ session }: { session: RunnerSession }) {
+/**
+ * The session at work, one tap away: its title, when it last moved, Open session; beside it a visible Move… (a server
+ * that keeps plans, a session it can move), which a long press on the line offers too. The picker leaves out this
+ * page's task as well as the session's own.
+ */
+function SessionLine({ session, task }: { session: RunnerSession; task: number }) {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation();
-  const menu = useSessionMenu(session, useMoveToTask());
+  const move = useMoveToTask();
+  const moving = { ...session, tasks: session.tasks?.includes(task) ? session.tasks : [...(session.tasks ?? []), task] };
+  const menu = useSessionMenu(moving, move);
   const at = parseInstant(session.updatedAt);
+  const name = shortTitle(session.title);
   return (
-    <>
+    <View style={[styles.line, { gap: spacing.sm }]}>
       <Pressable
         {...menu.press}
-        onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
+        onPress={() => navigation.navigate("Session", { id: session.id, title: name })}
         accessibilityRole="button"
-        accessibilityLabel={`Open session ${shortTitle(session.title)}`}
+        accessibilityLabel={`Open session ${name}`}
         hitSlop={6}
-        style={[styles.line, { gap: spacing.xs }]}
+        style={[styles.line, styles.shrink, { gap: spacing.xs }]}
       >
         <Icon name="terminal-outline" size={14} color={colors.textTertiary} />
         <Text variant="footnote" tone="secondary" numberOfLines={1} style={styles.shrink}>
-          {[shortTitle(session.title), at ? `updated ${relative(at)}` : null].filter(Boolean).join(" · ")}
+          {[name, at ? `updated ${relative(at)}` : null].filter(Boolean).join(" · ")}
         </Text>
         <Text variant="footnote" tone="accent" weight="600">
           {" · Open session ›"}
         </Text>
       </Pressable>
+      {move && isMovable(session.id) ? (
+        <Pressable onPress={() => move(moving)} accessibilityRole="button" accessibilityLabel={`Move ${name} to another task`} hitSlop={6}>
+          <Text variant="footnote" tone="accent" weight="600">
+            Move…
+          </Text>
+        </Pressable>
+      ) : null}
       {menu.sheet}
-    </>
+    </View>
   );
 }
 
