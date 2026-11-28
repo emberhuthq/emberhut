@@ -1,5 +1,6 @@
 //! The tasks' routes: any task by key or words (`GET /api/tasks`), one with its page
-//! (`GET /api/tasks/{id}`), the person's reply on it (`POST /api/tasks/{id}/message`), a job a
+//! (`GET /api/tasks/{id}`), the person's rename of it (`PATCH /api/tasks/{id}`), their reply on
+//! it (`POST /api/tasks/{id}/message`), a job a
 //! program on this machine hands the assistant (`POST /api/tasks`), what a task produced
 //! (`GET /api/artifacts/{id}`, `/thumb`) and the Scheduled page (`GET /api/scheduled`).
 
@@ -12,8 +13,9 @@ use emberhut_api::error::ErrorBody;
 use emberhut_api::scheduled::ScheduledPage;
 use emberhut_api::task_message::{TaskMessageReply, TaskMessageRequest};
 use emberhut_api::task_page::TaskPage;
+use emberhut_api::task_rename::RenameTask;
 use emberhut_api::task_search::FoundTasks;
-use emberhut_api::tasks::{NewTaskReply, NewTaskRequest};
+use emberhut_api::tasks::{Issue, NewTaskReply, NewTaskRequest};
 use emberhut_core::task::{ArtifactId, TaskId};
 use serde_json::Value;
 
@@ -145,6 +147,58 @@ pub(super) async fn detail(
     };
     match app.tasks().detail(id).await {
         Ok(Some(detail)) => Json(detail).into_response(),
+        Ok(None) => refusal(StatusCode::NOT_FOUND, "no such task"),
+        Err(error) => answer(error),
+    }
+}
+
+/// The person renames a task: its history says `Renamed: <old> → <new>`.
+#[utoipa::path(
+    patch,
+    path = "/api/tasks/{id}",
+    tag = "tasks",
+    security(("bearer" = [])),
+    params(("id" = i64, Path, description = "The task's number")),
+    request_body = RenameTask,
+    responses(
+        (status = 200, description = "The task, renamed", body = Issue),
+        (status = 400, description = "No title, a blank one, or one over 200 characters", body = ErrorBody),
+        (
+            status = 401,
+            description = "No signed-in device: a rename acts on the task, so it needs one in \
+                either mode",
+            body = ErrorBody
+        ),
+        (status = 404, description = "No such task", body = ErrorBody),
+    )
+)]
+pub(super) async fn rename(
+    State(app): State<AppState>,
+    device: Result<SignedIn, ApiError>,
+    path: Result<Path<String>, PathRejection>,
+    body: Result<JsonBody, crate::extract::Invalid>,
+) -> Response {
+    // A rename acts on the owner's task: report mode's pass without a session reads, never acts.
+    if let Err(error) = device {
+        return match error {
+            ApiError::DeviceRequired => ApiError::SignInRequired,
+            other => other,
+        }
+        .into_response();
+    }
+    let Some(id) = task_id(path) else {
+        return refusal(StatusCode::NOT_FOUND, "no such task");
+    };
+    let Some(title) = body.ok().and_then(|JsonBody(value)| {
+        value
+            .get("title")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    }) else {
+        return refusal(StatusCode::BAD_REQUEST, "say the new title: { title }");
+    };
+    match app.tasks().rename(id, &title).await {
+        Ok(Some(task)) => Json(task).into_response(),
         Ok(None) => refusal(StatusCode::NOT_FOUND, "no such task"),
         Err(error) => answer(error),
     }

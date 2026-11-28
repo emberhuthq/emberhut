@@ -237,6 +237,51 @@ impl TaskService {
         Ok(())
     }
 
+    /// The person renames the task `id` to `title` (trimmed; 1 to
+    /// [`api::task_rename::TITLE_MAX`] characters), through the same change as the assistant's
+    /// `task_update`; its history says `Renamed: <old> → <new>` (nothing when it is the same).
+    /// The task as the lists show it.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskError::Refused`] for a blank or too long title; [`TaskError::Db`]. `None` for no
+    /// such task.
+    pub async fn rename(
+        &self,
+        id: TaskId,
+        title: &str,
+    ) -> Result<Option<api::tasks::Issue>, TaskError> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(TaskError::refused("a task's title can't be blank"));
+        }
+        if title.chars().count() > api::task_rename::TITLE_MAX {
+            return Err(TaskError::refused(format!(
+                "a task's title is at most {} characters",
+                api::task_rename::TITLE_MAX
+            )));
+        }
+        let Some(task) = self.tasks.get(id).await? else {
+            return Ok(None);
+        };
+        if task.title != title {
+            self.update(
+                id,
+                TaskChange {
+                    title: Some(title.to_owned()),
+                    ..TaskChange::default()
+                },
+                Who::Person,
+                None,
+            )
+            .await?;
+            let line = format!("Renamed: {} → {title}", task.title);
+            let line = emberhut_core::guard::key_mask::mask(&line, &[], None);
+            self.tasks.note(id, Who::Person, &line, self.now()).await?;
+        }
+        self.issue(id).await
+    }
+
     /// The person's quick add: a task of their own, with its goal and project.
     ///
     /// # Errors

@@ -2119,6 +2119,82 @@
             "bearer": []
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "The person renames a task: its history says `Renamed: <old> → <new>`.",
+        "operationId": "rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The task's number",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameTask"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The task, renamed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Issue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No title, a blank one, or one over 200 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device: a rename acts on the task, so it needs one in either mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/tasks/{id}/message": {
@@ -18078,6 +18154,19 @@
       "RefreshToken": {
         "type": "string",
         "description": "The token that renews the access token. It turns over on every use."
+      },
+      "RenameTask": {
+        "type": "object",
+        "description": "`PATCH /api/tasks/{id}`'s body.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The new title: 1 to [`TITLE_MAX`] characters, trimmed by the server."
+          }
+        }
       },
       "ReportDone": {
         "type": "object",

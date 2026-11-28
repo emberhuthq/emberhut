@@ -165,7 +165,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(mac::lock))
         .routes(routes!(backup::backup))
         .routes(routes!(tasks::list, tasks::create))
-        .routes(routes!(tasks::detail))
+        .routes(routes!(tasks::detail, tasks::rename))
         .routes(routes!(tasks::message))
         .routes(routes!(tasks::artifact))
         .routes(routes!(tasks::thumb))
