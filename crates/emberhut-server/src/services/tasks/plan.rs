@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 
 use emberhut_api as api;
 use emberhut_core::guard::key_mask;
+use emberhut_core::runner::PLAN_ASK_START;
 use emberhut_core::task::plan::{self, Edit, NewStep, Step};
 use emberhut_core::task::{TaskId, TaskRefusal, Who};
 use emberhut_db::StoredPlan;
@@ -32,12 +33,13 @@ you start it and done the moment it's finished, blocked with a note when you're 
 it true as the work changes. The owner follows the task by it, live: it replaces HTML progress \
 pages and progress notes.";
 
-/// What a runner session started for the task `key` is asked about its plan, after its brief,
-/// on a server that keeps plans. Its status line stays as the runner asks for it.
+/// What a runner session started for the task `key` is asked about its plan, after its brief
+/// and a blank line, on a server that keeps plans (it starts with [`PLAN_ASK_START`], where the
+/// ask kept of the turn stops). Its status line stays as the runner asks for it.
 #[must_use]
 pub fn session_rule(key: &str) -> String {
     format!(
-        "This work is task {key}. Keep its plan with the emberhut tools plan_set and plan_step \
+        "{PLAN_ASK_START}{key}. Keep its plan with the emberhut tools plan_set and plan_step \
          (they act on {key} by default): your first act is plan_set with the whole plan; mark \
          each step doing when you start it and done the moment it's finished, blocked with a \
          note when you're stuck, and keep it true as the work changes. The plan replaces any \
