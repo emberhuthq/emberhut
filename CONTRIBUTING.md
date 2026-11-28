@@ -113,3 +113,20 @@ app's `src/api/wire.ts`), each with a doc comment saying what it names.
 CI enforces part of this on the files of each commit: `.gitleaks-public.toml` has rules for
 home-directory paths and for phrases that say who asked for or decided something. Test data is
 allowed by the rules' allow lists. The rest is for the author and the reviewer.
+
+### Pull request texts and commit messages
+
+A pull request's title and body are short and public-facing: what changes for a user or a
+developer, why, and how to test it, in five to ten lines. The template
+(`.github/pull_request_template.md`) has that shape. Commit messages follow the same rule.
+
+- No details of private builds or forks of Emberhut: how one talks to its own server, its own
+  settings or names, or a move to or from another server.
+- No security internals beyond what a reviewer of the change needs. How tokens, codes or keys
+  are made, kept or checked, and how release credentials are laid out, belong in `SECURITY.md`
+  or the docs, where they are reviewed with the code.
+- No machine, account, task or session ids, and no figures from someone's own setup (their
+  device names, counts or timings).
+
+A required check reads every pull request's title, body and commit messages for ids and for
+words that belong only to private builds, and fails the pull request when it finds one.
