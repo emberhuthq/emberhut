@@ -97,6 +97,8 @@ pub(crate) use self::reports::ReportPage;
 pub(crate) use self::room_line::RoomLine;
 pub(crate) use self::talk::PendingMessage;
 pub(crate) use self::theme::ThemeState;
+#[cfg(test)]
+pub(crate) use self::view_file::SIDEBAR_WIDTHS;
 pub(crate) use self::view_file::{AgentsPlace, ViewFile};
 
 use self::answers::Answers;
