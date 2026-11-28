@@ -18,6 +18,7 @@ import { PlanTaskRow } from "./PlanTaskRow";
 import { SessionItemRow } from "./SessionItemRow";
 import { HealthChip, PriorityMark } from "./ProjectMarks";
 import { TaskRow } from "./TaskRow";
+import { useMinute } from "./useMinute";
 import { useTaskPlans } from "./useTaskPlans";
 
 /**
@@ -87,13 +88,18 @@ export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
  * other sessions with no task, so nothing that ran leaves the list.
  */
 function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; gone: ReadonlySet<number> }) {
-  const navigation = useNavigation();
   if (!plans) return state.ui?.hideProjects ? <FlatList state={state} gone={gone} /> : <ByProject state={state} gone={gone} />;
+  return <PlanLists state={state} gone={gone} />;
+}
+
+function PlanLists({ state, gone }: { state: EmberhutState; gone: ReadonlySet<number> }) {
+  const navigation = useNavigation();
+  // Moved on each minute: an unchanged state draws nothing again, and a quiet task is one whose state doesn't change.
+  const now = useMinute();
   const lists = planLists(state, gone);
-  const sessions = tasklessSessions(state);
+  const sessions = tasklessSessions(state, now);
   const running = sessions.filter((s) => isRunning(s.status));
   const every = allSessions(state);
-  const now = new Date();
   const name = (pid: number | null | undefined) => (state.ui?.hideProjects ? null : state.projects?.find((p) => p.id === pid)?.name);
   const row = (t: Issue) => <PlanTaskRow key={`t${t.id}`} task={t} project={name(t.pid)} quiet={quietMinutes(t, every, now)} />;
   return (

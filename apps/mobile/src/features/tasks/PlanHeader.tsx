@@ -8,29 +8,32 @@ import { useTheme } from "@/theme";
 import { Icon, Text, type TextTone } from "@/ui";
 import { statusName } from "./model";
 import { isEmptyPlan, planFraction } from "./plan";
-import { countLine, currentPath, isBlocked, nextSteps, planSegments, quietText } from "./planView";
+import { countLine, currentPath, isBlocked, nextSteps, planSegments, quietMinutes, quietText } from "./planView";
 import { SegmentBar, TaskLead } from "./PlanMarks";
+import { useMinute } from "./useMinute";
 
 /**
  * The first screen of a task's page while the server keeps plans, so it answers at a glance what's done, what's
  * happening now, what's next and what needs you: its state (and how long it has been quiet), Now, what needs you or what
  * blocks it (a tap goes down to the ask), Next, the estimate, its session one tap away, then the count and the bar.
+ * `watched`: every session that may be its own, for how long it has been quiet.
  */
 export function PlanHeader({
   task,
   plan,
   sessions,
-  quiet,
+  watched,
   onAsk,
 }: {
   task: Issue;
   plan: Plan;
   sessions: RunnerSession[];
-  quiet: number | null;
+  watched: readonly RunnerSession[];
   onAsk?: () => void;
 }) {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation();
+  const quiet = quietMinutes(task, watched, useMinute());
   const summary = plan.summary;
   const empty = isEmptyPlan(summary);
   const now = empty ? null : currentPath(plan);

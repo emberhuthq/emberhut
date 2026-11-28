@@ -14,7 +14,7 @@ import { copyDraftFor } from "./copyDraft";
 import { pagePlan, pageStamp, stepLink } from "./plan";
 import { PlanChecklist } from "./PlanChecklist";
 import { PlanHeader } from "./PlanHeader";
-import { quietMinutes, stepResults } from "./planView";
+import { stepResults } from "./planView";
 import { DecisionBlock, DecisionContext } from "./Decision";
 import { standing, timeline } from "./taskPage";
 import { leaveSoon, TaskActionsBar } from "./TaskActionsBar";
@@ -109,13 +109,7 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
             {task.title}
           </Text>
           {shown ? (
-            <PlanHeader
-              task={task}
-              plan={shown}
-              sessions={sessions}
-              quiet={quietMinutes(task, [...sessions, ...allSessions(state.data)])}
-              onAsk={toAsk}
-            />
+            <PlanHeader task={task} plan={shown} sessions={sessions} watched={[...sessions, ...allSessions(state.data)]} onAsk={toAsk} />
           ) : (
             <LiveCard task={task} runs={runs} />
           )}
