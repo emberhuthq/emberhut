@@ -149,7 +149,8 @@ impl AccountPool {
 }
 
 /// Whether a turn's answer says its account ran out (`You've hit your limit · resets 5pm`,
-/// `usage limit reached`), the wordings the CLI uses. Only an error result is read this way:
+/// `usage limit reached`, `You've hit your org's monthly spend limit`), the wordings the CLI
+/// uses. Only an error result is read this way:
 /// the assistant talks about limits itself.
 #[must_use]
 pub fn says_out_of_usage(text: &str) -> bool {
@@ -192,19 +193,20 @@ fn asks_for_login(text: &str) -> bool {
     })
 }
 
-/// `hit your limit`, or `hit your <word> limit`.
+/// The most words read between `hit your` and `limit` (`org's monthly spend`).
+const LIMIT_WORDS: usize = 3;
+
+/// `hit your limit`, or `hit your <words> limit` with up to [`LIMIT_WORDS`] words between
+/// (`hit your weekly limit`, `hit your org's monthly spend limit`).
 fn hit_your_limit(text: &str) -> bool {
     text.match_indices("hit your ").any(|(at, found)| {
-        let rest = &text[at + found.len()..];
-        if rest.starts_with("limit") {
-            return true;
-        }
-        let word: usize = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .map(char::len_utf8)
-            .sum();
-        word > 0 && rest[word..].starts_with(" limit")
+        text[at + found.len()..]
+            .split_whitespace()
+            .take(LIMIT_WORDS + 1)
+            .any(|word| {
+                word.trim_end_matches(|c: char| !c.is_alphanumeric())
+                    .eq("limit")
+            })
     })
 }
 
@@ -283,6 +285,8 @@ mod tests {
         for text in [
             "You've hit your limit · resets 5pm",
             "You've hit your weekly limit",
+            "You've hit your org's monthly spend limit",
+            "API Error: You've hit your org's monthly spend limit. Ask an admin to raise it.",
             "Claude usage limit reached. Your limit will reset at 5pm",
             "You're out of extra usage",
             "API Error: Rate limited, please try again later",
@@ -294,6 +298,7 @@ mod tests {
             "I'll keep an eye on the limit",
             "The rate limiter is configured",
             "hit your target",
+            "hit your target well within the limit",
             "",
         ] {
             assert!(!says_out_of_usage(text), "{text}");
