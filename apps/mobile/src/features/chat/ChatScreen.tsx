@@ -22,6 +22,7 @@ import { useTheme } from "@/theme";
 import { ErrorState, Icon, Loading, Screen, Text, useBarInsets, useSeeThrough } from "@/ui";
 import { FallbackBanner, HandoffBanner, OfflineBanner, PausedBanner } from "./Banners";
 import { ChatTitle } from "./ChatTitle";
+import { headerItems } from "@/navigation/headerButtons";
 import { Composer } from "./Composer";
 import { MessageList } from "./MessageList";
 import { quoteOf } from "./rows";
@@ -250,12 +251,45 @@ function useChatHeader(
       // where the title's own centred row (ChatTitle) left a short room name floating part way across the bar.
       headerTitleAlign: "center",
       headerTitle: () => <ChatTitle name={name} status={status} agent={agent} onPress={() => navigation.navigate("Rooms")} />,
-      headerRight: () => (
-        <View style={styles.actions}>
-          {approvals}
-          {sessions}
-        </View>
-      ),
+      // iOS 26 on: UIKit's own bar button items, centred on the bar and sized like its other controls, with UIKit's badge
+      // (headerButtons.ts). Before iOS 26 there is no glass around a custom view and no bar item badge: the view as it was.
+      ...(nativeBarItems
+        ? {
+            unstable_headerRightItems: () =>
+              headerItems(
+                [
+                  ...(agent
+                    ? [
+                        {
+                          id: "approvals",
+                          symbol: "checkmark.shield" as const,
+                          label: `${visible(agent.name)}'s approvals, ${waitingWords(waiting)}`,
+                          onPress: () => navigation.navigate("Approvals", { agent: agent.id }),
+                          count: waiting,
+                          badge: { color: colors.onAccent, background: colors.needsYou },
+                        },
+                      ]
+                    : []),
+                  {
+                    id: "sessions",
+                    symbol: "terminal" as const,
+                    label: `Sessions, ${running} running`,
+                    onPress: () => navigation.navigate("Sessions"),
+                    count: running,
+                    badge: { color: colors.background, background: colors.done },
+                  },
+                ],
+                colors.text,
+              ),
+          }
+        : {
+            headerRight: () => (
+              <View style={styles.actions}>
+                {approvals}
+                {sessions}
+              </View>
+            ),
+          }),
     });
   }, [navigation, name, status, running, colors, spacing, agent, waiting, plans]);
 }
@@ -270,6 +304,8 @@ function runningNow(data: EmberhutState | undefined): number {
 }
 
 const ios = Platform.OS === "ios";
+/** UIBarButtonItem badges, and the glass a custom header view gets wrapped in, are iOS 26's. */
+const nativeBarItems = ios && Number.parseInt(String(Platform.Version), 10) >= 26;
 
 const styles = StyleSheet.create({
   dock: { position: "absolute", left: 0, right: 0 },
