@@ -7,7 +7,7 @@ import { parseInstant, relative } from "@/format/time";
 import { useTheme } from "@/theme";
 import { Icon, Text, type TextTone } from "@/ui";
 import { statusName } from "./model";
-import { isEmptyPlan, planFraction } from "./plan";
+import { isPlanless, planFraction } from "./plan";
 import { countLine, currentPath, isBlocked, nextSteps, planSegments, quietMinutes, quietText } from "./planView";
 import { SegmentBar, TaskLead } from "./PlanMarks";
 import { useMinute } from "./useMinute";
@@ -35,7 +35,7 @@ export function PlanHeader({
   const navigation = useNavigation();
   const quiet = quietMinutes(task, watched, useMinute());
   const summary = plan.summary;
-  const empty = isEmptyPlan(summary);
+  const empty = isPlanless(plan);
   const now = empty ? null : currentPath(plan);
   const next = nextSteps(plan, 1)[0]?.title ?? null;
   const asked = task.status === "waiting" ? (task.action ?? task.decision?.question ?? null) : null;
