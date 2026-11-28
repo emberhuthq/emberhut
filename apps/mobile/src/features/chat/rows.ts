@@ -57,6 +57,11 @@ export function eventSummary(lines: readonly EventLine[]): string {
     .join(" · ");
 }
 
+/** A run of events' quiet line: `Juniper noticed · 1 check-in · 2 notes`, said by who noticed them. */
+export function noticedLine(noticer: string, summary: string): string {
+  return `${noticer} noticed · ${summary}`;
+}
+
 /** A message as a reply quotes it: who, when, a short preview, its first picture or video. */
 export function quoteOf(m: ChatMsg): ChatQuote {
   return { id: m.id, mine: m.mine, at: m.at ?? null, text: m.text.slice(0, 160), file: m.files?.find((f) => f.kind !== "file") ?? null };

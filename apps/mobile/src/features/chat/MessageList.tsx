@@ -29,6 +29,8 @@ type Item = Row | { kind: "pending"; key: "pending" } | { kind: "working"; key: 
 export interface MessageListProps {
   /** The room on screen: another one opens at its newest message. */
   room: number;
+  /** Who noticed the room's events, as its quiet lines say it: the ember by its name, or the room's agent. */
+  noticer: string;
   /** The room's messages, oldest first; undefined while a room never held is on its way. */
   chat: readonly ChatMsg[] | undefined;
   pending: Pending | undefined;
@@ -60,7 +62,8 @@ export interface MessageListProps {
  * Emberhut said something since) takes you back down.
  */
 export function MessageList(props: MessageListProps) {
-  const { room, chat, pending, delivered, working, doing, hasEarlier, onLoadEarlier, onLink, taskStatus, keyboardOffset, insets } = props;
+  const { room, noticer, chat, pending, delivered, working, doing, hasEarlier, onLoadEarlier, onLink, taskStatus, keyboardOffset, insets } =
+    props;
   const { colors, spacing } = useTheme();
   const list = useRef<FlatList<Item>>(null);
   const [away, setAway] = useState(false);
@@ -193,7 +196,7 @@ export function MessageList(props: MessageListProps) {
         return (
           <View>
             {item.stamp && <Stamp date={item.stamp} />}
-            <EventBatch text={item.text} />
+            <EventBatch text={item.text} noticer={noticer} />
           </View>
         );
       case "message": {

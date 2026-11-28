@@ -7,7 +7,7 @@ import type { AgentRow, ChatFile, ChatMsg, ChatQuote, EmberhutState } from "@/ap
 import { agentsByRoom, agentWaitingOnYou, visible, waitingWords } from "@/features/approvals/model";
 import { handoffLine } from "@/features/browser/browser";
 import { useBrowserDevice } from "@/features/browser/browserDevice";
-import { chatTitle, customEmberName } from "@/features/ember/name";
+import { chatTitle, composerPrompt, customEmberName, emberCalled, emberName } from "@/features/ember/name";
 import { mainRoom } from "@/config";
 import { inBackground } from "@/log";
 import { useOpenLink } from "@/navigation/links";
@@ -58,6 +58,9 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
   const current = data?.rooms?.find((r) => r.id === room);
   const agent = useMemo(() => agentsByRoom(data?.agents).get(room), [data?.agents, room]);
   const name = chatTitle({ main: room === mainRoom, name: current?.name }, agent ? visible(agent.name) : undefined, customEmberName(data));
+  // Who notices the room's events and whom the message box writes to: the room's agent, else the ember by its name.
+  const noticer = agent ? visible(agent.name) : emberName(data);
+  const prompt = composerPrompt(agent ? visible(agent.name) : undefined, current?.project ? current.name : undefined, emberCalled(data));
   const status = useMemo(() => emberhutStatus(data, working, offline !== null), [data, working, offline]);
   useChatHeader(navigation, name, status, data, agent);
 
@@ -131,6 +134,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
     <Screen padded={false} underBars>
       <MessageList
         room={room}
+        noticer={noticer}
         chat={chat}
         pending={pending}
         delivered={sent}
@@ -172,13 +176,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
         <Composer
           text={text}
           setText={setText}
-          placeholder={
-            agent
-              ? `Message ${visible(agent.name)}`
-              : current && current.project
-                ? `Message Emberhut in ${current.name}`
-                : "Message Emberhut"
-          }
+          placeholder={prompt}
           replying={replying}
           onUnquote={() => setQuoted(null)}
           dictation={data?.voice === true}
