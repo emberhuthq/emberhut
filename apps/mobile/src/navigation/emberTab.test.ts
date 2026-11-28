@@ -16,6 +16,10 @@ describe("your ember's tab", () => {
     expect(emberTabOptions(false, faces).tabBarIcon()).toBe("ember off duty");
   });
 
+  it("is titled with the name you gave it", () => {
+    expect(emberTabOptions(true, faces, "Juniper").title).toBe("Juniper");
+  });
+
   it("shows the ember plain until the state says", () => {
     expect(emberTabOptions(undefined, faces).tabBarIcon()).toBe("ember");
   });

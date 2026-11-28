@@ -7,6 +7,8 @@ import type { AgentRow, ChatFile, ChatMsg, ChatQuote, EmberhutState } from "@/ap
 import { agentsByRoom, agentWaitingOnYou, visible, waitingWords } from "@/features/approvals/model";
 import { handoffLine } from "@/features/browser/browser";
 import { useBrowserDevice } from "@/features/browser/browserDevice";
+import { chatTitle, customEmberName } from "@/features/ember/name";
+import { mainRoom } from "@/config";
 import { inBackground } from "@/log";
 import { useOpenLink } from "@/navigation/links";
 import { useTaskPlans } from "@/features/tasks/useTaskPlans";
@@ -55,7 +57,7 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
 
   const current = data?.rooms?.find((r) => r.id === room);
   const agent = useMemo(() => agentsByRoom(data?.agents).get(room), [data?.agents, room]);
-  const name = agent ? visible(agent.name) : (current?.name ?? "Emberhut");
+  const name = chatTitle({ main: room === mainRoom, name: current?.name }, agent ? visible(agent.name) : undefined, customEmberName(data));
   const status = useMemo(() => emberhutStatus(data, working, offline !== null), [data, working, offline]);
   useChatHeader(navigation, name, status, data, agent);
 

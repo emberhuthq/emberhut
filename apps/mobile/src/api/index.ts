@@ -5,6 +5,7 @@ import { authEndpoints } from "./endpoints/auth";
 import { browserEndpoints } from "./endpoints/browser";
 import { chatEndpoints } from "./endpoints/chat";
 import { deviceEndpoints } from "./endpoints/devices";
+import { emberEndpoints } from "./endpoints/ember";
 import { fileEndpoints } from "./endpoints/files";
 import { machineEndpoints } from "./endpoints/machines";
 import { partyEndpoints } from "./endpoints/parties";
@@ -31,6 +32,7 @@ export function createApi(http: EmberhutHttp) {
     machines: machineEndpoints(http),
     parties: partyEndpoints(http),
     theme: themeEndpoints(http),
+    ember: emberEndpoints(http),
     agents: agentEndpoints(http),
     agentProvider: agentProviderEndpoints(http),
     approvals: approvalEndpoints(http),
