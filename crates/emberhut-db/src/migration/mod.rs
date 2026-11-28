@@ -32,6 +32,7 @@ mod m20261127_000001_agents_and_approvals;
 mod m20261127_000002_agent_worker_shell;
 mod m20261127_000003_correction_lesson_to_owner;
 mod m20261128_000001_task_plans;
+mod m20261128_000002_paired_runners;
 mod m20261128_000002_session_tasks;
 
 /// Every migration of the server's database.
@@ -66,6 +67,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261127_000003_correction_lesson_to_owner::Migration),
             Box::new(m20261128_000001_task_plans::Migration),
             Box::new(m20261128_000002_session_tasks::Migration),
+            Box::new(m20261128_000002_paired_runners::Migration),
         ]
     }
 }
@@ -159,6 +161,78 @@ mod tests {
             seen_through,
             Some(2),
             "the newest message at or before 25 ms"
+        );
+    }
+
+    /// Every migration before the paired runners', as a database made before them.
+    struct BeforePairedRunners;
+
+    #[async_trait]
+    impl MigratorTrait for BeforePairedRunners {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            Migrator::migrations()
+                .into_iter()
+                .take_while(|migration| migration.name() != "m20261128_000002_paired_runners")
+                .collect()
+        }
+    }
+
+    #[derive(DeriveIden)]
+    enum PairingCodes {
+        Table,
+        CodeHash,
+        CreatedAt,
+        ExpiresAt,
+    }
+
+    #[tokio::test]
+    async fn the_upgrade_adds_the_paired_runners_and_keeps_the_device_codes() {
+        use sea_orm::{EntityTrait as _, PaginatorTrait as _};
+
+        let conn = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        BeforePairedRunners::up(&conn, None).await.unwrap();
+        assert_eq!(
+            Migrator::get_pending_migrations(&conn).await.unwrap().len(),
+            1
+        );
+        SchemaManager::new(&conn)
+            .exec_stmt(
+                Query::insert()
+                    .into_table(PairingCodes::Table)
+                    .columns([
+                        PairingCodes::CodeHash,
+                        PairingCodes::CreatedAt,
+                        PairingCodes::ExpiresAt,
+                    ])
+                    .values([vec![7_u8; 32].into(), 10_i64.into(), 20_i64.into()])
+                    .unwrap()
+                    .to_owned(),
+            )
+            .await
+            .unwrap();
+
+        Migrator::up(&conn, None).await.unwrap();
+        assert_eq!(
+            crate::entity::pairing_code::Entity::find()
+                .count(&conn)
+                .await
+                .unwrap(),
+            1,
+            "a device's code stays"
+        );
+        assert_eq!(
+            crate::entity::paired_runner::Entity::find()
+                .count(&conn)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            crate::entity::runner_code::Entity::find()
+                .count(&conn)
+                .await
+                .unwrap(),
+            0
         );
     }
 

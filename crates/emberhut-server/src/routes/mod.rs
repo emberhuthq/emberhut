@@ -46,6 +46,7 @@ mod memory;
 mod parties;
 mod push;
 mod runner;
+mod runner_pairing;
 mod secret_links;
 mod settings;
 mod settings_pages;
@@ -184,6 +185,10 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(runner::events))
         .routes(routes!(runner::machine))
         .routes(routes!(runner::mcp))
+        .routes(routes!(runner_pairing::new_code))
+        .routes(routes!(runner_pairing::pair))
+        .routes(routes!(runner_pairing::list))
+        .routes(routes!(runner_pairing::forget))
         .routes(routes!(runner::machines))
         .routes(routes!(runner::sessions, runner::start))
         .routes(routes!(runner::folders))

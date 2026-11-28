@@ -50,6 +50,8 @@ mod requests;
 #[cfg(test)]
 mod runner;
 #[cfg(test)]
+mod runner_pairing;
+#[cfg(test)]
 mod settings;
 #[cfg(test)]
 mod setup;

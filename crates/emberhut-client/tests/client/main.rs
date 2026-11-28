@@ -27,6 +27,7 @@ mod releases;
 mod renewal;
 #[cfg(test)]
 mod runner;
+mod runners;
 #[cfg(test)]
 mod settings;
 #[cfg(test)]

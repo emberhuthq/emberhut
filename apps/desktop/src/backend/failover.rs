@@ -687,6 +687,14 @@ impl Backend for Failover {
         self.active().join_waitlist(list)
     }
 
+    fn runner_pair_code(&self) -> Result<emberhut_api::runner::pairing::RunnerCode, Error> {
+        self.active().runner_pair_code()
+    }
+
+    fn runners(&self) -> Result<emberhut_api::runner::pairing::RunnersPage, Error> {
+        self.active().runners()
+    }
+
     fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
         self.active().agent_accounts()
     }

@@ -1,0 +1,14 @@
+{
+  "runners": [
+    { "name": "runner", "place": "Linux PC", "url": "http://192.0.2.10:8800", "source": "flag" },
+    {
+      "name": "build",
+      "place": "Build box",
+      "url": "https://build.example.com:8800",
+      "source": "paired",
+      "platform": "linux",
+      "version": "1.4.0",
+      "created": "2026-11-28T10:01:00.000Z"
+    }
+  ]
+}

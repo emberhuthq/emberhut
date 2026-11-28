@@ -8,6 +8,7 @@ use emberhut_api::health::{Health, LoopReport};
 use emberhut_api::live::LiveEvent;
 use emberhut_api::machines::MachinesPage;
 use emberhut_api::releases::ReleaseFeed;
+use emberhut_api::runner::pairing::{NewRunnerCode, PairRunner, RunnerCode, RunnersPage};
 use emberhut_api::settings::SettingsRequest;
 use emberhut_api::state::State;
 use emberhut_api::switches::{SwitchAction, SwitchPage};
@@ -45,6 +46,10 @@ fn document() -> Value {
     components = with::<ChromeAction>(components);
     components = with::<ChromeReply>(components);
     components = with::<ReleaseFeed>(components);
+    components = with::<NewRunnerCode>(components);
+    components = with::<PairRunner>(components);
+    components = with::<RunnerCode>(components);
+    components = with::<RunnersPage>(components);
     let json = OpenApiBuilder::new()
         .components(Some(components.build()))
         .build()
@@ -78,6 +83,9 @@ fn schemas_use_the_wire_names() {
     assert!(properties(&document, "SettingsRequest").contains_key("trialKeep"));
     assert!(properties(&document, "Trial").contains_key("lesson"));
     assert!(properties(&document, "ChromeProfile").contains_key("oldCopy"));
+    assert!(properties(&document, "RunnerCode").contains_key("expiresAt"));
+    assert!(properties(&document, "RunnerInstall").contains_key("powershell"));
+    assert!(properties(&document, "RunnerRow").contains_key("source"));
     assert!(properties(&document, "Fact").contains_key("nowAt"));
     assert!(properties(&document, "Release").contains_key("minimumOs"));
 }

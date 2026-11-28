@@ -6,6 +6,7 @@ use emberhut_api::chat::HistoryQuery;
 use emberhut_api::chrome::ChromeAction;
 use emberhut_api::ids::{MessageId, RoomId, TaskId};
 use emberhut_api::live::RoomQuery;
+use emberhut_api::runner::pairing::{NewRunnerCode, PairRunner};
 use emberhut_api::seen::SeenRequest;
 use emberhut_api::settings::SettingsRequest;
 use emberhut_api::switches::SwitchAction;
@@ -102,6 +103,52 @@ fn pairing_needs_a_code_and_short_names() {
     let mut body = crate::support::fixture("pair_request.json");
     body["name"] = json!("😀".repeat(30));
     from_value::<PairRequest>(body).validate().unwrap();
+}
+
+#[test]
+fn a_runner_pairs_with_a_code_a_name_and_an_address() {
+    read::<PairRunner>("runner_pair_request.json")
+        .validate()
+        .unwrap();
+    fails::<PairRunner>("runner_pair_request.json", "code", &json!(" "));
+    fails::<PairRunner>("runner_pair_request.json", "code", &json!("A".repeat(33)));
+    fails::<PairRunner>("runner_pair_request.json", "name", &json!("build box"));
+    fails::<PairRunner>("runner_pair_request.json", "name", &json!("codes"));
+    fails::<PairRunner>(
+        "runner_pair_request.json",
+        "url",
+        &json!("build.example.com"),
+    );
+    fails::<PairRunner>("runner_pair_request.json", "place", &json!("p".repeat(61)));
+    fails::<PairRunner>("runner_pair_request.json", "place", &json!("Build\nbox"));
+    fails::<PairRunner>(
+        "runner_pair_request.json",
+        "platform",
+        &json!("p".repeat(41)),
+    );
+    fails::<PairRunner>("runner_pair_request.json", "platform", &json!(" "));
+    fails::<PairRunner>(
+        "runner_pair_request.json",
+        "version",
+        &json!("v".repeat(41)),
+    );
+    fails::<PairRunner>("runner_pair_request.json", "version", &json!("1.4\n"));
+    from_value::<NewRunnerCode>(json!({})).validate().unwrap();
+    from_value::<NewRunnerCode>(json!({ "server": "http://192.0.2.10:18990" }))
+        .validate()
+        .unwrap();
+    for bad in [
+        "emberhut.example.com",
+        "https://emberhut.example.com/?a=1",
+        "https://",
+    ] {
+        assert!(
+            from_value::<NewRunnerCode>(json!({ "server": bad }))
+                .validate()
+                .is_err(),
+            "{bad}"
+        );
+    }
 }
 
 #[test]

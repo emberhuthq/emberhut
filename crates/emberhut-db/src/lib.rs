@@ -48,6 +48,7 @@ mod messages;
 pub mod messaging;
 mod migration;
 mod notes;
+mod paired_runners;
 mod pairing;
 mod parties;
 mod projects;
@@ -93,6 +94,7 @@ pub use message_refs::MessageRefStore;
 pub use messages::MessageStore;
 pub use messaging::{MailStore, SlackStore, VoiceNoteStore, WhatsAppStore};
 pub use notes::{NoteStore, OwnerNote};
+pub use paired_runners::{PairedRunner, PairedRunnerStore, RunnerPairing, RunnerRedemption};
 pub use pairing::{PairingStore, Redemption};
 pub use parties::PartyStore;
 pub use projects::{ProjectStore, ProjectStoreError};
@@ -465,6 +467,12 @@ impl Database {
     #[must_use]
     pub fn prefs(&self) -> PrefStore {
         PrefStore::new(self.conn.clone())
+    }
+
+    /// The runners paired at run time, and the codes they pair with.
+    #[must_use]
+    pub fn paired_runners(&self) -> PairedRunnerStore {
+        PairedRunnerStore::new(self.conn.clone())
     }
 
     /// The files already brought from runners' machines.

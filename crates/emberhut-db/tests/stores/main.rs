@@ -13,6 +13,7 @@ mod files;
 mod import;
 mod memory;
 mod messaging;
+mod paired_runners;
 mod pairing;
 mod parties;
 mod push;

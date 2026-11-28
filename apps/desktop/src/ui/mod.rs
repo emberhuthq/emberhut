@@ -1,6 +1,7 @@
 //! The views. Every colour comes from [`palette`]; the data from the store.
 
 pub(crate) mod a11y;
+pub(crate) mod add_hut;
 mod approvals;
 pub(crate) mod browser;
 pub(crate) mod calendar;

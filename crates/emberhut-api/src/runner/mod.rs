@@ -16,11 +16,14 @@
 //!
 //! A task's worker is watched the same way as session `w-<task>` (no settings). A refusal is
 //! 400, 404, 409 or 502 with an [`ErrorBody`](crate::error::ErrorBody).
+//!
+//! The runners themselves, paired at run time and listed, are [`pairing`]'s.
 
 pub mod accounts;
 pub mod actions;
 pub mod agents;
 pub mod new_session;
+pub mod pairing;
 pub mod steps;
 pub mod t3;
 pub mod transcript;

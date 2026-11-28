@@ -1,0 +1,11 @@
+{
+  "code": "ABCD-EFGH",
+  "expiresAt": "2026-11-28T10:10:00.000Z",
+  "server": "https://emberhut.example.com",
+  "reachable": true,
+  "install": {
+    "command": "emberhut-runner install --server https://emberhut.example.com --pair ABCD-EFGH",
+    "shell": "curl -fsSL https://github.com/emberhuthq/emberhut/releases/download/v0.1.0/install-runner.sh | sh -s -- --server https://emberhut.example.com --pair ABCD-EFGH",
+    "powershell": "$env:EMBERHUT_SERVER=\"https://emberhut.example.com\"; $env:EMBERHUT_PAIR_CODE=\"ABCD-EFGH\"; irm https://github.com/emberhuthq/emberhut/releases/download/v0.1.0/install-runner.ps1 | iex"
+  }
+}
