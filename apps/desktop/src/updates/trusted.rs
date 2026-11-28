@@ -3,10 +3,10 @@
 //! `emberhut-desktop macos <arch> <version> build <build> sha256:<hex> notes:<hex>`, the last being
 //! the SHA-256 of the notes' UTF-8 bytes as the feed's JSON decodes them (no trimming, no
 //! normalising), so a server can't relabel an old payload as a new release or change the notes
-//! the app shows.
+//! the app shows. The format is [`emberhut_api::releases::update_comment`]'s, which the release
+//! signer (`cargo xtask release feed`) calls too.
 
-use emberhut_api::releases::{Arch, Release};
-use sha2::{Digest as _, Sha256};
+use emberhut_api::releases::{Arch, Platform, Release, update_comment};
 
 use super::choose::PRODUCT;
 
@@ -14,12 +14,14 @@ use super::choose::PRODUCT;
 /// signed with.
 #[must_use]
 pub(crate) fn expected(release: &Release, arch: &Arch, sha256: &[u8; 32]) -> String {
-    format!(
-        "{PRODUCT} macos {arch} {version} build {build} sha256:{payload} notes:{notes}",
-        version = release.version,
-        build = release.build,
-        payload = hex(sha256),
-        notes = hex(&Sha256::digest(release.notes.as_bytes()).into()),
+    update_comment(
+        PRODUCT,
+        &Platform::Macos,
+        arch,
+        &release.version,
+        release.build,
+        sha256,
+        &release.notes,
     )
 }
 
@@ -38,6 +40,7 @@ pub(crate) fn hex(bytes: &[u8; 32]) -> String {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use sha2::{Digest as _, Sha256};
 
     use super::*;
 
