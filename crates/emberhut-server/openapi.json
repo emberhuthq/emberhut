@@ -943,7 +943,7 @@
         "tags": [
           "ember"
         ],
-        "summary": "Renames the ember: `{ \"name\": \"Pip\" }`, or `{ \"name\": null }` (or `\"\"`) for the default.\nThe name is trimmed and must be one line of at most 24 characters.",
+        "summary": "Renames the ember: `{ \"name\": \"Pip\" }`, or `{ \"name\": null }` (or `\"\"`) for the default.\nThe name is trimmed, its runs of spaces made one, and must be one line of at most 24\ncharacters, an emoji counting as one.",
         "operationId": "set_name",
         "requestBody": {
           "content": {
@@ -13128,7 +13128,7 @@
               "string",
               "null"
             ],
-            "description": "One line of 1 to 24 characters once trimmed; `null` or blank: back to \"Your ember\"."
+            "description": "One line of 1 to 24 characters (an emoji is one) once trimmed, runs of spaces made one;\n`null` or blank: back to \"Your ember\"."
           }
         }
       },

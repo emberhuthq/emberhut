@@ -110,10 +110,17 @@ pub(crate) async fn a_name_the_server_does_not_take_is_400_and_changes_nothing()
             json!({ "name": "x".repeat(25) }),
             "name: 24 characters at most",
         ),
-        (json!({ "name": "Ot\nto" }), "name: one line of plain text"),
         (
-            json!({ "name": "Ot\u{202E}to" }),
+            json!({ "name": "Ju\nniper" }),
             "name: one line of plain text",
+        ),
+        (
+            json!({ "name": "Ju\u{202E}niper" }),
+            "name: one line of plain text",
+        ),
+        (
+            json!({ "name": "\u{1F525}".repeat(25) }),
+            "name: 24 characters at most",
         ),
         (json!({ "name": 7 }), "name: text, or null for the default"),
         (json!({}), "name: text, or null for the default"),
@@ -144,6 +151,31 @@ pub(crate) async fn a_name_the_server_does_not_take_is_400_and_changes_nothing()
         .await
         .read_as();
     assert_eq!(reply.ember.name, longest);
+    // An emoji joined of several is one character, and runs of spaces are made one.
+    let astronauts = "\u{1F469}\u{200D}\u{1F680}".repeat(24);
+    for (asked, kept) in [
+        (astronauts.as_str(), astronauts.as_str()),
+        ("  Juniper \u{a0}  the   Brave ", "Juniper the Brave"),
+    ] {
+        let reply: EmberNameReply = app
+            .call(
+                Call::post(paths::EMBER_NAME)
+                    .token(&session)
+                    .json(&json!({ "name": asked })),
+            )
+            .await
+            .read_as();
+        assert_eq!(reply.ember.name, kept);
+    }
+    let reset: EmberNameReply = app
+        .call(
+            Call::post(paths::EMBER_NAME)
+                .token(&session)
+                .json(&json!({ "name": "your   ember" })),
+        )
+        .await
+        .read_as();
+    assert!(!reset.ember.custom, "the default's words, however spaced");
 
     let huge = json!({ "name": "x".repeat(3 * 1024 * 1024) }).to_string();
     let too_large = app

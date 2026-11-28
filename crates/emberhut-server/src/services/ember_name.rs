@@ -88,8 +88,9 @@ impl EmberNameService {
         Ok(EmberName::new(saved.name, saved.at))
     }
 
-    /// Changes the name to `change`'s (`{ name }`): trimmed, one line of 1 to 24 characters;
-    /// `null`, blank or "Your ember" go back to the default.
+    /// Changes the name to `change`'s (`{ name }`): trimmed, its runs of spaces made one, one
+    /// line of 1 to 24 characters (an emoji is one); `null`, blank or "Your ember" go back to the
+    /// default.
     ///
     /// # Errors
     ///

@@ -897,9 +897,11 @@ name: `{ "name": "Your ember", "custom": false, "at": null }`.
 { "name": "Pip" }
 ```
 
-`EmberNameChange`: the name is trimmed and must be one line of 1 to 24 characters (no line breaks,
-control characters or characters that hide or reorder text). `null`, `""` (or only spaces) and
-"Your ember" (any case) go back to the default. 200
+`EmberNameChange`: the name is trimmed, each run of spaces inside it made one, and must be one
+line of 1 to 24 characters as a person counts them (grapheme clusters: an emoji, even one joined of
+several, is one), with no line breaks, control characters or characters that hide or reorder text
+(the joiner inside an emoji is fine). `null`, `""` (or only spaces) and "Your ember" (any case,
+any spacing) go back to the default. 200
 `{ "ok": true, "name": "Pip", "custom": true, "at": "2026-11-28T10:00:00.000Z" }`
 (`EmberNameReply`; a reset: `{ "ok": true, "name": "Your ember", "custom": false, "at": ... }`);
 400 `{ "ok": false, "error": "name: 24 characters at most" }`, `"name: one line of plain text"` or,

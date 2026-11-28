@@ -38,7 +38,8 @@ pub(super) async fn name(
 }
 
 /// Renames the ember: `{ "name": "Pip" }`, or `{ "name": null }` (or `""`) for the default.
-/// The name is trimmed and must be one line of at most 24 characters.
+/// The name is trimmed, its runs of spaces made one, and must be one line of at most 24
+/// characters, an emoji counting as one.
 #[utoipa::path(
     post,
     path = "/api/ember/name",
