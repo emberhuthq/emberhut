@@ -13,7 +13,6 @@ import {
 } from "@/api";
 import { parseInstant, relative } from "@/format/time";
 import { allSessions, isRunning } from "@/features/sessions/sessionList";
-import { isOpen } from "./model";
 import { runStatus, type RunStatus } from "./taskPage";
 
 // Tasks with plans (state.ui.taskPlans): each task carries the plan its agent ticks as it goes, and tasks, not sessions,
@@ -156,11 +155,6 @@ export function pageTask(page: TaskPage): Issue {
 
 /** A run is going on it now, or is about to start. */
 export const isRunningTask = (task: Issue): boolean => task.live?.state === "running" || task.live?.state === "queued";
-
-/** The open tasks a run is going on now, in the state's order; what you put away is left out. */
-export function runningTasks(state: EmberhutState | undefined, gone: ReadonlySet<number>): Issue[] {
-  return (state?.issues ?? []).filter((t) => isOpen(t) && !gone.has(t.id) && isRunningTask(t));
-}
 
 /** How long a finished session with no task stays in the Tasks list. */
 const sessionShownMs = 24 * 3_600_000;
