@@ -7,6 +7,7 @@ import { NeedsYouScreen } from "@/features/needsYou/NeedsYouScreen";
 import { useNeedsCount } from "@/features/needsYou/useNeedsCount";
 import { SessionsScreen } from "@/features/sessions/SessionsScreen";
 import { TasksScreen } from "@/features/tasks/TasksScreen";
+import { useTaskPlans } from "@/features/tasks/useTaskPlans";
 import { useEmberhutState } from "@/state/queries";
 import { useTheme } from "@/theme";
 import { TranslucentBars } from "@/ui";
@@ -43,6 +44,9 @@ export function Tabs() {
   const { colors } = useTheme();
   const needs = useNeedsCount();
   const onDuty = useEmberhutState().data?.on;
+  // A server that keeps task plans: each task shows its own progress, so Tasks is the work running and the Sessions list
+  // moves under More (SessionList), with the sessions that have no task in Tasks too.
+  const plans = useTaskPlans();
   const icon =
     (tab: IconTab) =>
     ({ focused }: { focused: boolean }): ImageSourcePropType | AppleIcon => {
@@ -68,7 +72,7 @@ export function Tabs() {
           options={{ title: "Needs you", tabBarIcon: icon("NeedsYou"), tabBarBadge: needs > 0 ? String(needs) : undefined }}
         />
         <Tab.Screen name="Tasks" component={Tasks} options={{ title: "Tasks", tabBarIcon: icon("Tasks") }} />
-        <Tab.Screen name="Sessions" component={Sessions} options={{ title: "Sessions", tabBarIcon: icon("Sessions") }} />
+        {plans ? null : <Tab.Screen name="Sessions" component={Sessions} options={{ title: "Sessions", tabBarIcon: icon("Sessions") }} />}
         <Tab.Screen name="More" component={More} options={{ title: "More", tabBarIcon: icon("More") }} />
       </Tab.Navigator>
     </TranslucentBars.Provider>

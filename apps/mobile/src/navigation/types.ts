@@ -10,7 +10,7 @@ export type TabParamList = {
   NeedsYou: undefined;
   /** Today, the projects and their tasks. */
   Tasks: undefined;
-  /** Your own sessions and the runner's. */
+  /** Your own sessions and the runner's. Not a tab while the server keeps task plans: SessionList, from More, instead. */
   Sessions: undefined;
   /** What your ember knows about you, settings, the browser. */
   More: undefined;
@@ -32,6 +32,8 @@ export type RootStackParamList = {
   /** A session's transcript ("r-…" runner, "w-<task>" worker); `agent` is a sub-agent's call id: only its own steps. */
   Session: { id: string; agent?: string; title?: string };
   NewSession: undefined;
+  /** The Sessions list on a page of its own, from More, while the server keeps task plans and Tasks are the main surface. */
+  SessionList: undefined;
   /** Emberhut's browser, live, and taking it over. */
   Browser: undefined;
   /** A server file full screen: a picture, a video, a PDF, an HTML report. */

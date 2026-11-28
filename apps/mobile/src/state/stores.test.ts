@@ -73,6 +73,18 @@ describe("prefs", () => {
     expect(store.getState()).toMatchObject({ theme: "light", room: 2, showAgents: true, agentsPlace: "below" });
   });
 
+  it("keeps whether the server keeps task plans across launches, off on an older save", async () => {
+    const saved = new Map([["emberhut.prefs", JSON.stringify({ state: { theme: "light", room: 2 }, version: 1 })]]);
+    const older = createPrefsStore(memoryStorage(saved));
+    await older.persist.rehydrate();
+    expect(older.getState().taskPlans).toBe(false);
+    const storage = memoryStorage();
+    createPrefsStore(storage).getState().setTaskPlans(true);
+    const again = createPrefsStore(storage);
+    await again.persist.rehydrate();
+    expect(again.getState().taskPlans).toBe(true);
+  });
+
   it("keeps hidden agents and where they sit across launches", async () => {
     const storage = memoryStorage();
     const first = createPrefsStore(storage);
