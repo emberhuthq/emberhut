@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ThemePage } from "@/api";
 import { builtInTheme } from "@/theme/builtIn";
-import { lookCards, lookChange, tintChange, tintChoices, tintOf } from "./look";
+import { lookCards, lookChange, shownOf, tintChange, tintChoices, tintOf } from "./look";
 
 const paper = builtInTheme.presets[0]!;
 
@@ -21,8 +21,13 @@ describe("your ember's look", () => {
     const cards = lookCards(page(["paper", "graphite", "teal", "calm"]));
     expect(cards.map((c) => c.id)).toEqual(["paper", "graphite", "teal", "calm"]);
     expect(cards[3]?.name).toBe("Calm");
-    expect(cards[2]?.light).toMatchObject({ paper: paper.light.background, ink: paper.light.text, accent: "#000002" });
-    expect(cards[2]?.dark).toMatchObject({ paper: paper.dark.background, accent: paper.dark.accent });
+    expect(cards[2]?.light).toMatchObject({
+      paper: paper.light.background,
+      sheet: paper.light.surface,
+      ink: paper.light.text,
+      accent: "#000002",
+    });
+    expect(cards[2]?.dark).toMatchObject({ paper: paper.dark.background, sheet: paper.dark.surface, accent: paper.dark.accent });
     expect(cards.filter((c) => c.isDefault).map((c) => c.id)).toEqual(["paper"]);
   });
 
@@ -37,16 +42,24 @@ describe("your ember's look", () => {
 
   it("picks a preset in its own colour, as Appearance does, and a tint alone", () => {
     expect(lookChange("teal")).toEqual({ preset: "teal", accent: null });
-    expect(tintChange("rose")).toEqual({ emberTint: "rose" });
+    expect(tintChange("coral")).toEqual({ emberTint: "coral" });
   });
 
   it("lists the server's tints, the one in use marked, and none from a server before tints", () => {
-    const tints = tintChoices(page(["paper"], { emberTint: "sage" }));
-    expect(tints.map((t) => t.id)).toEqual(["ember", "amber", "rose", "sage"]);
-    expect(tints.filter((t) => t.selected).map((t) => t.id)).toEqual(["sage"]);
+    const tints = tintChoices(page(["paper"], { emberTint: "blue" }));
+    expect(tints.map((t) => t.id)).toEqual(["ember", "amber", "coral", "blue"]);
+    expect(tints.filter((t) => t.selected).map((t) => t.id)).toEqual(["blue"]);
     expect(tints.find((t) => t.isDefault)?.id).toBe("ember");
+    const early = tintChoices(page(["paper"], { emberTint: "rose" }));
+    expect(early.filter((t) => t.selected).map((t) => t.id)).toEqual(["ember"]);
     const { tints: _gone, ...older } = page(["paper"]);
     expect(tintChoices(older)).toEqual([]);
+  });
+
+  it("draws the pages in the appearance chosen, and both for System", () => {
+    expect(shownOf("light")).toBe("light");
+    expect(shownOf("dark")).toBe("dark");
+    expect(shownOf("system")).toBe("both");
   });
 
   it("draws the ember in its own colours until a tint is chosen", () => {

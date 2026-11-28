@@ -91,7 +91,7 @@ function GroupRows({ group, now, renaming }: { group: GroupId; now: Now; renamin
 function LookSection() {
   const { spacing } = useTheme();
   return (
-    <Section title="Look" footer="The same theme as Appearance, kept on Emberhut, so your other devices follow it.">
+    <Section title="Look" subtitle="Also in Appearance. Syncs to your other devices.">
       <View key="look" style={{ padding: spacing.md }}>
         <LookPicker />
       </View>

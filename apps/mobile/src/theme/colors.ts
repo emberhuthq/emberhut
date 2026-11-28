@@ -42,7 +42,18 @@ export interface Palette {
   /** Your own chat bubble and its text. */
   bubbleMine: string;
   onBubbleMine: string;
+  /** A segmented switch's track: set into the row in light, lifted off it in dark. */
+  track: string;
+  /** The chosen segment, raised off the track, and its edge. */
+  raised: string;
+  raisedEdge: string;
+  /** The edge of a choice not chosen (a look's card): the border in light; in dark, a line lifted off the row so it shows. */
+  outline: string;
 }
+
+/** In dark, the share of the text colour lifted into a row for a switch's track, its chosen segment, that segment's edge,
+ * and the edge of a choice not chosen. */
+const lifted = { track: 0.05, raised: 0.12, raisedEdge: 0.2, outline: 0.09 } as const;
 
 /** The palette of one appearance. */
 export function paletteFrom(t: ThemeTokens, scheme: "light" | "dark"): Palette {
@@ -74,6 +85,10 @@ export function paletteFrom(t: ThemeTokens, scheme: "light" | "dark"): Palette {
     // a calmer one, the accent sunk into the surface; at 35% the light text still reads 4.5:1 on it for any accent.
     bubbleMine: dark ? mix(t.accent, t.surface, 0.35) : t.accent,
     onBubbleMine: dark ? t.text : t.onAccent,
+    track: dark ? mix(t.text, t.surface, lifted.track) : t.surfaceRaised,
+    raised: dark ? mix(t.text, t.surface, lifted.raised) : t.surface,
+    raisedEdge: dark ? mix(t.text, t.surface, lifted.raisedEdge) : t.border,
+    outline: dark ? mix(t.text, t.surface, lifted.outline) : t.border,
   };
 }
 

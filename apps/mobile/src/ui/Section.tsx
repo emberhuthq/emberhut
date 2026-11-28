@@ -12,13 +12,15 @@ export interface SectionProps {
   tone?: TextTone;
   /** On the header's right: a small button. */
   action?: ReactNode;
+  /** A line under the title, before the group. */
+  subtitle?: string;
   /** A line under the group. */
   footer?: string;
   children: ReactNode;
 }
 
 /** A titled group of rows on one rounded surface, a hairline between them (iOS's grouped list section). */
-export function Section({ title, count, tone = "secondary", action, footer, children }: SectionProps) {
+export function Section({ title, count, tone = "secondary", action, subtitle, footer, children }: SectionProps) {
   const { colors, radius, spacing } = useTheme();
   const rows = Children.toArray(children).filter(isValidElement);
   if (rows.length === 0) return null;
@@ -34,6 +36,11 @@ export function Section({ title, count, tone = "secondary", action, footer, chil
           {count !== undefined ? <Count n={count} tone={tone} label={title} /> : null}
           {action}
         </View>
+      ) : null}
+      {subtitle ? (
+        <Text variant="footnote" tone="secondary" style={{ paddingHorizontal: spacing.xs, marginTop: -spacing.xs }}>
+          {subtitle}
+        </Text>
       ) : null}
       <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, overflow: "hidden" }}>
         {rows.map((row, i) => (

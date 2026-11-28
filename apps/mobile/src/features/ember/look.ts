@@ -1,7 +1,8 @@
-import type { ThemeChange, ThemeChoice, ThemePage } from "@/api";
+import type { Appearance, ThemeChange, ThemeChoice, ThemePage, ThemeTokens } from "@/api";
 
-// Your ember's look, as the picker draws it: every preset the server lists as a card in its own colours, and the ember's
-// tints. It is the theme Appearance changes too (one choice, on the server): a pick is a theme change, nothing else.
+// Your ember's look, as the picker draws it: every preset the server lists as a card in its own colours, in the appearance
+// chosen (both, split on a diagonal, for System), and the ember's tints. It is the theme Appearance changes too (one choice,
+// on the server): a pick is a theme change, nothing else.
 
 /** The preset a choice starts from: what the cards read as the default. */
 export const DEFAULT_PRESET = "paper";
@@ -9,7 +10,16 @@ export const DEFAULT_PRESET = "paper";
 /** The ember's tint when none was chosen, or the server is older: the brand's own colours. */
 export const DEFAULT_TINT = "ember";
 
-/** A preset's card: its light colours as a small page, its dark ground and accent as a swatch, and whether it's in use. */
+/** The colours a preset's small page is drawn in, in one appearance. */
+export interface PageColours {
+  paper: string;
+  sheet: string;
+  ink: string;
+  muted: string;
+  accent: string;
+}
+
+/** A preset's card: its page in light and in dark, and whether it's in use. */
 export interface LookCard {
   id: string;
   name: string;
@@ -17,9 +27,17 @@ export interface LookCard {
   isDefault: boolean;
   /** In use: the preset chosen, with no custom colour over it. */
   selected: boolean;
-  light: { paper: string; surface: string; ink: string; muted: string; accent: string; border: string };
-  dark: { paper: string; accent: string; border: string };
+  light: PageColours;
+  dark: PageColours;
 }
+
+const pageColours = (t: ThemeTokens): PageColours => ({
+  paper: t.background,
+  sheet: t.surface,
+  ink: t.text,
+  muted: t.muted,
+  accent: t.accent,
+});
 
 /** The cards, one for each preset the server lists, in its order. */
 export function lookCards(page: ThemePage): LookCard[] {
@@ -29,17 +47,15 @@ export function lookCards(page: ThemePage): LookCard[] {
     name,
     isDefault: id === DEFAULT_PRESET,
     selected: !custom && page.choice.preset === id,
-    light: {
-      paper: light.background,
-      surface: light.surface,
-      ink: light.text,
-      muted: light.muted,
-      accent: light.accent,
-      border: light.border,
-    },
-    dark: { paper: dark.background, accent: dark.accent, border: dark.border },
+    light: pageColours(light),
+    dark: pageColours(dark),
   }));
 }
+
+/** Which of a preset's appearances its page shows: the one chosen, or both (split) for System and one this app doesn't know. */
+export type Shown = "light" | "dark" | "both";
+
+export const shownOf = (appearance: Appearance): Shown => (appearance === "light" ? "light" : appearance === "dark" ? "dark" : "both");
 
 /** Picking a card: its preset, in its own colour (a custom colour gives way, as on Appearance). */
 export const lookChange = (preset: string): ThemeChange => ({ preset, accent: null });
@@ -55,10 +71,15 @@ export interface TintChoice {
   selected: boolean;
 }
 
-/** The tints the server lists, the one in use marked; none from a server before tints. */
+/**
+ * The tints the server lists, the one in use marked (the default when the choice names one not listed, an early tint held
+ * from before it was dropped, as the face itself draws); none from a server before tints.
+ */
 export function tintChoices(page: ThemePage): TintChoice[] {
-  const current = tintOf(page.choice);
-  return (page.tints ?? []).map(({ id, name }) => ({ id, name, isDefault: id === DEFAULT_TINT, selected: id === current }));
+  const tints = page.tints ?? [];
+  const chosen = tintOf(page.choice);
+  const current = tints.some((t) => t.id === chosen) ? chosen : DEFAULT_TINT;
+  return tints.map(({ id, name }) => ({ id, name, isDefault: id === DEFAULT_TINT, selected: id === current }));
 }
 
 /** Picking a tint: it alone changes. */
