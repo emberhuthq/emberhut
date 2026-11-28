@@ -5,7 +5,8 @@
 //! sight and the app never comes to the front.
 //!
 //! ```text
-//! page needs|tasks|machines|settings   room ID    open a page or a room (prints the time to the chat's paint)
+//! page needs|tasks|sessions|machines|settings   room ID    open a page or a room (prints the time to the chat's paint)
+//! task TASK                            open a task's page (`T-12` or `12`)
 //! click X Y                            a left click at that point of the window (logical pixels)
 //! type TEXT                            the text, a keystroke a character, into whatever has focus
 //! key KEYSTROKE                        one keystroke: enter, escape, cmd-a, backspace…
@@ -85,6 +86,7 @@ impl FromStr for Step {
             "page" => Self::Open(match rest.trim() {
                 "needs" => Page::Needs,
                 "tasks" => Page::Tasks,
+                "sessions" => Page::Sessions,
                 "machines" => Page::Machines,
                 "settings" => Page::Settings,
                 _ => return Err(bad()),
@@ -92,6 +94,10 @@ impl FromStr for Step {
             "room" => Self::Open(Page::Room(RoomId::new(
                 rest.trim().parse().map_err(|_| bad())?,
             ))),
+            "task" => {
+                let id = rest.trim().trim_start_matches(TASK_KEY_PREFIX);
+                Self::Open(Page::Task(TaskId::new(id.parse().map_err(|_| bad())?)))
+            }
             "click" => match numbers()?.as_slice() {
                 &[x, y] => Self::Click { x, y },
                 _ => return Err(bad()),
@@ -393,6 +399,8 @@ mod tests {
         let step = |line: &str| line.parse::<Step>().unwrap();
         assert_eq!(step("page needs"), Step::Open(Page::Needs));
         assert_eq!(step("room 12"), Step::Open(Page::Room(RoomId::new(12))));
+        assert_eq!(step("task T-7"), Step::Open(Page::Task(TaskId::new(7))));
+        assert_eq!(step("page sessions"), Step::Open(Page::Sessions));
         assert_eq!(step("click 10 20.5"), Step::Click { x: 10., y: 20.5 });
         assert_eq!(step("a11y"), Step::Accessibility);
         assert_eq!(
