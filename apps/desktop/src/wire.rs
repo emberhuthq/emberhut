@@ -54,6 +54,29 @@ pub(crate) const BRIEF_TAILS: [&str; 2] = [
 /// case; a worker of its is this name and `'s worker on <task key>`.
 pub(crate) const ASSISTANT_DRIVER: &str = ASSISTANT_OWNER;
 
+/// How the line a server that keeps plans writes in a task's history when a step is ticked done
+/// starts, the step's title after it.
+pub(crate) const PLAN_TICKED: &str = "Ticked: ";
+
+/// How its line for a step skipped starts, the step's title after it.
+pub(crate) const PLAN_SKIPPED: &str = "Skipped: ";
+
+/// How its line for a step blocked starts, the step's title and ` — <note>` after it.
+pub(crate) const PLAN_BLOCKED: &str = "Blocked: ";
+
+/// How its lines for the plan's other changes start: the plan written (`Plan set: 6 steps, 2
+/// done`), a step started, reopened, added or renamed (`Renamed step: A → B`), a step's note
+/// (`Note on <step>: …`) and the agent's estimate.
+pub(crate) const PLAN_CHANGES: [&str; 7] = [
+    "Plan set: ",
+    "Started: ",
+    "Reopened: ",
+    "Added step: ",
+    "Renamed step: ",
+    "Note on ",
+    "Plan estimate: ",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,17 +2,18 @@
 //! and what happened between them. Each turn is one readable entry (what it was asked, the
 //! first line of its answer or its STATUS line, the session it ran in), with what it ticked,
 //! skipped, blocked and made as receipts under it, so nothing shows twice; the plan's other
-//! changes, the files made outside a turn and the task's history stand on their own. A filter
+//! changes, the files made outside a turn and the task's history stand on their own. The plan's
+//! changes are read from the history lines the server writes for them, the one record of each. A filter
 //! narrows it to the turns, the plan's changes or the files. Whole answers stay in the
 //! session's transcript.
 
 use emberhut_api::ids::{RunId, SessionId};
 use emberhut_api::task_page::{Run, TaskPage};
-use emberhut_api::task_plan::StepState;
 use jiff::{Timestamp, ZonedDateTime};
 
 use super::clock;
 use super::runs::{self, RunState, RunStatus};
+use crate::wire::{PLAN_BLOCKED, PLAN_CHANGES, PLAN_SKIPPED, PLAN_TICKED};
 
 /// What the feed shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -53,6 +54,9 @@ pub(crate) enum EventKind {
     Skipped,
     /// A step blocked.
     Blocked,
+    /// Another change to the plan: written, a step started, reopened, added, renamed or noted,
+    /// the estimate.
+    Planned,
     /// A file or result made.
     File,
     /// A step of the task's history.
@@ -68,14 +72,17 @@ impl EventKind {
             Self::Skipped => Some("Skipped"),
             Self::Blocked => Some("Blocked"),
             Self::File => Some("Made"),
-            Self::Note => None,
+            Self::Planned | Self::Note => None,
         }
     }
 
     /// Whether it is one of the plan's changes.
     #[must_use]
     pub(crate) const fn of_plan(self) -> bool {
-        matches!(self, Self::Ticked | Self::Skipped | Self::Blocked)
+        matches!(
+            self,
+            Self::Ticked | Self::Skipped | Self::Blocked | Self::Planned
+        )
     }
 }
 
@@ -144,8 +151,9 @@ pub(crate) fn feed(page: Option<&TaskPage>, now: &ZonedDateTime, filter: Filter)
         .collect();
     let mut loose = Vec::new();
     for event in events(page) {
-        let receipt =
-            event.kind != EventKind::Note && matches!(filter, Filter::All | Filter::Turns);
+        // What a turn did goes under it; the plan's other changes and the history stand alone.
+        let receipt = !matches!(event.kind, EventKind::Note | EventKind::Planned)
+            && matches!(filter, Filter::All | Filter::Turns);
         let during = turns.iter_mut().find(|(turn, end)| {
             turn.at.is_some_and(|start| start <= event.at) && end.is_some_and(|end| event.at <= end)
         });
@@ -238,27 +246,12 @@ fn going(run: &Run) -> &'static str {
     }
 }
 
-/// The page's events: the plan's ticks, skips and blocks, the files made, and the history's
-/// steps (but the lines an older server's finished turns left, which are its turns).
+/// The page's events: the files made, and the history's steps (but the lines an older
+/// server's finished turns left, which are its turns). The plan's changes come from the lines
+/// the server writes for them ([`plan_line`]), the one record of each, with the time it
+/// happened.
 fn events(page: &TaskPage) -> Vec<Event> {
     let mut events = Vec::new();
-    if let Some(plan) = &page.plan {
-        for step in &plan.steps {
-            let (kind, at) = match step.state {
-                StepState::Done => (EventKind::Ticked, step.finished.as_ref()),
-                StepState::Skipped => (EventKind::Skipped, step.finished.as_ref()),
-                StepState::Blocked => (EventKind::Blocked, Some(&step.updated)),
-                _ => continue,
-            };
-            if let Some(at) = at.and_then(clock::instant) {
-                events.push(Event {
-                    at,
-                    kind,
-                    text: step.title.clone(),
-                });
-            }
-        }
-    }
     for artifact in &page.task.artifacts {
         if let Some(at) = clock::instant(&artifact.at) {
             events.push(Event {
@@ -269,18 +262,37 @@ fn events(page: &TaskPage) -> Vec<Event> {
         }
     }
     for moment in &page.history {
-        if moment.text.trim().is_empty() || moment.text.contains(" · STATUS:") {
+        let text = moment.text.trim();
+        if text.is_empty() || text.contains(" · STATUS:") {
             continue;
         }
-        if let Some(at) = clock::instant(&moment.at) {
-            events.push(Event {
-                at,
-                kind: EventKind::Note,
-                text: moment.text.clone(),
-            });
-        }
+        let Some(at) = clock::instant(&moment.at) else {
+            continue;
+        };
+        let (kind, text) = plan_line(text).unwrap_or((EventKind::Note, text.to_owned()));
+        events.push(Event { at, kind, text });
     }
     events
+}
+
+/// A history line the server wrote for a change to the plan: ticked, skipped and blocked steps
+/// by their title (and a blocked one's note), the other changes whole; none for another line.
+#[must_use]
+pub(crate) fn plan_line(text: &str) -> Option<(EventKind, String)> {
+    let steps = [
+        (PLAN_TICKED, EventKind::Ticked),
+        (PLAN_SKIPPED, EventKind::Skipped),
+        (PLAN_BLOCKED, EventKind::Blocked),
+    ];
+    for (opening, kind) in steps {
+        if let Some(step) = text.strip_prefix(opening) {
+            return Some((kind, step.trim().to_owned()));
+        }
+    }
+    PLAN_CHANGES
+        .iter()
+        .any(|opening| text.starts_with(opening))
+        .then(|| (EventKind::Planned, text.to_owned()))
 }
 
 /// A time in the feed's time column: the clock time today, else the short day (`Thu`, or
