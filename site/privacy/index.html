@@ -53,9 +53,9 @@
 <div class="wrap doc-wrap">
 <article class="doc-body">
 <h1>Privacy</h1>
-<p class="updated">Emberhut by Symploc · Last updated 27 November 2026</p>
+<p class="updated">Emberhut by Symploc · Last updated 28 November 2026</p>
 <p class="lede">The short version: Emberhut runs on your computer and keeps your data there, Symploc runs no server your messages or data pass through, and this website doesn't track you.</p>
-<p>Emberhut is made by <a href="https://symploc.com">Symploc</a> (Symploc, LLC, a Delaware limited liability company; "we", "us"). This page explains what data the Emberhut software and the emberhut.com website handle, and where it goes.</p>
+<p>Emberhut is made by <a href="https://symploc.com">Symploc</a> (Symploc, LLC, a Delaware limited liability company; "we", "us"). This page explains what data the Emberhut software, its Chrome extension and the emberhut.com website handle, and where it goes.</p>
 
 <h2>The Emberhut software</h2>
 <p>Emberhut is self-hosted. Its server (the "hut") runs on a computer you control and keeps your conversations, tasks, notes, memories, settings and the credentials of the accounts you connect on that computer, in a SQLite database and plain files. We don't operate a copy of your agent, and the software doesn't send your content to us.</p>
@@ -66,6 +66,17 @@
   <li><b>The optional account.</b> If you sign in with an emberhut.com account (optional, and not part of builds from source), our directory keeps your account id and, for each computer you add, its id, public key, name and when you added it, so your apps can find it. It never receives your messages or data and gives no one access to your computers. Sign-in is handled by Clerk.</li>
   <li><b>No telemetry.</b> The software doesn't send usage analytics or crash reports to us. If that ever changes, it will be opt-in and described here first.</li>
   <li><b>Updates.</b> The desktop app checks your own hut for updates, not our servers.</li>
+</ul>
+
+<h2 id="chrome-extension">The Chrome extension</h2>
+<p>The Emberhut extension for Chrome lets your own Emberhut assistant work in Chrome for you, only in the extension's blue "Emberhut" tab group. It does nothing until you pair it with your hut, and before every pairing it shows you what it sends and to which hut, and waits for your OK.</p>
+<ul>
+  <li><b>What it sends your hut.</b> While your assistant works in the "Emberhut" tab group (and in tabs those tabs open): the addresses, text, structure and screenshots of those pages, and what the assistant clicks and types there. Your hut clicks, types and runs scripts in those pages to do what you asked. When it pairs and connects: the extension's version, the Chrome version and the operating system, so the Emberhut app can show the profile.</li>
+  <li><b>Where it goes from there.</b> Only to the hut you paired it with, which runs on a computer you control, over https or a link that stays on your computer or your Tailscale network. Your hut keeps it there and passes what a task needs, page text and screenshots included, to the AI model you chose for your assistant (for example Anthropic's Claude, under your own account), under that provider's terms. Nothing goes to us, and we can't see it.</li>
+  <li><b>What it doesn't do.</b> It sends nothing from your other tabs (it checks their addresses on your device only, to find a pairing link). It never asks Chrome for your cookies, storage or history: only page-level commands get through to a page. It refuses to type into password and one-time-code fields, and it never works on password managers, account security pages, the Chrome Web Store, or the sites you block in its settings.</li>
+  <li><b>What it keeps in Chrome.</b> The pairing (your hut's address and the profile's token), your blocked sites, a pause, and a short list of its recent steps for the popup, in the extension's own storage in that Chrome profile. Unpair it, or remove it from Chrome, and that goes too; your hut keeps its own records on your computer, which you can delete there.</li>
+  <li><b>Notifications.</b> Optional. If you turn them on in the extension's popup, Chrome shows a notification when your assistant hands a tab to you or takes it back.</li>
+  <li><b>Limited Use.</b> The use of information received from Google APIs will adhere to the <a href="https://developer.chrome.com/docs/webstore/program-policies/policies">Chrome Web Store User Data Policy</a>, including the <a href="https://developer.chrome.com/docs/webstore/program-policies/limited-use">Limited Use requirements</a>. The extension uses what it handles only to let your assistant do what you ask in Chrome. We don't sell it, use it for advertising or credit decisions, or read it; it never reaches us.</li>
 </ul>
 
 <h2>This website</h2>
