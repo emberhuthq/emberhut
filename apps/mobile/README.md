@@ -183,11 +183,12 @@ why, with Retry.
 
 ## Tasks with plans
 
-A server that keeps task plans says so in the state (`ui.taskPlans`). Then every task carries the plan its agent ticks as it
-goes: the state's tasks have it at a glance (`plan`: done of total, the current step, what blocks it, the estimate, when it
-changed), and a task's page has every step (`GET /api/tasks/<id>`'s `plan`). The step states are wire words in
-`src/api/wire.ts`; the reading is `features/tasks/plan.ts` and `planView.ts`, with their tests. Without the switch (an older
-server) nothing below happens and the app is as it was.
+A server that keeps task plans says so in the state (`ui.taskPlans`). Then every task carries the plan its agent ticks
+as it goes: the state's tasks have it at a glance (`plan`: done of total, the current step, what blocks it, the
+estimate, when it changed), and a task's page has every step (`GET /api/tasks/<id>`'s `fullPlan`; the task's own `plan`
+there stays the glance). The step states are wire words in `src/api/wire.ts`; the reading is `features/tasks/plan.ts`
+and `planView.ts`, with their tests. Without the switch (an older server) nothing below happens and the app is as it
+was.
 
 - **Tabs**: Your ember's, Needs you, Tasks and More. Sessions leaves the tab bar and opens as a page from More (and from the
   chat's Sessions button). The switch's last value is kept with the prefs, so the bar is right before the state answers.
