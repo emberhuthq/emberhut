@@ -83,6 +83,7 @@ mod same_task;
 mod secret_links;
 mod send_tap;
 mod serve;
+mod session_tasks;
 mod sessions;
 mod settings;
 mod settings_agent;

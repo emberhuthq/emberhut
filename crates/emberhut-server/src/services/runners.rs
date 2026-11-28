@@ -17,8 +17,12 @@ use std::time::Duration;
 
 use emberhut_api as api;
 use emberhut_api::chat::ChatFile;
+use emberhut_api::wire::session_meta;
 use emberhut_core::account::AccountUse;
 use emberhut_core::runner::{LAST_LENGTH, QUESTION_LENGTH, asked, clip, status_line};
+use emberhut_core::task::session as task_session;
+use emberhut_core::task::session::session_label;
+use emberhut_core::task::{Owner, TaskId, Who};
 use emberhut_core::thread::{CodingThread, ThreadStatus};
 use emberhut_core::{Clock, RoomId};
 use emberhut_db::{DbError, ThreadStore, UsageStore};
@@ -30,7 +34,9 @@ use tokio_util::sync::CancellationToken;
 use crate::convert::{room_to_api, timestamp_to_api};
 use crate::services::activity::ActivityLog;
 use crate::services::runner_api::{ByteStream, RunnerApi, RunnerError, Verb, by};
-use crate::services::tasks::{SessionTurn, TaskService};
+use crate::services::tasks::{
+    SessionMove, SessionMoveError, SessionTask, SessionTurn, TaskError, TaskService, session_rule,
+};
 use crate::services::threads::ThreadService;
 use crate::services::transfer::{TransferError, TransferService};
 
@@ -162,6 +168,9 @@ pub struct WorkSession {
     pub worktree: Option<Value>,
     /// What the session's meta carries (the task it is for).
     pub meta: Map<String, Value>,
+    /// The session that starts it, when one does: its meta's `parent`
+    /// ([`session_meta::PARENT`]), whose tasks a session with none of its own works for.
+    pub parent: Option<String>,
 }
 
 /// What a runner answered when it opened a session.
@@ -375,12 +384,7 @@ impl RunnerService {
         let linked: Option<Vec<String>> = match filter.task.filter(|task| *task != 0) {
             // Sessions are linked to tasks only on a server that keeps plans.
             Some(_) if !plans => return Ok(Vec::new()),
-            Some(task) => Some(
-                self.parts
-                    .tasks
-                    .linked_sessions(emberhut_core::task::TaskId::new(task))
-                    .await?,
-            ),
+            Some(task) => Some(self.parts.tasks.linked_sessions(TaskId::new(task)).await?),
             None => None,
         };
         let mut threads: Vec<CodingThread> = self
@@ -449,7 +453,7 @@ impl RunnerService {
         &self,
         thread: &CodingThread,
         accounts: &[AccountUse],
-        tasks: Option<&Vec<emberhut_core::task::TaskId>>,
+        tasks: Option<&Vec<TaskId>>,
     ) -> api::work::RunnerSession {
         let running = thread.status == ThreadStatus::Running;
         api::work::RunnerSession {
@@ -527,7 +531,7 @@ impl RunnerService {
         thread.account = text(session, "account");
         thread.cwd = text(session, "cwd");
         thread.branch = text(session, "branch");
-        if truthy(session.pointer("/meta/direct")) {
+        if truthy(session.pointer(&format!("/meta/{}", session_meta::DIRECT))) {
             thread.direct = true;
             thread.model = text(session, "model");
             thread.effort = text(session, "effort");
@@ -596,45 +600,26 @@ impl RunnerService {
             );
         }
         // A session's task is followed only on a server that keeps plans.
-        if self.parts.tasks.keeps_plans()
-            && let Some(task) = task_in(session)
-        {
-            let turn = match (kind.as_str(), &thread.status) {
-                ("turn_finished", _) => SessionTurn::Finished {
-                    outcome: &turn
-                        .and_then(|turn| text(turn, "outcome"))
-                        .unwrap_or_else(|| "completed".to_owned()),
-                    last: thread.last.as_deref(),
-                },
-                (_, ThreadStatus::Running) => SessionTurn::Running {
-                    asked: thread.last_ask.as_deref(),
-                },
-                (_, ThreadStatus::Queued) => SessionTurn::Queued {
-                    asked: thread.last_ask.as_deref(),
-                },
-                (_, ThreadStatus::Other(_)) => SessionTurn::Unknown,
-                (_, status) => SessionTurn::Stopped {
-                    status: status.as_str(),
-                    last: thread.last.as_deref(),
-                },
-            };
-            // The link is written when a turn is sent or starts, or the session is new, not
-            // on every event (an `activity` comes every few seconds).
-            let link = was.is_none() || matches!(kind.as_str(), "turn_queued" | "turn_started");
-            // The task's bookkeeping never fails the event: its note and account lines go on.
-            if let Err(error) = self
-                .parts
-                .tasks
-                .session_turn(task, machine, &id, turn, link)
+        if self.parts.tasks.keeps_plans() {
+            let first_seen = was.is_none();
+            match self
+                .session_work(machine, &id, session, &thread, first_seen, &kind, turn)
                 .await
             {
-                tracing::warn!(
-                    task = %task.key(),
+                Ok(tasks) => {
+                    if let Some(&task) = tasks.first() {
+                        self.keep_turn(machine, &id, &thread, task, first_seen, &kind, turn)
+                            .await;
+                    }
+                }
+                // The task's bookkeeping never fails the event: its note and account lines
+                // go on.
+                Err(error) => tracing::warn!(
                     %machine,
                     session = %id,
                     %error,
-                    "a runner session's turn could not be kept on its task"
-                );
+                    "a runner session's task could not be found or made"
+                ),
             }
         }
         match kind.as_str() {
@@ -652,6 +637,134 @@ impl RunnerService {
             _ => {}
         }
         Ok(())
+    }
+
+    /// The tasks the session `id` on `machine` works for, as this event finds it (on a server
+    /// that keeps plans): the tasks it is linked to (a session moved to another task stays
+    /// there, whatever its meta says); else the task its meta names; else, for a session new
+    /// enough ([`TaskService::is_new_session`]), its parent session's tasks (`meta.parent`),
+    /// linked now, or, for one of the person's own sessions whose first message this event
+    /// carries, a task made for it now. None for any other session.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what one event says of its session"
+    )]
+    async fn session_work(
+        &self,
+        machine: &str,
+        id: &str,
+        session: &Value,
+        thread: &CodingThread,
+        first_seen: bool,
+        kind: &str,
+        turn: Option<&Value>,
+    ) -> Result<Vec<TaskId>, TaskError> {
+        let tasks = &self.parts.tasks;
+        let linked = tasks.session_tasks(id).await?;
+        if !linked.is_empty() {
+            return Ok(linked);
+        }
+        if let Some(task) = task_in(session) {
+            return Ok(vec![task]);
+        }
+        let parent = session
+            .pointer(&format!("/meta/{}", session_meta::PARENT))
+            .and_then(Value::as_str)
+            .filter(|parent| !parent.is_empty() && *parent != id);
+        // The person's own session gets a task when its first message is sent.
+        let messaged = thread.direct && matches!(kind, "turn_queued" | "turn_started");
+        if parent.is_none() && !messaged {
+            return Ok(Vec::new());
+        }
+        let created = text(session, "created").and_then(|at| at.parse::<Timestamp>().ok());
+        if !tasks.is_new_session(created, first_seen).await? {
+            return Ok(Vec::new());
+        }
+        if let Some(parent) = parent {
+            let theirs = tasks.session_tasks(parent).await?;
+            let linked = tasks.link_session(&theirs, id, machine).await?;
+            if !linked.is_empty() {
+                return Ok(linked);
+            }
+        }
+        if !messaged {
+            return Ok(Vec::new());
+        }
+        let place = self.place(machine);
+        let prompt = turn
+            .and_then(|turn| text(turn, "prompt"))
+            .map(|prompt| asked(&prompt))
+            .or_else(|| thread.ask.clone())
+            .unwrap_or_default();
+        let title = task_session::title_from(&prompt)
+            .or_else(|| task_session::title_from(&thread.title))
+            .unwrap_or_else(|| task_session::session_title("", &place));
+        let made = tasks
+            .make_session_task(SessionTask {
+                title,
+                owner: Owner::Person,
+                why: task_session::opened_from(&place),
+                session: Some(id.to_owned()),
+            })
+            .await?;
+        tasks.link_session(&[made.id], id, machine).await?;
+        tracing::info!(task = %made.key(), %machine, session = %id, "a task was made for a session");
+        Ok(vec![made.id])
+    }
+
+    /// Keeps this event's turn of the session `id` on its task `task`: its run opens, starts or
+    /// closes ([`TaskService::session_turn`]). Its failure is logged, not the event's.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what one event says of its session"
+    )]
+    async fn keep_turn(
+        &self,
+        machine: &str,
+        id: &str,
+        thread: &CodingThread,
+        task: TaskId,
+        first_seen: bool,
+        kind: &str,
+        turn: Option<&Value>,
+    ) {
+        let outcome = turn
+            .and_then(|turn| text(turn, "outcome"))
+            .unwrap_or_else(|| "completed".to_owned());
+        let turn = match (kind, &thread.status) {
+            ("turn_finished", _) => SessionTurn::Finished {
+                outcome: &outcome,
+                last: thread.last.as_deref(),
+            },
+            (_, ThreadStatus::Running) => SessionTurn::Running {
+                asked: thread.last_ask.as_deref(),
+            },
+            (_, ThreadStatus::Queued) => SessionTurn::Queued {
+                asked: thread.last_ask.as_deref(),
+            },
+            (_, ThreadStatus::Other(_)) => SessionTurn::Unknown,
+            (_, status) => SessionTurn::Stopped {
+                status: status.as_str(),
+                last: thread.last.as_deref(),
+            },
+        };
+        // The link is written when a turn is sent or starts, or the session is new, not on
+        // every event (an `activity` comes every few seconds).
+        let link = first_seen || matches!(kind, "turn_queued" | "turn_started");
+        if let Err(error) = self
+            .parts
+            .tasks
+            .session_turn(task, machine, id, turn, link)
+            .await
+        {
+            tracing::warn!(
+                task = %task.key(),
+                %machine,
+                session = %id,
+                %error,
+                "a runner session's turn could not be kept on its task"
+            );
+        }
     }
 
     /// An account move's line: to which account and why, or that none was left.
@@ -894,13 +1007,17 @@ impl RunnerService {
     }
 
     /// The person's own session, from the app: on the machine and in the folder they picked,
-    /// their first message (and files) its first turn. Not followed, and no task: the assistant
-    /// sees it in its threads at once. The runner's session answer, with the first turn's id.
+    /// their first message (and files) its first turn. Not followed: the assistant sees it in
+    /// its threads at once. On a server that keeps plans it works for a task made for it now
+    /// (the person's, titled from the message, working), named in its meta, and its first turn
+    /// asks it to keep that task's plan ([`session_rule`]); a session the runner then doesn't
+    /// open puts that task away. The runner's session answer, with the first turn's id.
     ///
     /// # Errors
     ///
     /// [`SessionError::Runner`] for a machine that isn't a runner, or the runner's refusal;
-    /// [`SessionError::Refused`] with nothing to start it with; [`SessionError::Transfer`].
+    /// [`SessionError::Refused`] with nothing to start it with; [`SessionError::Transfer`];
+    /// [`SessionError::Database`].
     pub async fn start_direct(
         &self,
         ask: DirectSession,
@@ -914,29 +1031,7 @@ impl RunnerService {
                 "say something to start it with".to_owned(),
             ));
         }
-        let mut body = Map::new();
-        body.insert("cwd".to_owned(), Value::String(ask.cwd.clone()));
-        // Projects don't carry runner folders yet: a folder belongs to no project.
-        body.insert("project".to_owned(), Value::Null);
-        for (key, value) in [
-            ("account", &ask.account),
-            ("model", &ask.model),
-            ("effort", &ask.effort),
-        ] {
-            if let Some(value) = value.as_ref().filter(|value| !value.is_empty()) {
-                body.insert(key.to_owned(), Value::String(value.clone()));
-            }
-        }
-        if ask
-            .worktree
-            .as_ref()
-            .is_some_and(|worktree| truthy(Some(worktree)))
-        {
-            body.insert(
-                "worktree".to_owned(),
-                ask.worktree.clone().unwrap_or(Value::Null),
-            );
-        }
+        let mut body = direct_body(&ask);
         let title = ask
             .title
             .clone()
@@ -947,18 +1042,47 @@ impl RunnerService {
                     .then(|| ask.files.first().map(|file| file.name.clone()))
                     .flatten()
             });
+        let task = self.direct_task(&ask, &message).await?;
         if let Some(title) = title {
             body.insert("title".to_owned(), Value::String(title));
         }
-        body.insert("meta".to_owned(), json!({ "direct": true }));
+        let mut meta = Map::new();
+        meta.insert(session_meta::DIRECT.to_owned(), Value::Bool(true));
+        if let Some(task) = task {
+            meta.insert(session_meta::TASK.to_owned(), json!(task.get()));
+        }
+        body.insert("meta".to_owned(), Value::Object(meta));
         body.insert("by".to_owned(), Value::String(by::PERSON.to_owned()));
+        let first = |message: &str| match task {
+            Some(task) => format!("{message}\n\n{}", session_rule(&task.key())),
+            None => message.to_owned(),
+        };
         if ask.files.is_empty() {
-            body.insert("prompt".to_owned(), Value::String(message));
-            let opened = self.open(&ask.machine, body).await?;
+            body.insert("prompt".to_owned(), Value::String(first(&message)));
+        }
+        let opened = match self.open(&ask.machine, body).await {
+            Ok(opened) => opened,
+            Err(error) => {
+                if let Some(task) = task {
+                    self.not_started(task, &error).await;
+                }
+                return Err(error);
+            }
+        };
+        if let Some(task) = task
+            && let Some(id) = opened.get("id").and_then(Value::as_str)
+        {
+            self.parts
+                .tasks
+                .made_for_session(task, id)
+                .await
+                .map_err(task_error)?;
+        }
+        if ask.files.is_empty() {
             return Ok(opened);
         }
         // Opened empty: the files go in first, then the message.
-        let mut opened = self.open(&ask.machine, body).await?;
+        let mut opened = opened;
         let id = opened
             .get("id")
             .and_then(Value::as_str)
@@ -972,13 +1096,99 @@ impl RunnerService {
             &message
         };
         let sent = self
-            .send_turn(&ask.machine, &id, message, by::PERSON, &ask.files)
+            .send_turn(&ask.machine, &id, &first(message), by::PERSON, &ask.files)
             .await?;
         opened.insert(
             "turn".to_owned(),
             sent.get("turn").cloned().unwrap_or(Value::Null),
         );
         Ok(opened)
+    }
+
+    /// The task made for the person's new session `ask`, whose first message is `message`, on
+    /// a server that keeps plans: titled from the message (else the title they gave, else
+    /// `Session on the <place>`), theirs, working.
+    async fn direct_task(
+        &self,
+        ask: &DirectSession,
+        message: &str,
+    ) -> Result<Option<TaskId>, SessionError> {
+        if !self.parts.tasks.keeps_plans() {
+            return Ok(None);
+        }
+        let place = self.place(&ask.machine);
+        let title = task_session::title_from(message)
+            .or_else(|| ask.title.as_deref().and_then(task_session::title_from))
+            .unwrap_or_else(|| task_session::session_title("", &place));
+        let made = self
+            .parts
+            .tasks
+            .make_session_task(SessionTask {
+                title,
+                owner: Owner::Person,
+                why: task_session::opened_from(&place),
+                session: None,
+            })
+            .await
+            .map_err(task_error)?;
+        Ok(Some(made.id))
+    }
+
+    /// Puts away `task`, made for a session the runner didn't open (`error`); its own failure
+    /// is logged.
+    pub(crate) async fn not_started(&self, task: TaskId, error: &SessionError) {
+        if let Err(failed) = self
+            .parts
+            .tasks
+            .session_not_started(task, &error.to_string())
+            .await
+        {
+            tracing::warn!(task = %task.key(), error = %failed, "a session's task could not be put away");
+        }
+    }
+
+    /// Moves the session `id` to the task `to`, as `by` asked ([`TaskService::move_session`]),
+    /// on a server that keeps plans: the tasks it moved from.
+    ///
+    /// # Errors
+    ///
+    /// [`SessionMoveError::NotKept`] on a server that keeps no plans,
+    /// [`SessionMoveError::NoSession`] for a session no runner reported, and
+    /// [`TaskService::move_session`]'s.
+    pub async fn move_session(
+        &self,
+        id: &SessionId,
+        to: TaskId,
+        by: Who,
+    ) -> Result<Vec<TaskId>, SessionMoveError> {
+        if !self.parts.tasks.keeps_plans() {
+            return Err(SessionMoveError::NotKept);
+        }
+        let Some(thread) = self.session(id.as_str()).await? else {
+            return Err(SessionMoveError::NoSession(id.to_string()));
+        };
+        let from = self
+            .parts
+            .tasks
+            .move_session(SessionMove {
+                session: thread.id.clone(),
+                machine: thread.machine.clone(),
+                title: thread.title.clone(),
+                to,
+                by,
+            })
+            .await?;
+        if !from.is_empty() {
+            let keys: Vec<String> = from.iter().map(|task| task.key()).collect();
+            self.note(format!(
+                "Moved runner session {} from {} to {}",
+                session_label(&thread.id, &thread.title),
+                keys.join(", "),
+                to.key()
+            ))
+            .await;
+        }
+        Ok(from)
     }
 
     /// A session the assistant starts for a piece of work, followed for `why`.
@@ -1008,7 +1218,14 @@ impl RunnerService {
         if let Some(worktree) = &ask.worktree {
             body.insert("worktree".to_owned(), worktree.clone());
         }
-        body.insert("meta".to_owned(), Value::Object(ask.meta.clone()));
+        let mut meta = ask.meta.clone();
+        if let Some(parent) = ask.parent.as_ref().filter(|parent| !parent.is_empty()) {
+            meta.insert(
+                session_meta::PARENT.to_owned(),
+                Value::String(parent.clone()),
+            );
+        }
+        body.insert("meta".to_owned(), Value::Object(meta));
         let opened = self.open(&ask.machine, body).await?;
         let id = opened
             .get("id")
@@ -1327,8 +1544,8 @@ pub(crate) fn text(value: &Value, key: &str) -> Option<String> {
 
 /// The task a session's meta names (`meta.task`: its number, as a number or as text, or its
 /// key), if any.
-fn task_in(session: &Value) -> Option<emberhut_core::task::TaskId> {
-    let named = session.pointer("/meta/task")?;
+fn task_in(session: &Value) -> Option<TaskId> {
+    let named = session.pointer(&format!("/meta/{}", session_meta::TASK))?;
     let number = match named {
         Value::Number(n) => n.as_i64(),
         Value::String(text) => {
@@ -1340,7 +1557,7 @@ fn task_in(session: &Value) -> Option<emberhut_core::task::TaskId> {
         }
         _ => None,
     }?;
-    (number > 0).then(|| emberhut_core::task::TaskId::new(number))
+    (number > 0).then(|| TaskId::new(number))
 }
 
 /// Whether a JSON value is truthy, as JavaScript reads it.
@@ -1351,6 +1568,43 @@ pub(crate) fn truthy(value: Option<&Value>) -> bool {
         Some(Value::Number(n)) => n.as_f64().is_some_and(|n| n != 0.0 && !n.is_nan()),
         Some(Value::String(text)) => !text.is_empty(),
         Some(_) => true,
+    }
+}
+
+/// The runner's body for the person's new session `ask`, before its title, meta and first
+/// message: its folder, account, model, effort and worktree.
+fn direct_body(ask: &DirectSession) -> Map<String, Value> {
+    let mut body = Map::new();
+    body.insert("cwd".to_owned(), Value::String(ask.cwd.clone()));
+    // Projects don't carry runner folders yet: a folder belongs to no project.
+    body.insert("project".to_owned(), Value::Null);
+    for (key, value) in [
+        ("account", &ask.account),
+        ("model", &ask.model),
+        ("effort", &ask.effort),
+    ] {
+        if let Some(value) = value.as_ref().filter(|value| !value.is_empty()) {
+            body.insert(key.to_owned(), Value::String(value.clone()));
+        }
+    }
+    if ask
+        .worktree
+        .as_ref()
+        .is_some_and(|worktree| truthy(Some(worktree)))
+    {
+        body.insert(
+            "worktree".to_owned(),
+            ask.worktree.clone().unwrap_or(Value::Null),
+        );
+    }
+    body
+}
+
+/// A task call's failure as a session operation's.
+fn task_error(error: TaskError) -> SessionError {
+    match error {
+        TaskError::Db(error) => SessionError::Database(error),
+        other => SessionError::Refused(other.to_string()),
     }
 }
 

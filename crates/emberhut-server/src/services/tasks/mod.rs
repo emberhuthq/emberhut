@@ -40,6 +40,7 @@ pub mod files;
 mod outline;
 mod plan;
 pub mod rooms;
+mod session_tasks;
 mod sessions;
 mod shape;
 
@@ -48,6 +49,7 @@ pub use changes::{FindingsItem, ProgressItem, reply_posts};
 pub use files::{ArtifactFiles, Ffmpeg, Thumbnailer};
 pub use plan::{ASSISTANT_RULE, WORKER_RULE, lane_rule, session_rule};
 pub use rooms::RoomTask;
+pub use session_tasks::{SessionMove, SessionMoveError, SessionTask};
 pub use sessions::SessionTurn;
 
 /// `GET /api/tasks`'s query, read leniently: every value is

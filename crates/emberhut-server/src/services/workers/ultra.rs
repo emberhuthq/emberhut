@@ -1500,6 +1500,8 @@ impl WorkerService {
             effort: None,
             worktree: None,
             meta,
+            // A lane is the lead's part of the task its meta names.
+            parent: None,
         };
         let opened = match self
             .inner

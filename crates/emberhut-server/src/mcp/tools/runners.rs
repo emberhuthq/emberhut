@@ -9,15 +9,20 @@
 //! endpoints.
 //!
 //! `thread_start` takes the folder and machine it is given, names the task in the session's
-//! meta and follows the session; `session_send`'s `task_id` is ignored.
+//! meta and follows the session; `session_send`'s `task_id` is ignored. On a server that keeps
+//! plans, every session works for a task: `thread_start` with no `task_id` works for its parent
+//! session's tasks (`parent`, else the calling session), else for a task made for it.
 
-use emberhut_core::task::TaskId;
+use emberhut_api::wire::session_meta;
+use emberhut_core::task::session as task_session;
+use emberhut_core::task::{Owner, TaskId};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use super::{Tool, ToolContext, ToolError, ToolOutput};
 use crate::services::runner_api::by;
 use crate::services::runners::{SessionId, WorkSession};
+use crate::services::tasks::SessionTask;
 use crate::services::transfer::mb;
 
 /// What each runner machine has left.
@@ -386,9 +391,14 @@ pub(crate) struct ThreadStart;
 /// `thread_start`'s arguments.
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
 pub(crate) struct ThreadStartArgs {
-    /// The task the work is for.
-    #[garde(range(min = 1))]
-    task_id: i64,
+    /// The task the work is for. Where tasks carry plans it may be left out: the session then
+    /// works for its parent session's task, else for a new task made for it.
+    #[garde(inner(range(min = 1)))]
+    task_id: Option<i64>,
+    /// The session that starts this one (`r-…`), where tasks carry plans: its task is this
+    /// one's when `task_id` is left out (default: the session calling, when it names itself).
+    #[garde(length(max = 64))]
+    parent: Option<String>,
     /// The session's title.
     #[garde(length(min = 1, max = 200))]
     title: String,
@@ -430,7 +440,10 @@ impl Tool for ThreadStart {
     fn description(&self) -> &'static str {
         "Start a session on one of your runners for a task's work (code, repos, work the user \
          may want to carry on themselves), followed, so its end reaches you at once; the user \
-         reads and answers it in the app. message: the full brief, as you'd write it to a \
+         reads and answers it in the app. task_id: the task it works for; where tasks carry \
+         plans it may be left out, and the session then works for its parent session's task \
+         (parent: the session starting it, by default the session calling) or else a new task \
+         made for it. message: the full brief, as you'd write it to a \
          colleague. machine: the runner (machines tool; default the first); cwd: the folder \
          there. worktree: true for a git worktree of its own (or a branch name), when the work \
          shouldn't touch the main checkout. account: the runner picks the account with the \
@@ -486,8 +499,31 @@ impl Tool for ThreadStart {
             Some(Value::String(branch)) if !branch.is_empty() => Some(json!({ "branch": branch })),
             _ => None,
         };
+        let plans = ctx.app.task_plans();
+        let parent = plans
+            .then(|| {
+                args.parent
+                    .clone()
+                    .filter(|parent| !parent.is_empty())
+                    .or_else(|| ctx.session.clone())
+            })
+            .flatten();
+        let work = match args.task_id {
+            Some(task) => Work::Named(TaskId::new(task)),
+            None if !plans => {
+                return Ok(ToolOutput::text(
+                    "Not started: pass task_id, the task the work is for.",
+                ));
+            }
+            None => {
+                let place = runners.place(&machine);
+                work_for(ctx, parent.as_deref(), &args.title, &args.message, &place).await?
+            }
+        };
         let mut meta = Map::new();
-        meta.insert("task".to_owned(), json!(args.task_id));
+        if let Work::Named(task) | Work::Made(task) = work {
+            meta.insert(session_meta::TASK.to_owned(), json!(task.get()));
+        }
         let why: String = args.title.chars().take(80).collect();
         let started = runners
             .start_work(
@@ -496,53 +532,152 @@ impl Tool for ThreadStart {
                     cwd,
                     project: None,
                     title: args.title.clone(),
-                    message: brief(ctx, TaskId::new(args.task_id), args.message),
+                    message: brief(ctx, work.task(), args.message),
                     account: args.account.filter(|account| !account.is_empty()),
                     model: args.model.filter(|model| !model.is_empty()),
                     effort: args.effort,
                     worktree,
                     meta,
+                    parent,
                 },
                 &why,
             )
             .await;
+        if let Work::Made(task) = work {
+            made_for(ctx, task, &started).await?;
+        }
         let opened = match started {
             Ok(opened) => opened,
             Err(error) => return Ok(ToolOutput::text(format!("Not started: {error}"))),
         };
-        let account = runners
-            .account_name(&machine, opened.account.as_deref())
+        started_line(ctx, &machine, &args.title, &opened, work).await
+    }
+}
+
+/// Marks `task`, made for the session `thread_start` just started, as made for it; with no
+/// session started, puts it away.
+async fn made_for(
+    ctx: &ToolContext,
+    task: TaskId,
+    started: &Result<crate::services::runners::Opened, crate::services::runners::SessionError>,
+) -> Result<(), ToolError> {
+    match started {
+        Ok(opened) => ctx
+            .app
+            .tasks()
+            .made_for_session(task, &opened.id)
+            .await
+            .map_err(ToolError::failed),
+        Err(error) => {
+            ctx.app.runners().not_started(task, error).await;
+            Ok(())
+        }
+    }
+}
+
+/// `thread_start`'s answer for the session `opened` on `machine`, titled `title`, working for
+/// `work`; the activity log says it started.
+async fn started_line(
+    ctx: &ToolContext,
+    machine: &str,
+    title: &str,
+    opened: &crate::services::runners::Opened,
+    work: Work,
+) -> Result<ToolOutput, ToolError> {
+    let runners = ctx.app.runners();
+    let account = runners
+        .account_name(machine, opened.account.as_deref())
+        .await
+        .map_err(ToolError::failed)?
+        .unwrap_or_else(|| "null".to_owned());
+    let model = opened
+        .model
+        .as_deref()
+        .map_or_default(|model| format!(", {model}"));
+    let branch = opened
+        .branch
+        .as_deref()
+        .filter(|branch| !branch.is_empty())
+        .map_or_default(|branch| format!(" on branch {branch}"));
+    let place = runners.place(machine);
+    if let Err(error) = ctx
+        .app
+        .activity()
+        .note(format!("Started a session on the {place}: \"{title}\""))
+        .await
+    {
+        tracing::warn!(%error, "an activity line could not be written");
+    }
+    let task = match work {
+        Work::Named(_) => String::new(),
+        Work::Inherited(task) => format!(" It works for {}, its parent's task.", task.key()),
+        Work::Made(task) => format!(" It works for {}, a task made for it.", task.key()),
+    };
+    Ok(ToolOutput::text(format!(
+        "Session {} started on the runner on the {place} ({account}{model}) in {}{branch}, \
+         followed. The user can read it and reply in the app.{task}",
+        opened.id,
+        opened.cwd.as_deref().unwrap_or_default()
+    )))
+}
+
+/// The task a session `thread_start` starts works for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Work {
+    /// The one the call named.
+    Named(TaskId),
+    /// Its parent session's (the first, when it has several: the session is linked to each
+    /// when its runner first reports it).
+    Inherited(TaskId),
+    /// One made for it now.
+    Made(TaskId),
+}
+
+impl Work {
+    /// The task, as its brief names it.
+    fn task(self) -> TaskId {
+        match self {
+            Self::Named(task) | Self::Inherited(task) | Self::Made(task) => task,
+        }
+    }
+}
+
+/// The task a session started with no task named works for: its parent session's, else a new
+/// one made for it, the assistant's, titled from its title (else its brief; else after
+/// `place`, where it runs).
+async fn work_for(
+    ctx: &ToolContext,
+    parent: Option<&str>,
+    title: &str,
+    message: &str,
+    place: &str,
+) -> Result<Work, ToolError> {
+    let tasks = ctx.app.tasks();
+    if let Some(parent) = parent
+        && let Some(task) = tasks
+            .session_tasks(parent)
             .await
             .map_err(ToolError::failed)?
-            .unwrap_or_else(|| "null".to_owned());
-        let model = opened
-            .model
-            .as_deref()
-            .map_or_default(|model| format!(", {model}"));
-        let branch = opened
-            .branch
-            .as_deref()
-            .filter(|branch| !branch.is_empty())
-            .map_or_default(|branch| format!(" on branch {branch}"));
-        let place = runners.place(&machine);
-        if let Err(error) = ctx
-            .app
-            .activity()
-            .note(format!(
-                "Started a session on the {place}: \"{}\"",
-                args.title
-            ))
-            .await
-        {
-            tracing::warn!(%error, "an activity line could not be written");
-        }
-        Ok(ToolOutput::text(format!(
-            "Session {} started on the runner on the {place} ({account}{model}) in {}{branch}, \
-             followed. The user can read it and reply in the app.",
-            opened.id,
-            opened.cwd.as_deref().unwrap_or_default()
-        )))
+            .first()
+    {
+        return Ok(Work::Inherited(*task));
     }
+    let title = Some(title.trim())
+        .filter(|title| !title.is_empty() && title.chars().count() <= task_session::TITLE_MAX)
+        .map(str::to_owned)
+        .or_else(|| task_session::title_from(title))
+        .or_else(|| task_session::title_from(message))
+        .unwrap_or_else(|| task_session::session_title("", place));
+    let made = tasks
+        .make_session_task(SessionTask {
+            title,
+            owner: Owner::Assistant,
+            why: task_session::MADE_FOR_SESSION.to_owned(),
+            session: None,
+        })
+        .await
+        .map_err(ToolError::failed)?;
+    Ok(Work::Made(made.id))
 }
 
 /// A work session's brief: `message`, and on a server that keeps plans, what the session is

@@ -495,8 +495,10 @@ const RECHECK_AFTER: SignedDuration = SignedDuration::from_hours(12);
 impl TaskService {
     /// The tick's work: paused projects whose day has come are back (Main hears it), an ask
     /// that waited 12 hours since it was last checked is handed to the assistant to check
-    /// again, quietly, once per check, and runs whose end was missed are closed
-    /// ([`Self::sweep_runs`]). Returns how many projects and asks.
+    /// again, quietly, once per check, runs whose end was missed are closed
+    /// ([`Self::sweep_runs`]), and the time sessions started getting tasks made for them is
+    /// written if it isn't yet ([`Self::sessions_tasked_since`]). Returns how many projects and
+    /// asks.
     ///
     /// # Errors
     ///
@@ -552,6 +554,8 @@ impl TaskService {
             rechecked += usize::from(told);
         }
         self.sweep_runs().await?;
+        // Written at start-up: sessions opened before it are left as they are.
+        self.sessions_tasked_since().await?;
         Ok((resumed.len(), rechecked))
     }
 
