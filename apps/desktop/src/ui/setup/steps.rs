@@ -55,25 +55,25 @@ fn here_title() -> &'static str {
 /// What "Here" says under its name.
 fn here_line() -> &'static str {
     if cfg!(target_os = "macos") {
-        "Runs here while your Mac is awake. About two minutes."
+        "Your hut runs here while your Mac is awake. About two minutes."
     } else {
-        "Runs here while this computer is awake. About two minutes."
+        "Your hut runs here while this computer is awake. About two minutes."
     }
 }
 
 /// Why an always-on home matters, under the homes.
 fn always_on_line() -> &'static str {
     if cfg!(target_os = "macos") {
-        "On just this Mac, your ember stops when the Mac sleeps or is off. An always-on home \
-         (a PC, a home server or a VPS) keeps it working."
+        "More huts keep it lit. With its only hut on this Mac, your ember stops when the Mac \
+         sleeps or is off; an always-on hut (a PC, a home server or a VPS) keeps it working."
     } else {
-        "On just this computer, your ember stops when it sleeps or is off. An always-on home \
-         (a PC, a home server or a VPS) keeps it working."
+        "More huts keep it lit. With its only hut on this computer, your ember stops when it \
+         sleeps or is off; an always-on hut (a PC, a home server or a VPS) keeps it working."
     }
 }
 
 /// What to do on the always-on computer, over the pairing form.
-pub(crate) const ALWAYS_ON_HOW: &str = "On that computer, run Emberhut's server, then \
+pub(crate) const ALWAYS_ON_HOW: &str = "On that hut, run Emberhut's server, then \
      emberhut-server pair: type the code it prints here.";
 
 impl SetupView {
@@ -208,6 +208,7 @@ impl SetupView {
         match step {
             SetupStep::Home => self.home(p, cx).into_any_element(),
             SetupStep::Light => self.light(p, cx).into_any_element(),
+            SetupStep::Yours => self.yours(p, window, cx).into_any_element(),
             SetupStep::Reach => self.reach(p, window, cx).into_any_element(),
             SetupStep::World => self.world(p, cx).into_any_element(),
             SetupStep::Share => share(&self.store, p).into_any_element(),
@@ -222,7 +223,7 @@ impl SetupView {
         let busy = matches!(here, Here::Starting | Here::Pairing);
         let status: Option<AnyElement> = match &here {
             Here::Idle => None,
-            Here::Starting => Some(working(p, "Starting Emberhut here…").into_any_element()),
+            Here::Starting => Some(working(p, "Starting your hut…").into_any_element()),
             Here::Pairing => Some(working(p, "Pairing this app with it…").into_any_element()),
             Here::TypeCode => Some(
                 note(
@@ -260,7 +261,7 @@ impl SetupView {
                 div()
                     .id("setup-home-choices")
                     .role(Role::RadioGroup)
-                    .aria_label("Where your ember lives")
+                    .aria_label("Your ember's hut")
                     .flex()
                     .flex_col()
                     .gap(px(10.))
@@ -279,7 +280,7 @@ impl SetupView {
                         HomeChoice::Elsewhere,
                         choice,
                         IconName::Server,
-                        "Another computer",
+                        "Another hut",
                         None,
                         "A PC, home server or VPS that's always on. You'll need a code from it.",
                         p,
@@ -598,7 +599,7 @@ fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement 
     div()
         .id("setup-home-cloud")
         .role(Role::Group)
-        .aria_label("Rent one in the cloud, coming soon")
+        .aria_label("Rent a hut in the cloud, coming soon")
         .flex()
         .items_center()
         .gap(px(12.))
@@ -628,7 +629,7 @@ fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement 
                                 .text_size(px(14.))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(p.muted)
-                                .child("Rent one in the cloud"),
+                                .child("Rent a hut in the cloud"),
                         )
                         .child(tag("Coming soon", p.muted)),
                 )
@@ -636,7 +637,7 @@ fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement 
                     div()
                         .text_size(px(12.5))
                         .text_color(p.muted)
-                        .child("An always-on home we run for you. Nothing to set up."),
+                        .child("An always-on hut we run for you. Nothing to set up."),
                 ),
         )
         .child(action)

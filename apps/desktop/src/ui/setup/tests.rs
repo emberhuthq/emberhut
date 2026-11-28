@@ -89,10 +89,7 @@ fn a_fresh_install_shows_the_welcome_with_every_step(cx: &mut TestAppContext) {
             .label()
             .map_or_else(String::new, str::to_owned)
     });
-    assert_eq!(
-        label,
-        "Give your ember a home, Works while you're away, now"
-    );
+    assert_eq!(label, "Give your ember a hut, Works while you're away, now");
 }
 
 #[gpui_kit::test]
@@ -147,7 +144,7 @@ fn light_it_shows_the_picker_and_saving_lights_the_ember(cx: &mut TestAppContext
     cx.run_until_parked();
     assert_eq!(
         store.read_with(cx, |store, _| store.setup().open()),
-        Some(SetupStep::Reach),
+        Some(SetupStep::Yours),
         "the save went through: the step is done"
     );
     assert_eq!(store.read_with(cx, |store, _| store.setup().glow()), 2);
@@ -297,4 +294,35 @@ fn a_hut_that_doesnt_start_again_shows_why_with_try_again(cx: &mut TestAppContex
     cx.run_until_parked();
     assert_eq!(relit_at.borrow().len(), 2);
     assert!(!shows(cx, "gate-hut-retry"), "started: connecting again");
+}
+
+#[gpui_kit::test]
+fn make_it_yours_names_the_ember_live_and_keeps_the_name(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).with_session());
+    let (store, cx) = open(&backend, false, cx);
+    store.update(cx, |store, cx| {
+        store.take_state_for_tests(crate::fixtures::state(json!({})), cx);
+        store.preview_setup(Some(SetupStep::Yours), cx);
+    });
+    assert!(shows(cx, "setup-yours"));
+    assert!(shows(cx, "setup-yours-preview"));
+    let preview = |cx: &mut VisualTestContext| {
+        cx.update(|window, _| {
+            window
+                .find("setup-yours-preview")
+                .label()
+                .map_or_else(String::new, str::to_owned)
+        })
+    };
+    assert_eq!(preview(cx), "Preview: Ember", "the default name");
+    cx.update(|window, cx| window.click("setup-name-Ash", cx));
+    cx.run_until_parked();
+    assert_eq!(preview(cx), "Preview: Ash", "shown at once");
+    cx.update(|window, cx| window.click("setup-yours-continue", cx));
+    cx.run_until_parked();
+    assert_eq!(
+        store.read_with(cx, |store, _| store.setup().open()),
+        Some(SetupStep::Reach)
+    );
+    assert_eq!(store.read_with(cx, |store, _| store.ember_name()), "Ash");
 }

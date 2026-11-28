@@ -16,6 +16,7 @@ mod plans;
 mod steps;
 #[cfg(test)]
 mod tests;
+mod yours;
 
 use emberhut_api::ids::RoomId;
 use gpui_kit::assets::IconName;
@@ -23,7 +24,7 @@ use gpui_kit::component::Icon;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    AnyElement, Div, ElementId, Entity, FocusHandle, FontWeight, Role, ScrollHandle,
+    AnyElement, Div, ElementId, Entity, FocusHandle, FontWeight, Role, ScrollHandle, SharedString,
     TestSupportExt as _, Window, div, px, relative,
 };
 
@@ -38,7 +39,8 @@ use super::settings::ChromePane;
 use crate::motion;
 use crate::store::Store;
 use crate::store::settings::SettingsPane;
-use crate::store::setup::{BRIGHTEST, SetupStep, StepState};
+use crate::store::setup::{BRIGHTEST, DEFAULT_NAME, SetupStep, StepState};
+use gpui_kit::component::input::{InputEvent, InputState};
 
 /// The welcome's eyebrow, and every other step's.
 pub(crate) const WELCOME: &str = "Welcome to Emberhut";
@@ -46,8 +48,8 @@ pub(crate) const WELCOME: &str = "Welcome to Emberhut";
 pub(crate) const SETTING_UP: &str = "Set up your ember";
 
 /// What the welcome says under its headline.
-pub(crate) const LEAD: &str = "Your ember is a personal agent that lives on a computer you own \
-    and keeps working while you're away. Two steps get it going; the rest can wait.";
+pub(crate) const LEAD: &str = "Your ember is a personal agent that lives in a hut, a computer \
+    you own, and keeps working while you're away. Two steps get it going; the rest can wait.";
 
 /// The line under the welcome's steps.
 pub(crate) const FOOTER: &str =
@@ -72,6 +74,8 @@ pub(crate) struct SetupView {
     keep_focus: (FocusHandle, bool),
     /// "Light it": which way with a key is unfolded.
     fold: Option<plans::Fold>,
+    /// "Make it yours": the name's field.
+    name: Entity<InputState>,
 }
 
 impl SetupView {
@@ -93,6 +97,20 @@ impl SetupView {
             .in_setup()
         });
         let find = cx.new(|cx| PairingForm::new(store.clone(), window, cx).hint(FIND_HINT));
+        let named = store.read(cx).ember_name();
+        let name = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder(DEFAULT_NAME)
+                .default_value(named)
+        });
+        cx.subscribe(&name, |this, field, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) {
+                let typed = field.read(cx).value().to_string();
+                this.store
+                    .update(cx, |store, cx| store.name_ember(&typed, cx));
+            }
+        })
+        .detach();
         let chrome = cx.new(|cx| ChromePane::new(store.clone(), window, cx).sheets_only());
         Self {
             store,
@@ -103,6 +121,7 @@ impl SetupView {
             scroll: ScrollHandle::new(),
             keep_focus: (cx.focus_handle(), false),
             fold: None,
+            name,
         }
     }
 
@@ -190,7 +209,12 @@ impl SetupView {
             .gap(px(22.))
             .px(px(48.))
             .child(ember::picture(BRIGHTEST, EMBER_LIT, p, reduced))
-            .child(headline("Your ember is", "lit.", 44., p))
+            .child(headline(
+                &format!("{} is", self.store.read(cx).ember_name()),
+                "lit.",
+                44.,
+                p,
+            ))
             .child(
                 div()
                     .id("setup-summary")
@@ -234,7 +258,7 @@ impl SetupView {
 }
 
 /// A headline: `words`, then the ember's `word` in the accent, slanted.
-fn headline(words: &'static str, word: &'static str, size: f32, p: &Pal) -> Div {
+fn headline(words: &str, word: &'static str, size: f32, p: &Pal) -> Div {
     div()
         .flex()
         .flex_wrap()
@@ -243,7 +267,7 @@ fn headline(words: &'static str, word: &'static str, size: f32, p: &Pal) -> Div 
         .text_size(px(size))
         .line_height(relative(1.1))
         .font_weight(FontWeight::MEDIUM)
-        .child(words.trim_end())
+        .child(SharedString::from(words.trim_end().to_owned()))
         .child(div().italic().text_color(p.accent).child(word))
 }
 
@@ -371,7 +395,7 @@ impl SetupView {
                     .text_size(px(12.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(p.accent)
-                    .child(SETTING_UP.to_uppercase()),
+                    .child(format!("Set up {}", self.store.read(cx).ember_name()).to_uppercase()),
             )
             .children(rows)
             .child(div().flex_1())

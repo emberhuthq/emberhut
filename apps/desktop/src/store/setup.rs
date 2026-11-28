@@ -24,6 +24,7 @@ mod plans;
 mod relight;
 #[cfg(test)]
 pub(crate) mod tests;
+mod yours;
 
 use std::collections::BTreeSet;
 use std::rc::Rc;
@@ -38,6 +39,7 @@ pub(crate) use self::home::{
 };
 pub(crate) use self::plans::Plans;
 pub(crate) use self::relight::Relighting;
+pub(crate) use self::yours::{DEFAULT_NAME, SUGGESTIONS};
 
 use super::{Store, update_or_log};
 use crate::backend::Error;
@@ -90,6 +92,8 @@ pub(crate) enum SetupStep {
     Home,
     /// Light it: the model it thinks with.
     Light,
+    /// Make it yours: its name and its look.
+    Yours,
     /// Let it reach you: a phone paired with a QR code.
     Reach,
     /// Show it your world: Calendar, Gmail, Slack and Chrome.
@@ -100,9 +104,10 @@ pub(crate) enum SetupStep {
 
 impl SetupStep {
     /// Every step, in order.
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 6] = [
         Self::Home,
         Self::Light,
+        Self::Yours,
         Self::Reach,
         Self::World,
         Self::Share,
@@ -114,9 +119,10 @@ impl SetupStep {
         match self {
             Self::Home => 0,
             Self::Light => 1,
-            Self::Reach => 2,
-            Self::World => 3,
-            Self::Share => 4,
+            Self::Yours => 2,
+            Self::Reach => 3,
+            Self::World => 4,
+            Self::Share => 5,
         }
     }
 
@@ -130,8 +136,9 @@ impl SetupStep {
     #[must_use]
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::Home => "Give your ember a home",
+            Self::Home => "Give your ember a hut",
             Self::Light => "Light it",
+            Self::Yours => "Make it yours",
             Self::Reach => "Let it reach you",
             Self::World => "Show it your world",
             Self::Share => "Share your ember",
@@ -142,8 +149,9 @@ impl SetupStep {
     #[must_use]
     pub(crate) fn line(self) -> &'static str {
         match self {
-            Self::Home => "Pick the computer it lives on. It runs there in the background.",
+            Self::Home => "Pick its hut, where it lives. It runs there in the background.",
             Self::Light => "Choose the model your ember thinks with.",
+            Self::Yours => "Give it a name and pick its look.",
             Self::Reach => "Pair your phone with one QR code.",
             Self::World => "Connect Slack, Gmail, Calendar and Chrome, one at a time.",
             Self::Share => "Let someone else talk to it in Slack.",
@@ -156,6 +164,7 @@ impl SetupStep {
         match self {
             Self::Home => "Works while you're away",
             Self::Light => "It can think",
+            Self::Yours => "Name and look",
             Self::Reach => "Reaches your phone",
             Self::World => "Sees your mail and calendar",
             Self::Share => "Others can talk to it",
@@ -165,7 +174,7 @@ impl SetupStep {
     /// Whether the ember gets going without it.
     #[must_use]
     pub(crate) fn optional(self) -> bool {
-        matches!(self, Self::Reach | Self::World | Self::Share)
+        matches!(self, Self::Yours | Self::Reach | Self::World | Self::Share)
     }
 
     /// The headline while it is open: the words before the ember's word, and its word.
@@ -174,6 +183,7 @@ impl SetupStep {
         match self {
             Self::Home => ("Set up your ", "ember"),
             Self::Light => ("Now, ", "light it"),
+            Self::Yours => ("Make it ", "yours"),
             Self::Reach => ("Let it ", "reach you"),
             Self::World => ("Show it your ", "world"),
             Self::Share => ("Share your ", "ember"),
@@ -244,7 +254,7 @@ pub(crate) enum Ending {
 }
 
 /// `setup.json`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 struct SetupFile {
     /// How the setup ended, once it did.
@@ -253,6 +263,9 @@ struct SetupFile {
     /// server too, once there is one).
     #[serde(rename = "cloudWaitlist", skip_serializing_if = "std::ops::Not::not")]
     cloud_waitlist: bool,
+    /// The ember's name, once given in "Make it yours".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
 }
 
 /// A connection on the "Show it your world" step.
@@ -353,7 +366,7 @@ pub(crate) struct Setup {
     /// The step open; `None` once every step is behind (the "lit" screen).
     open: Option<SetupStep>,
     /// How each step stands, by its index.
-    steps: [StepState; 5],
+    steps: [StepState; 6],
     /// Whether the store looks at the setup checklist (the app does; most tests don't).
     watching: bool,
     /// Whether the ember thinks.
@@ -593,7 +606,7 @@ pub(crate) fn lit_line(saved: Option<&emberhut_api::agent_provider::AgentProvide
 #[must_use]
 pub(crate) fn place(server: &ServerUrl) -> &'static str {
     if !on_this_computer(server) {
-        "another computer"
+        "another hut"
     } else if cfg!(target_os = "macos") {
         "this Mac"
     } else {
@@ -636,6 +649,7 @@ impl Store {
             let line = match earlier {
                 SetupStep::Home => self.home_line(),
                 SetupStep::Light => self.light_line(),
+                SetupStep::Yours => format!("Called {}.", self.ember_name()),
                 SetupStep::Reach | SetupStep::World | SetupStep::Share => {
                     self.setup.steps[earlier.index()] = StepState::Skipped;
                     continue;
@@ -667,7 +681,7 @@ impl Store {
                 self.make_pairing_code(cx);
             }
             Some(SetupStep::World) => self.read_setup_page(cx),
-            Some(SetupStep::Home | SetupStep::Share) | None => {}
+            Some(SetupStep::Home | SetupStep::Yours | SetupStep::Share) | None => {}
         }
         cx.notify();
     }
@@ -759,7 +773,7 @@ impl Store {
     /// Writes `setup.json`.
     fn keep_setup_file(&mut self, cx: &mut Context<'_, Self>) {
         if let Some(files) = self.files.clone() {
-            let kept = self.setup.kept;
+            let kept = self.setup.kept.clone();
             let (number, written) = self.setup.writes.next();
             cx.background_spawn(async move {
                 json_file::write(&files.setup(), &kept, number, &written, "the setup's state");
@@ -902,10 +916,10 @@ impl Store {
         let place = place(self.server());
         match self.setup.keep.kept {
             Some(keep) if keep.by_service() => {
-                format!("It lives on {place} and stays lit when the window is closed.")
+                format!("Its hut is {place}, and it stays lit when the window is closed.")
             }
-            Some(_) => format!("It lives on {place} while Emberhut is open."),
-            None => format!("It lives on {place}."),
+            Some(_) => format!("Its hut is {place}, lit while Emberhut is open."),
+            None => format!("Its hut is {place}."),
         }
     }
 

@@ -6,7 +6,7 @@
 
 mod about;
 mod account;
-mod appearance;
+pub(crate) mod appearance;
 mod chrome;
 mod chrome_profile;
 mod chrome_sheets;

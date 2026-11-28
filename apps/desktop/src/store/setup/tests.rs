@@ -237,8 +237,9 @@ fn the_steps_read_in_the_embers_voice() {
     assert_eq!(
         names,
         [
-            "Give your ember a home",
+            "Give your ember a hut",
             "Light it",
+            "Make it yours",
             "Let it reach you",
             "Show it your world",
             "Share your ember",
@@ -248,7 +249,7 @@ fn the_steps_read_in_the_embers_voice() {
         .into_iter()
         .map(SetupStep::optional)
         .collect();
-    assert_eq!(optional, [false, false, true, true, true]);
+    assert_eq!(optional, [false, false, true, true, true, true]);
     assert_eq!(
         and_list(&["Gmail", "Slack", "Chrome"]),
         "Gmail, Slack and Chrome"
@@ -410,7 +411,7 @@ fn each_step_done_warms_the_ember_to_lit(cx: &mut TestAppContext) {
     assert_eq!(
         store.read_with(cx, |store, _| store.setup().state(SetupStep::Home).clone()),
         StepState::Done(format!(
-            "It lives on {}.",
+            "Its hut is {}.",
             place(&ServerUrl::parse(HERE).unwrap())
         ))
     );
@@ -422,6 +423,17 @@ fn each_step_done_warms_the_ember_to_lit(cx: &mut TestAppContext) {
     poll(&store, devices(&[(1, "This computer")]), cx);
     store.update(cx, Store::setup_lit);
     cx.run_until_parked();
+    assert_eq!(
+        (open(&store, cx), glow(&store, cx)),
+        (Some(SetupStep::Yours), 2)
+    );
+    store.update(cx, |store, cx| store.name_ember("Ash", cx));
+    store.update(cx, Store::yours_done);
+    cx.run_until_parked();
+    assert!(matches!(
+        store.read_with(cx, |store, _| store.setup().state(SetupStep::Yours).clone()),
+        StepState::Done(line) if line.starts_with("Called Ash")
+    ));
     assert_eq!(
         (open(&store, cx), glow(&store, cx)),
         (Some(SetupStep::Reach), 2)
@@ -873,7 +885,7 @@ fn a_home_here_is_kept_lit_while_closed_and_from_login(cx: &mut TestAppContext) 
     assert_eq!(
         home_line(&store, cx),
         StepState::Done(format!(
-            "It lives on {HERE_WORDS} and stays lit when the window is closed."
+            "Its hut is {HERE_WORDS}, and it stays lit when the window is closed."
         ))
     );
     assert_eq!(open(&store, cx), Some(SetupStep::Light));
@@ -888,7 +900,9 @@ fn a_home_here_is_kept_lit_while_closed_and_from_login(cx: &mut TestAppContext) 
     assert_eq!(keeps.borrow().last(), Some(&KeepLit::default()));
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done(format!("It lives on {HERE_WORDS} while Emberhut is open."))
+        StepState::Done(format!(
+            "Its hut is {HERE_WORDS}, lit while Emberhut is open."
+        ))
     );
     store.update(cx, Store::close_keep_sheet);
     assert!(!store.read_with(cx, |store, _| store.setup().shows_keep_sheet()));
@@ -909,7 +923,9 @@ fn a_home_here_that_cant_stay_lit_without_the_app_still_pairs(cx: &mut TestAppCo
     assert_eq!(open(&store, cx), Some(SetupStep::Light));
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done(format!("It lives on {HERE_WORDS} while Emberhut is open."))
+        StepState::Done(format!(
+            "Its hut is {HERE_WORDS}, lit while Emberhut is open."
+        ))
     );
 
     // Turned on from the sheet, it says why it can't, and nothing changes.
@@ -937,7 +953,7 @@ fn a_home_that_isnt_the_apps_to_keep_has_no_change(cx: &mut TestAppContext) {
     assert_eq!(open(&store, cx), Some(SetupStep::Light));
     assert_eq!(
         home_line(&store, cx),
-        StepState::Done(format!("It lives on {HERE_WORDS}."))
+        StepState::Done(format!("Its hut is {HERE_WORDS}."))
     );
     store.update(cx, Store::open_keep_sheet);
     store.read_with(cx, |store, _| {

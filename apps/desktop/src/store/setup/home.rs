@@ -18,7 +18,7 @@ use crate::hut::{KeepLit, LocalHut};
 use crate::store::sign_in::same_server;
 
 /// What the step says when Emberhut can't live on this computer through this build.
-pub(crate) const CANT_HERE: &str = "This build can't start Emberhut here yet.";
+pub(crate) const CANT_HERE: &str = "This build can't start a hut here yet.";
 
 /// How long the first step waits for Emberhut on this computer to answer.
 const LOOK_WITHIN: Duration = Duration::from_secs(3);
