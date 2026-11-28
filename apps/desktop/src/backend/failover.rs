@@ -7,11 +7,15 @@
 //! check and [`Timing::start_retries`] quick retries that all fail, every call goes to the
 //! fallback from then on.
 //!
-//! It never turns back by itself: what the user does on the fallback stays there, and turning
-//! back unasked would split their work between two servers without their knowing. The banner's
-//! Try again ([`Backend::try_primary`]) checks the primary once and turns back only when it
-//! answers. Being on the fallback is kept in a file naming the primary it stands in for, so a
-//! relaunch stays on the fallback too rather than turning back unasked.
+//! While the fallback answers it never turns back by itself: what the user does on the fallback
+//! stays there, and turning back unasked would split their work between two servers without
+//! their knowing. The banner's Try again ([`Backend::try_primary`]) checks the primary once and
+//! turns back only when it answers. Being on the fallback is kept in a file naming the primary
+//! it stands in for, so a relaunch stays on the fallback too rather than turning back unasked.
+//!
+//! A fallback that stops answering too holds no work to split, so the watcher keeps asking it
+//! every [`Timing::every`] while the app is on it: after [`Timing::failures`] failed checks in a
+//! row, it asks the primary at each check and turns back as soon as the primary answers.
 
 use std::io::Write;
 use std::ops::ControlFlow;
@@ -101,7 +105,7 @@ impl Timing {
 pub(crate) enum Next {
     /// Checks again after this long.
     CheckIn(Duration),
-    /// Turns to the fallback (and checks no more).
+    /// Turns to the fallback (or, watching the fallback, turns back if the primary answers).
     TurnToFallback,
 }
 
@@ -171,6 +175,8 @@ struct Shared {
     /// Whether every call goes to the fallback.
     on_fallback: AtomicBool,
     probe: Probe,
+    /// Asks the fallback whether it answers.
+    fallback_probe: Probe,
     /// Where being on the fallback is kept (nowhere without the app's files).
     mark: Option<PathBuf>,
     primary: ServerUrl,
@@ -252,19 +258,23 @@ impl Shared {
         next
     }
 
-    /// Waits `wait`, then, while the app is on the fallback, until it turns back; whether the
-    /// watcher goes on (it ends when the backend stops) and whether it turned back meanwhile.
+    /// One check of the fallback while the app is on it, counted by `watch`; once the fallback
+    /// has failed [`Timing::failures`] checks in a row, the primary is asked too, and the app
+    /// turns back when it answers.
+    fn check_fallback(&self, watch: &mut Watch) {
+        if watch.heard((self.fallback_probe)()) == Next::TurnToFallback && (self.probe)() {
+            log::warn!("the fallback server isn't answering either");
+            self.turn_back();
+        }
+    }
+
+    /// Waits `wait`, or less when the backend stops or turns back; whether the watcher goes on
+    /// (it ends when the backend stops) and whether it turned back meanwhile.
     fn pause(&self, wait: Duration) -> Option<bool> {
         let wake = self.wake();
-        let (wake, _) = self
+        let (mut wake, _) = self
             .woken
             .wait_timeout_while(wake, wait, |wake| !wake.stopped && !wake.turned_back)
-            .unwrap_or_else(PoisonError::into_inner);
-        let mut wake = self
-            .woken
-            .wait_while(wake, |wake| {
-                !wake.stopped && !wake.turned_back && self.on_fallback()
-            })
             .unwrap_or_else(PoisonError::into_inner);
         if wake.stopped {
             return None;
@@ -278,9 +288,11 @@ impl Shared {
     }
 }
 
-/// The watcher: checks the primary while the app is on it, until the backend stops or goes.
+/// The watcher: checks the primary while the app is on it, and the fallback while the app is on
+/// that, until the backend stops or goes.
 fn watch(shared: &Weak<Shared>, timing: Timing) {
     let mut watch = Watch::starting(timing);
+    let mut fallback = Watch::answered(timing);
     let mut wait = Duration::ZERO;
     loop {
         let Some(shared) = shared.upgrade() else {
@@ -295,9 +307,17 @@ fn watch(shared: &Weak<Shared>, timing: Timing) {
             }
             Some(false) => {}
         }
+        if shared.on_fallback() {
+            shared.check_fallback(&mut fallback);
+            wait = timing.every;
+            continue;
+        }
         wait = match shared.check(&mut watch) {
             Next::CheckIn(after) => after,
-            Next::TurnToFallback => Duration::ZERO,
+            Next::TurnToFallback => {
+                fallback = Watch::answered(timing);
+                timing.every
+            }
         };
     }
 }
@@ -316,12 +336,13 @@ impl Failover {
     fn new(
         primary: Arc<dyn Backend>,
         fallback: Arc<dyn Backend>,
-        probe: Probe,
+        [probe, fallback_probe]: [Probe; 2],
         mark: Option<PathBuf>,
     ) -> Self {
         let shared = Arc::new(Shared {
             on_fallback: AtomicBool::new(false),
             probe,
+            fallback_probe,
             mark,
             primary: primary.server().clone(),
             wake: Mutex::new(Wake::default()),
@@ -341,16 +362,16 @@ impl Failover {
         }
     }
 
-    /// Both, with the watcher started: `probe` asks whether the primary answers, `mark` is
-    /// where being on the fallback is kept across launches.
+    /// Both, with the watcher started: `probes` ask whether the primary and the fallback
+    /// answer, `mark` is where being on the fallback is kept across launches.
     pub(crate) fn start(
         primary: Arc<dyn Backend>,
         fallback: Arc<dyn Backend>,
-        probe: Probe,
+        probes: [Probe; 2],
         mark: Option<PathBuf>,
         timing: Timing,
     ) -> Arc<dyn Backend> {
-        let failover = Self::new(primary, fallback, probe, mark);
+        let failover = Self::new(primary, fallback, probes, mark);
         let shared = Arc::downgrade(&failover.shared);
         let started = std::thread::Builder::new()
             .name("server-health".into())
