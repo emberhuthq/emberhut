@@ -23,7 +23,8 @@ describe("palette from the theme's tokens", () => {
       onStatus: "#FFFDF9",
       switchThumb: "#FFFDF9",
       needsYou: "#B83D0C",
-      working: "#8A5800",
+      working: "#2B5F8E",
+      running: "#8A5800",
       info: "#2B5F8E",
       done: "#2B7248",
       warning: "#8A5800",
@@ -76,7 +77,7 @@ describe("palette from the theme's tokens", () => {
     ] as const) {
       const p = paletteFrom(t, scheme);
       for (const ground of [p.background, p.surface, p.surfaceRaised]) {
-        for (const ink of [p.text, p.textSecondary, p.textTertiary, p.accent, p.working, p.done, p.warning, p.danger]) {
+        for (const ink of [p.text, p.textSecondary, p.textTertiary, p.accent, p.working, p.running, p.done, p.warning, p.danger]) {
           expect(ratio(ink, ground), `${scheme} ${ink} on ${ground}`).toBeGreaterThanOrEqual(4.5);
         }
       }
