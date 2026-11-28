@@ -461,6 +461,12 @@ on, the latest first, found by key or title; Return or a click moves it
 task done or archived) shows the server's reason on the card. Sessions with no task shows only
 while a session has none; All sessions stays under More.
 
+A task's page renames its task: Edit title (the pencil beside the title) puts the title in a
+field, Return or Save sends it (`PATCH /api/tasks/{id}`, `{ "title": … }`; the body's type is
+in `src/wire.rs`), Esc or Cancel leaves it. The state and the page take the new title at once;
+a refusal (an empty or too long title, an unknown task) shows the server's reason under the
+field.
+
 In a quick note: ⌘↩ saves it, Esc closes it (what was written waits for the next one). In the
 diary: ⌘N a new note. In the calendar: ⌘T today, ⌘← and ⌘→ the previous and next day, week
 or month (a sideways drag or two-finger swipe too), Esc closes an event's details.
@@ -553,6 +559,7 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/decision.rs` | a decision on its task's page: why and by when, asked and checked, the draft, option cards and rows |
 | `store/spotlight.rs` | the spotlight: what it finds (projects, people, tasks), in order, and the pick |
 | `store/tasks/moving.rs` | Move to task…: the tasks a session can move to and the move itself |
+| `store/tasks/rename.rs` | a task's rename: the title sent, the state's copy updated |
 | `store/places.rs` | what a project's and a person's pages fetch while they show |
 | `store/projects.rs` | a project's page: progress, its asks, its work by area as lanes, the filter, its changes |
 | `store/goals.rs` | a goal's ring and label, and the weekly report's bars |
