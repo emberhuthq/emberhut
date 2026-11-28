@@ -754,11 +754,15 @@ pub(crate) fn connect(
         fallback_files.as_ref(),
         device_name,
     )?);
-    let probe = Arc::clone(&primary);
+    let within = failover::Timing::DEFAULT.probe_within;
+    let (probe, fallback_probe) = (Arc::clone(&primary), Arc::clone(&fallback));
     Ok(failover::Failover::start(
         primary,
         fallback,
-        Box::new(move || probe.answers(failover::Timing::DEFAULT.probe_within)),
+        [
+            Box::new(move || probe.answers(within)),
+            Box::new(move || fallback_probe.answers(within)),
+        ],
         files.map(AppFiles::fallback_mark),
         failover::Timing::DEFAULT,
     ))

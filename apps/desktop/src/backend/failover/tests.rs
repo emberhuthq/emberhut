@@ -11,7 +11,7 @@ use crate::backend::fake::{Call, FakeBackend};
 const PRIMARY: &str = "http://primary.example";
 const FALLBACK: &str = "http://fallback.example";
 
-/// The primary's health, set by the test, and how many times it was asked.
+/// A server's health, set by the test, and how many times it was asked.
 #[derive(Clone, Default)]
 struct Health {
     up: Arc<AtomicBool>,
@@ -59,7 +59,7 @@ impl Pair {
         Failover::new(
             Arc::clone(&self.primary) as Arc<dyn Backend>,
             Arc::clone(&self.fallback) as Arc<dyn Backend>,
-            health.probe(),
+            [health.probe(), Health::up().probe()],
             mark,
         )
     }
@@ -173,7 +173,7 @@ fn a_relaunch_stays_on_the_fallback_for_the_same_primary_only() {
     let relaunched = pair.failover(&health, Some(mark.clone()));
     assert!(
         matches!(relaunched.serving(), Serving::Fallback { .. }),
-        "never back by itself, even when the primary answers"
+        "never back by itself at launch, even when the primary answers"
     );
     drop(relaunched);
 
@@ -225,7 +225,7 @@ fn the_watcher_turns_to_the_fallback_and_stays_there() {
     let failover = Failover::start(
         Arc::clone(&pair.primary) as Arc<dyn Backend>,
         Arc::clone(&pair.fallback) as Arc<dyn Backend>,
-        health.probe(),
+        [health.probe(), Health::up().probe()],
         None,
         QUICK,
     );
@@ -235,8 +235,8 @@ fn the_watcher_turns_to_the_fallback_and_stays_there() {
     health.set(false);
     assert!(eventually(|| failover.serving() != Serving::Primary));
 
-    // On the fallback nothing is checked, so nothing turns back, even once the primary
-    // answers.
+    // While the fallback answers the primary isn't asked, so nothing turns back, even once
+    // the primary answers.
     health.set(true);
     let asked = health.asked();
     std::thread::sleep(Duration::from_millis(100));
@@ -256,11 +256,43 @@ fn a_primary_silent_at_start_up_turns_to_the_fallback_at_once() {
     let failover = Failover::start(
         Arc::clone(&pair.primary) as Arc<dyn Backend>,
         Arc::clone(&pair.fallback) as Arc<dyn Backend>,
-        health.probe(),
+        [health.probe(), Health::up().probe()],
         None,
         QUICK,
     );
     assert!(eventually(|| failover.serving() != Serving::Primary));
     assert_eq!(health.asked(), 3, "a first check and two retries");
+    failover.stop().unwrap();
+}
+
+#[test]
+fn a_silent_fallback_turns_back_to_the_primary_once_it_answers() {
+    let (pair, primary, fallback) = (Pair::new(), Health::up(), Health::default());
+    let dir = tempfile::tempdir().unwrap();
+    let mark = dir.path().join("fallback.json");
+    std::fs::write(&mark, format!(r#"{{"primary": "{PRIMARY}"}}"#)).unwrap();
+    // Relaunched on the fallback, which is down too, while the primary is down as well.
+    primary.set(false);
+    let failover = Failover::start(
+        Arc::clone(&pair.primary) as Arc<dyn Backend>,
+        Arc::clone(&pair.fallback) as Arc<dyn Backend>,
+        [primary.probe(), fallback.probe()],
+        Some(mark.clone()),
+        QUICK,
+    );
+    assert!(
+        eventually(|| primary.asked() >= 2),
+        "asked once the fallback is silent"
+    );
+    assert!(
+        fallback.asked() >= 3,
+        "only after three silent checks of the fallback"
+    );
+    assert!(matches!(failover.serving(), Serving::Fallback { .. }));
+    assert!(mark.exists());
+
+    primary.set(true);
+    assert!(eventually(|| failover.serving() == Serving::Primary));
+    assert!(!mark.exists(), "forgotten once back");
     failover.stop().unwrap();
 }
