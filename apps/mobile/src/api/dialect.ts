@@ -1,7 +1,7 @@
 // A wire dialect: for building the app for a server that spells some wire words differently. The build carries the
 // dialect's JSON in EXPO_PUBLIC_EMBERHUT_WIRE_DIALECT; the API client reads every answer through it (into the app's own
 // words, src/api/wire.ts) and writes every request through it (back into the server's). Unset or empty, nothing is
-// rewritten. No imports, so app.config.ts reads it too.
+// rewritten. It imports only the dependency-free wire.ts, so app.config.ts reads it too.
 //
 // The JSON: { "words": [[server, app], ...], "keys": [...], "headers": [...], "prefixes": [...] }, every pair the server's
 // spelling first. The rules are the same as the desktop client's (crates/emberhut-client/src/dialect.rs) and the browser
@@ -19,6 +19,8 @@
 //   replacement is never searched again, and where a token starts is decided by the character before it in the given
 //   text.
 // Whole words, keys and headers: the first pair whose side matches wins.
+
+import { CONTRACT_TASK_KEY_PREFIX, TASK_KEY_PREFIX } from "./wire.ts";
 
 /** The dialect's JSON, parsed: pairs of [the server's spelling, the app's]. */
 export interface DialectTable {
@@ -183,10 +185,36 @@ export const identityDialect: Dialect = {
 };
 
 /**
- * This build's dialect. Read as `process.env.EXPO_PUBLIC_…` literally, which Metro inlines when it bundles; app.config.ts
- * reads the same variable from the environment.
+ * A table that also reads task keys into the app's prefix (`own`) and writes them back. A pair whose app side is the
+ * contract's prefix (`contract`) now ends in the app's: the server spells keys its own way, read into the app's and
+ * written back in its own; such a pair left the same on both sides is dropped. Otherwise the server spells keys as the
+ * contract does, and a pair from the contract's prefix to the app's is added. The same prefix both ways leaves the table
+ * as it is.
  */
-export const dialect: Dialect = createDialect(parseDialect(process.env.EXPO_PUBLIC_EMBERHUT_WIRE_DIALECT));
+export function withTaskKeyPrefix(table: DialectTable, contract: string, own: string): DialectTable {
+  if (contract === own) return table;
+  const ownSpelling = table.prefixes.some(([, app]) => app === contract);
+  const prefixes = table.prefixes
+    .map(([server, app]): [string, string] => [server, app === contract ? own : app])
+    .filter(([server, app]) => server !== app);
+  return { ...table, prefixes: ownSpelling ? prefixes : [...prefixes, [contract, own]] };
+}
+
+const wireTable = parseDialect(process.env.EXPO_PUBLIC_EMBERHUT_WIRE_DIALECT);
+
+/** The build has a wire dialect (EXPO_PUBLIC_EMBERHUT_WIRE_DIALECT): a server may speak it or not. */
+export const hasWireDialect = !createDialect(wireTable).identity;
+
+/**
+ * This build's dialect, with task keys in the build's prefix (src/api/wire.ts). Read as `process.env.EXPO_PUBLIC_…`
+ * literally, which Metro inlines when it bundles; app.config.ts reads the same variable from the environment.
+ */
+export const dialect: Dialect = createDialect(withTaskKeyPrefix(wireTable, CONTRACT_TASK_KEY_PREFIX, TASK_KEY_PREFIX));
+
+/** The words of a server that doesn't speak the build's dialect: the contract's, with task keys in the build's prefix. */
+export const contractWords: Dialect = createDialect(
+  withTaskKeyPrefix({ words: [], keys: [], headers: [], prefixes: [] }, CONTRACT_TASK_KEY_PREFIX, TASK_KEY_PREFIX),
+);
 
 /** A JSON document taken from the server some way other than through the API client, in the app's words (this build's dialect). */
 export const jsonFromServer = (value: unknown): unknown => dialect.read(value);

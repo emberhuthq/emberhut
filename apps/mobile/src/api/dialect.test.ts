@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  CONTRACT_TASK_KEY_PREFIX,
   createDialect,
   dialect,
   followRoomLive,
@@ -12,8 +13,10 @@ import {
   LOOKING_HEADER,
   OWNER,
   parseDialect,
-  taskKey,
+  taskKeyPrefixFrom,
   toServer,
+  withTaskKeyPrefix,
+  type DialectTable,
   type EmberhutState,
   type Live,
 } from "@/api";
@@ -118,7 +121,7 @@ describe("a dialect", () => {
   });
 
   it("writes them back in the server's", () => {
-    expect(words.write({ to: OWNER, q: taskKey(4), assistantAccount: "a-1", text: "a T-shirt" })).toEqual({
+    expect(words.write({ to: OWNER, q: `${CONTRACT_TASK_KEY_PREFIX}4`, assistantAccount: "a-1", text: "a T-shirt" })).toEqual({
       to: "person",
       q: "K-4",
       helperAccount: "a-1",
@@ -147,7 +150,7 @@ describe("the API client, built with a dialect", () => {
   it("writes the query, the headers and the body in the server's words, and reads the answer in the app's", async () => {
     const { server, api } = fakeApi({ dialect: words });
     server.on("GET", "/api/tasks", () => json(200, { tasks: [{ id: 4, key: "K-4", owner: "person", title: "Ship" }] }));
-    const tasks = await api.tasks.list({ q: taskKey(4), owner: OWNER });
+    const tasks = await api.tasks.list({ q: `${CONTRACT_TASK_KEY_PREFIX}4`, owner: OWNER });
     expect(Object.fromEntries(server.to("/api/tasks")[0]!.url.searchParams)).toEqual({ q: "K-4", owner: "person" });
     expect(tasks).toEqual([{ id: 4, key: "T-4", owner: "owner", title: "Ship" }]);
 
@@ -196,3 +199,56 @@ async function until(check: () => boolean): Promise<void> {
   for (let i = 0; i < 200 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 5));
   expect(check()).toBe(true);
 }
+
+describe("a build's own task-key prefix", () => {
+  const empty = { words: [], keys: [], headers: [], prefixes: [] };
+  // A server that spells task keys as the contract does, in a build that shows them as "WK-".
+  const plain = createDialect(withTaskKeyPrefix(empty, CONTRACT_TASK_KEY_PREFIX, "WK-"));
+  // A server that spells them "WK-" itself, in the same build: its keys stay as they are, both ways.
+  const ownTable: DialectTable = {
+    ...empty,
+    prefixes: [
+      ["WK-", CONTRACT_TASK_KEY_PREFIX],
+      ["other://", "emberhut://"],
+    ],
+  };
+  const own = createDialect(withTaskKeyPrefix(ownTable, CONTRACT_TASK_KEY_PREFIX, "WK-"));
+  const key = (id: number) => `${CONTRACT_TASK_KEY_PREFIX}${id}`;
+
+  it("is the contract's when unset or blank, and refuses anything that isn't letters and digits ending in a dash", () => {
+    expect(taskKeyPrefixFrom(undefined)).toBe(CONTRACT_TASK_KEY_PREFIX);
+    expect(taskKeyPrefixFrom("  ")).toBe(CONTRACT_TASK_KEY_PREFIX);
+    expect(taskKeyPrefixFrom(" WK- ")).toBe("WK-");
+    for (const bad of ["WK", "W.K-", "-", "4K-", "W K-"]) expect(() => taskKeyPrefixFrom(bad)).toThrow(/task-key prefix/);
+  });
+
+  it("reads a contract server's keys in a message's text, a chip's label and a task's key into the build's", () => {
+    const answer = {
+      text: `Worth trying on your phone (${key(4502)}): https://example.com/play. See ${key(12)}.`,
+      refs: [{ kind: "task", label: key(4502), task: 4502 }],
+      issues: [{ id: 4502, key: key(4502), action: `One yes on ${key(9)}` }],
+    };
+    expect(plain.read(answer)).toEqual({
+      text: "Worth trying on your phone (WK-4502): https://example.com/play. See WK-12.",
+      refs: [{ kind: "task", label: "WK-4502", task: 4502 }],
+      issues: [{ id: 4502, key: "WK-4502", action: "One yes on WK-9" }],
+    });
+  });
+
+  it("writes the build's keys back as the contract's, and leaves other words alone", () => {
+    expect(plain.write({ text: "Look at WK-4502, not the T-shirt" })).toEqual({ text: `Look at ${key(4502)}, not the T-shirt` });
+    expect(plain.readText("feat/T-12 XT-3 T-shirt")).toBe("feat/T-12 XT-3 T-shirt");
+    expect(plain.readText("WK-7 stays")).toBe("WK-7 stays");
+  });
+
+  it("keeps the keys of a server that spells them as the build does, both ways, and its other prefixes", () => {
+    expect(withTaskKeyPrefix(ownTable, CONTRACT_TASK_KEY_PREFIX, "WK-").prefixes).toEqual([["other://", "emberhut://"]]);
+    expect(own.readText("WK-4502 other://task/1")).toBe("WK-4502 emberhut://task/1");
+    expect(own.writeText("WK-4502 emberhut://task/1")).toBe("WK-4502 other://task/1");
+  });
+
+  it("changes nothing when the build shows the contract's prefix", () => {
+    expect(withTaskKeyPrefix(ownTable, CONTRACT_TASK_KEY_PREFIX, CONTRACT_TASK_KEY_PREFIX)).toBe(ownTable);
+    expect(createDialect(withTaskKeyPrefix(empty, CONTRACT_TASK_KEY_PREFIX, CONTRACT_TASK_KEY_PREFIX))).toBe(identityDialect);
+  });
+});

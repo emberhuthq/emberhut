@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, isServerPath, taskKey, type AuthEvent } from "@/api";
+import { ApiError, CONTRACT_TASK_KEY_PREFIX, isServerPath, taskKey, type AuthEvent } from "@/api";
 import { fakeApi, json, memoryStorage, tokens } from "@/test/fakes";
 
 describe("EmberhutHttp", () => {
@@ -8,7 +8,13 @@ describe("EmberhutHttp", () => {
     server.on("GET", "/api/tasks", () => json(200, { tasks: [] }));
     await api.tasks.list({ q: taskKey(212), project: "none", status: ["waiting", "todo"], closed: true, owner: undefined });
     const url = server.to("/api/tasks")[0]!.url;
-    expect(Object.fromEntries(url.searchParams)).toEqual({ q: taskKey(212), project: "none", status: "waiting,todo", closed: "1" });
+    // The search box's key goes out in the server's spelling, whatever prefix the build shows.
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      q: `${CONTRACT_TASK_KEY_PREFIX}212`,
+      project: "none",
+      status: "waiting,todo",
+      closed: "1",
+    });
     expect(server.sent[0]!.headers.authorization).toBeUndefined();
   });
 
