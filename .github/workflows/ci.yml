@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # A release tag: CI as on main, and the browser extension's zips attached to its release.
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -438,11 +440,77 @@ jobs:
             echo "::error::Clerk is in the bundle of a build without the account"; exit 1
           fi
 
+  # The browser extension's release (ADR 0031): both zips, the one to load unpacked and the Chrome Web Store's, built
+  # twice from a clean dist/ must be the same bytes; the store's has no key, source map, source or dotfile. They are the
+  # run's artifact (with their SHA-256), and a v* tag attaches them to its release (extension-release).
+  extension:
+    name: extension (release zips, reproducible)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: |
+          npm install --global --prefix "$RUNNER_TEMP/pnpm" "pnpm@$(node -p "require('./package.json').packageManager.replace(/^pnpm@/, '')")"
+          echo "$RUNNER_TEMP/pnpm/bin" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile
+      - name: two builds, the same bytes
+        working-directory: apps/extension
+        run: |
+          pnpm run build && pnpm run zip
+          mkdir -p "$RUNNER_TEMP/first" && cp dist/*.zip "$RUNNER_TEMP/first/"
+          rm -rf dist && pnpm run build && pnpm run zip
+          for zip in "$RUNNER_TEMP"/first/*.zip; do
+            cmp "$zip" "dist/$(basename "$zip")" || { echo "::error::$(basename "$zip") differs between two builds"; exit 1; }
+          done
+      - name: the store's zip holds only what runs, without a key
+        working-directory: apps/extension/dist
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          store="emberhut-extension-$version-store.zip"
+          unzip -l "$store"
+          unzip -p "$store" manifest.json | node -e 'if (JSON.parse(require("fs").readFileSync(0, "utf8")).key !== undefined) process.exit(1)' \
+            || { echo "::error::the store's manifest has a key"; exit 1; }
+          if unzip -Z1 "$store" | grep -E '\.(map|ts|pem)$|(^|/)\.'; then echo "::error::a file that doesn't run is in the store's zip"; exit 1; fi
+          sha256sum ./*.zip | tee SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: emberhut-extension
+          path: |
+            apps/extension/dist/*.zip
+            apps/extension/dist/SHA256SUMS
+          if-no-files-found: error
+
+  extension-release:
+    name: extension zips on the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ci-ok, extension]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: emberhut-extension
+          path: extension
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes ""
+          gh release upload "$TAG" extension/* --repo "$GITHUB_REPOSITORY" --clobber
+
   # The one check to require: green only when every job above is.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, fmt, clippy, test, build, msi, coverage, deny, machete, secrets, js]
+    needs: [changes, fmt, clippy, test, build, msi, coverage, deny, machete, secrets, js, extension]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
