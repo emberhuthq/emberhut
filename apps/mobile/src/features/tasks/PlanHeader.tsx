@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { Issue, Plan, RunnerSession } from "@/api";
 import { isRunning, shortTitle } from "@/features/sessions/sessionList";
 import { parseInstant, relative } from "@/format/time";
+import { useMoveToTask, useSessionMenu } from "@/features/sessions/SessionMenu";
 import { useTheme } from "@/theme";
 import { Icon, Text, type TextTone } from "@/ui";
 import { statusName } from "./model";
@@ -32,7 +33,6 @@ export function PlanHeader({
   onAsk?: () => void;
 }) {
   const { colors, spacing } = useTheme();
-  const navigation = useNavigation();
   const quiet = quietMinutes(task, watched, useMinute());
   const summary = plan.summary;
   const empty = isPlanless(plan);
@@ -43,7 +43,6 @@ export function PlanHeader({
   const updated = parseInstant(summary.updated);
   const thread = task.live?.run?.thread;
   const session = sessions.find((s) => s.id === thread) ?? sessions.find((s) => isRunning(s.status)) ?? sessions[0];
-  const sessionAt = parseInstant(session?.updatedAt);
   const fraction = planFraction(summary);
   return (
     <View style={{ gap: spacing.sm }}>
@@ -76,23 +75,7 @@ export function PlanHeader({
       {summary.eta && summary.done < summary.total ? (
         <Fact label="ETA" value={[summary.eta, updated ? `updated ${relative(updated)}` : null].filter(Boolean).join(" · ")} />
       ) : null}
-      {session ? (
-        <Pressable
-          onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
-          accessibilityRole="button"
-          accessibilityLabel={`Open session ${shortTitle(session.title)}`}
-          hitSlop={6}
-          style={[styles.line, { gap: spacing.xs }]}
-        >
-          <Icon name="terminal-outline" size={14} color={colors.textTertiary} />
-          <Text variant="footnote" tone="secondary" numberOfLines={1} style={styles.shrink}>
-            {[shortTitle(session.title), sessionAt ? `updated ${relative(sessionAt)}` : null].filter(Boolean).join(" · ")}
-          </Text>
-          <Text variant="footnote" tone="accent" weight="600">
-            {" · Open session ›"}
-          </Text>
-        </Pressable>
-      ) : null}
+      {session ? <SessionLine session={session} /> : null}
       {!empty && fraction !== null ? (
         <View style={{ gap: spacing.xs, paddingTop: spacing.xs }}>
           <View style={styles.line}>
@@ -105,6 +88,35 @@ export function PlanHeader({
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** The session at work, one tap away: its title, when it last moved, Open session; a long press offers Move to task…. */
+function SessionLine({ session }: { session: RunnerSession }) {
+  const { colors, spacing } = useTheme();
+  const navigation = useNavigation();
+  const menu = useSessionMenu(session, useMoveToTask());
+  const at = parseInstant(session.updatedAt);
+  return (
+    <>
+      <Pressable
+        {...menu.press}
+        onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
+        accessibilityRole="button"
+        accessibilityLabel={`Open session ${shortTitle(session.title)}`}
+        hitSlop={6}
+        style={[styles.line, { gap: spacing.xs }]}
+      >
+        <Icon name="terminal-outline" size={14} color={colors.textTertiary} />
+        <Text variant="footnote" tone="secondary" numberOfLines={1} style={styles.shrink}>
+          {[shortTitle(session.title), at ? `updated ${relative(at)}` : null].filter(Boolean).join(" · ")}
+        </Text>
+        <Text variant="footnote" tone="accent" weight="600">
+          {" · Open session ›"}
+        </Text>
+      </Pressable>
+      {menu.sheet}
+    </>
   );
 }
 

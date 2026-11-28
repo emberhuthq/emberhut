@@ -2,6 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import { OWNER, type RunInfo, type RunnerSession, type TaskArtifact, type TaskMoment } from "@/api";
+import { useMoveToTask, useSessionMenu, type MoveTo } from "@/features/sessions/SessionMenu";
 import { StatusMark } from "@/features/sessions/StatusMark";
 import { sessionStatusText, shortTitle } from "@/features/sessions/sessionList";
 import { daysFromToday, weekday } from "@/format/time";
@@ -37,13 +38,14 @@ export function Activity({
   artifacts: TaskArtifact[];
 }) {
   const { spacing } = useTheme();
+  const move = useMoveToTask();
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [all, setAll] = useState(false);
   const items = activityFeed(runs, sessions, history, artifacts, filter);
   const shown = all ? items : items.slice(0, 8);
   const turns = runs.length;
   // Nothing has happened yet: no feed to filter, only the sessions (if any).
-  if (activityFeed(runs, sessions, history, artifacts).length === 0) return <TaskSessions sessions={sessions} />;
+  if (activityFeed(runs, sessions, history, artifacts).length === 0) return <TaskSessions sessions={sessions} move={move} />;
   return (
     <>
       <View style={{ gap: spacing.sm }}>
@@ -55,7 +57,7 @@ export function Activity({
             <Segmented options={filters} value={filter} onChange={setFilter} accessibilityLabel="Show in the activity" />
           </View>
           {shown.map((item, i) => (
-            <FeedRow key={`${item.kind}-${i}`} item={item} />
+            <FeedRow key={`${item.kind}-${i}`} item={item} move={move} />
           ))}
           {shown.length === 0 ? <ListRow key="none" title="Nothing here yet." /> : null}
           {items.length > shown.length ? (
@@ -63,7 +65,7 @@ export function Activity({
           ) : null}
         </Section>
       </View>
-      <TaskSessions sessions={sessions} />
+      <TaskSessions sessions={sessions} move={move} />
     </>
   );
 }
@@ -76,7 +78,7 @@ function when(at: number): [string, string | null] {
   return [time, daysFromToday(date) === 0 ? null : weekday(date)];
 }
 
-function FeedRow({ item }: { item: FeedItem }) {
+function FeedRow({ item, move }: { item: FeedItem; move: MoveTo | undefined }) {
   const { colors, spacing } = useTheme();
   const [time, day] = when(item.at);
   return (
@@ -93,7 +95,7 @@ function FeedRow({ item }: { item: FeedItem }) {
       </View>
       <View style={styles.fill}>
         {item.kind === "turn" ? (
-          <Turn item={item.item} time={[day, time].filter(Boolean).join(" ")} />
+          <Turn item={item.item} time={[day, time].filter(Boolean).join(" ")} move={move} />
         ) : item.kind === "moment" ? (
           <Moment moment={item.moment} time={[day, time].filter(Boolean).join(" ")} />
         ) : (
@@ -104,9 +106,8 @@ function FeedRow({ item }: { item: FeedItem }) {
   );
 }
 
-function Turn({ item, time }: { item: ActivityItem; time: string }) {
-  const { colors, spacing } = useTheme();
-  const navigation = useNavigation();
+function Turn({ item, time, move }: { item: ActivityItem; time: string; move: MoveTo | undefined }) {
+  const { spacing } = useTheme();
   const { run, status, session } = item;
   const said = item.said ?? (item.going ? (run.started ? "Working on it…" : "Not started yet") : null);
   return (
@@ -144,24 +145,36 @@ function Turn({ item, time }: { item: ActivityItem; time: string }) {
           <Chip label={`Turn ${item.failed}`} tone="danger" />
         ) : null}
       </View>
-      {session ? (
-        <Pressable
-          onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={`Open session ${shortTitle(session.title)}`}
-          style={[styles.line, { gap: spacing.xs, alignSelf: "flex-start" }]}
-        >
-          <Icon name="terminal-outline" size={13} color={colors.textTertiary} />
-          <Text variant="footnote" tone="secondary" numberOfLines={1} style={styles.shrink}>
-            {`${shortTitle(session.title)} on ${session.place}`}
-          </Text>
-          <Text variant="footnote" tone="accent" weight="600">
-            {" · Open session ›"}
-          </Text>
-        </Pressable>
-      ) : null}
+      {session ? <TurnSession session={session} move={move} /> : null}
     </View>
+  );
+}
+
+/** A turn's session, one tap away; a long press offers Move to task…. */
+function TurnSession({ session, move }: { session: RunnerSession; move: MoveTo | undefined }) {
+  const { colors, spacing } = useTheme();
+  const navigation = useNavigation();
+  const menu = useSessionMenu(session, move);
+  return (
+    <>
+      <Pressable
+        {...menu.press}
+        onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`Open session ${shortTitle(session.title)}`}
+        style={[styles.line, { gap: spacing.xs, alignSelf: "flex-start" }]}
+      >
+        <Icon name="terminal-outline" size={13} color={colors.textTertiary} />
+        <Text variant="footnote" tone="secondary" numberOfLines={1} style={styles.shrink}>
+          {`${shortTitle(session.title)} on ${session.place}`}
+        </Text>
+        <Text variant="footnote" tone="accent" weight="600">
+          {" · Open session ›"}
+        </Text>
+      </Pressable>
+      {menu.sheet}
+    </>
   );
 }
 
@@ -221,42 +234,52 @@ function File({ artifact }: { artifact: TaskArtifact }) {
   );
 }
 
-/** The task's sessions, running first: each opens its transcript. */
-function TaskSessions({ sessions }: { sessions: RunnerSession[] }) {
-  const { colors, spacing } = useTheme();
-  const navigation = useNavigation();
+/** The task's sessions, running first: each opens its transcript; a long press offers Move to task…. */
+function TaskSessions({ sessions, move }: { sessions: RunnerSession[]; move: MoveTo | undefined }) {
   return (
     <Section title="Sessions">
       {taskSessions(sessions).map((s) => (
-        <Pressable
-          key={s.id}
-          onPress={() => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) })}
-          accessibilityRole="button"
-          accessibilityLabel={`Open session ${shortTitle(s.title)}, ${sessionStatusText(s.status)}`}
-          style={({ pressed }) => [
-            styles.line,
-            {
-              gap: spacing.md,
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.md,
-              backgroundColor: pressed ? colors.surfaceRaised : colors.surface,
-            },
-          ]}
-        >
-          <StatusMark status={s.status} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text numberOfLines={1}>{shortTitle(s.title)}</Text>
-            <Text variant="footnote" tone="secondary" numberOfLines={1}>
-              {[s.doing ?? sessionStatusText(s.status), s.place].filter(Boolean).join(" · ")}
-            </Text>
-          </View>
-          <Text variant="footnote" tone="accent" weight="600">
-            Open session
-          </Text>
-          <Icon name="chevron-forward" size={16} color={colors.textTertiary} />
-        </Pressable>
+        <TaskSessionRow key={s.id} session={s} move={move} />
       ))}
     </Section>
+  );
+}
+
+function TaskSessionRow({ session: s, move }: { session: RunnerSession; move: MoveTo | undefined }) {
+  const { colors, spacing } = useTheme();
+  const navigation = useNavigation();
+  const menu = useSessionMenu(s, move);
+  return (
+    <>
+      <Pressable
+        {...menu.press}
+        onPress={() => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) })}
+        accessibilityRole="button"
+        accessibilityLabel={`Open session ${shortTitle(s.title)}, ${sessionStatusText(s.status)}`}
+        style={({ pressed }) => [
+          styles.line,
+          {
+            gap: spacing.md,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            backgroundColor: pressed ? colors.surfaceRaised : colors.surface,
+          },
+        ]}
+      >
+        <StatusMark status={s.status} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text numberOfLines={1}>{shortTitle(s.title)}</Text>
+          <Text variant="footnote" tone="secondary" numberOfLines={1}>
+            {[s.doing ?? sessionStatusText(s.status), s.place].filter(Boolean).join(" · ")}
+          </Text>
+        </View>
+        <Text variant="footnote" tone="accent" weight="600">
+          Open session
+        </Text>
+        <Icon name="chevron-forward" size={16} color={colors.textTertiary} />
+      </Pressable>
+      {menu.sheet}
+    </>
   );
 }
 
