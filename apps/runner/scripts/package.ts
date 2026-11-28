@@ -27,7 +27,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = resolve(here, "..");
 const repo = resolve(pkgDir, "../..");
 const say = (s: string) => process.stdout.write(s + "\n");
-const sh = (cmd: string, args: string[], cwd?: string) => execFileSync(cmd, args, { stdio: "inherit", ...(cwd ? { cwd } : {}) });
+// Windows' own bsdtar: Git for Windows puts GNU tar first on the PATH, which reads "D:\\…" as a remote host.
+const TAR = platform() === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
+// On Windows pnpm is a .cmd shim, which only a shell starts.
+const sh = (cmd: string, args: string[], cwd?: string) =>
+  execFileSync(cmd, args, { stdio: "inherit", ...(cwd ? { cwd } : {}), shell: platform() === "win32" && cmd === "pnpm" });
 
 async function sha256(file: string): Promise<string> {
   const h = createHash("sha256");
@@ -65,7 +69,7 @@ async function node(target: Target, work: string, into: string): Promise<string>
     ?.split(/\s+/)[0];
   const got = await sha256(local);
   if (!want || want !== got) throw new Error(`${file}: checksum ${got} isn't nodejs.org's ${want ?? "(none listed)"}`);
-  sh("tar", ["-xf", local, "-C", work]);
+  sh(TAR, ["-xf", local, "-C", work]);
   mkdirSync(dirname(into), { recursive: true });
   renameSync(join(work, name), into);
   // Only the runtime: npm, corepack and the headers aren't needed to run.
@@ -149,8 +153,8 @@ async function main(): Promise<void> {
 
   const archive = join(out, TARGETS[target].os === "win32" ? `${name}.zip` : `${name}.tar.gz`);
   rmSync(archive, { force: true });
-  if (TARGETS[target].os === "win32") sh("tar", ["-a", "-c", "-f", archive, name], out);
-  else sh("tar", ["-czf", archive, name], out);
+  if (TARGETS[target].os === "win32") sh(TAR, ["-a", "-c", "-f", archive, name], out);
+  else sh(TAR, ["-czf", archive, name], out);
   const sum = await sha256(archive);
   writeFileSync(`${archive}.sha256`, `${sum}  ${archive.split(/[/\\]/).pop()!}\n`);
   rmSync(work, { recursive: true, force: true });
