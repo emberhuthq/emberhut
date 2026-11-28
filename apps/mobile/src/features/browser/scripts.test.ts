@@ -1,7 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { injected, keyScript, pasteScript, screenSize, typedChange } from "./scripts";
 
 describe("live view scripts", () => {
+  it("report the stream to the app every 2 s: its pictures so far, and whether its connection is open", () => {
+    vi.useFakeTimers();
+    const posted: unknown[] = [];
+    const page: Record<string, unknown> = {
+      ReactNativeWebView: { postMessage: (m: string) => posted.push(JSON.parse(m)) },
+      videoChunksReceived: 0,
+      selkiesTransport: null,
+    };
+    // The page's window, as the WebView runs the script in it (its own scripts publish the stream's state there).
+    new Function("window", "document", injected("view", null))(page, {
+      createElement: () => ({}),
+      documentElement: { appendChild: () => undefined },
+      addEventListener: () => undefined,
+    });
+    page.selkiesTransport = { readyState: 1 };
+    vi.advanceTimersByTime(2000);
+    page.videoChunksReceived = 42;
+    vi.advanceTimersByTime(2000);
+    page.selkiesTransport = { readyState: 3 };
+    vi.advanceTimersByTime(2000);
+    vi.useRealTimers();
+    // Both modes carry it: the view and the driver.
+    expect(injected("control", null)).toContain('"emberhut-stream"');
+    expect(posted).toEqual([
+      { type: "emberhut-stream", chunks: 0, open: false },
+      { type: "emberhut-stream", chunks: 0, open: true },
+      { type: "emberhut-stream", chunks: 42, open: true },
+      { type: "emberhut-stream", chunks: 42, open: false },
+    ]);
+  });
+
   it("gives the view the screen's size, and the driver the keys and touch", () => {
     const view = injected("view", { width: 1920, height: 1080 });
     expect(view).toContain("width: 1920, height: 1080");

@@ -16,6 +16,7 @@ allowBuilds:
 # by the keyboard (apps/mobile/README.md, "The keyboard").
 patchedDependencies:
   react-native-bottom-tabs@1.5.0: patches/react-native-bottom-tabs-1.5.0.patch
+  react-native-webview@14.0.1: patches/react-native-webview-14.0.1.patch
 
 # Dependencies a package uses without declaring them. @clerk/expo-passkeys loads buffer at run time.
 packageExtensions:

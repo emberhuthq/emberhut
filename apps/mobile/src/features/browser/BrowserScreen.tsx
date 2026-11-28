@@ -3,7 +3,8 @@ import * as Clipboard from "expo-clipboard";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { OWNER, type BrowserInfo, type BrowserInput } from "@/api";
 import { inBackground } from "@/log";
 import type { RootScreenProps } from "@/navigation/types";
@@ -38,6 +39,9 @@ export function BrowserScreen({ navigation }: RootScreenProps<"Browser">) {
   const [typing, setTyping] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const client = useQueryClient();
+  const insets = useSafeAreaInsets();
+  // The foot rides up with the keyboard, over the picture: the screen's own bottom inset is already under it.
+  const keyboardOffset = { closed: 0, opened: insets.bottom };
 
   // Watching and driving get different passwords: a new session when that changes.
   const session = useQuery({
@@ -112,68 +116,80 @@ export function BrowserScreen({ navigation }: RootScreenProps<"Browser">) {
         <View style={styles.close} />
       </View>
       <View style={styles.fill}>
-        <LiveView ref={web} session={session.data} failed={session.isError} />
+        <LiveView
+          ref={web}
+          session={session.data}
+          failed={session.isError}
+          onRetry={() => inBackground(session.refetch(), "BrowserScreen: refetch session")}
+        />
       </View>
-      {input.error && (
-        <Pressable
-          onPress={() => input.reset()}
-          accessibilityRole="button"
-          accessibilityLabel={`${input.error.message}. Tap to hide.`}
-          style={[
-            styles.row,
-            {
-              gap: spacing.sm,
-              margin: spacing.sm,
-              marginBottom: 0,
-              padding: spacing.md,
-              borderRadius: radius.lg,
-              backgroundColor: colors.surface,
-            },
-          ]}
-        >
-          <Icon name="alert-circle" color={colors.danger} />
-          <Text variant="callout" tone="danger" style={styles.fill}>
-            {input.error.message}
-          </Text>
-        </Pressable>
-      )}
-      {(mine && info.handoff) || info.fileRequest ? (
-        <View style={{ gap: spacing.xs + 2, padding: spacing.sm }}>
-          {mine && info.handoff && (
-            <View style={[styles.row, { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface }]}>
-              <Icon name="hand-left" color={colors.needsYou} />
-              <Text variant="callout" weight="500" tone="needsYou" style={styles.fill}>
-                {`Emberhut asked you: ${info.handoff}. Give back when you're done.`}
-              </Text>
-            </View>
-          )}
-          {info.fileRequest && (
-            <FileRequestNote
-              onSent={() => inBackground(client.invalidateQueries({ queryKey: queryKeys.allStates }), "BrowserScreen: invalidateQueries")}
-            />
-          )}
-        </View>
-      ) : null}
-      {typing && mine && (
-        <View style={{ padding: spacing.sm, backgroundColor: colors.surface }}>
-          <DriveKeys run={run} />
-        </View>
-      )}
-      <BrowserBar
-        info={info}
-        mine={mine}
-        act={act}
-        onTakeOver={takeOver}
-        typing={typing}
-        onTyping={() => setTyping((t) => !t)}
-        onPaste={() =>
-          inBackground(
-            Clipboard.getStringAsync().then((text) => text && run(pasteScript(text))),
-            "BrowserScreen: getStringAsync",
-          )
-        }
-        onShortcuts={() => setShortcuts(true)}
-      />
+      {/* Everything at the foot (a refusal, the handoff note, the typing row, the address bar) stays above the keyboard,
+          which would cover it otherwise: the field you type in would be out of sight. It rides over the picture instead
+          of shrinking it, as a shorter view would have the stream resize the far screen. */}
+      <KeyboardStickyView offset={keyboardOffset}>
+        {input.error && (
+          <Pressable
+            onPress={() => input.reset()}
+            accessibilityRole="button"
+            accessibilityLabel={`${input.error.message}. Tap to hide.`}
+            style={[
+              styles.row,
+              {
+                gap: spacing.sm,
+                margin: spacing.sm,
+                marginBottom: 0,
+                padding: spacing.md,
+                borderRadius: radius.lg,
+                backgroundColor: colors.surface,
+              },
+            ]}
+          >
+            <Icon name="alert-circle" color={colors.danger} />
+            <Text variant="callout" tone="danger" style={styles.fill}>
+              {input.error.message}
+            </Text>
+          </Pressable>
+        )}
+        {(mine && info.handoff) || info.fileRequest ? (
+          <View style={{ gap: spacing.xs + 2, padding: spacing.sm }}>
+            {mine && info.handoff && (
+              <View
+                style={[styles.row, { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface }]}
+              >
+                <Icon name="hand-left" color={colors.needsYou} />
+                <Text variant="callout" weight="500" tone="needsYou" style={styles.fill}>
+                  {`Emberhut asked you: ${info.handoff}. Give back when you're done.`}
+                </Text>
+              </View>
+            )}
+            {info.fileRequest && (
+              <FileRequestNote
+                onSent={() => inBackground(client.invalidateQueries({ queryKey: queryKeys.allStates }), "BrowserScreen: invalidateQueries")}
+              />
+            )}
+          </View>
+        ) : null}
+        {typing && mine && (
+          <View style={{ padding: spacing.sm, backgroundColor: colors.surface }}>
+            <DriveKeys run={run} />
+          </View>
+        )}
+        <BrowserBar
+          info={info}
+          mine={mine}
+          act={act}
+          onTakeOver={takeOver}
+          typing={typing}
+          onTyping={() => setTyping((t) => !t)}
+          onPaste={() =>
+            inBackground(
+              Clipboard.getStringAsync().then((text) => text && run(pasteScript(text))),
+              "BrowserScreen: getStringAsync",
+            )
+          }
+          onShortcuts={() => setShortcuts(true)}
+        />
+      </KeyboardStickyView>
       <ActionSheet visible={shortcuts} title="Shortcuts" actions={shortcutActions} onClose={() => setShortcuts(false)} />
     </SafeAreaView>
   );
