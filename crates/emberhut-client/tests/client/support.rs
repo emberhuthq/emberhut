@@ -46,6 +46,8 @@ pub(crate) enum Reply {
     Text(u16, &'static str),
     /// A file's bytes, with its `Content-Length`.
     Bytes(u16, Vec<u8>),
+    /// A file's bytes, with its `Content-Length` and extra headers.
+    BytesWith(u16, Vec<u8>, Vec<(&'static str, String)>),
     /// An event stream, written chunk by chunk.
     Stream(Vec<&'static str>),
 }
@@ -180,6 +182,15 @@ fn answer(mut request: tiny_http::Request, handler: &Handler, requests: &Mutex<V
             .with_status_code(status)
             .with_chunked_threshold(usize::MAX)
             .boxed(),
+        Reply::BytesWith(status, bytes, extra) => {
+            let mut response = Response::from_data(bytes)
+                .with_status_code(status)
+                .with_chunked_threshold(usize::MAX);
+            for (name, value) in &extra {
+                response.add_header(header(name, value));
+            }
+            response.boxed()
+        }
         Reply::Stream(chunks) => Response::new(
             StatusCode(200),
             vec![
