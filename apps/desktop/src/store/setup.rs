@@ -8,9 +8,9 @@
 //! `setup.json`, so it never comes back: an ember that goes out later gets a quiet line over
 //! the chat instead.
 //!
-//! The ember beside the steps glows a little more with each one done ([`Setup::glow`]). Where
-//! the setup begins is one choice ([`DIRECTION`]); Emberhut on this computer is a port
-//! ([`LocalHome`]) the app hands the store at launch.
+//! A rail beside the open step lists every step with what it unlocks, or what came of it once
+//! done. Where the setup begins is one choice ([`DIRECTION`]); Emberhut on this computer is a
+//! port ([`LocalHome`]) the app hands the store at launch.
 //!
 //! "Here, on this computer" starts Emberhut here; when it answers at another address than the
 //! one the app talks to (its port was taken), the app moves there as it runs
