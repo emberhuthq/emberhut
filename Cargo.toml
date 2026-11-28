@@ -32,7 +32,7 @@ form_urlencoded = "1.2.3"
 futures-util = { version = "0.3.34", default-features = false }
 garde = { version = "0.23", default-features = false }
 # 0.2: the version ring (under rustls) already brings, so the tree has one copy.
-getrandom = "0.2"
+getrandom = "0.4"
 hmac = "0.13.0"
 http = "1.5.0"
 http-body-util = "0.1.5"
