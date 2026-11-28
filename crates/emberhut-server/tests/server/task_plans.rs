@@ -711,3 +711,26 @@ pub(crate) async fn every_brief_asks_for_the_plan_only_when_plans_are_kept() {
         );
     }
 }
+
+#[tokio::test]
+pub(crate) async fn a_steps_limits_count_characters_not_bytes() {
+    let app = app(true).await;
+    let id = task(&app, "the Arabic brief").await;
+    let fits = "ب".repeat(150);
+    let set = as_room(
+        &app,
+        None,
+        "plan_set",
+        json!({ "task": id.get(), "steps": [{ "title": fits, "note": "ت".repeat(1500) }] }),
+    )
+    .await;
+    assert_ne!(set.is_error, Some(true), "{set:?}");
+    let over = as_room(
+        &app,
+        None,
+        "plan_step",
+        json!({ "task": id.get(), "add": { "title": "ب".repeat(201) } }),
+    )
+    .await;
+    assert!(error(&over).contains("200"), "{over:?}");
+}

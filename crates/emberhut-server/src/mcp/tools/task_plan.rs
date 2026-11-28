@@ -100,16 +100,16 @@ impl From<StateArg> for StepState {
 #[serde(deny_unknown_fields)]
 pub(crate) struct SubStepArg {
     /// One short line.
-    #[garde(length(min = 1, max = 200))]
+    #[garde(length(chars, min = 1, max = 200))]
     title: String,
     /// Its state (default todo; a step already in the plan keeps its own).
     #[garde(skip)]
     state: Option<StateArg>,
     /// What it came to, or what blocks it.
-    #[garde(length(max = 2000))]
+    #[garde(length(chars, max = 2000))]
     note: Option<String>,
     /// A link to what it produced (a pull request, a page, a file).
-    #[garde(length(max = 2000))]
+    #[garde(length(chars, max = 2000))]
     link: Option<String>,
 }
 
@@ -117,16 +117,16 @@ pub(crate) struct SubStepArg {
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
 pub(crate) struct PlanStepArg {
     /// One short line.
-    #[garde(length(min = 1, max = 200))]
+    #[garde(length(chars, min = 1, max = 200))]
     title: String,
     /// Its state (default todo; a step already in the plan keeps its own).
     #[garde(skip)]
     state: Option<StateArg>,
     /// What it came to, or what blocks it.
-    #[garde(length(max = 2000))]
+    #[garde(length(chars, max = 2000))]
     note: Option<String>,
     /// A link to what it produced (a pull request, a page, a file).
-    #[garde(length(max = 2000))]
+    #[garde(length(chars, max = 2000))]
     link: Option<String>,
     /// Its sub-steps, one level deep.
     #[serde(default)]
@@ -278,7 +278,7 @@ pub(crate) struct PlanSetArgs {
     #[garde(length(max = 100), dive)]
     steps: Vec<PlanStepArg>,
     /// What is left, in words (about 2 hours); empty clears it.
-    #[garde(length(max = 120))]
+    #[garde(length(chars, max = 120))]
     eta: Option<String>,
 }
 
@@ -321,7 +321,7 @@ pub(crate) struct PlanStepTool;
 #[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
 pub(crate) struct AddArg {
     /// One short line.
-    #[garde(length(min = 1, max = 200))]
+    #[garde(length(chars, min = 1, max = 200))]
     title: String,
     /// The top-level step it is a sub-step of (its id or title).
     #[garde(skip)]
@@ -344,20 +344,20 @@ pub(crate) struct PlanStepArgs {
     #[garde(dive)]
     add: Option<AddArg>,
     /// The step's new title.
-    #[garde(length(min = 1, max = 200))]
+    #[garde(length(chars, min = 1, max = 200))]
     title: Option<String>,
     /// Its new state: doing when you start it, done the moment it's finished, blocked (with a
     /// note on what) when stuck, skipped when not needed after all, todo to reopen it.
     #[garde(skip)]
     state: Option<StateArg>,
     /// What it came to, or what blocks it; empty clears it.
-    #[garde(length(max = 2000))]
+    #[garde(length(chars, max = 2000))]
     note: Option<String>,
     /// A link to what it produced (a pull request, a page, a file); empty clears it.
-    #[garde(length(max = 2000))]
+    #[garde(length(chars, max = 2000))]
     link: Option<String>,
     /// What is left of the whole plan, in words (about 2 hours); empty clears it.
-    #[garde(length(max = 120))]
+    #[garde(length(chars, max = 120))]
     eta: Option<String>,
 }
 
