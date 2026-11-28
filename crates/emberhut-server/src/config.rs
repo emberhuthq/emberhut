@@ -230,7 +230,9 @@ pub struct BrowserConfig {
     #[arg(long = "browser-cdp", env = "EMBERHUT_BROWSER_CDP", value_name = "URL")]
     pub cdp: Option<String>,
     /// The live view's address the owner's app loads (the browser's screen, streamed). Its
-    /// passwords are the secrets `browser-view` and `browser-control`.
+    /// passwords are the secrets `browser-view` and `browser-control`, its user `owner`, or the
+    /// plain name the address gives (`https://name@host:port/`) when the stream was set up with
+    /// another.
     #[arg(
         long = "browser-view",
         env = "EMBERHUT_BROWSER_VIEW",

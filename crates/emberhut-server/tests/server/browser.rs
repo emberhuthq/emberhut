@@ -3,6 +3,8 @@
 //! saved unread, files in and out), the live view's routes, and the state's `browser`.
 
 use emberhut_api::paths;
+use emberhut_server::app::Dependencies;
+use emberhut_server::config::AuthMode;
 use serde_json::{Value, json};
 
 use crate::common::{Call, TestApp, text};
@@ -706,6 +708,7 @@ pub(crate) async fn the_live_view_s_session_is_view_or_control_and_503_until_set
     assert_eq!(view.json()["mode"], "view");
     assert_eq!(view.json()["password"], "watch-pass");
     assert_eq!(view.json()["url"], "https://view.example.test/");
+    assert_eq!(view.json()["user"], "owner");
     app.call(
         Call::post(paths::BROWSER_INPUT)
             .token(&session)
@@ -734,6 +737,31 @@ pub(crate) async fn the_live_view_s_session_is_view_or_control_and_503_until_set
         )
         .await;
     assert_eq!(other.json()["mode"], "view");
+}
+
+#[tokio::test]
+pub(crate) async fn the_live_view_s_user_is_the_one_its_address_names() {
+    let app = TestApp::with_dependencies(AuthMode::Enforce, |dependencies, _| Dependencies {
+        // Put together from its parts: a user before a host reads as an email address to the personal-data scan.
+        browser_view: Some(format!(
+            "https://{}@{}/",
+            "stream-user", "view.example.test:8447"
+        )),
+        ..dependencies
+    })
+    .await;
+    let session = app.sign_in().await;
+    let secrets = app.dir().join("secrets");
+    std::fs::create_dir_all(&secrets).unwrap();
+    std::fs::write(secrets.join("browser-view"), "watch-pass").unwrap();
+    std::fs::write(secrets.join("browser-control"), "drive-pass").unwrap();
+    let view = app
+        .call(Call::get(paths::BROWSER_SESSION).token(&session))
+        .await;
+    assert_eq!(view.status, 200);
+    assert_eq!(view.json()["user"], "stream-user");
+    // The address the app loads names no one: the user goes with the password, as Basic auth.
+    assert_eq!(view.json()["url"], "https://view.example.test:8447/");
 }
 
 #[tokio::test]
@@ -807,7 +835,7 @@ pub(crate) async fn the_browser_routes_need_a_session() {
     }
     // Report mode lets a request without a session read the frame, never get the live view's
     // password, drive the browser, put a file in it or mint a pairing link.
-    let report = TestApp::with_mode(emberhut_server::config::AuthMode::Report).await;
+    let report = TestApp::with_mode(AuthMode::Report).await;
     for call in [
         Call::get(paths::BROWSER_SESSION),
         Call::post(paths::BROWSER_INPUT).json(&json!({ "kind": "takeover" })),

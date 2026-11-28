@@ -2393,6 +2393,13 @@ const COVERED: &[Covered] = &[
     Covered {
         method: "GET",
         path: paths::BROWSER_SESSION,
+        status: 200,
+        name: "the_live_view_s_user_is_the_one_its_address_names",
+        test: crate::browser::the_live_view_s_user_is_the_one_its_address_names,
+    },
+    Covered {
+        method: "GET",
+        path: paths::BROWSER_SESSION,
         status: 503,
         name: "the_live_view_s_session_is_view_or_control_and_503_until_set_up",
         test: crate::browser::the_live_view_s_session_is_view_or_control_and_503_until_set_up,
