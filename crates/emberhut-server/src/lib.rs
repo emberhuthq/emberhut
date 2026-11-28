@@ -412,6 +412,7 @@ async fn dependencies(
         )),
         home: std::env::var_os("HOME").map(std::path::PathBuf::from),
         runner_mcp: config.runner_mcp.clone(),
+        local_url: local_url(config, ""),
         // The machine's key, where `EMBERHUT_MACHINE_KEY` puts it instead of beside the database.
         private_files: config
             .private_files()
@@ -702,16 +703,7 @@ fn assistant(
             },
         })
         .collect();
-    let host = if config.listen.ip().is_unspecified() {
-        std::net::IpAddr::from([127, 0, 0, 1])
-    } else {
-        config.listen.ip()
-    };
-    let mcp_url = format!(
-        "http://{}{}",
-        SocketAddr::new(host, config.listen.port()),
-        emberhut_api::paths::MCP_ROOM
-    );
+    let mcp_url = local_url(config, emberhut_api::paths::MCP_ROOM);
     let settings = services::claude::ClaudeConfig {
         command: command.clone(),
         args: agent

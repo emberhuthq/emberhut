@@ -263,12 +263,29 @@ pub(crate) fn family_tools() -> ToolSet {
     )
 }
 
+/// The tools the runners' sessions get with the runner sessions' token: their task's plan and
+/// the task in full. Nothing that sends, browses or reaches past tasks.
+const RUNNER_TOOLS: [&str; 4] = ["task", "plan_set", "plan_step", "plan_read"];
+
+/// The tools a runner session gets on its own endpoint: [`RUNNER_TOOLS`], in the room tools'
+/// order.
+pub(crate) fn runner_tools() -> ToolSet {
+    ToolSet::new(
+        room_tools()
+            .tools
+            .into_iter()
+            .filter(|t| RUNNER_TOOLS.contains(&t.name()))
+            .collect(),
+    )
+}
+
 /// What a tool call runs with: the server's services, and the room whose session called.
 #[derive(Clone, Debug)]
 pub(crate) struct ToolContext {
     /// Every service.
     pub(crate) app: AppState,
-    /// The room whose agent session called: the room its token names.
+    /// The room whose agent session called: the room its token names; Main for a runner
+    /// session on its own endpoint, as every runner session is Main's.
     pub(crate) room: RoomId,
     /// The task whose worker called (the worker endpoint), when it was one.
     pub(crate) worker: Option<emberhut_core::task::TaskId>,
@@ -276,6 +293,9 @@ pub(crate) struct ToolContext {
     /// ([`emberhut_api::wire::mcp::SESSION_HEADER`]): a session id in its checked form, else
     /// none.
     pub(crate) session: Option<String>,
+    /// The call came with the runner sessions' token: it writes a plan only as a session
+    /// [`Self::session`] names that is linked to the plan's task.
+    pub(crate) runner: bool,
 }
 
 /// One MCP tool.
@@ -544,6 +564,16 @@ mod tests {
         let mut want = FAMILY_TOOLS.to_vec();
         want.sort_unstable();
         assert_eq!(sorted, want, "every family tool is a room tool");
+    }
+
+    #[test]
+    fn a_runner_session_gets_only_its_task_and_plan_tools() {
+        let names: Vec<&str> = runner_tools().iter().map(AnyTool::name).collect();
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        let mut want = RUNNER_TOOLS.to_vec();
+        want.sort_unstable();
+        assert_eq!(sorted, want, "every runner tool is a room tool");
     }
 
     #[test]
