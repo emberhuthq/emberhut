@@ -1061,3 +1061,155 @@ fn appearance_hides_the_agents_moves_them_and_still_opens_their_rooms(cx: &mut T
         "a wide window keeps Settings open beside the chat, as the sidebar's row does"
     );
 }
+
+#[gpui_kit::test]
+fn updates_opens_from_advanceds_row_and_from_the_search(cx: &mut TestAppContext) {
+    let (_backend, _store, main, _view, mut cx) = open_front_door(cx);
+    cx.update(|window, _| {
+        assert!(
+            window.try_find("settings-chip-updates").is_none(),
+            "no chip of its own"
+        );
+    });
+    cx.update(|window, cx| window.click("settings-chip-advanced", cx));
+    cx.run_until_parked();
+    draws_light_and_dark(&mut cx, &[updates::ROW]);
+    cx.update(|window, cx| window.click(updates::ROW, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Updates))
+    );
+    draws_light_and_dark(&mut cx, &["updates-version"]);
+    cx.dispatch_action(column::GoBack);
+    cx.run_until_parked();
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Advanced)),
+        "Back returns to Advanced"
+    );
+    cx.dispatch_action(column::GoBack);
+    cx.run_until_parked();
+    cx.update(Window::render_frame);
+    search_for("beta", &mut cx);
+    cx.update(|window, cx| window.click("settings-row-updates", cx));
+    cx.run_until_parked();
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Updates)),
+        "the search's Updates opens the page"
+    );
+}
+
+#[gpui_kit::test]
+fn a_development_builds_updates_page_shows_its_version_and_says_it_doesnt_update(
+    cx: &mut TestAppContext,
+) {
+    let (_backend, _store, _, mut cx) = open_settings_view(cx, Some(SettingsPane::Updates));
+    draws_light_and_dark(&mut cx, &["updates-version"]);
+    cx.update(|window, _| {
+        assert!(
+            window.try_find(updates::CHECK).is_none(),
+            "nothing to check"
+        );
+        assert!(window.try_find("updates-channel-stable").is_none());
+    });
+}
+
+/// An installer for the page's tests: nothing is ever staged.
+#[derive(Debug)]
+struct NoInstaller;
+
+impl crate::updates::installer::Installer for NoInstaller {
+    fn stage(
+        &self,
+        _payload: &std::path::Path,
+        _release: &emberhut_api::releases::Release,
+    ) -> Result<crate::updates::installer::Staged, crate::updates::installer::InstallError> {
+        Err(crate::updates::installer::InstallError::NotStaged)
+    }
+
+    fn swap(
+        &self,
+        _staged: &crate::updates::installer::Staged,
+        _running: crate::updates::version::Running,
+    ) -> Result<Box<dyn crate::updates::installer::Watch>, crate::updates::installer::InstallError>
+    {
+        Err(crate::updates::installer::InstallError::NotStaged)
+    }
+}
+
+#[gpui_kit::test]
+fn the_updates_page_switches_the_channel_checks_and_offers_a_ready_build(cx: &mut TestAppContext) {
+    use crate::updates::channel::Channel;
+    use crate::updates::github::fake::{Asked, FakeSource};
+
+    let (_backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Updates));
+    let github = Arc::new(FakeSource::default());
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Arc::new(crate::updates::Engine::for_tests(
+        ("0.1.0", 10099),
+        &[],
+        Arc::clone(&github) as _,
+        dir.path(),
+        Arc::new(NoInstaller),
+    ));
+    store.update(&mut cx, |store, _| {
+        store.use_test_updater(engine, |_| {});
+    });
+    draws_light_and_dark(
+        &mut cx,
+        &[
+            "updates-version",
+            "updates-channel-stable",
+            "updates-channel-rc",
+            updates::CHECK,
+            updates::AUTOMATIC,
+        ],
+    );
+    cx.update(|window, cx| window.click("updates-channel-rc", cx));
+    cx.run_until_parked();
+    assert_eq!(
+        store.read_with(&cx, |store, _| store.updates().channel()),
+        Channel::Candidates
+    );
+    assert_eq!(
+        github.asked(),
+        [Asked::Releases],
+        "switching checks at once"
+    );
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(updates::CHECK, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(github.asked(), [Asked::Releases, Asked::Releases]);
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(updates::AUTOMATIC, cx);
+    });
+    let automatic = |cx: &mut VisualTestContext| {
+        store.read_with(cx, |store, _| {
+            store
+                .updates()
+                .panel(std::time::SystemTime::now())
+                .automatic
+        })
+    };
+    assert!(
+        !automatic(&mut cx),
+        "the switch turned automatic checks off"
+    );
+    store.update(&mut cx, |store, _| {
+        store.put_ready_update_for_tests("0.2.0", 20099);
+    });
+    draws_light_and_dark(&mut cx, &[updates::INSTALL, Fold::EarlierNotes.id()]);
+    cx.update(|window, cx| {
+        assert!(
+            window.try_find(updates::CHECK).is_none(),
+            "Install replaces Check"
+        );
+        window.click(Fold::EarlierNotes.id(), cx);
+    });
+    assert!(view.read_with(&cx, |view, _| view.folds.contains(&Fold::EarlierNotes)));
+}

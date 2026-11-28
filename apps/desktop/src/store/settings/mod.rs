@@ -50,6 +50,9 @@ pub(crate) enum SettingsPane {
     AboutYou,
     /// What the ember thinks with: the model provider the server's agent runs on.
     Credentials,
+    /// Updates, opened from Advanced: the version, the channel, checking, what's new,
+    /// installing.
+    Updates,
 }
 
 impl SettingsPane {
@@ -60,6 +63,7 @@ impl SettingsPane {
             Self::ChromeProfiles => "Chrome profiles",
             Self::AboutYou => about::TITLE,
             Self::Credentials => "What your ember thinks with",
+            Self::Updates => "Updates",
             group => entries::Group::of_pane(group).map_or("Settings", entries::Group::name),
         }
     }
@@ -89,6 +93,7 @@ impl Store {
             SettingsPane::Devices => self.machines.kick(),
             SettingsPane::ChromeProfiles
             | SettingsPane::Sharing
+            | SettingsPane::Updates
             | SettingsPane::Advanced
             | SettingsPane::Account => {}
         }

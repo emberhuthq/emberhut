@@ -799,25 +799,54 @@ shadow). Each check passes when:
 
 ### Updates
 
-A release build (one built with `EMBERHUT_BUILD`, by the release command) updates itself from its
-server's release feed (`GET /api/releases/v1/macos`, docs/api.md "Releases"; ADR 0005 has the
-whole design). It reads the feed at launch and once the last read is 4 hours old, downloads the
-newest newer build for this Mac and checks it before anything changes: its size and SHA-256, its
-minisign signature by a trusted key with the trusted comment naming that very release, then the
-bundle in the image (`codesign --verify --deep --strict`, the running app's own Developer ID team
-and notarization, its `Info.plist`, `spctl`). Then the bar at the top of the chat offers Restart
-to Update; with no input for 10 minutes and no message being written it installs by itself. The
-swap is one atomic exchange of the bundles; the old copy leaves the Dock, starts the new one and
-watches it for 2 minutes, and puts itself back if the new one doesn't draw its first frame.
+A release build (one built in CI with `EMBERHUT_VERSION` and `EMBERHUT_BUILD` from its tag, ADR
+0032) on macOS or Windows updates itself from the repository's GitHub Releases (ADR 0005 has the
+checks; `src/updates/`). Settings › Updates, a page of its own opened from Advanced's Updates
+row (or the search's Updates, or the front door's "Install Emberhut 0.3.0 and restart" while a
+build is ready), shows the version, the channel, Check for updates, what's new, Install and
+restart, and Check automatically.
 
-A development build, an app that isn't signed with a Developer ID, and the app off macOS never
-check: Settings shows the version and says why. No update key is trusted yet (`updates/keys.rs`),
-so for now every payload fails its signature check and nothing is installed.
+- **Channels.** Stable takes final releases (`vX.Y.Z`); Release candidates takes every release
+  (`vX.Y.Z-rc.N` too), so a final newer than the candidates wins. The highest build wins: the
+  build the tag gives (`src/updates/tag.rs`). A copy that is a candidate follows candidates until
+  it is switched; switching checks at once. Back on Stable a candidate never downgrades: it waits
+  for a stable release with a higher build. The channel and the switch are kept per computer in
+  `window.json` (`updates.channel`, `updates.automatic`).
+- **When it checks.** With Check automatically on (the default): at launch, then once a day
+  (a minute's tick asks, so a computer waking from sleep checks soon), an hour after a check that
+  didn't get through, and never before GitHub's rate limit resets (a `403` or `429` with its
+  rate-limit headers; the page says when it checks again). A ready build also installs by itself
+  after 10 minutes without input and with no message being written. Off: only Check for updates
+  and the app menu's Check for Updates… (which opens the page) check.
+- **How it finds a release.** `GET https://api.github.com/repos/emberhuthq/emberhut/releases?per_page=30`
+  (unauthenticated, `User-Agent: Emberhut/<version>`), the highest release on the channel with a
+  `emberhut-desktop-<platform>.json` asset, then that feed, then the payload it names. Redirects to
+  GitHub's file host are followed. No token is ever sent, and only the repository's release
+  downloads are fetched. Notes of skipped releases come from their own feeds.
+- **What's verified** before anything changes: the size (under a 1 GiB ceiling) and SHA-256, the
+  minisign signature by the release key in `src/updates/keys.rs` with the trusted comment naming
+  the platform, arch, version, build, payload hash and notes hash
+  (`emberhut_api::releases::update_comment`); then on macOS the bundle in the image
+  (`codesign --verify --deep --strict`, the running app's own Developer ID team and notarization,
+  its `Info.plist`, `spctl`), and the swap with the old copy watching the new one start for 2
+  minutes, putting itself back if it doesn't draw. On Windows (the per-user install in
+  `%LOCALAPPDATA%\Programs\Emberhut` only) the `.msi` is hashed again right before it runs; then
+  a detached PowerShell waits for the app to exit, runs `msiexec /i "<msi>" /passive /norestart`
+  and starts the app again. The `.msi` has no Authenticode signature yet; the updater checks it
+  once releases are signed.
 
-To check it on a Mac, with a Developer ID build of build N installed in `/Applications`, a
-server serving a feed with build N+1 signed by a key listed in `keys.rs`: Emberhut › Check for
-Updates… Pass: "Emberhut <version> (build N+1) is ready" with its notes; Restart to Update quits,
-and the new build opens within seconds, its About saying build N+1, and
+A development build, a Mac app that isn't signed with a Developer ID, a Windows copy outside the
+per-user install, and the app on Linux never check: the page shows the version and why
+("Development builds don't update themselves.").
+
+The tests run the GitHub reads against a local stand-in server (`backend/test_server.rs`) and
+the checks against scripted releases (`updates::github::fake`); the app itself has no switch to
+point it at another feed.
+
+To check it on a Mac, with a release build N installed in `/Applications` and a newer release
+published: Emberhut › Check for Updates… Pass: Settings › Updates opens, "Emberhut <version>
+(build M) is ready" with its notes; Install and restart quits, the new build opens within
+seconds, its About saying build M, and
 `~/Library/Application Support/com.emberhut.desktop/update.json` is gone. A payload whose bytes or
 signature don't match: "The update didn't verify; Emberhut stays at …", and nothing changes in
 `/Applications`.

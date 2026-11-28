@@ -264,6 +264,7 @@ impl SettingsView {
             SettingsPane::ChromeProfiles => return Self::titled(pane, self.chrome.clone(), &p),
             SettingsPane::AboutYou => return Self::titled(pane, self.about.clone(), &p),
             SettingsPane::Credentials => return Self::titled(pane, self.credentials.clone(), &p),
+            SettingsPane::Updates => return Self::titled(pane, self.updates_page(&p, cx), &p),
             SettingsPane::Ember => self.ember_blocks(&now, &p, cx),
             SettingsPane::Devices => self.devices_blocks(scale, &p, cx),
             SettingsPane::Connections => self.connections_blocks(&now, &p, cx),
@@ -288,7 +289,7 @@ impl SettingsView {
     }
 
     /// A page of its own (Appearance, Chrome profiles, what your ember knows, what it thinks
-    /// with) under its title.
+    /// with, Updates) under its title.
     fn titled(pane: SettingsPane, body: impl IntoElement, p: &Pal) -> AnyElement {
         div()
             .size_full()

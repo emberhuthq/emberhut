@@ -160,6 +160,8 @@ pub(crate) enum Fold {
     Skills,
     /// Advanced's diagnostics: sign-in mode, the poll's numbers.
     Diagnostics,
+    /// The notes of the releases an update skips, under What's new on the Updates page.
+    EarlierNotes,
 }
 
 impl Fold {
@@ -171,6 +173,7 @@ impl Fold {
             Self::Tools => "fold-tools",
             Self::Skills => "fold-skills",
             Self::Diagnostics => "fold-diagnostics",
+            Self::EarlierNotes => "fold-earlier-notes",
         }
     }
 }
@@ -699,23 +702,27 @@ pub(crate) const ENTRIES: &[Entry] = &[
     everyday(
         "updates",
         "Updates",
-        Line::Live(|now| {
-            if now.version.is_empty() {
-                "The version, when it last checked, Check now".to_owned()
-            } else {
-                now.version.clone()
-            }
+        Line::Live(|now| match &now.update_ready {
+            Some(version) => format!("Emberhut {version} is ready to install"),
+            None if now.version.is_empty() => "The version, the channel, Check now".to_owned(),
+            None => now.version.clone(),
         }),
         Group::Advanced,
-        Destination::Group,
+        Destination::Pane(SettingsPane::Updates),
         IconName::RefreshCw,
     )
     .also(&[
+        "updates",
         "version",
         "update",
         "upgrade",
+        "channel",
+        "release candidate",
+        "beta",
+        "install",
         "restart",
         "check for updates",
+        "what's new",
         "about",
     ]),
     everyday(
@@ -877,7 +884,7 @@ mod tests {
         ),
         ("Account", "account", Group::Account),
         (
-            "App › Version, Last checked, Check, Restart",
+            "Advanced › Updates row › Version, Channel, Check, Install and restart",
             "updates",
             Group::Advanced,
         ),

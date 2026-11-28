@@ -1,7 +1,8 @@
 //! How the user left the app's windows, kept across launches in `window.json` in the app's
 //! directory: the main window's frame (its size and place, or that it filled the screen), the
 //! sidebar's More, Recent sessions, Projects and Goals folds (its width and the Rooms fold are
-//! the store's, in `view.json`), and each window of its own's frame and whether it was open.
+//! the store's, in `view.json`), and each window of its own's frame and whether it was open;
+//! and how this computer takes updates (the channel, and whether it checks by itself).
 //! A missing or unreadable file is the defaults: the window
 //! opens at its first-launch size, centred.
 //!
@@ -24,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::AppFiles;
 use crate::json_file::{self, Writes};
 use crate::shell::unseen;
+use crate::updates::channel::Channel;
 
 /// The file's name in the app's directory.
 const FILE: &str = "window.json";
@@ -54,6 +56,27 @@ pub(crate) struct Prefs {
     pub(crate) calendar_mode: crate::store::calendar::range::Mode,
     /// The windows of their own (Calendar, Sessions, …) as the user left them.
     pub(crate) own_windows: OwnWindows,
+    /// How this computer takes updates.
+    pub(crate) updates: UpdatePrefs,
+}
+
+/// How this computer takes updates: chosen here, so each computer has its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub(crate) struct UpdatePrefs {
+    /// The channel chosen; none: the running copy's own ([`Channel::default_for`]).
+    pub(crate) channel: Option<Channel>,
+    /// Whether the app checks by itself once a day (on at first).
+    pub(crate) automatic: bool,
+}
+
+impl Default for UpdatePrefs {
+    fn default() -> Self {
+        Self {
+            channel: None,
+            automatic: true,
+        }
+    }
 }
 
 /// The windows of their own as the user left them, each by the name links use for it
@@ -261,6 +284,21 @@ impl Kept {
         Self::save(cx);
     }
 
+    /// Changes how this computer takes updates and writes it, on a background thread, if it
+    /// changed.
+    pub(crate) fn set_updates(cx: &mut App, change: impl FnOnce(&mut UpdatePrefs)) {
+        let Some(kept) = cx.try_global::<Self>() else {
+            return;
+        };
+        let mut updates = kept.prefs.updates;
+        change(&mut updates);
+        if updates == kept.prefs.updates {
+            return;
+        }
+        cx.global_mut::<Self>().prefs.updates = updates;
+        Self::save(cx);
+    }
+
     /// Changes the sidebar's prefs and writes them, on a background thread, if they changed.
     pub(crate) fn set_sidebar(cx: &mut App, change: impl FnOnce(&mut Sidebar)) {
         let Some(kept) = cx.try_global::<Self>() else {
@@ -442,6 +480,16 @@ mod tests {
     }
 
     #[test]
+    fn updates_check_by_themselves_on_the_copys_own_channel_at_first() {
+        let updates = Prefs::default().updates;
+        assert!(updates.automatic);
+        assert_eq!(updates.channel, None);
+        let read: UpdatePrefs = serde_json::from_str(r#"{"channel":"stable"}"#).unwrap();
+        assert_eq!(read.channel, Some(Channel::Stable));
+        assert!(read.automatic, "a missing switch is on");
+    }
+
+    #[test]
     fn the_sidebar_starts_folded_where_the_reference_client_does() {
         let sidebar = Sidebar::default();
         assert!(!sidebar.more_open, "More starts folded");
@@ -470,6 +518,10 @@ mod tests {
             own_windows: OwnWindows {
                 frames: BTreeMap::from([("calendar".to_owned(), frame(40., 60., 1180., 820.))]),
                 open: vec!["calendar".to_owned()],
+            },
+            updates: UpdatePrefs {
+                channel: Some(Channel::Candidates),
+                automatic: false,
             },
         };
         json_file::write(&path(dir.path()), &prefs, 1, &Mutex::new(0), "the prefs");

@@ -164,25 +164,48 @@ to the signing keys. It is not worth it for a single maintainer who releases fro
 
 ### 3. The update
 
-**Where it shows.**
+**Where it shows.** (As built, with releases on GitHub per ADR 0032.)
 
-- **Check for Updates…** is in the app menu, after About. It checks now. With nothing newer,
-  it answers in a small dialog "You're on the latest (0.2.0, build 12)", with how old the
-  server's feed is ("published 3 days ago"). With something newer, it downloads and verifies
-  it first ("Downloading Emberhut 0.3.0…"), then offers "Emberhut 0.3.0 (build 15) is ready", with
-  its notes and the buttons "Restart to Update" and "Later". When the check fails, it says why
-  ("Couldn't reach your server", "The update didn't verify; Emberhut stays at 0.2.0"). If an
-  update is already downloaded, it offers it at once.
+- **Check for Updates…** is in the app menu, after About. It opens Settings › Updates and
+  checks now. With nothing newer, it answers in a small dialog "You're on the latest (0.2.0,
+  build 12)", with how old the release's feed is ("published 3 days ago"). With something
+  newer, it downloads and verifies it first ("Downloading 0.3.0 (34%)…"), then offers
+  "Emberhut 0.3.0 (build 15) is ready", with its notes and the buttons "Install and Restart"
+  and "Later". When the check fails, it says why ("Couldn't reach GitHub", "GitHub is limiting
+  requests from this network; Emberhut checks again at 14:05", "The update didn't verify;
+  Emberhut stays at 0.2.0"). If an update is already downloaded, it offers it at once.
 - **The update bar.** Once an update is downloaded and verified, one quiet line at the top of
-  the chat says "Emberhut 0.3.0 is ready", with "Restart to Update" (one click: swap and
-  relaunch) and a close button that hides it until a newer build. Settings has these rows:
-  version and build, last checked, the feed's age, and "Check for
-  updates".
-- **When it checks.** On launch, then every 4 hours, and when the Mac wakes if the last check
-  is older than that. It never checks in a development build, and never in an app that is not
-  signed with a Developer ID team (an ad-hoc signed app fails closed). Whether a downloaded
-  update also installs by itself after 10 idle minutes, as in the Sparkle flow above, is an
-  open question.
+  the chat says "Emberhut 0.3.0 is ready", with "Install and restart" (one click) and a close
+  button that hides it until a newer build.
+- **Settings › Updates**, a page of its own (no group or chip of its own): Advanced's one
+  Updates row opens it ("Updates · Emberhut 0.2.0 · up to date", or "· 0.3.0 ready to
+  install"), and so does the search's Updates ("channel", "beta", "install"...). While a build
+  is ready, the front door suggests "Install Emberhut 0.3.0 and restart". The page has the
+  version (the build in a small line), the channel (Stable, or Release candidates: every release, so a final newer than the
+  candidates wins too), Check for updates with what it is doing, Install and restart once a
+  build is ready, What's new (the offered build's verified notes, the skipped releases' notes
+  folded as unverified; or this copy's own notes), and "Check automatically · Once a day". A
+  copy that is a candidate follows candidates until told otherwise. Going back to Stable never
+  downgrades: the copy waits for a stable release with a higher build, and the page says so.
+- **When it checks.** With automatic checks on (the default): at launch, then once the last
+  check is a day old, and when the computer wakes if it is older than that; after a check that
+  didn't get through, again an hour later; never while GitHub's rate limit is in force. With
+  them off, only when asked. It never checks in a development build, never in a Mac app that
+  is not signed with a Developer ID team (an ad-hoc signed app fails closed), and never on
+  Linux, where a new version is installed by hand. With automatic checks on, a downloaded
+  update installs by itself after 10 idle minutes with no message being written.
+- **Where releases come from.** The app lists the repository's releases through GitHub's REST
+  API, unauthenticated, takes the highest build on its channel (the build the tag gives), and
+  reads that release's `emberhut-desktop-<platform>.json` asset, whose payload URLs are the
+  release's own downloads. No token is sent, and only the repository's release downloads are
+  fetched. The checks below are unchanged.
+- **On Windows** a release build that runs from the per-user install
+  (`%LOCALAPPDATA%\Programs\Emberhut`) updates too. Its payload is the release's `.msi`, which
+  passes the same size, SHA-256 and signature checks (the trusted comment names `windows`).
+  Install and restart starts one detached PowerShell that waits for the app to exit, runs
+  `msiexec /i "<msi>" /passive /norestart` and starts the installed app again; the app then
+  quits. The `.msi` carries no Authenticode signature yet; once releases are signed, the
+  updater checks it as well (ADR 0032, section 5).
 
 **Before the swap, the payload must pass every check, in this order.** The running app is not
 touched until they all pass.
@@ -215,7 +238,8 @@ touched until they all pass.
      Developer ID chain (`certificate 1[field.1.2.840.113635.100.6.2.6]` and
      `certificate leaf[field.1.2.840.113635.100.6.1.13]`), the leaf's team equal to the
      running app's, and `notarized`. No team id is written in the repository;
-   - its `Info.plist` has bundle id `com.emberhut.desktop`, the feed's version, and a
+   - its `Info.plist` has bundle id `com.emberhut.desktop`, the feed's whole version as
+     `EmberhutVersion` and its plain numbers as `CFBundleShortVersionString` (ADR 0032), and a
      `CFBundleVersion` equal to the feed's build;
    - `spctl --assess --type execute`, as an extra check only: it answers yes when the user has
      turned Gatekeeper off, so notarization is pinned by the requirement above.

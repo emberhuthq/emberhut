@@ -1,5 +1,7 @@
 //! The new bundle's `Info.plist`: it must be this app (`com.emberhut.desktop`), of the release's
-//! version, with `CFBundleVersion` the release's build.
+//! version (`EmberhutVersion` the whole of it, `0.1.0-rc.1`, and `CFBundleShortVersionString` its
+//! plain numbers, `0.1.0`, the only form Apple takes there), with `CFBundleVersion` the release's
+//! build.
 
 use std::path::Path;
 
@@ -18,6 +20,8 @@ pub(crate) struct BundleInfo {
     pub(crate) id: String,
     /// `CFBundleShortVersionString`.
     pub(crate) version: String,
+    /// `EmberhutVersion`, the whole version, if the bundle has one.
+    pub(crate) full: Option<String>,
     /// `CFBundleVersion`.
     pub(crate) build: String,
 }
@@ -59,6 +63,7 @@ pub(crate) fn read(app: &Path) -> Result<BundleInfo, ToolError> {
     Ok(BundleInfo {
         id: key("CFBundleIdentifier")?,
         version: key("CFBundleShortVersionString")?,
+        full: key("EmberhutVersion").ok(),
         build: key("CFBundleVersion")?,
     })
 }
@@ -69,15 +74,24 @@ pub(crate) fn read(app: &Path) -> Result<BundleInfo, ToolError> {
 ///
 /// [`PlistError::Mismatch`] with what it is.
 pub(crate) fn matches(info: &BundleInfo, version: &str, build: Build) -> Result<(), PlistError> {
+    let plain = version.split_once('-').map_or(version, |(plain, _)| plain);
     let wanted = BundleInfo {
         id: APP_ID.to_owned(),
-        version: version.to_owned(),
+        version: plain.to_owned(),
+        full: Some(version.to_owned()),
         build: build.to_string(),
     };
     if *info == wanted {
         Ok(())
     } else {
-        let show = |info: &BundleInfo| format!("{} {} build {}", info.id, info.version, info.build);
+        let show = |info: &BundleInfo| {
+            format!(
+                "{} {} build {}",
+                info.id,
+                info.full.as_deref().unwrap_or(&info.version),
+                info.build
+            )
+        };
         Err(PlistError::Mismatch {
             found: show(info),
             wanted: show(&wanted),
@@ -97,6 +111,7 @@ mod tests {
         let mut info = BundleInfo {
             id: "com.emberhut.desktop".into(),
             version: "0.3.0".into(),
+            full: Some("0.3.0".into()),
             build: "15".into(),
         };
         matches(&info, &release).unwrap();
@@ -109,5 +124,25 @@ mod tests {
         info.build = "15".into();
         info.id = "com.example.other".into();
         assert!(matches(&info, &release).is_err());
+    }
+
+    #[test]
+    fn a_candidates_bundle_says_its_whole_version_beside_the_plain_one() {
+        let mut info = BundleInfo {
+            id: "com.emberhut.desktop".into(),
+            version: "0.1.0".into(),
+            full: Some("0.1.0-rc.2".into()),
+            build: "10002".into(),
+        };
+        matches(&info, "0.1.0-rc.2", Build::new(10002)).unwrap();
+        assert!(
+            matches(&info, "0.1.0", Build::new(10002)).is_err(),
+            "the final isn't its candidate"
+        );
+        info.full = None;
+        assert!(
+            matches(&info, "0.1.0-rc.2", Build::new(10002)).is_err(),
+            "a bundle without its whole version isn't taken"
+        );
     }
 }

@@ -1,25 +1,32 @@
 //! The update signature's trusted comment: the line the signature also covers, which binds a
 //! payload to its feed entry. It must read exactly
-//! `emberhut-desktop macos <arch> <version> build <build> sha256:<hex> notes:<hex>`, the last being
-//! the SHA-256 of the notes' UTF-8 bytes as the feed's JSON decodes them (no trimming, no
-//! normalising), so a server can't relabel an old payload as a new release or change the notes
-//! the app shows.
+//! `emberhut-desktop <platform> <arch> <version> build <build> sha256:<hex> notes:<hex>`, the last
+//! being the SHA-256 of the notes' UTF-8 bytes as the feed's JSON decodes them (no trimming, no
+//! normalising), so a feed can't relabel an old payload as a new release, pass a Mac payload off
+//! as a Windows one, or change the notes the app shows. The format is
+//! [`emberhut_api::releases::update_comment`]'s, which the release signer calls too.
 
-use emberhut_api::releases::{Arch, Release};
-use sha2::{Digest as _, Sha256};
+use emberhut_api::releases::{Arch, Platform, Release, update_comment};
 
 use super::choose::PRODUCT;
 
-/// The trusted comment a payload of `release` for `arch`, whose SHA-256 is `sha256`, must be
-/// signed with.
+/// The trusted comment a payload of `release` for `platform` and `arch`, whose SHA-256 is
+/// `sha256`, must be signed with.
 #[must_use]
-pub(crate) fn expected(release: &Release, arch: &Arch, sha256: &[u8; 32]) -> String {
-    format!(
-        "{PRODUCT} macos {arch} {version} build {build} sha256:{payload} notes:{notes}",
-        version = release.version,
-        build = release.build,
-        payload = hex(sha256),
-        notes = hex(&Sha256::digest(release.notes.as_bytes()).into()),
+pub(crate) fn expected(
+    release: &Release,
+    platform: &Platform,
+    arch: &Arch,
+    sha256: &[u8; 32],
+) -> String {
+    update_comment(
+        PRODUCT,
+        platform,
+        arch,
+        &release.version,
+        release.build,
+        sha256,
+        &release.notes,
     )
 }
 
@@ -38,6 +45,7 @@ pub(crate) fn hex(bytes: &[u8; 32]) -> String {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use sha2::{Digest as _, Sha256};
 
     use super::*;
 
@@ -47,7 +55,7 @@ mod tests {
             "date": "2026-12-08", "notes": "- Faster.\n"}))
         .unwrap();
         let payload = [0xab; 32];
-        let comment = expected(&release, &Arch::Arm64, &payload);
+        let comment = expected(&release, &Platform::Macos, &Arch::Arm64, &payload);
         let notes = hex(&Sha256::digest(b"- Faster.\n").into());
         assert_eq!(
             comment,
@@ -59,9 +67,14 @@ mod tests {
         let mut trimmed = release.clone();
         trimmed.notes = "- Faster.".into();
         assert_ne!(
-            expected(&trimmed, &Arch::Arm64, &payload),
+            expected(&trimmed, &Platform::Macos, &Arch::Arm64, &payload),
             comment,
             "a newline is part of the notes"
+        );
+        let windows = expected(&release, &Platform::Windows, &Arch::X86_64, &payload);
+        assert!(
+            windows.starts_with("emberhut-desktop windows x86_64 0.3.0 build 15 sha256:"),
+            "{windows}"
         );
     }
 

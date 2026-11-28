@@ -1,10 +1,10 @@
 //! Which release, if any, to install: a build newer than this one (never an equal or older
-//! build, so the app never downgrades), not the build it rolled back from, made for this Mac's
-//! processor and fit for its macOS. The newest that fits wins.
+//! build, so the app never downgrades), not the build it rolled back from, made for this
+//! computer's system and processor and fit for its system's version. The newest that fits wins.
 
-use emberhut_api::releases::{Asset, Build, FORMAT, Platform, Release, ReleaseFeed};
+use emberhut_api::releases::{Asset, Build, FORMAT, Release, ReleaseFeed};
 
-use super::system::{OsVersion, ThisMac};
+use super::system::{OsVersion, ThisMachine};
 
 /// The product the desktop's feed publishes.
 pub(crate) const PRODUCT: &str = "emberhut-desktop";
@@ -12,22 +12,22 @@ pub(crate) const PRODUCT: &str = "emberhut-desktop";
 /// What the feed offers this copy.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Choice<'a> {
-    /// A newer release fits this Mac.
+    /// A newer release fits this computer.
     Newer(Offer<'a>),
     /// Nothing to install: no newer release, or none that fits (the newest newer one says why).
     Latest(Option<Unfit<'a>>),
     /// The feed is in a format newer than this app reads: Emberhut has to be updated by hand.
     ByHand,
-    /// The feed is another product's or another platform's: the server is misconfigured.
+    /// The feed is another product's or another platform's: the release is misconfigured.
     NotOurs,
 }
 
-/// The release to install and its payload for this Mac.
+/// The release to install and its payload for this computer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Offer<'a> {
     /// The release.
     pub(crate) release: &'a Release,
-    /// Its payload for this Mac's processor.
+    /// Its payload for this computer's processor.
     pub(crate) asset: &'a Asset,
     /// The listed releases between this copy and that one, newest first, whose notes show as
     /// unverified.
@@ -37,8 +37,8 @@ pub(crate) struct Offer<'a> {
 /// Why a newer release isn't offered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Unfit<'a> {
-    /// It needs a later macOS.
-    NeedsMacos(&'a Release),
+    /// It needs a later version of the system.
+    NeedsNewerSystem(&'a Release),
     /// It has no payload for this processor.
     NoPayload(&'a Release),
     /// The app rolled back from it lately.
@@ -51,13 +51,13 @@ pub(crate) enum Unfit<'a> {
 pub(crate) fn choose<'a>(
     feed: &'a ReleaseFeed,
     running: Build,
-    here: &ThisMac,
+    here: &ThisMachine,
     refused: Option<Build>,
 ) -> Choice<'a> {
     if feed.format > FORMAT {
         return Choice::ByHand;
     }
-    if feed.platform != Platform::Macos || feed.product != PRODUCT {
+    if feed.platform != here.platform || feed.product != PRODUCT {
         return Choice::NotOurs;
     }
     let mut newer: Vec<&Release> = feed
@@ -71,7 +71,7 @@ pub(crate) fn choose<'a>(
         let unfit = if refused == Some(release.build) {
             Some(Unfit::RolledBack(release))
         } else if !fits(release, here.os) {
-            Some(Unfit::NeedsMacos(release))
+            Some(Unfit::NeedsNewerSystem(release))
         } else {
             match release.asset(&here.arch) {
                 Some(asset) => {
@@ -89,7 +89,8 @@ pub(crate) fn choose<'a>(
     Choice::Latest(first_unfit)
 }
 
-/// Whether `release` runs on macOS `os`: a minimum that doesn't read as a version doesn't.
+/// Whether `release` runs on the system's version `os`: a minimum that doesn't read as a
+/// version doesn't.
 fn fits(release: &Release, os: OsVersion) -> bool {
     release
         .minimum_os
@@ -99,7 +100,7 @@ fn fits(release: &Release, os: OsVersion) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use emberhut_api::releases::Arch;
+    use emberhut_api::releases::{Arch, Platform};
     use serde_json::json;
 
     use super::*;
@@ -123,8 +124,9 @@ mod tests {
         .unwrap()
     }
 
-    fn mac(os: &str) -> ThisMac {
-        ThisMac {
+    fn mac(os: &str) -> ThisMachine {
+        ThisMachine {
+            platform: Platform::Macos,
             arch: Arch::Arm64,
             os: OsVersion::parse(os).unwrap(),
         }
@@ -181,7 +183,7 @@ mod tests {
             chosen(&choose(&feed, Build::new(12), &mac("14.0"), None)),
             Some(14)
         );
-        let Choice::Latest(Some(Unfit::NeedsMacos(release))) =
+        let Choice::Latest(Some(Unfit::NeedsNewerSystem(release))) =
             choose(&feed, Build::new(14), &mac("14.0"), None)
         else {
             panic!("the newest needs a later macOS")
@@ -235,6 +237,13 @@ mod tests {
         assert_eq!(
             choose(&phone, Build::new(12), &mac("14.0"), None),
             Choice::NotOurs
+        );
+        let mut windows = feed(&[release(15, "13.0", &["arm64"])]);
+        windows.platform = Platform::Windows;
+        assert_eq!(
+            choose(&windows, Build::new(12), &mac("14.0"), None),
+            Choice::NotOurs,
+            "a Windows feed on a Mac"
         );
         let mut other = feed(&[release(15, "13.0", &["arm64"])]);
         other.product = "another-app".into();

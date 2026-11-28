@@ -42,10 +42,10 @@ fn icon(title: &str, entry: &Entry) -> IconName {
     }
 }
 
-/// What to suggest now, what needs a look first, at most [`MOST`].
-#[must_use]
-pub(crate) fn suggestions(now: &Now) -> Vec<Suggestion> {
-    let mut rows: Vec<(&str, String, String)> = Vec::new();
+/// What needs a look, first in line: lessons to review, what is broken, a build ready to
+/// install.
+fn needs_a_look(now: &Now) -> Vec<(&'static str, String, String)> {
+    let mut rows = Vec::new();
     if now.lessons > 0 {
         rows.push((
             "lessons",
@@ -74,6 +74,20 @@ pub(crate) fn suggestions(now: &Now) -> Vec<Suggestion> {
             "It needs a look before your ember can read it".to_owned(),
         ));
     }
+    if let Some(version) = &now.update_ready {
+        rows.push((
+            "updates",
+            format!("Install {} {version} and restart", crate::brand::APP_NAME),
+            "Downloaded and checked: it reopens in a few seconds".to_owned(),
+        ));
+    }
+    rows
+}
+
+/// What to suggest now, what needs a look first, at most [`MOST`].
+#[must_use]
+pub(crate) fn suggestions(now: &Now) -> Vec<Suggestion> {
+    let mut rows = needs_a_look(now);
     if now.signed_in {
         if now.phone_paired {
             rows.push((
@@ -241,6 +255,27 @@ mod tests {
             .find(|row| row.entry.id == "thinks-with")
             .unwrap();
         assert_eq!(row.line, "DeepSeek · key ending 0000");
+    }
+
+    #[test]
+    fn a_ready_update_is_offered_after_what_needs_fixing() {
+        assert!(
+            !titles(&Now::default())
+                .iter()
+                .any(|t| t.starts_with("Install")),
+            "nothing ready, nothing to install"
+        );
+        let ready = Now {
+            update_ready: Some("0.2.0".into()),
+            sources_to_fix: vec!["Gmail".into()],
+            signed_in: true,
+            ..Now::default()
+        };
+        let rows = suggestions(&ready);
+        assert_eq!(rows[0].title, "Fix Gmail");
+        assert_eq!(rows[1].title, "Install Emberhut 0.2.0 and restart");
+        assert_eq!(rows[1].entry.id, "updates");
+        assert_eq!(rows[2].title, "Pair your phone");
     }
 
     #[test]

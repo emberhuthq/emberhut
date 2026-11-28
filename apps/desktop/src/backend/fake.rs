@@ -53,7 +53,6 @@ pub(crate) mod browser;
 pub(crate) mod days;
 pub(crate) mod party;
 pub(crate) mod provider;
-pub(crate) mod releases;
 pub(crate) mod sessions;
 pub(crate) mod settings;
 pub(crate) mod setup;
@@ -65,7 +64,6 @@ use self::browser::BrowserReplies;
 use self::days::DaysReplies;
 use self::party::PartyReplies;
 use self::provider::ProviderReplies;
-use self::releases::ReleaseReplies;
 use self::sessions::SessionReplies;
 use self::settings::SettingsReplies;
 use self::setup::SetupReplies;
@@ -214,10 +212,6 @@ pub(crate) enum Call {
     Notes,
     /// A note saved.
     SaveNote(NoteSave),
-    /// The release feed, asked for in this format first.
-    ReleaseFeed(u32),
-    /// A release payload, by its path, with the cap asked for.
-    DownloadRelease(String, u64),
     /// The approval requests read, by the query string.
     Approvals(String),
     /// One approval request read.
@@ -277,8 +271,6 @@ pub(crate) struct FakeBackend {
     pub(crate) party: PartyReplies,
     /// The answers to the pages about the user's days.
     pub(crate) days: DaysReplies,
-    /// The release feed and payloads.
-    pub(crate) releases: ReleaseReplies,
     /// The account's answers: link statements, pairings from a link.
     pub(crate) account: AccountReplies,
     /// The approval requests and the answers on them.
@@ -323,7 +315,6 @@ impl FakeBackend {
             browser: BrowserReplies::default(),
             party: PartyReplies::default(),
             days: DaysReplies::default(),
-            releases: ReleaseReplies::default(),
             account: AccountReplies::default(),
             approvals: ApprovalReplies::default(),
             failover: Mutex::new((Serving::Primary, false)),
@@ -1095,25 +1086,6 @@ impl Backend for FakeBackend {
     fn save_note(&self, note: &NoteSave) -> Result<NoteSaved, Error> {
         self.record(Call::SaveNote(note.clone()));
         self.days.save(note)
-    }
-
-    fn release_feed(
-        &self,
-        _platform: &emberhut_api::releases::Platform,
-        format: u32,
-    ) -> Result<Option<emberhut_api::releases::ReleaseFeed>, Error> {
-        self.record(Call::ReleaseFeed(format));
-        self.releases.feed()
-    }
-
-    fn download_release(
-        &self,
-        path: &str,
-        to: &mut dyn Write,
-        max_len: u64,
-    ) -> Result<super::PayloadDigest, Error> {
-        self.record(Call::DownloadRelease(path.to_owned(), max_len));
-        self.releases.payload(to, max_len)
     }
 
     fn approvals(&self, query: &ApprovalsQuery) -> Result<ApprovalsPage, Error> {

@@ -16,7 +16,7 @@ use gpui_kit::{AnyElement, Div, FontWeight, div, img, px};
 use super::SettingsView;
 use super::group::{Block, block, plain};
 use super::parts::{nav_row, note, problem_line, section, tag};
-use super::{account, places, switches, thinks_with_row, updates, usage};
+use super::{account, places, switches, thinks_with_row, usage};
 use crate::assets::FACE;
 use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::{self as chrome_words, Health};
@@ -432,12 +432,10 @@ impl SettingsView {
         section(p, "", None, vec![row.into_any_element()], None)
     }
 
-    /// Advanced's blocks: updates, the server, diagnostics folded, where the agent works.
+    /// Advanced's blocks: the Updates row (opening its page), the server, diagnostics folded,
+    /// where the agent works.
     pub(super) fn advanced_blocks(&self, p: &Pal, cx: &mut Context<'_, Self>) -> Vec<Block> {
-        let mut blocks = vec![block(
-            &["updates"],
-            updates::section_for(&self.store, p, cx),
-        )];
+        let mut blocks = vec![block(&["updates"], self.updates_row(p, cx))];
         let store = self.store.read(cx);
         let server: Vec<AnyElement> = settings_more::server_rows(store, p)
             .into_iter()

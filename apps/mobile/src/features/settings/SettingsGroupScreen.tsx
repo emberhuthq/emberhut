@@ -1,6 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import Constants from "expo-constants";
-import { Alert, View } from "react-native";
+import { Alert, Linking, Platform, View } from "react-native";
 import { aboutYouTitle } from "@/features/aboutYou/facts";
 import { inBackground } from "@/log";
 import type { RootScreenProps } from "@/navigation/types";
@@ -17,6 +17,7 @@ import { Environments } from "./Environments";
 import { FallbackServer } from "./FallbackServer";
 import { PushRow } from "./PushRow";
 import { Switches } from "./Switches";
+import { storeLink, versionLine } from "./updates";
 import { useSettingsNow } from "./useSettingsNow";
 
 /** Where the agent's model sends what it reads, said once on Privacy. */
@@ -202,15 +203,21 @@ function PrivacyRows({ now }: { now: Now }) {
   );
 }
 
-/** Advanced: your ember's home, the fallback server, diagnostics, this app's version, where your ember works, signing this phone out. */
+/** Advanced: your ember's home, the fallback server, diagnostics, this app's version and the store its updates come through, where your ember works, signing this phone out. */
 function AdvancedRows() {
   const signedIn = useSession((s) => s.status === "signedIn");
   const serverUrl = useSession((s) => s.serverUrl);
   const machineId = useSession((s) => s.machineId);
   const state = useEmberhutState();
   const offline = useConnection(offlineReason);
-  const version = Constants.expoConfig?.version ?? "?";
-  const build = Constants.expoConfig?.android?.versionCode;
+  const config = Constants.expoConfig;
+  const build = Platform.OS === "ios" ? config?.ios?.buildNumber : config?.android?.versionCode;
+  const store = storeLink(Platform.OS);
+  const openStore = () =>
+    inBackground(
+      Linking.openURL(store.url).catch(() => Linking.openURL(store.fallback)),
+      "Settings: open the store",
+    );
   const signOut = () =>
     Alert.alert("Sign out this phone?", "This phone forgets its session. You'll need a new pairing code to sign in again.", [
       { text: "Cancel", style: "cancel" },
@@ -221,7 +228,8 @@ function AdvancedRows() {
     <>
       <Section title="Your ember's home">
         <ListRow key="server" icon="server-outline" title="Server" subtitle={serverUrl ?? "None yet: it's set when this phone pairs"} />
-        <ListRow key="version" icon="information-circle-outline" title="App version" subtitle={build ? `${version} (${build})` : version} />
+        <ListRow key="version" icon="information-circle-outline" title="App version" subtitle={versionLine(config?.version, build)} />
+        <ListRow key="store" icon="download-outline" title={store.title} onPress={openStore} />
       </Section>
       {signedIn ? <FallbackServer /> : null}
       <Section title="Diagnostics">
