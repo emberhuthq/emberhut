@@ -130,6 +130,7 @@ export function SegmentBar({
   const shown = Math.min(Math.max(fraction, 0), 1);
   return (
     <View
+      accessible
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(shown * 100) }}
