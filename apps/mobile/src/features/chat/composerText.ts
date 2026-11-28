@@ -1,4 +1,12 @@
+import type { SetStateAction } from "react";
 import { minTap } from "@/theme/tokens";
+
+/** Each room's draft after a change to one room's: the others stay as they were, and an emptied one is dropped. */
+export function setDraft(drafts: Readonly<Record<number, string>>, room: number, change: SetStateAction<string>): Record<number, string> {
+  const next = typeof change === "function" ? change(drafts[room] ?? "") : change;
+  const { [room]: _was, ...others } = drafts;
+  return next === "" ? others : { ...others, [room]: next };
+}
 
 /** Dictated words after what's typed, a space between. */
 export function appendSaid(typed: string, said: string): string {
