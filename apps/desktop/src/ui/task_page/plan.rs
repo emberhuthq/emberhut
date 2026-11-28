@@ -18,7 +18,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::prelude::*;
 use gpui_kit::{Div, ElementId, FontWeight, Hsla, div, px};
 
-use super::text::follow;
+use super::text::{follow, rich};
 use super::{Part, TaskView, fold};
 use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
@@ -34,11 +34,11 @@ use crate::ui::tasks::marks::{glyph, status_icon, tone_color};
 use crate::ui::tasks::plan_marks;
 
 /// The title and the head's lines.
-pub(super) fn head(body: Div, part: &Part<'_>, cx: &Context<'_, TaskView>) -> Div {
+pub(super) fn head(body: Div, part: &Part<'_>, view: &TaskView) -> Div {
     let (p, task) = (part.p, part.task);
     let now = part.now.timestamp();
     let full = part.page.and_then(|page| page.plan.as_ref());
-    let mut lines: Vec<(&'static str, Div)> = vec![("State", state_line(part, cx))];
+    let mut lines: Vec<(&'static str, Div)> = vec![("State", state_line(part, view.turn))];
     let current = full.and_then(plan::now_line).or_else(|| {
         task.plan
             .as_ref()
@@ -49,12 +49,20 @@ pub(super) fn head(body: Div, part: &Part<'_>, cx: &Context<'_, TaskView>) -> Di
         lines.push(("Now", words_of(current, p.text, true)));
     }
     if task.status == TaskStatus::Waiting {
-        let asks = task
-            .action
-            .clone()
-            .or_else(|| task.decision.as_ref().map(|d| d.question.clone()));
-        if let Some(asks) = asks {
-            lines.push(("Needs you", words_of(asks, p.accent, true)));
+        if let Some(action) = &task.action {
+            // The action's keys and links open as they do anywhere on the page.
+            lines.push((
+                "Needs you",
+                div()
+                    .text_color(p.accent)
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(rich("head-action", action, Some(2), part.store)),
+            ));
+        } else if let Some(decision) = &task.decision {
+            lines.push((
+                "Needs you",
+                words_of(decision.question.clone(), p.accent, true),
+            ));
         }
     }
     if let Some(blocker) = task
@@ -64,21 +72,35 @@ pub(super) fn head(body: Div, part: &Part<'_>, cx: &Context<'_, TaskView>) -> Di
     {
         lines.push(("Blocked", words_of(blocker, p.danger, false)));
     }
-    if let Some(summary) = &task.plan
-        && let Some(eta) = plan::eta_line(summary, now)
-    {
-        // Without the agent's estimate the line only says when the plan last moved.
-        let label = if summary.eta.is_some() {
-            "ETA"
-        } else {
-            "Updated"
-        };
-        let eta = if summary.eta.is_some() {
-            eta
-        } else {
-            eta.trim_start_matches("updated ").to_owned()
-        };
-        lines.push((label, words_of(eta, p.muted, false)));
+    // Where it runs or when it looks next, what it waits on, what it was asked, the last run:
+    // the lines the page's live card has without plans.
+    for (label, value) in super::top::live_lines(part) {
+        lines.push((label, words_of(value, p.text, false)));
+    }
+    let summary = task.plan.as_ref();
+    let updated = summary.and_then(|summary| plan::eta_line(summary, now));
+    // The plan's estimate, else the task's own; without either the line only says when the
+    // plan last moved.
+    let eta = summary
+        .and_then(|summary| summary.eta.clone())
+        .or_else(|| task.eta.clone());
+    match (eta, updated) {
+        (Some(_), Some(line)) if summary.is_some_and(|s| s.eta.is_some()) => {
+            lines.push(("ETA", words_of(line, p.muted, false)));
+        }
+        (Some(eta), Some(line)) => {
+            lines.push(("ETA", words_of(format!("{eta} · {line}"), p.muted, false)));
+        }
+        (Some(eta), None) => lines.push(("ETA", words_of(eta, p.muted, false))),
+        (None, Some(line)) => lines.push((
+            "Updated",
+            words_of(
+                line.trim_start_matches("updated ").to_owned(),
+                p.muted,
+                false,
+            ),
+        )),
+        (None, None) => {}
     }
     let mut head = div().flex().flex_col().gap(px(5.)).pt(px(10.));
     for (label, value) in lines {
@@ -118,12 +140,12 @@ fn words_of(words: String, color: Hsla, strong: bool) -> Div {
 }
 
 /// The state line: its mark, its name and for how long, and `quiet 25m` when it has gone quiet.
-fn state_line(part: &Part<'_>, cx: &Context<'_, TaskView>) -> Div {
+fn state_line(part: &Part<'_>, turn: u8) -> Div {
     let (p, task) = (part.p, part.task);
     let now = part.now.timestamp();
     let running = words::doing(task) == words::Doing::Running;
     let mark = if running {
-        plan_marks::running(p, "task-state-spinner", 12., cx)
+        plan_marks::running(p, 12., turn).into_any_element()
     } else {
         status_icon(p, task).into_any_element()
     };
@@ -241,7 +263,9 @@ pub(super) fn section_of(
     };
     let p = part.p;
     body = body.child(super::section(p, "Plan").pt(px(18.)));
-    if summary.is_empty() {
+    // A plan is empty when it has no step; one whose every step is skipped has a total of 0
+    // but still shows. Until the page comes, the summary says.
+    if full.map_or(summary.is_empty(), |full| full.steps.is_empty()) {
         return body.child(empty(part));
     }
     let (line, bar) = match full {
@@ -318,10 +342,12 @@ pub(super) fn section_of(
     body.child(list)
 }
 
-/// An empty plan: a dashed box with "No plan yet" and what comes, and when a turn ended
-/// without one.
+/// An empty plan: a dashed box with "No plan yet" and, on the assistant's task, that it writes
+/// the steps when it starts (the user's own to-do says `To do · No plan yet`), and when a turn
+/// ended without one.
 fn empty(part: &Part<'_>) -> Div {
     let p = part.p;
+    let mine = !crate::store::lookup::is_assistants(part.task);
     let unplanned = part
         .task
         .plan
@@ -357,12 +383,19 @@ fn empty(part: &Part<'_>) -> Div {
                 .pt(px(4.))
                 .text_size(px(13.5))
                 .font_weight(FontWeight::SEMIBOLD)
-                .child(plan::NO_PLAN),
+                .child(if mine {
+                    format!("To do · {}", plan::NO_PLAN)
+                } else {
+                    plan::NO_PLAN.to_owned()
+                }),
         )
-        .child(div().text_size(px(12.5)).text_color(p.muted).child(format!(
-            "{} writes the steps when it starts.",
-            crate::brand::APP_NAME
-        )))
+        // The assistant writes the steps of its own tasks only.
+        .when(!mine, |d| {
+            d.child(div().text_size(px(12.5)).text_color(p.muted).child(format!(
+                "{} writes the steps when it starts.",
+                crate::brand::APP_NAME
+            )))
+        })
         .children(unplanned.map(|line| div().text_size(px(11.5)).text_color(p.faint).child(line)))
 }
 

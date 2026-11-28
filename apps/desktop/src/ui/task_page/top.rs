@@ -45,9 +45,8 @@ pub(super) fn asks(body: Div, part: &Part<'_>, view: &TaskView, cx: &Context<'_,
 /// Right now: the state and how long, the ETA, the action or who is on it, and the lines
 /// under them.
 fn live_card(part: &Part<'_>) -> Div {
-    let (p, task, now) = (part.p, part.task, part.now);
+    let (p, task) = (part.p, part.task);
     let live = task.live.as_ref();
-    let runs = runs::timeline(part.page);
     let mut card = div()
         .flex()
         .flex_col()
@@ -83,6 +82,37 @@ fn live_card(part: &Part<'_>) -> Div {
                 .child(who),
         );
     }
+    for (label, value) in live_lines(part) {
+        card = card.child(
+            div()
+                .flex()
+                .gap(px(12.))
+                .text_size(px(12.5))
+                .child(
+                    div()
+                        .w(px(64.))
+                        .flex_none()
+                        .text_color(p.muted)
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .line_clamp(if label == "When" { 4 } else { 2 })
+                        .child(value),
+                ),
+        );
+    }
+    card
+}
+
+/// The live card's lines, label and words: where it runs (or, scheduled, when it looks next),
+/// what a scheduled task waits on, what the open run was asked and when the last one ended.
+pub(super) fn live_lines(part: &Part<'_>) -> Vec<(&'static str, String)> {
+    let (task, now) = (part.task, part.now);
+    let live = task.live.as_ref();
+    let runs = runs::timeline(part.page);
     let scheduled = live.is_some_and(|live| live.state == LiveState::Scheduled);
     let key_of = |id| part.read.task_key(id);
     let mut lines: Vec<(&'static str, String)> = Vec::new();
@@ -113,29 +143,7 @@ fn live_card(part: &Part<'_>) -> Div {
     if let Some(last) = runs::last_run_line(&runs, now) {
         lines.push(("Last run", last));
     }
-    for (label, value) in lines {
-        card = card.child(
-            div()
-                .flex()
-                .gap(px(12.))
-                .text_size(px(12.5))
-                .child(
-                    div()
-                        .w(px(64.))
-                        .flex_none()
-                        .text_color(p.muted)
-                        .child(label),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .line_clamp(if label == "When" { 4 } else { 2 })
-                        .child(value),
-                ),
-        );
-    }
-    card
+    lines
 }
 
 /// The state's capsule (its icon, its name and how long) and the ETA.
