@@ -266,6 +266,36 @@ a model, and for finding a local Ollama. 200 is `ProviderTest`:
 | `ollama` | `GET <base>/api/version` (0.14 or later), then `GET <base>/api/tags` |
 | `claude` | nothing (`checked: false`): only the CLI can check its own login |
 
+### GET /api/agent/accounts
+
+The agent CLI accounts the sessions run on (`EMBERHUT_AGENT_ACCOUNTS`), in the order they are
+tried, as the server's failover sees them (`AgentAccounts`). It reads no token and asks no
+provider: an account is out once a turn on it ran out of usage, until the time the service gave
+(an hour when it gave none). Any session (`Viewer`).
+
+```json
+{ "moves": true, "accounts": [
+  { "id": "first", "canWork": false, "restingUntil": "<instant>", "why": "hit its five-hour limit", "on": false },
+  { "id": "second", "canWork": true, "restingUntil": null, "why": null, "on": true }
+] }
+```
+
+`moves` is `true` with more than one account: a session whose account runs out moves to the next
+that can take work. `on` marks the account the main room runs on now. With no account
+configured, `accounts` is empty and `moves` is `false`.
+
+## Waitlists
+
+What the owner asked to hear about once it exists. Only one list is known: `cloud-home`, a home
+rented in the cloud. It is kept in this server's settings until a central list exists: nothing is
+sent anywhere and nothing is paid.
+
+- `GET /api/waitlist` (any session): `{ "lists": [ { "id": "cloud-home", "joined": true, "joinedAt": "<instant>" } ] }`;
+  `joinedAt` is `null` until the owner joins.
+- `PUT /api/waitlist/{list}` (a signed-in device, in either auth mode; no body): joins the list
+  and answers with it. Joining again keeps the first `joinedAt`. 400 `{ "error": "There is no such
+  waitlist." }` for any other list.
+
 ## The state
 
 ### GET /api/state?room=
