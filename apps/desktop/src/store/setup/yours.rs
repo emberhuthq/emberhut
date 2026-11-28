@@ -18,10 +18,18 @@ pub(crate) const SUGGESTIONS: [&str; 5] = [DEFAULT_NAME, "Ash", "Cinder", "Spark
 /// The longest name, in characters.
 pub(crate) const NAME_MAX: usize = 24;
 
-/// `typed` as a name: trimmed, at most [`NAME_MAX`] characters, the default when empty.
+/// `typed` as a name, as the server takes it: no newlines or control characters, trimmed, at
+/// most [`NAME_MAX`] characters, the default when empty.
 #[must_use]
 pub(crate) fn name_of(typed: &str) -> String {
-    let name: String = typed.trim().chars().take(NAME_MAX).collect();
+    let name: String = typed
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect::<String>()
+        .trim()
+        .chars()
+        .take(NAME_MAX)
+        .collect();
     if name.is_empty() {
         DEFAULT_NAME.to_owned()
     } else {
@@ -78,6 +86,7 @@ mod tests {
     fn a_name_is_trimmed_kept_short_and_never_empty() {
         assert_eq!(name_of("  Ash "), "Ash");
         assert_eq!(name_of("   "), DEFAULT_NAME);
+        assert_eq!(name_of("Ash\nby\tthe fire"), "Ashbythe fire");
         assert_eq!(name_of(&"x".repeat(50)).chars().count(), NAME_MAX);
     }
 }
