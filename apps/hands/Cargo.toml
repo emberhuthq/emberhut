@@ -12,6 +12,10 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+
+# The library (everything but the binary's "macOS only" message) is built on Unix only
+# (src/lib.rs says why), so its dependencies are too.
+[target.'cfg(unix)'.dependencies]
 axum = { workspace = true, features = ["http1", "json", "tokio"] }
 base64.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
@@ -50,7 +54,7 @@ objc2-foundation = { workspace = true, features = ["std", "block2", "NSArray", "
 objc2-screen-capture-kit = { workspace = true, features = ["std", "block2", "dispatch2", "objc2-core-media", "SCShareableContent", "SCStream"] }
 tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "fmt"] }
 
-[dev-dependencies]
+[target.'cfg(unix)'.dev-dependencies]
 http-body-util.workspace = true
 tempfile.workspace = true
 tower = { workspace = true, features = ["util"] }
