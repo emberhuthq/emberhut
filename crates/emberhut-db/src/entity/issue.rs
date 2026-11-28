@@ -109,6 +109,12 @@ pub(crate) struct Model {
     /// Its worker's current stream file.
     pub(crate) turn_file: Option<String>,
     pub(crate) requested_by: Option<String>,
+    /// When its plan last changed.
+    pub(crate) plan_updated: Option<i64>,
+    /// The highest step id its plan has given out.
+    pub(crate) plan_last_step: Option<i32>,
+    /// When the last turn of work on it ended with its plan empty.
+    pub(crate) unplanned_turn: Option<i64>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

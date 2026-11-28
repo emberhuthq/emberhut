@@ -105,7 +105,7 @@ pub use secret_links::SecretLinkStore;
 pub use sessions::SessionStore;
 pub use settings::{MACHINE_ID, SettingKey, SettingStore};
 pub use snapshot::{HistoryPage, RoomLine, Snapshot, SnapshotStore};
-pub use tasks::{HistoryLine, NewTask, TaskLine, TaskStore, TaskStoreError};
+pub use tasks::{HistoryLine, NewTask, StoredPlan, TaskLine, TaskStore, TaskStoreError};
 pub use threads::{Recorded, ThreadStore};
 pub use url::{DatabaseUrl, InvalidDatabaseUrl};
 pub use workers::{Agent, AgentSeen, StreamPlace, WorkerStore, WorkingUnit};

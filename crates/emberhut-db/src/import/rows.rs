@@ -9,7 +9,9 @@
 use emberhut_core::message::Author;
 use emberhut_core::upload::FileKind;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveValue::NotSet, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
+};
 
 use super::ImportStore;
 use crate::DbError;
@@ -27,6 +29,8 @@ const KEYS: usize = 500;
 
 /// A record type whose fields are its table's columns, inserted as they are and read back by
 /// its key column: the struct, its conversion from the entity's row, and the two store methods.
+/// The columns listed after `fresh` are the server's own, which no archive has: an imported
+/// row leaves them to their default (NULL), and replacing one leaves them as they are.
 macro_rules! imported {
     (
         $(#[$doc:meta])*
@@ -35,6 +39,7 @@ macro_rules! imported {
         read $read:ident by $key_field:ident ($key_column:ident: $key_ty:ty) {
             $( $(#[$field_doc:meta])* $field:ident: $ty:ty, )*
         }
+        $( fresh { $( $fresh:ident ),* $(,)? } )?
     ) => {
         $(#[$doc])*
         #[derive(Clone, Debug, PartialEq)]
@@ -50,7 +55,10 @@ macro_rules! imported {
 
         impl From<&$name> for $entity::ActiveModel {
             fn from(row: &$name) -> Self {
-                Self { $( $field: Set(row.$field.clone()), )* }
+                Self {
+                    $( $field: Set(row.$field.clone()), )*
+                    $( $( $fresh: NotSet, )* )?
+                }
             }
         }
 
@@ -241,6 +249,7 @@ imported! {
         /// Who else asked for it, as JSON text.
         requested_by: Option<String>,
     }
+    fresh { plan_updated, plan_last_step, unplanned_turn }
 }
 
 imported! {
