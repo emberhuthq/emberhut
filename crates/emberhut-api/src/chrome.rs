@@ -256,6 +256,10 @@ pub mod extension {
     /// `emberhut_core::chrome::extension_id`). A zip whose key gives another id is not this
     /// extension.
     pub const ID: &str = "omnhmmnnbibfdohdhcbcomdhbgpehfnj";
+    /// Its page on the Chrome Web Store, where every Chrome profile adds it from (loading it
+    /// unpacked is the developers' way).
+    pub const STORE_PAGE: &str =
+        "https://chromewebstore.google.com/detail/omnhmmnnbibfdohdhcbcomdhbgpehfnj";
     /// The extension's zip's file name, before its version.
     pub const ZIP_NAME: &str = "emberhut-extension";
 

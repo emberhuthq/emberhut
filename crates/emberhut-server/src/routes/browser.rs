@@ -378,7 +378,9 @@ async fn relay(socket: WebSocket, chrome: ChromeService, origin: Option<String>)
     responses((status = 200, description = "The pairing page (its code after `#`)", body = String, content_type = "text/html")),
 )]
 pub(super) async fn pair_page() -> Response {
-    let page = PAIR_PAGE.replace("{ZIP}", emberhut_api::paths::CHROME_EXTENSION_ZIP);
+    let page = PAIR_PAGE
+        .replace("{STORE}", emberhut_api::chrome::extension::STORE_PAGE)
+        .replace("{ZIP}", emberhut_api::paths::CHROME_EXTENSION_ZIP);
     let mut response = Response::new(Body::from(page));
     let headers = response.headers_mut();
     headers.insert(
@@ -444,8 +446,8 @@ fn zip_response(chrome: &ChromeService) -> Response {
     response
 }
 
-/// The pairing page: it polls its link's state, and shows how to add the extension when it
-/// doesn't come.
+/// The pairing page: it polls its link's state, and shows how to add the extension (from the
+/// Chrome Web Store; loading a build unpacked is the developers' way) when it doesn't come.
 const PAIR_PAGE: &str = r#"<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pair this Chrome profile with Emberhut</title>
 <style>
@@ -464,12 +466,12 @@ const PAIR_PAGE: &str = r#"<!doctype html><meta charset="utf-8"><meta name="view
 <p class="sub" id="as">…</p>
 <div class="status" id="status"><span class="dot"></span><span id="line">Looking for the Emberhut extension in this profile…</span></div>
 <section id="install" class="hide">
-  <p>The Emberhut extension isn't in this Chrome profile yet (or an old copy is). Add it once; this page pairs as soon as it's there.</p>
+  <p>The Emberhut extension isn't in this Chrome profile yet. Add it once; this page pairs as soon as it's there.</p>
   <ol>
-    <li><b>Get it</b><a class="btn" href="{ZIP}">Download the Emberhut extension</a>, unzip it, and keep the folder where it can stay. On a Mac with the Emberhut helper, its folder is already there: <code>~/Library/Application Support/Emberhut/Extension</code>.</li>
-    <li><b>Load it</b>Open <code>chrome://extensions</code> in this window, turn on Developer mode, click Load unpacked and pick that folder. Remove an older copy first.</li>
-    <li><b>Come back to this tab</b>It pairs by itself. The first time, Emberhut asks you to confirm this server's address: press Pair.</li>
+    <li><b>Add it from the Chrome Web Store</b><a class="btn" href="{STORE}" target="_blank" rel="noopener">Add Emberhut to Chrome</a></li>
+    <li><b>Come back to this tab</b>The extension finds this page and asks before it pairs: it says what it sends to your hut, and you press Pair.</li>
   </ol>
+  <details class="fine"><summary>Developing Emberhut?</summary>Load your own build instead: <a href="{ZIP}">download it</a> (or build <code>apps/extension</code>), unzip it into a folder that stays, then in <code>chrome://extensions</code> turn on Developer mode and click Load unpacked. Remove the store copy first.</details>
 </section>
 <p class="fine">Once paired, Emberhut works in this profile when it needs to (Pause on its icon lets it go for 10 minutes), only in its own “Emberhut” tab group, never with passwords, and it asks you before any final step. Code for Emberhut's popup: <code id="code"></code></p>
 <script>
