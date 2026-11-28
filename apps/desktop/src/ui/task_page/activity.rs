@@ -73,7 +73,7 @@ pub(super) fn section_of(
     };
     for item in items.iter().take(shown) {
         body = body.child(match item {
-            Item::Turn(turn) => turn_row(part, turn, cx),
+            Item::Turn(turn) => turn_row(part, turn, view.turn),
             Item::Event(event) => event_row(part, event).into_any_element(),
         });
     }
@@ -161,19 +161,14 @@ fn time(part: &Part<'_>, at: Option<jiff::Timestamp>) -> Div {
 }
 
 /// A turn: when, what it came to, what it was asked, its receipts and its session.
-fn turn_row(part: &Part<'_>, turn: &Turn, cx: &Context<'_, TaskView>) -> AnyElement {
+fn turn_row(part: &Part<'_>, turn: &Turn, quarter: u8) -> AnyElement {
     let p = part.p;
     let said = div()
         .flex()
         .items_start()
         .gap(px(6.))
         .when(turn.live, |d| {
-            d.child(div().pt(px(3.)).child(plan_marks::running(
-                p,
-                ElementId::Name(format!("activity-live-{}", turn.run).into()),
-                11.,
-                cx,
-            )))
+            d.child(div().pt(px(3.)).child(plan_marks::running(p, 11., quarter)))
         })
         .when(!turn.live && turn.state.is_some(), |d| {
             d.child(
@@ -286,6 +281,7 @@ fn mark(p: &Pal, kind: EventKind) -> (IconName, Hsla) {
         EventKind::Skipped => (IconName::Minus, p.faint),
         EventKind::Blocked => (IconName::TriangleAlert, p.danger),
         EventKind::File => (IconName::File, p.muted),
+        EventKind::Planned => (IconName::ListChecks, p.muted),
         EventKind::Note => (IconName::Circle, p.faint),
     }
 }
