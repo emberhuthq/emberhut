@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { taskKey, type Issue, type EmberhutState, type Project, type RunnerSession } from "@/api";
 import { RecentRow, RunningRow } from "@/features/sessions/SessionRows";
-import { isRunning, shortTitle } from "@/features/sessions/sessionList";
+import { allSessions, isRunning, shortTitle } from "@/features/sessions/sessionList";
 import { inBackground } from "@/log";
 import type { TabScreenProps } from "@/navigation/types";
 import { useActions, useConnection } from "@/state/hooks";
@@ -13,9 +13,10 @@ import { useTheme } from "@/theme";
 import { Button, ErrorState, FoldRow, Icon, ListRow, Loading, Screen, Section, Text, TextField, usePullRefresh } from "@/ui";
 import { AreaRow } from "./AreaRow";
 import { flatTasks, subtasksOf, taskOverview } from "./model";
-import { runningTasks, tasklessSessions } from "./plan";
+import { tasklessSessions } from "./plan";
+import { planLists, quietMinutes } from "./planView";
+import { PlanTaskRow } from "./PlanTaskRow";
 import { HealthChip, PriorityMark } from "./ProjectMarks";
-import { RunningTaskRow } from "./RunningTaskRow";
 import { TaskRow } from "./TaskRow";
 import { useTaskPlans } from "./useTaskPlans";
 
@@ -24,9 +25,7 @@ import { useTaskPlans } from "./useTaskPlans";
  * tasks, the projects with nothing open, tasks in no project, paused and archived projects, and your archived tasks
  * folded. What needs you has its own tab. A search runs over every task, done and archived ones too.
  *
- * While the server keeps task plans, Tasks is the work running: the tasks a run is going on come first, each with its
- * plan's step and ticks (and the sessions running with no task), then the lists as above without them, then the other
- * sessions with no task, so nothing that ran leaves the list.
+ * While the server keeps task plans, Tasks is the work by where it stands, each task with its plan (Lists).
  */
 export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
   const { colors, spacing } = useTheme();
@@ -82,34 +81,52 @@ export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
   );
 }
 
-/** The lists; with plans, what runs first and the sessions with no task last, each task listed once. */
+/**
+ * The lists; with plans, the work by where it stands: a line to what needs you (its own tab lists it), what runs (a
+ * blocked task that runs among them, the sessions running with no task after), what is blocked, the rest open, then the
+ * other sessions with no task, so nothing that ran leaves the list.
+ */
 function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; gone: ReadonlySet<number> }) {
+  const navigation = useNavigation();
   if (!plans) return state.ui?.hideProjects ? <FlatList state={state} gone={gone} /> : <ByProject state={state} gone={gone} />;
-  const running = runningTasks(state, gone);
+  const lists = planLists(state, gone);
   const sessions = tasklessSessions(state);
-  const shown = running.length === 0 ? gone : new Set([...gone, ...running.map((t) => t.id)]);
+  const running = sessions.filter((s) => isRunning(s.status));
+  const every = allSessions(state);
+  const now = new Date();
+  const name = (pid: number | null | undefined) => (state.ui?.hideProjects ? null : state.projects?.find((p) => p.id === pid)?.name);
+  const row = (t: Issue) => <PlanTaskRow key={`t${t.id}`} task={t} project={name(t.pid)} quiet={quietMinutes(t, every, now)} />;
+  const open = (s: RunnerSession) => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) });
   return (
     <>
-      <RunningNow state={state} tasks={running} sessions={sessions.filter((s) => isRunning(s.status))} />
-      {state.ui?.hideProjects ? <FlatList state={state} gone={shown} running={running.length} /> : <ByProject state={state} gone={shown} />}
+      {lists.needs > 0 ? (
+        <Section>
+          <ListRow
+            key="needs"
+            icon="hand-left-outline"
+            title={`${lists.needs} ${lists.needs === 1 ? "needs" : "need"} you`}
+            onPress={() => navigation.navigate("Tabs", { screen: "NeedsYou" })}
+          />
+        </Section>
+      ) : null}
+      <Section title="Running" count={lists.running.length + running.length}>
+        {lists.running.map(row)}
+        {running.map((s) => (
+          <RunningRow key={`s${s.id}`} session={s} onOpen={() => open(s)} />
+        ))}
+      </Section>
+      <Section title="Blocked" count={lists.blocked.length} tone="danger">
+        {lists.blocked.map(row)}
+      </Section>
+      <Section title="Open" count={lists.open.length}>
+        {lists.open.map(row)}
+      </Section>
+      {lists.running.length + running.length + lists.blocked.length + lists.open.length === 0 ? (
+        <Text tone="secondary">Nothing open.</Text>
+      ) : null}
       <OtherSessions sessions={sessions.filter((s) => !isRunning(s.status))} />
+      <ArchivedTasks />
     </>
-  );
-}
-
-/** What runs now: each task with its plan, then the sessions running with no task. */
-function RunningNow({ state, tasks, sessions }: { state: EmberhutState; tasks: Issue[]; sessions: RunnerSession[] }) {
-  const navigation = useNavigation();
-  const name = (pid: number | null | undefined) => (state.ui?.hideProjects ? null : state.projects?.find((p) => p.id === pid)?.name);
-  return (
-    <Section title="Running" count={tasks.length + sessions.length} tone="secondary">
-      {tasks.map((t) => (
-        <RunningTaskRow key={`t${t.id}`} task={t} project={name(t.pid)} />
-      ))}
-      {sessions.map((s) => (
-        <RunningRow key={`s${s.id}`} session={s} onOpen={() => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) })} />
-      ))}
-    </Section>
   );
 }
 
@@ -155,8 +172,8 @@ function ByProject({ state, gone }: { state: EmberhutState; gone: ReadonlySet<nu
   );
 }
 
-/** Projects hidden (state.ui): one list, no project headers. `running`: how many tasks the Running list above holds. */
-function FlatList({ state, gone, running = 0 }: { state: EmberhutState; gone: ReadonlySet<number>; running?: number }) {
+/** Projects hidden (state.ui): one list, no project headers. */
+function FlatList({ state, gone }: { state: EmberhutState; gone: ReadonlySet<number> }) {
   const { needs, today, rest } = flatTasks(state, gone);
   const row = (task: Issue) => <TaskRow key={task.id} task={task} subtasks={task.sub ? subtasksOf(task.id, state, gone) : undefined} />;
   return (
@@ -166,7 +183,7 @@ function FlatList({ state, gone, running = 0 }: { state: EmberhutState; gone: Re
       </Section>
       <Section title="Today">{today.map(row)}</Section>
       <Section title={today.length === 0 && needs.length === 0 ? "Open" : "The rest"}>{rest.map(row)}</Section>
-      {needs.length + today.length + rest.length + running === 0 && <Text tone="secondary">Nothing open.</Text>}
+      {needs.length + today.length + rest.length === 0 && <Text tone="secondary">Nothing open.</Text>}
       <ArchivedTasks />
     </>
   );
