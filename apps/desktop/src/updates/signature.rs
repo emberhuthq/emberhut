@@ -152,7 +152,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn no_trusted_key_fails_closed() {
+    fn no_trusted_key_fails_closed_and_the_release_key_takes_no_other_signer() {
         let key = TestKey::new();
         let (_dir, path) = payload(b"a disk image");
         let signature = key.sign(b"a disk image", "c");
@@ -162,7 +162,7 @@ pub(crate) mod tests {
         ));
         assert!(matches!(
             verify(&path, &signature, "c", super::super::keys::TRUSTED),
-            Err(SignatureError::NoTrustedKey)
+            Err(SignatureError::UnknownKey)
         ));
     }
 

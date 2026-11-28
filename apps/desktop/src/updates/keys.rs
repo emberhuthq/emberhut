@@ -1,9 +1,9 @@
 //! The update keys this app trusts: the public halves of the minisign keys a release's payload
 //! may be signed with, each with its key id.
 //!
-//! None exists yet: the release key is made on the publishing Mac (`cargo xtask release
-//! keygen`) and its public half goes here with the release that first trusts it. Until then the
-//! list is empty, and every update fails closed: no payload verifies, nothing is installed.
+//! The release key's secret half signs in the release workflow (it is a secret of the `release`
+//! environment, which only `v*` tags may use); its public half is here. A payload signed by any
+//! other key fails closed: nothing is installed.
 //!
 //! Rotating: a release signed with the old key ships an app that trusts both; a later one drops
 //! the old key once installed apps have moved.
@@ -18,11 +18,20 @@ pub(crate) struct TrustedKey {
 }
 
 /// The keys a payload's signature is checked against, by its key id.
-pub(crate) const TRUSTED: &[TrustedKey] = &[];
+pub(crate) const TRUSTED: &[TrustedKey] = &[TrustedKey {
+    id: "FF00313EAD564744",
+    public: "RWRER1atPjEA/9GrQdW+h0cy57Fiy526c7fbp1tkAabdvdSNURP3nnyD",
+}];
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_release_key_is_trusted() {
+        assert_eq!(TRUSTED.len(), 1);
+        assert_eq!(TRUSTED[0].id, "FF00313EAD564744");
+    }
 
     #[test]
     fn every_trusted_key_reads_as_a_minisign_key() {
