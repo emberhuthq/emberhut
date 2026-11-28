@@ -24,6 +24,7 @@ import {
   plansOn,
   runningTasks,
   stepLabel,
+  stepLink,
   stepState,
   summaryLine,
   taskSessions,
@@ -196,6 +197,15 @@ describe("the checklist", () => {
     expect(stepLabel(rows[3]!)).toBe("Sub-step, Step 4, in progress, current step");
     expect(stepLabel(rows[4]!)).toBe("Step 5, blocked, No signing key");
     expect(stepLabel(rows[5]!)).toBe("Step 6, skipped");
+  });
+
+  it("reads a step's link short, and how it opens", () => {
+    expect(stepLink("https://github.com/example/app/pull/7")).toEqual({ kind: "web", text: "github.com/…/pull/7" });
+    expect(stepLink("https://www.example.com/")).toEqual({ kind: "web", text: "example.com" });
+    expect(stepLink("https://example.com/docs/plan?x=1")).toEqual({ kind: "web", text: "example.com/docs/plan" });
+    expect(stepLink("/api/artifacts/12")).toEqual({ kind: "server", text: "12" });
+    expect(stepLink("//elsewhere.example.com/x")).toEqual({ kind: "text", text: "//elsewhere.example.com/x" });
+    expect(stepLink("  ")).toBeNull();
   });
 
   it("opens only web links", () => {

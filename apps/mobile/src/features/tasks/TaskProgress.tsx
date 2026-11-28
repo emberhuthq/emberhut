@@ -64,7 +64,8 @@ export function LiveCard({ task, runs }: { task: Issue; runs: RunInfo[] }) {
   );
 }
 
-const runTones: Record<RunStatusKind, ChipTone & keyof Palette> = {
+/** A run's STATUS as a chip and a mark: done, working, blocked, needs you. */
+export const runTones: Record<RunStatusKind, ChipTone & keyof Palette> = {
   done: "done",
   working: "working",
   blocked: "danger",
@@ -130,7 +131,8 @@ function RunRow({ run }: { run: RunInfo }) {
   );
 }
 
-function runWhen(run: RunInfo): string {
+/** When a run was: "Mon 14:05 → Mon 14:40 · 35 min", "Started Mon 14:05 · 3 min so far", "Sent Mon 14:05 · queued". */
+export function runWhen(run: RunInfo): string {
   const start = parseInstant(run.started);
   const end = parseInstant(run.ended);
   if (start && end) return `${weekdayClock(start)} → ${weekdayClock(end)} · ${span(start, end)}`;

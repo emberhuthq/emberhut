@@ -1,4 +1,5 @@
 import {
+  isServerPath,
   STEP_STATE,
   type EmberhutState,
   type Issue,
@@ -117,7 +118,24 @@ export function stepLabel(row: PlanRow): string {
 }
 
 /** Whether a step's link opens outside the app: only web links do. */
-export const isWebLink = (link: string | null | undefined): link is string => /^https?:\/\//i.test(link ?? "");
+export const isWebLink = (link: string | null | undefined): boolean => /^https?:\/\//i.test(link ?? "");
+
+/**
+ * What a step's link is and how it reads: a web page (opened in the browser), a file on the server (opened full screen,
+ * with the session), or anything else, shown as text and not opened.
+ */
+export function stepLink(link: string | null | undefined): { kind: "web" | "server" | "text"; text: string } | null {
+  const given = link?.trim();
+  if (!given) return null;
+  if (isWebLink(given)) {
+    const [, host = "", path = ""] = /^https?:\/\/(?:www\.)?([^/?#]+)([^?#]*)/i.exec(given) ?? [];
+    const parts = path.split("/").filter(Boolean);
+    const shown = parts.length <= 2 ? parts.join("/") : `…/${parts.slice(-2).join("/")}`;
+    return { kind: "web", text: shown ? `${host}/${shown}` : host };
+  }
+  if (isServerPath(given)) return { kind: "server", text: given.split("/").filter(Boolean).pop() ?? given };
+  return { kind: "text", text: given };
+}
 
 /**
  * The page's whole plan. The page's `plan` is the whole plan; a summary alone in its place (the task's own field) still
