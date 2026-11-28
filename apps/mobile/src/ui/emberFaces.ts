@@ -11,8 +11,8 @@ const DEFAULT_TINT = "ember";
 export const emberFaceImages: Readonly<Record<string, ImageSourcePropType>> = {
   ember: require("../../assets/emberhut-face.png"),
   amber: require("../../assets/emberhut-face-amber.png"),
-  rose: require("../../assets/emberhut-face-rose.png"),
-  sage: require("../../assets/emberhut-face-sage.png"),
+  coral: require("../../assets/emberhut-face-coral.png"),
+  blue: require("../../assets/emberhut-face-blue.png"),
 };
 
 /** The face off duty, the same for every tint: grey at half opacity (128 px). */

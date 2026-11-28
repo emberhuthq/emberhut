@@ -472,9 +472,9 @@ mod tests {
             })
         };
         assert!(drawn(cx, "ember"), "the brand's own colours at first");
-        store.update(cx, |store, cx| store.pick_ember_tint("rose".into(), cx));
+        store.update(cx, |store, cx| store.pick_ember_tint("coral".into(), cx));
         cx.run_until_parked();
-        assert!(drawn(cx, "rose"), "the tint picked");
+        assert!(drawn(cx, "coral"), "the tint picked");
         assert!(!drawn(cx, "ember"));
     }
 

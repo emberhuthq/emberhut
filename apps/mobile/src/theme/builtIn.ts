@@ -90,7 +90,7 @@ export const builtInTheme: ThemePage = {
   tints: [
     { id: "ember", name: "Ember" },
     { id: "amber", name: "Amber" },
-    { id: "rose", name: "Rose" },
-    { id: "sage", name: "Sage" },
+    { id: "coral", name: "Coral" },
+    { id: "blue", name: "Blue flame" },
   ],
 };

@@ -41,14 +41,14 @@ describe("a rename made elsewhere", () => {
 });
 
 describe("your ember's tab in its tint", () => {
-  const tinted = { ember: "ember", rose: "rose ember" };
+  const tinted = { ember: "ember", coral: "coral ember" };
 
   it("draws the ember in the tint its look names", () => {
-    expect(emberTabOptions(true, tintedFaces("rose", tinted, "off")).tabBarIcon()).toBe("rose ember");
+    expect(emberTabOptions(true, tintedFaces("coral", tinted, "off")).tabBarIcon()).toBe("coral ember");
   });
 
   it("draws a tint this build has no picture of as the ember's own colours, and off duty grey whatever the tint", () => {
     expect(emberTabOptions(true, tintedFaces("calm", tinted, "off")).tabBarIcon()).toBe("ember");
-    expect(emberTabOptions(false, tintedFaces("rose", tinted, "off")).tabBarIcon()).toBe("off");
+    expect(emberTabOptions(false, tintedFaces("coral", tinted, "off")).tabBarIcon()).toBe("off");
   });
 });

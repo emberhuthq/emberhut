@@ -32,7 +32,7 @@ describe("Your ember's tab icon", () => {
 
   it("ships and bundles the ember in every tint the server lists, and off duty", () => {
     const names = [...page.tints.map((t) => (t.id === "ember" ? "emberhut-face" : `emberhut-face-${t.id}`)), "emberhut-face-off"];
-    expect(names).toContain("emberhut-face-sage");
+    expect(names).toContain("emberhut-face-blue");
     for (const name of names) {
       expect(existsSync(new URL(`../../assets/${name}.png`, import.meta.url)), name).toBe(true);
       expect(faces).toContain(`require("../../assets/${name}.png")`);

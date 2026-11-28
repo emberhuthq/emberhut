@@ -18,14 +18,14 @@ const TINTED_FACES: [(&str, &str, &[u8]); 3] = [
         include_bytes!("../assets/face-amber.png"),
     ),
     (
-        "rose",
-        "face-rose.png",
-        include_bytes!("../assets/face-rose.png"),
+        "coral",
+        "face-coral.png",
+        include_bytes!("../assets/face-coral.png"),
     ),
     (
-        "sage",
-        "face-sage.png",
-        include_bytes!("../assets/face-sage.png"),
+        "blue",
+        "face-blue.png",
+        include_bytes!("../assets/face-blue.png"),
     ),
 ];
 

@@ -136,16 +136,16 @@ describe("theme sync", () => {
   it("tints the ember at once, offline too, keeping the preset, and sends the tint alone", async () => {
     const { store, prefs, net, posts } = setup({ preset: "purple" });
     await store.getState().refresh();
-    const sent = store.getState().choose({ emberTint: "rose" });
-    expect(prefs.getState().themeCache?.choice).toMatchObject({ preset: "purple", emberTint: "rose" });
+    const sent = store.getState().choose({ emberTint: "coral" });
+    expect(prefs.getState().themeCache?.choice).toMatchObject({ preset: "purple", emberTint: "coral" });
     await sent;
-    expect(posts()).toEqual([{ emberTint: "rose" }]);
-    expect(prefs.getState().themeCache?.choice).toMatchObject({ preset: "purple", emberTint: "rose" });
+    expect(posts()).toEqual([{ emberTint: "coral" }]);
+    expect(prefs.getState().themeCache?.choice).toMatchObject({ preset: "purple", emberTint: "coral" });
 
     net.down = true;
-    await store.getState().choose({ emberTint: "sage" });
-    expect(currentTheme(prefs.getState()).choice.emberTint).toBe("sage");
-    expect(prefs.getState().themePending).toEqual({ emberTint: "sage" });
+    await store.getState().choose({ emberTint: "blue" });
+    expect(currentTheme(prefs.getState()).choice.emberTint).toBe("blue");
+    expect(prefs.getState().themePending).toEqual({ emberTint: "blue" });
   });
 
   it("keeps an offline change across a restart", async () => {
