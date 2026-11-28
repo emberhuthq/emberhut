@@ -9,13 +9,14 @@ import type {
   RunnerMachine,
   RunnerSession,
   SessionHead,
+  SessionMoved,
   SessionSendResult,
   SessionSettings,
   SessionTranscript,
   ExternalThreadActivity,
 } from "../types";
 import { agentStep } from "../agentSteps";
-import { EXTERNAL_THREAD_ACTIVITY_PATH } from "../wire";
+import { EXTERNAL_THREAD_ACTIVITY_PATH, SESSION_TASK_ROUTE } from "../wire";
 import { fileForSend } from "./chat";
 
 const base = (id: string) => `/api/runner/sessions/${encodeURIComponent(id)}`;
@@ -61,6 +62,13 @@ export function sessionEndpoints(http: EmberhutHttp) {
     },
     settings(id: string, settings: SessionSettings): Promise<Reply & { session: SessionHead }> {
       return http.post(`${base(id)}/settings`, settings);
+    },
+    /**
+     * Moves it to another open task (a server that keeps plans): its next turns work on that one. Refused with the
+     * server's reason: 404 for a session or task it doesn't have, 400 for a task that's done or archived.
+     */
+    moveToTask(id: string, task: number): Promise<SessionMoved> {
+      return http.post<SessionMoved>(`${base(id)}/${SESSION_TASK_ROUTE}`, { task });
     },
     /** Where to start picking a folder (no path), or one folder's folders. */
     folders<P extends string | undefined>(machine: RunnerMachine, path?: P): Promise<P extends string ? FolderListing : FolderRoots> {

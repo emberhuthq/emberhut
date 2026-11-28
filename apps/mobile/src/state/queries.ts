@@ -156,6 +156,23 @@ export function useApplySettings() {
 }
 
 /**
+ * Moves a session to another task (a server that keeps plans). Settled, the states and every task page are fetched
+ * again: the session leaves the page it was on and joins the new one's.
+ */
+export function useMoveSession() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ session, task }: { session: string; task: number }) => api.sessions.moveToTask(session, task),
+    onSettled: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.allStates }),
+        client.invalidateQueries({ queryKey: queryKeys.allTasks }),
+      ]);
+    },
+  });
+}
+
+/**
  * Follows a room's live line while mounted. When a turn ends (null after a line), the answer is already in the server's
  * chat: the state is fetched again so the answer and the end of the working sign land together. An approval request's
  * change (the stream's `approvals` event) fetches the states and the approvals pages again.

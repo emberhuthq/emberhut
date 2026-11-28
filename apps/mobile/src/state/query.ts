@@ -11,6 +11,8 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   allStates: ["state"] as const,
   state: (room: number) => ["state", room] as const,
+  /** Every task page: what a session moved from one task to another changes. */
+  allTasks: ["task"] as const,
   task: (id: number) => ["task", id] as const,
   tasks: (query: TasksQuery) => ["tasks", query] as const,
   facts: ["facts"] as const,

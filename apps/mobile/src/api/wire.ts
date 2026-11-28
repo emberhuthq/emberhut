@@ -90,3 +90,9 @@ export const PLAN_HISTORY_OPENINGS = [
 
 /** Who a task, a line or a step is from. */
 export type Author = typeof OWNER | typeof ASSISTANT;
+
+/**
+ * The last part of the route that moves a session to another task (POST /api/runner/sessions/<id>/<this>, `{ task }`),
+ * on a server that keeps task plans: its next turns work on that task.
+ */
+export const SESSION_TASK_ROUTE = "task";

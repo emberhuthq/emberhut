@@ -200,6 +200,12 @@ export interface NewSessionResult {
   session: SessionHead;
 }
 
+/** A session moved to another task (POST /api/runner/sessions/<id>/task): the task it works on now. */
+export interface SessionMoved {
+  ok: boolean;
+  task: number;
+}
+
 export interface SessionSendResult {
   ok: boolean;
   turn?: string;
