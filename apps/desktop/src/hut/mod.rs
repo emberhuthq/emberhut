@@ -38,6 +38,8 @@ use gpui_kit::{App, Task};
 pub(crate) use self::error::HutError;
 pub(crate) use self::net::{Heard, HutNet, LoopbackNet};
 pub(crate) use self::paths::{HutPaths, Manager, Place};
+#[cfg(test)]
+pub(crate) use self::process::Ran;
 pub(crate) use self::process::{Run, Running, Spawner, SystemSpawner};
 pub(crate) use self::service::KeepLit;
 use self::service::{Serve, launchctl, systemctl};

@@ -197,8 +197,30 @@ first two get it going; the other three are optional and say so.
    Devices' Pair another device). A device that signs in while it shows finishes it.
 4. **Show it your world.** Calendar, Gmail, Slack and Chrome, each as `GET /api/setup` says
    (`mac`, `gmail`, `slack`, `chrome`). Chrome's Connect opens the Chrome profiles' sheet for a
-   new profile; the others can't be connected from the setup yet and say they wait in Settings ›
-   Connections.
+   new profile, which first adds the extension to Chrome (below) and then gives the profile's
+   link and waits until it pairs; the others can't be connected from the setup yet and say they
+   wait in Settings › Connections.
+
+### Adding the extension to Chrome
+
+The Emberhut extension comes from the Chrome Web Store. The sheet for a new Chrome profile says
+what Add to Chrome does before anything is written, and only that press writes Chrome's
+external-extension entry for it (`store/settings/chrome_install.rs`): the extension's id with the
+store's update address (`https://clients2.google.com/service/update2/crx`), so Chrome installs it
+from the store.
+
+| System | Where the entry goes | What Chrome does |
+|---|---|---|
+| macOS | `~/Library/Application Support/Google/Chrome/External Extensions/<id>.json`, the user's own folder | shows "New extension added" the next time it starts; the user clicks Enable |
+| Windows | the registry key `HKCU\Software\Google\Chrome\Extensions\<id>`, value `update_url`, written with `reg add` | asks the same way |
+| Linux | `/opt/google/chrome/extensions/<id>.json`, copied in with `pkexec install` (the system asks for the user's password): Google Chrome reads no per-user folder there | adds it by itself the next time it starts |
+
+An entry already there with the same content is left as it is. Where it can't be written (no
+`pkexec`, the password prompt closed, another system), the sheet says why; the extension's Web
+Store page is offered throughout, as the way that works while Chrome is open. Then the profile's
+link: opened in that profile, the extension asks the user to pair, and the sheet's "Waiting for
+that Chrome profile…" turns into the paired profile. Developers load the extension's own build
+unpacked instead ([apps/extension/README.md](../extension/README.md)).
 5. **Share your ember.** Where sharing is (Settings › Sharing, an early preview), and Done.
 
 Then "Your ember is lit." sums up what it is now, with Say hello (Main) and Share your ember
@@ -579,7 +601,8 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/status.rs` | the assistant's status line and how errors are worded |
 | `store/settings/switches.rs` | the MCP servers' and skills' switches: fetched every 10 s while Settings' front door or Connections is open in front, one switch at a time |
 | `store/settings/about.rs` | what the assistant knows about you, by category, searched; a fix shows at once and is fetched again if refused |
-| `store/settings/chrome.rs` | the Chrome profiles' changes and the sheet open over them; a change's answer replaces the state's profiles |
+| `store/settings/chrome.rs` | the Chrome profiles' changes and the sheet open over them; a change's answer replaces the state's profiles; adding the extension to Chrome on the user's OK |
+| `store/settings/chrome_install.rs` | Chrome's external-extension entry for the extension on macOS, Windows and Linux: where it goes, writing it (or finding it there), and the store's page |
 | `store/settings/on_duty.rs` | pausing and resuming the assistant, shown at once until the state agrees |
 | `store/settings/appearance.rs` | the Appearance row's summary, a custom colour's contrast line, which typed colour is previewed |
 | `store/settings/entries.rs` | every setting described once: id, title, fixed or live line, group and place, synonyms, everyday or technical, where it opens; ids checked against `apps/fixtures/settings-entries.json` with the phone's |
