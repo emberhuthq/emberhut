@@ -3,7 +3,8 @@ import { useTheme, type Palette } from "@/theme";
 import { Icon, type IconName } from "./Icon";
 import { Text } from "./Text";
 
-export type ChipTone = "needsYou" | "working" | "done" | "warning" | "danger" | "muted";
+/** `running`: a run going on a task with plans, in the plans' running colour beside their spinner. */
+export type ChipTone = "needsYou" | "working" | "running" | "done" | "warning" | "danger" | "muted";
 
 export interface ChipProps {
   label: string;
@@ -17,6 +18,7 @@ export interface ChipProps {
 const toneColor: Record<ChipTone, keyof Palette> = {
   needsYou: "needsYou",
   working: "working",
+  running: "running",
   done: "done",
   warning: "warning",
   danger: "danger",

@@ -139,7 +139,7 @@ function Turn({ item, time }: { item: ActivityItem; time: string }) {
           </View>
         ) : null}
         {status ? (
-          <Chip label={status.text} tone={runTones[status.kind]} />
+          <Chip label={status.text} tone={status.kind === "working" ? "running" : runTones[status.kind]} />
         ) : item.failed ? (
           <Chip label={`Turn ${item.failed}`} tone="danger" />
         ) : null}
