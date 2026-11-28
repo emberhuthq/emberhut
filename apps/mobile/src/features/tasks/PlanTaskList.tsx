@@ -2,6 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { ReactNode } from "react";
 import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import type { EmberhutState, Issue, RunnerSession } from "@/api";
+import { useMoveToTask } from "@/features/sessions/SessionMenu";
 import { allSessions } from "@/features/sessions/sessionList";
 import { useTheme } from "@/theme";
 import { Chip, ListRow, SectionHeading, Text, type ChipTone } from "@/ui";
@@ -60,6 +61,7 @@ export function PlanTaskList({
   const sessions = tasklessSessions(state, now);
   const every = allSessions(state);
   const projects = new Map((state.ui?.hideProjects ? [] : (state.projects ?? [])).map((p) => [p.id, p.name]));
+  const move = useMoveToTask();
   const groups: Group[] = found
     ? []
     : planGroups(lists, sessions).map((g) => ({
@@ -127,7 +129,7 @@ export function PlanTaskList({
             {item.kind === "task" ? (
               <PlanTaskRow task={item.task} project={projects.get(item.task.pid ?? -1)} quiet={quietMinutes(item.task, every, now)} />
             ) : (
-              <SessionItemRow session={item.session} />
+              <SessionItemRow session={item.session} onMove={move} />
             )}
           </View>
         );

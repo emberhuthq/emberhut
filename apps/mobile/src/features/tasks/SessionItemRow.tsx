@@ -3,6 +3,7 @@ import { StyleSheet, View, Pressable } from "react-native";
 import type { RunnerSession } from "@/api";
 import { Elapsed } from "@/features/sessions/Elapsed";
 import { isRunning, sessionStatusText, sessionSummary, shortTitle } from "@/features/sessions/sessionList";
+import { useSessionMenu, type MoveTo } from "@/features/sessions/SessionMenu";
 import { parseInstant, relative } from "@/format/time";
 import { minTap, useTheme } from "@/theme";
 import { Icon, Text } from "@/ui";
@@ -11,11 +12,12 @@ import { Spinner } from "./PlanMarks";
 /**
  * A session with no task, in the Tasks list: lighter than a task (no plan, never a bar). Its mark (the spinner while it
  * runs, the hand when it waits on you, a terminal otherwise), its title, what it's doing or said last, where it runs and
- * for how long. A tap opens the session.
+ * for how long. A tap opens the session; a long press offers `onMove` (Move to task…).
  */
-export function SessionItemRow({ session }: { session: RunnerSession }) {
+export function SessionItemRow({ session, onMove }: { session: RunnerSession; onMove?: MoveTo }) {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation();
+  const menu = useSessionMenu(session, onMove);
   const title = shortTitle(session.title);
   const running = isRunning(session.status);
   const waiting = session.status === "waiting";
@@ -25,45 +27,49 @@ export function SessionItemRow({ session }: { session: RunnerSession }) {
   const updated = parseInstant(session.updatedAt);
   const where = ["Session, no task", session.place, !running && updated ? relative(updated) : null].filter(Boolean).join(" · ");
   return (
-    <Pressable
-      onPress={() => navigation.navigate("Session", { id: session.id, title })}
-      accessibilityRole="button"
-      accessibilityLabel={`Session ${title}, ${sessionStatusText(session.status)}, ${line}, ${where}`}
-      accessibilityHint="Opens the session"
-      style={({ pressed }) => [
-        styles.row,
-        {
-          gap: spacing.md,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          backgroundColor: pressed ? colors.surfaceRaised : colors.surface,
-        },
-      ]}
-    >
-      <View style={styles.lead} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {running ? (
-          <Spinner />
-        ) : waiting ? (
-          <Icon name="hand-left" size={16} color={colors.needsYou} />
-        ) : (
-          <Icon name="terminal-outline" size={16} color={colors.textTertiary} />
-        )}
-      </View>
-      <View style={styles.text}>
-        <View style={[styles.line, { gap: spacing.sm }]}>
-          <Text numberOfLines={1} style={styles.fill}>
-            {title}
-          </Text>
-          {running ? <Elapsed since={session.since} variant="footnote" tone="secondary" /> : null}
+    <>
+      <Pressable
+        {...menu.press}
+        onPress={() => navigation.navigate("Session", { id: session.id, title })}
+        accessibilityRole="button"
+        accessibilityLabel={`Session ${title}, ${sessionStatusText(session.status)}, ${line}, ${where}`}
+        accessibilityHint="Opens the session"
+        style={({ pressed }) => [
+          styles.row,
+          {
+            gap: spacing.md,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            backgroundColor: pressed ? colors.surfaceRaised : colors.surface,
+          },
+        ]}
+      >
+        <View style={styles.lead} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {running ? (
+            <Spinner />
+          ) : waiting ? (
+            <Icon name="hand-left" size={16} color={colors.needsYou} />
+          ) : (
+            <Icon name="terminal-outline" size={16} color={colors.textTertiary} />
+          )}
         </View>
-        <Text variant="footnote" tone={waiting ? "needsYou" : "secondary"} numberOfLines={1}>
-          {line}
-        </Text>
-        <Text variant="caption" tone="tertiary" numberOfLines={1}>
-          {where}
-        </Text>
-      </View>
-    </Pressable>
+        <View style={styles.text}>
+          <View style={[styles.line, { gap: spacing.sm }]}>
+            <Text numberOfLines={1} style={styles.fill}>
+              {title}
+            </Text>
+            {running ? <Elapsed since={session.since} variant="footnote" tone="secondary" /> : null}
+          </View>
+          <Text variant="footnote" tone={waiting ? "needsYou" : "secondary"} numberOfLines={1}>
+            {line}
+          </Text>
+          <Text variant="caption" tone="tertiary" numberOfLines={1}>
+            {where}
+          </Text>
+        </View>
+      </Pressable>
+      {menu.sheet}
+    </>
   );
 }
 
