@@ -1,0 +1,13 @@
+{
+  "accounts": [
+    {
+      "id": "first",
+      "canWork": false,
+      "restingUntil": "2030-03-17T17:46:40.000Z",
+      "why": "hit its five-hour limit",
+      "on": false
+    },
+    { "id": "second", "canWork": true, "restingUntil": null, "why": null, "on": true }
+  ],
+  "moves": true
+}

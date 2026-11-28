@@ -140,6 +140,7 @@ struct Inner {
     display: DisplayService,
     theme: ThemeService,
     ember_name: EmberNameService,
+    waitlist: crate::services::waitlist::WaitlistService,
     agent_tokens: AgentTokens,
     history: HistoryService,
     uploads: UploadService,
@@ -847,6 +848,10 @@ impl AppState {
                 display,
                 theme,
                 ember_name,
+                waitlist: crate::services::waitlist::WaitlistService::new(
+                    db.settings(),
+                    Arc::clone(&clock),
+                ),
                 agent_tokens,
                 history,
                 uploads,
@@ -1084,6 +1089,10 @@ impl AppState {
     #[must_use]
     pub fn ember_name(&self) -> &EmberNameService {
         &self.inner.ember_name
+    /// The waitlists kept on this server.
+    #[must_use]
+    pub fn waitlist(&self) -> &crate::services::waitlist::WaitlistService {
+        &self.inner.waitlist
     }
 
     /// The rooms' agent tokens, which let a room's agent session call the MCP endpoint.
