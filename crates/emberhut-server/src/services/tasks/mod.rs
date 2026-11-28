@@ -932,6 +932,7 @@ impl TaskService {
             runs: Some(runs),
             sessions: Vec::new(),
             ultra_run: None,
+            plan: None,
         }))
     }
 

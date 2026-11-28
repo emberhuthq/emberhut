@@ -16,6 +16,7 @@ const UI: SettingKey<DisplayUi> = SettingKey::new("ui");
 pub const DEFAULT_UI: DisplayUi = DisplayUi {
     hide_goals: true,
     hide_projects: true,
+    task_plans: false,
 };
 
 /// Keeps the display switches.
