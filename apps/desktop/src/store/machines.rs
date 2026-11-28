@@ -1,8 +1,10 @@
-//! The machines page's data: asked for every 10 s while the page is open in the front window,
-//! at once when the page opens or the window comes back to the front, and once at launch so it
-//! opens filled (that one isn't retried off the page if it fails). Off the page or out of the
-//! front, the loop sleeps until one of those kicks it.
+//! The huts page's data (the machines the assistant works on): asked for every 10 s while the
+//! page is open in the front window, at once when the page opens or the window comes back to
+//! the front, and once at launch so it opens filled (that one isn't retried off the page if it
+//! fails). Off the page or out of the front, the loop sleeps until one of those kicks it. It
+//! also keeps which huts' details are unfolded.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,6 +14,7 @@ use gpui_kit::Context;
 use super::poll::{self, Kicked, Kicker};
 use super::presence::Presence;
 use super::{Page, Store, update_or_log};
+use emberhut_api::ids::MachineId;
 use emberhut_api::machines::MachinesPage;
 
 /// How often the machines are asked for while their page is open.
@@ -22,6 +25,8 @@ const EVERY: Duration = Duration::from_secs(10);
 pub(crate) struct MachinesFeed {
     page: Option<MachinesPage>,
     problem: Option<String>,
+    /// The huts whose details (processor, memory, disks, last day, sessions) are unfolded.
+    open: HashSet<MachineId>,
     /// Wakes the loop; the loop's end of it waits here until the loop starts.
     kicker: Kicker,
     kicked: Option<Kicked>,
@@ -33,6 +38,7 @@ impl Default for MachinesFeed {
         Self {
             page: None,
             problem: None,
+            open: HashSet::new(),
             kicker,
             kicked: Some(waiting),
         }
@@ -50,6 +56,12 @@ impl MachinesFeed {
     #[must_use]
     pub(crate) fn problem(&self) -> Option<&str> {
         self.problem.as_deref()
+    }
+
+    /// Whether the hut `id`'s details are unfolded.
+    #[must_use]
+    pub(crate) fn is_open(&self, id: &MachineId) -> bool {
+        self.open.contains(id)
     }
 
     /// Asks for the machines now if they are wanted, rather than at the next tick.
@@ -81,12 +93,12 @@ fn problem(error: &crate::backend::Error) -> String {
     match error {
         crate::backend::Error::Refused {
             status: Some(404), ..
-        } => "The server is on older code: it has no machines page yet.".to_owned(),
+        } => "The server is on older code: it has no huts page yet.".to_owned(),
         crate::backend::Error::Refused {
             message: Some(message),
             ..
         } => message.clone(),
-        _ => format!("Couldn't read the machines: {error}"),
+        _ => format!("Couldn't read the huts: {error}"),
     }
 }
 
@@ -161,6 +173,25 @@ impl Store {
     pub(crate) fn machines(&self) -> &MachinesFeed {
         &self.machines
     }
+
+    /// Folds or unfolds the hut `id`'s details.
+    pub(crate) fn toggle_hut(&mut self, id: &MachineId, cx: &mut Context<'_, Self>) {
+        if !self.machines.open.remove(id) {
+            self.machines.open.insert(id.clone());
+        }
+        cx.notify();
+    }
+
+    /// Shows `page` as the last one fetched, for a test's window.
+    #[cfg(test)]
+    pub(crate) fn show_machines_for_tests(
+        &mut self,
+        page: MachinesPage,
+        cx: &mut Context<'_, Self>,
+    ) {
+        self.machines.take(Ok(page));
+        cx.notify();
+    }
 }
 
 #[cfg(test)]
@@ -184,12 +215,10 @@ mod tests {
         };
         assert_eq!(
             problem(&refused(404, None)),
-            "The server is on older code: it has no machines page yet."
+            "The server is on older code: it has no huts page yet."
         );
         assert_eq!(problem(&refused(500, Some("Runner down"))), "Runner down");
-        assert!(
-            problem(&Error::Unreachable("down".into())).starts_with("Couldn't read the machines")
-        );
+        assert!(problem(&Error::Unreachable("down".into())).starts_with("Couldn't read the huts"));
     }
 
     #[test]

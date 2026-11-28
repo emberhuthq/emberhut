@@ -609,7 +609,7 @@ impl MainWindow {
             Page::Room(_) => self.chat.clone().into_any_element(),
             Page::Needs => needs::page(self, &scroll, cx).into_any_element(),
             Page::Tasks => self.tasks.clone().into_any_element(),
-            Page::Machines => machines::page(self, &scroll, cx).into_any_element(),
+            Page::Machines => machines::page(&self.store, &scroll, &pal(cx), cx).into_any_element(),
             Page::Settings => self.settings.clone().into_any_element(),
             Page::Task(_) => self.task_page.clone().into_any_element(),
             Page::Project(_) | Page::Goal(_) | Page::Person(_) | Page::Report => {
