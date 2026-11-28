@@ -274,3 +274,50 @@ async fn a_sessions_turn_taken_twice_at_once_opens_one_run() {
         "the next turn is a run of its own"
     );
 }
+
+#[tokio::test]
+async fn the_open_thread_runs_are_listed_the_oldest_first() {
+    use emberhut_core::task::live::{NewRun, RunKind};
+
+    let (_dir, db) = database().await;
+    let task = db
+        .tasks()
+        .create(
+            NewTask {
+                title: "The lexer".to_owned(),
+                ..NewTask::default()
+            },
+            Who::Person,
+            at(0),
+        )
+        .await
+        .unwrap();
+    let runs = db.runs();
+    let new = |thread: &str, kind: RunKind| NewRun {
+        task: task.id,
+        machine: "build".to_owned(),
+        thread: thread.to_owned(),
+        kind,
+        asked: None,
+        started: true,
+    };
+    let first = runs.open(new("r-1", RunKind::Thread), at(1)).await.unwrap();
+    let closed = runs.open(new("r-2", RunKind::Thread), at(2)).await.unwrap();
+    runs.open(new("unit-3", RunKind::Worker), at(3))
+        .await
+        .unwrap();
+    let last = runs.open(new("r-4", RunKind::Thread), at(4)).await.unwrap();
+    assert!(
+        runs.close(closed.id, "completed", None, at(5))
+            .await
+            .unwrap()
+    );
+    let open: Vec<_> = runs
+        .open_threads()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|run| run.id)
+        .collect();
+    assert_eq!(open, [first.id, last.id], "open, of threads only");
+}

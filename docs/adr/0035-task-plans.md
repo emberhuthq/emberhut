@@ -82,6 +82,19 @@ server does not know, or a value left unexpanded, is as no header. A session the
 for a task is linked to the task from its meta, and its turns are the task's runs, so the task
 shows running while it works. The assistant's own sessions may write any task's plan.
 
+### A session's runs, and an end that was missed
+
+A session is linked to its task when a turn of it is sent or starts (or the server first sees
+it), not on every event. A run stays open until the session's turn ends, so an end the server
+never heard (it was down, the session was deleted) would keep the task running for good. The
+tasks' tick (every five minutes, and at start-up) closes such a run as `lost`, judged by what the
+server already keeps of each session, the record the runners' events (and the coding-thread
+app's listing) leave, with no new call to the runners: a record that says the session is not
+working, or no record any more, ten minutes after it was last heard of; a record that still says
+it works, after twelve hours with no event from it (a working session reports every few seconds,
+and the record cannot be checked against anything fresher). A turn's end that comes late finds
+its run closed already, and leaves it as it is.
+
 ### The flag
 
 Plans are behind a server flag (`--task-plans`, `EMBERHUT_TASK_PLANS`, off by default). With it

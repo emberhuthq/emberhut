@@ -113,6 +113,23 @@ impl RunStore {
         open_thread(&self.conn, machine, thread).await
     }
 
+    /// Every open thread run (a turn sent or running on any machine), the oldest first.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn open_threads(&self) -> Result<Vec<Run>, DbError> {
+        run::Entity::find()
+            .filter(run::Column::Kind.eq(RunKind::Thread.as_str()))
+            .filter(run::Column::Ended.is_null())
+            .order_by_asc(run::Column::Id)
+            .all(&self.conn)
+            .await?
+            .into_iter()
+            .map(from_row)
+            .collect()
+    }
+
     /// Marks a sent run started at `now`; `false` when it had started, or ended, already.
     ///
     /// # Errors

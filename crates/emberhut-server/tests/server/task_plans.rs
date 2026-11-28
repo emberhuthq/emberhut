@@ -993,3 +993,142 @@ pub(crate) async fn a_session_is_linked_when_its_turn_is_sent_or_starts_not_on_e
             .any(|link| link.reference == "r-22d")
     );
 }
+
+/// Runs `statement` on the app's database, as another connection.
+async fn execute(app: &TestApp, statement: &str) {
+    let conn = sea_orm::Database::connect(app.url.as_str()).await.unwrap();
+    sea_orm::ConnectionTrait::execute_unprepared(&conn, statement)
+        .await
+        .unwrap();
+    conn.close().await.unwrap();
+}
+
+/// The outcome of the task `id`'s newest run, none while it is open.
+async fn last_outcome(app: &TestApp, id: TaskId) -> Option<String> {
+    page(app, id).await.runs.unwrap()[0].outcome.clone()
+}
+
+/// Starts a turn of the session `session` on `id`: its run is open.
+async fn start_turn(app: &TestApp, id: TaskId, session: &str) {
+    report(
+        app,
+        &session_event(
+            id,
+            session,
+            "turn_started",
+            "running",
+            json!({ "turn": { "id": format!("{session}:1") } }),
+        ),
+    )
+    .await;
+    assert_eq!(last_outcome(app, id).await, None, "open");
+}
+
+#[tokio::test]
+pub(crate) async fn a_run_whose_session_is_known_to_have_stopped_or_gone_is_closed_as_lost() {
+    let app = app(true).await;
+    let stopped = task(&app, "the lexer").await;
+    let gone = task(&app, "the parser").await;
+    start_turn(&app, stopped, "r-5a").await;
+    start_turn(&app, gone, "r-6b").await;
+    // Its end was missed: the record says it stopped (as a listing would), or the session's
+    // record went.
+    execute(&app, "UPDATE threads SET status = 'idle' WHERE id = 'r-5a'").await;
+    execute(&app, "DELETE FROM threads WHERE id = 'r-6b'").await;
+
+    let tasks = app.state.tasks();
+    assert_eq!(
+        tasks.sweep_runs().await.unwrap(),
+        0,
+        "its end may be on its way"
+    );
+    app.advance_minutes(9);
+    assert_eq!(tasks.sweep_runs().await.unwrap(), 0);
+    app.advance_minutes(2);
+    // The tasks' tick sweeps.
+    tasks.tick().await.unwrap();
+    assert_eq!(last_outcome(&app, stopped).await.as_deref(), Some("lost"));
+    assert_eq!(last_outcome(&app, gone).await.as_deref(), Some("lost"));
+    let state = state(&app).await;
+    for id in [stopped, gone] {
+        let issue = state
+            .issues
+            .iter()
+            .find(|i| i.id.get() == id.get())
+            .unwrap();
+        assert_ne!(
+            issue.live.as_ref().map(|live| live.state.as_str()),
+            Some("running"),
+            "{}",
+            id.key()
+        );
+    }
+    assert_eq!(tasks.sweep_runs().await.unwrap(), 0, "once");
+}
+
+#[tokio::test]
+pub(crate) async fn a_run_whose_session_says_it_works_but_is_silent_for_half_a_day_is_closed() {
+    let app = app(true).await;
+    let id = task(&app, "the lexer").await;
+    start_turn(&app, id, "r-7c").await;
+    let tasks = app.state.tasks();
+    // A long turn that keeps reporting stays open.
+    app.advance_minutes(11 * 60);
+    let now = app.clock_now().to_string();
+    report(
+        &app,
+        &session_event(
+            id,
+            "r-7c",
+            "activity",
+            "running",
+            json!({ "at": now, "doing": "Testing" }),
+        ),
+    )
+    .await;
+    app.advance_minutes(2 * 60);
+    assert_eq!(
+        tasks.sweep_runs().await.unwrap(),
+        0,
+        "heard from two hours ago"
+    );
+    assert_eq!(last_outcome(&app, id).await, None);
+    // The server was down when its turn finished: nothing is heard again.
+    app.advance_minutes(10 * 60 - 1);
+    assert_eq!(tasks.sweep_runs().await.unwrap(), 0);
+    app.advance_minutes(2);
+    assert_eq!(tasks.sweep_runs().await.unwrap(), 1);
+    assert_eq!(last_outcome(&app, id).await.as_deref(), Some("lost"));
+}
+
+#[tokio::test]
+pub(crate) async fn with_the_flag_off_open_runs_are_left_alone() {
+    let app = app(false).await;
+    let id = task(&app, "the lexer").await;
+    let db = emberhut_db::Database::connect(&app.url).await.unwrap();
+    db.runs()
+        .open(
+            emberhut_core::task::live::NewRun {
+                task: id,
+                machine: "build".to_owned(),
+                thread: "r-8d".to_owned(),
+                kind: emberhut_core::task::live::RunKind::Thread,
+                asked: None,
+                started: true,
+            },
+            app.clock_now(),
+        )
+        .await
+        .unwrap();
+    app.advance_minutes(13 * 60);
+    let tasks = app.state.tasks();
+    tasks.tick().await.unwrap();
+    assert_eq!(tasks.sweep_runs().await.unwrap(), 0);
+    assert!(
+        db.runs()
+            .open_thread("build", "r-8d")
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
