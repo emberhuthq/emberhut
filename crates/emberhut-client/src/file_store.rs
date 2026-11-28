@@ -1,6 +1,6 @@
 //! A session kept in a file.
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -148,7 +148,7 @@ impl SessionStore for FileSessionStore {
         }
         // The rename is durable once the folder's entry is on disk too.
         #[cfg(unix)]
-        File::open(self.folder())
+        fs::File::open(self.folder())
             .and_then(|folder| folder.sync_all())
             .map_err(|e| self.io_error(e))?;
         Ok(())
