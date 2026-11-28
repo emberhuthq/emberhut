@@ -1,6 +1,6 @@
 //! The task pages fetched for the column. A page is asked for when it opens and again whenever
-//! its task changes in the state (its `updated` moves), so its history keeps up, and every few
-//! seconds while its agents run (they don't touch the task itself). A page in hand stays shown
+//! its task changes in the state (its `updated` moves, or its plan's), so its history and its
+//! plan keep up, and every few seconds while its agents run (they don't touch the task itself). A page in hand stays shown
 //! while it is asked for again, and when asking again fails.
 
 use std::collections::HashMap;
@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use emberhut_api::ids::TaskId;
 use emberhut_api::task_page::TaskPage;
+use emberhut_api::tasks::Issue;
 use emberhut_api::time::Timestamp;
 
 /// How often an open page is asked for again while its agents run.
@@ -35,12 +36,31 @@ pub(crate) enum PageStatus<'a> {
     Failed(&'a str),
 }
 
+/// What the state last said of a task that its page follows: when the task changed, and when
+/// its plan did (an agent ticks a step without touching the task).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Seen {
+    updated: Timestamp,
+    plan: Option<Timestamp>,
+}
+
+impl Seen {
+    /// What the state says of `task`.
+    #[must_use]
+    pub(crate) fn of(task: &Issue) -> Self {
+        Self {
+            updated: task.updated.clone(),
+            plan: task.plan.as_ref().and_then(|plan| plan.updated.clone()),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct Entry {
     page: Option<TaskPage>,
     missing: Option<Missing>,
-    /// The task's `updated` in the state when it was last asked for.
-    asked_with: Option<Timestamp>,
+    /// What the state said of the task when it was last asked for.
+    asked_with: Option<Seen>,
     /// A request is on its way.
     loading: bool,
 }
@@ -72,22 +92,22 @@ impl TaskPages {
         self.entries.get(&task)?.page.as_ref()
     }
 
-    /// Whether to ask for `task`'s page now, `updated` being its time in the state (none: not
+    /// Whether to ask for `task`'s page now, `seen` being what the state says of it (none: not
     /// in the state, a task done weeks ago): it was never asked for, it changed since, or
     /// `again` (its agents run, or the user just changed it). None is asked twice at once.
     /// When it says yes, the request is taken as on its way.
-    pub(crate) fn begin(&mut self, task: TaskId, updated: Option<&Timestamp>, again: bool) -> bool {
+    pub(crate) fn begin(&mut self, task: TaskId, seen: Option<&Seen>, again: bool) -> bool {
         let entry = self.entries.entry(task).or_default();
         if entry.loading {
             return false;
         }
         let never = entry.page.is_none() && entry.missing.is_none();
-        let changed = updated.is_some() && entry.asked_with.as_ref() != updated;
+        let changed = seen.is_some() && entry.asked_with.as_ref() != seen;
         if !(never || changed || again) {
             return false;
         }
         entry.loading = true;
-        entry.asked_with = updated.cloned();
+        entry.asked_with = seen.cloned();
         true
     }
 
@@ -127,12 +147,12 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::fixtures::task_page;
+    use crate::fixtures::{issue, task_page};
 
     const ONE: TaskId = TaskId::new(1);
 
-    fn at(time: &str) -> Timestamp {
-        Timestamp::new(time)
+    fn at(time: &str) -> Seen {
+        Seen::of(&issue(1, "todo", json!({"updated": time})))
     }
 
     #[test]
@@ -150,6 +170,25 @@ mod tests {
         assert!(
             matches!(pages.status(ONE), PageStatus::Ready(_)),
             "the page in hand stays when asking again fails"
+        );
+    }
+
+    #[test]
+    fn a_page_is_asked_for_again_when_its_plan_moves() {
+        let mut pages = TaskPages::default();
+        let plan = |updated: &str| {
+            Seen::of(&issue(
+                1,
+                "working",
+                json!({"plan": {"done": 1, "total": 3, "updated": updated}}),
+            ))
+        };
+        assert!(pages.begin(ONE, Some(&plan("2026-11-28T08:00:00Z")), false));
+        pages.finish(ONE, Ok(task_page(1, json!({}))));
+        assert!(!pages.begin(ONE, Some(&plan("2026-11-28T08:00:00Z")), false));
+        assert!(
+            pages.begin(ONE, Some(&plan("2026-11-28T08:01:00Z")), false),
+            "a step ticked, the task itself untouched"
         );
     }
 

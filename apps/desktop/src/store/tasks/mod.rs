@@ -5,6 +5,7 @@
 //! The submodules with no GPUI in them hold the decisions and are tested on their own; this one
 //! runs them against the backend.
 
+pub(crate) mod activity;
 pub(crate) mod agents;
 pub(crate) mod clock;
 pub(crate) mod counts;
@@ -12,7 +13,9 @@ pub(crate) mod filter;
 pub(crate) mod findings;
 pub(crate) mod history;
 pub(crate) mod list;
+pub(crate) mod loose;
 pub(crate) mod pages;
+pub(crate) mod plan;
 pub(crate) mod replies;
 pub(crate) mod runs;
 pub(crate) mod search;
@@ -38,7 +41,7 @@ use gpui_kit::Context;
 use jiff::ZonedDateTime;
 
 use self::filter::TaskFilter;
-use self::pages::{LIVE_EVERY, Missing, PageStatus, TaskPages};
+use self::pages::{LIVE_EVERY, Missing, PageStatus, Seen, TaskPages};
 use self::replies::{Replies, Reply};
 use self::search::{
     ARCHIVED_LIMIT, SEARCH_LIMIT, StateTasks, TYPING_PAUSE, TaskLookup, TaskSearch, Ticket,
@@ -155,6 +158,13 @@ impl Store {
         self.state.as_ref().is_none_or(lookup::shows_tasks)
     }
 
+    /// Whether the server keeps plans: tasks show their plans and the sessions move out of the
+    /// main navigation ([`lookup::keeps_plans`]); off until a state says so.
+    #[must_use]
+    pub(crate) fn keeps_plans(&self) -> bool {
+        self.state.as_ref().is_some_and(lookup::keeps_plans)
+    }
+
     /// The filter that applies: a project pick is dropped while projects are hidden.
     #[must_use]
     pub(crate) fn task_filter(&self) -> TaskFilter {
@@ -197,12 +207,12 @@ impl Store {
     /// Asks for `task`'s page if [`TaskPages::begin`] says so (`again`: whatever it says of
     /// changes).
     fn fetch_task_page(&mut self, task: TaskId, again: bool, cx: &mut Context<'_, Self>) {
-        let updated = self
+        let seen = self
             .state
             .as_ref()
             .and_then(|state| lookup::issue(state, task))
-            .map(|issue| issue.updated.clone());
-        if !self.tasks.pages.begin(task, updated.as_ref(), again) {
+            .map(Seen::of);
+        if !self.tasks.pages.begin(task, seen.as_ref(), again) {
             return;
         }
         let backend = Arc::clone(&self.backend);
