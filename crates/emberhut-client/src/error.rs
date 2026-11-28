@@ -53,7 +53,8 @@ pub enum Error {
     #[error("no randomness for an install id")]
     Random(#[source] std::io::Error),
     /// A path given to [`crate::Client::file`] isn't a path on this server (it names another
-    /// host, a scheme, or isn't a path at all), so it was never requested.
+    /// host, a scheme, or isn't a path at all), or a name given to
+    /// [`crate::Client::forget_runner`] isn't a runner's, so it was never requested.
     #[error("`{0}` isn't a path on the server")]
     InvalidPath(String),
     /// A file to upload couldn't be read: opened, sized, or read while it was being sent.

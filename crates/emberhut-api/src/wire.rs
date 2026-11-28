@@ -38,6 +38,14 @@ pub const THREAD_ACTIVITY_PATH: &str = "/api/t3/activity";
 /// runners read.
 pub const RUNNER_BY_ASSISTANT: &str = "assistant";
 
+/// A runner the server's configuration names (`--runner NAME=URL`), as `GET /api/runners`
+/// says where it knows the runner from.
+pub const RUNNER_FROM_FLAG: &str = "flag";
+
+/// A runner paired at run time (`POST /api/runner/pair`), as `GET /api/runners` says where it
+/// knows the runner from.
+pub const RUNNER_PAIRED: &str = "paired";
+
 /// The name of a voice session's one tool, which the phone answers.
 pub const VOICE_ASK_TOOL: &str = "ask_assistant";
 

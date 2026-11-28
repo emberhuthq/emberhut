@@ -166,6 +166,12 @@ impl RunnerApi for FakeRunner {
             .map_or_else(|| machine.to_owned(), |(_, place, _)| place.clone())
     }
 
+    fn address(&self, machine: &str) -> Option<String> {
+        self.known(machine)
+            .ok()
+            .map(|()| format!("https://{machine}.example.com"))
+    }
+
     fn tokens(&self) -> BoxFuture<'_, BTreeMap<String, String>> {
         let tokens = self
             .script

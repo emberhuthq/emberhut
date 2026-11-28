@@ -28,8 +28,20 @@ pub fn configured_routes(listen: SocketAddr, public_url: Option<&PublicUrl>) -> 
     direct.into_iter().chain(public).collect()
 }
 
+/// The addresses a new runner is given to reach this machine at, best first: the public URL,
+/// which reaches it from other networks too, then the listen address. Only the ones another
+/// machine can reach, as [`configured_routes`] picks them.
+#[must_use]
+pub fn runner_routes(listen: SocketAddr, public_url: Option<&PublicUrl>) -> Vec<String> {
+    let mut routes = configured_routes(listen, public_url);
+    // `configured_routes` lists the listen address first, as a device on the same network
+    // prefers it.
+    routes.reverse();
+    routes
+}
+
 /// Whether another device can reach this computer at `ip`.
-fn reachable(ip: IpAddr) -> bool {
+pub(crate) fn reachable(ip: IpAddr) -> bool {
     match ip.to_canonical() {
         IpAddr::V4(ip) => !(ip.is_loopback() || ip.is_unspecified() || ip.is_link_local()),
         IpAddr::V6(ip) => !(ip.is_loopback() || ip.is_unspecified() || ip.is_unicast_link_local()),
@@ -38,7 +50,7 @@ fn reachable(ip: IpAddr) -> bool {
 
 /// Whether another device can reach the host of `url`: not an address [`reachable`] refuses,
 /// and not `localhost` or a name under it.
-fn reachable_host(url: &str) -> bool {
+pub(crate) fn reachable_host(url: &str) -> bool {
     match url::Url::parse(url)
         .ok()
         .and_then(|url| url.host().map(|host| host.to_owned()))
@@ -75,6 +87,19 @@ mod tests {
         assert_eq!(
             routes("[::ffff:192.0.2.10]:18990", None),
             ["http://192.0.2.10:18990"]
+        );
+    }
+
+    #[test]
+    fn a_runner_is_given_the_public_url_first() {
+        let public = "https://emberhut.example.com".parse::<PublicUrl>().unwrap();
+        assert_eq!(
+            runner_routes("192.0.2.10:18990".parse().unwrap(), Some(&public)),
+            ["https://emberhut.example.com", "http://192.0.2.10:18990"]
+        );
+        assert_eq!(
+            runner_routes("127.0.0.1:18990".parse().unwrap(), None),
+            Vec::<String>::new()
         );
     }
 

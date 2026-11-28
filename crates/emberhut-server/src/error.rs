@@ -216,7 +216,8 @@ impl ApiError {
     }
 }
 
-fn refusal_message(refusal: PairingRefusal) -> Cow<'static, str> {
+/// The sentence the app shows for a pairing code that was not taken (a device's or a runner's).
+pub(crate) fn refusal_message(refusal: PairingRefusal) -> Cow<'static, str> {
     Cow::Borrowed(match refusal {
         PairingRefusal::TooManyWrongCodes { retry_after } => {
             let minutes = whole_minutes(retry_after);
@@ -268,7 +269,7 @@ impl IntoResponse for ApiError {
 }
 
 /// `wait` in seconds, rounded up, at least one.
-fn whole_seconds(wait: SignedDuration) -> i64 {
+pub(crate) fn whole_seconds(wait: SignedDuration) -> i64 {
     let seconds = wait.as_secs() + i64::from(wait.subsec_nanos() > 0);
     seconds.max(1)
 }

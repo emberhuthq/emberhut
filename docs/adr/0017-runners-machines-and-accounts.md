@@ -65,6 +65,41 @@ made every coding thread, the runners' sessions included, a row of `threads`.
 - No route row needed superseding for ADR 0007: the runner routes are plain routes with a key
   per runner behind them, and the trusted path above is the condition for using them.
 
+### Pairing a runner at run time
+
+- **A runner can be paired with a one-time code instead of configured.** A signed-in device
+  asks for a code (`POST /api/runners/codes`), or `emberhut-server pair-runner` prints one on
+  the server's machine; the runner trades it, with its name, the address the server calls it
+  at, its machine in words, platform and version, for a token (`POST /api/runner/pair`, no
+  session). The server keeps the runner in its database (`paired_runners`) and the token as
+  text beside it, for the same reason as the tokens file: it presents the token whenever it
+  calls the runner. Editing the server's flags and tokens file for every machine asks for a
+  shell on the server and a restart for `--runner`; a code asks for neither.
+- **The codes are device codes' twins, kept apart.** Eight characters, ten minutes, once, only
+  their hashes stored (`runner_codes`), and the same brake on wrong codes, but a table and a
+  brake of their own: a runner's code never signs a device in (which would give a session
+  over everything), guessing one kind doesn't lock out the other, and a code is used up in the
+  same transaction that keeps the runner.
+- **A name another runner has is never taken over.** The runner is paired under the first free
+  one of `name-2` ... `name-99` and is told which, the name it reports by from then on. Letting
+  a code replace an existing runner's row would let whoever holds any code redirect the
+  server's calls for that runner, its sessions' turns and files included, to an address of
+  their own. A runner installed again therefore pairs under a new name; the old one is
+  forgotten from the apps (`DELETE /api/runners/{name}`, its token refused at once).
+- **Paired runners are runners like configured ones.** One registry puts the configured runners
+  first and the paired ones after; every route, tool and the regular look reach them the same
+  way, and a presented token is looked up across both in constant time. A name both give is
+  the configured runner's (pairing never makes one; only a configuration changed afterwards
+  can). The rows are read when the server starts and kept in memory, changed with each change
+  the server makes, so naming and calling a runner doesn't wait for the database.
+- **The code's answer names the address the runner is to use.** The app's own when it sends
+  one, else the public URL or the listen address when another machine can reach them, else
+  the address the request came in on over the server's own listener; a relayed request's
+  address is never used, as a runner's token never goes through the relay. When only a
+  loopback address is known the answer says it isn't reachable from elsewhere, rather than
+  hand out lines that can't work on another machine. The transport rules above still hold:
+  the address must be a trusted path.
+
 ### Sessions
 
 - A runner's event carries the session and its turn as they are now, so taking one twice
@@ -153,8 +188,9 @@ made every coding thread, the runners' sessions included, a row of `threads`.
 - The apps' Sessions, Machines, Usage, MCP servers and skills, and Environments screens work
   for anyone who configures runners.
 - A runner speaks the runner API above with its own token.
-- Each new runner needs a line in the tokens file on the server and the same token on the
-  runner; revoking one is deleting its line.
+- Each new configured runner needs a line in the tokens file on the server and the same token
+  on the runner; revoking one is deleting its line. A paired runner needs only a code from
+  the apps or the server's command line; revoking one is forgetting it there.
 - A runner and the server need a trusted path between them. A runner outside the person's
   own networks reaches the server over TLS at a public address, never through the relay,
   until runners pin the machine's key.
