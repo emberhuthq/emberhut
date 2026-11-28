@@ -105,6 +105,43 @@ impl RunStore {
             .transpose()
     }
 
+    /// The open run of the thread or session `thread` on `machine` (a turn sent or running),
+    /// if there is one.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn open_thread(&self, machine: &str, thread: &str) -> Result<Option<Run>, DbError> {
+        run::Entity::find()
+            .filter(run::Column::Kind.eq(RunKind::Thread.as_str()))
+            .filter(run::Column::Machine.eq(machine))
+            .filter(run::Column::Thread.eq(thread))
+            .filter(run::Column::Ended.is_null())
+            .order_by_desc(run::Column::Id)
+            .one(&self.conn)
+            .await?
+            .map(from_row)
+            .transpose()
+    }
+
+    /// Marks a sent run started at `now`; `false` when it had started, or ended, already.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn start(&self, id: RunId, now: Timestamp) -> Result<bool, DbError> {
+        let Some(row) = run::Entity::find_by_id(id.get()).one(&self.conn).await? else {
+            return Ok(false);
+        };
+        if row.started.is_some() || row.ended.is_some() {
+            return Ok(false);
+        }
+        let mut active = row.into_active_model();
+        active.started = Set(Some(millis(now)));
+        active.update(&self.conn).await?;
+        Ok(true)
+    }
+
     /// A task's runs, newest first, `limit` at most.
     ///
     /// # Errors

@@ -1,6 +1,8 @@
 //! Links: the work that moves a task (a thread, a ticket, a chat), so the news about that work
 //! names the task.
 
+use std::collections::BTreeMap;
+
 use emberhut_core::task::TaskId;
 use sea_orm::sea_query::{Expr, ExprTrait, Func, OnConflict};
 use sea_orm::{
@@ -120,6 +122,35 @@ impl LinkStore {
             .into_iter()
             .map(|row| TaskId::new(row.issue))
             .collect())
+    }
+
+    /// The tasks linked to each of `references` of `kind` that has any, in one query.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn tasks_of_each(
+        &self,
+        kind: &str,
+        references: &[String],
+    ) -> Result<BTreeMap<String, Vec<TaskId>>, DbError> {
+        let mut by_reference: BTreeMap<String, Vec<TaskId>> = BTreeMap::new();
+        if references.is_empty() {
+            return Ok(by_reference);
+        }
+        for row in link::Entity::find()
+            .filter(link::Column::Kind.eq(kind))
+            .filter(link::Column::Reference.is_in(references.iter().cloned()))
+            .order_by_asc(link::Column::Issue)
+            .all(&self.conn)
+            .await?
+        {
+            by_reference
+                .entry(row.reference)
+                .or_default()
+                .push(TaskId::new(row.issue));
+        }
+        Ok(by_reference)
     }
 }
 
