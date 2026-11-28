@@ -45,6 +45,7 @@ use super::widgets::scroller;
 use crate::store::sessions::filter::SessionFilter;
 use crate::store::sessions::lists::{self, Screen};
 use crate::store::sessions::places::SessionPlace;
+use crate::store::tasks::moving::can_move;
 use crate::store::{Page, Store};
 
 actions!(
@@ -294,6 +295,7 @@ impl SessionsView {
             now: &now,
             key: &key,
             accounts: state.map_or(&[], |state| state.accounts.as_slice()),
+            moves: can_move(state),
         };
         let filter_empty = read.session_filter().is_empty();
         let mut body = div()

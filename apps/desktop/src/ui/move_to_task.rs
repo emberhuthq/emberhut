@@ -12,6 +12,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::Sizable as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Escape, Input, InputEvent, InputState, MoveDown, MoveUp};
+use gpui_kit::component::menu::PopupMenuItem;
 use gpui_kit::prelude::*;
 use gpui_kit::{
     Action, App, ClickEvent, Div, ElementId, Entity, EventEmitter, FocusHandle, FontWeight, Role,
@@ -416,6 +417,11 @@ pub(crate) fn button(id: impl Into<ElementId>, moving: Moving) -> Button {
         .ghost()
         .tooltip("Count this session's work on another task")
         .on_click(move |_: &ClickEvent, window, cx| ask(&moving, window, cx))
+}
+
+/// The action as an item of a row's right-click menu.
+pub(crate) fn menu_item(moving: Moving) -> PopupMenuItem {
+    PopupMenuItem::new(LABEL).on_click(move |_: &ClickEvent, window, cx| ask(&moving, window, cx))
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use emberhut_api::ids::{SessionId, TaskId};
 use emberhut_api::state::State;
 use emberhut_api::tasks::{Issue, TaskStatus};
+use emberhut_api::work::RunnerSession;
 use gpui_kit::{AppContext as _, Context, Task};
 
 use super::reason;
@@ -30,6 +31,12 @@ pub(crate) struct Moving {
 }
 
 impl Moving {
+    /// `session`, as the state lists it.
+    #[must_use]
+    pub(crate) fn of(session: &RunnerSession) -> Self {
+        Self::new(session.id.clone(), &session.title, session.tasks.clone())
+    }
+
     /// Session `session` titled `title`, on `from`.
     #[must_use]
     pub(crate) fn new(session: SessionId, title: &str, from: Vec<TaskId>) -> Self {
@@ -199,5 +206,18 @@ mod tests {
                                         "taskPlans": true}}));
         assert!(can_move(Some(&plans)));
         assert_eq!(failed("no such task"), "Not moved: no such task");
+    }
+    #[test]
+    fn a_listed_session_is_on_its_tasks_and_a_pages_session_on_the_pages_too() {
+        let session: RunnerSession = serde_json::from_value(json!({
+            "id": "r-7", "machine": "pc", "title": "Emberhut · Fix the oven", "project": "",
+            "status": "running", "updatedAt": "2026-11-28T00:00:00Z", "place": "PC",
+            "doing": null, "account": null, "accountName": null, "ask": null, "last": null,
+            "direct": false, "model": null, "tasks": [2]
+        }))
+        .unwrap();
+        let moving = Moving::of(&session);
+        assert_eq!(moving.title, "Fix the oven");
+        assert_eq!(moving.from, [TaskId::new(2)]);
     }
 }

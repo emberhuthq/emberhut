@@ -1,12 +1,14 @@
 //! The Sessions screen's rows: an agent working now (a lead, its helpers under it), a running
 //! session with its live line, a finished one in one line (its last answer under it once its
-//! chevron opens it), and an external thread still running. A click opens the row's page.
+//! chevron opens it), and an external thread still running. A click opens the row's page; with
+//! plans, a session's right-click menu has Move to task….
 
 use emberhut_api::runner::agents::AgentNow;
 use emberhut_api::threads::ExternalThread;
 use emberhut_api::work::RunnerSession;
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
+use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::prelude::*;
 use gpui_kit::{AnyElement, Div, ElementId, Entity, FontWeight, Role, Stateful, div, px};
 use jiff::ZonedDateTime;
@@ -20,8 +22,10 @@ use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
 use crate::store::sessions::words::{self, Mark, short_title};
 use crate::store::tasks::clock;
+use crate::store::tasks::moving::Moving;
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
+use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
 use crate::ui::reads;
 use crate::ui::tasks::marks::glyph;
@@ -41,6 +45,8 @@ pub(crate) struct Rows<'a> {
     pub(crate) key: &'a dyn Fn(emberhut_api::ids::TaskId) -> String,
     /// The state's Claude accounts, to name a row's account by its id.
     pub(crate) accounts: &'a [emberhut_api::runner::accounts::ClaudeAccount],
+    /// A session's row has Move to task… in its right-click menu (the server keeps plans).
+    pub(crate) moves: bool,
 }
 
 impl Rows<'_> {
@@ -61,6 +67,19 @@ impl Rows<'_> {
                 .on_click(move |_, window, cx| push(&store, open.clone(), window, cx)),
             self.p,
         )
+    }
+
+    /// `row`, with Move to task… for `session` in its right-click menu while sessions move.
+    fn with_menu<E>(&self, row: E, session: &RunnerSession) -> AnyElement
+    where
+        E: InteractiveElement + ParentElement + Styled + IntoElement + 'static,
+    {
+        if !self.moves {
+            return row.into_any_element();
+        }
+        let moving = Moving::of(session);
+        row.context_menu(move |menu, _, _| menu.item(move_to_task::menu_item(moving.clone())))
+            .into_any_element()
     }
 
     fn timer(&self, since: Option<&emberhut_api::time::Timestamp>) -> Option<String> {
@@ -171,7 +190,8 @@ impl Rows<'_> {
             timer.as_deref().unwrap_or_default(),
             &doing,
         ]);
-        self.clickable(id.clone(), open)
+        let row = self
+            .clickable(id.clone(), open)
             .aria_label(spoken)
             .child(
                 div()
@@ -205,8 +225,8 @@ impl Rows<'_> {
                     .text_color(p.faint)
                     .child(words::meta(session, self.accounts, self.key)),
             )
-            .test_support()
-            .into_any_element()
+            .test_support();
+        self.with_menu(row, session)
     }
 
     /// A finished, stopped, failed or waiting session in one line; `open` shows its last answer
@@ -263,7 +283,7 @@ impl Rows<'_> {
                     )
                 }),
         );
-        let line = line.aria_label(spoken);
+        let line = self.with_menu(line.aria_label(spoken), session);
         let summary = words::summary(session);
         let chevron = toggle.filter(|_| summary.is_some()).map(|toggle| {
             tab_stop(

@@ -1,11 +1,12 @@
 //! A session with no task as an item of the Tasks list (on a server that keeps plans): a
 //! terminal mark, its title in quotes, where it runs and how it stands (waiting on the user in
 //! the accent, running in amber), what it asks or last said, and how long since it moved. It
-//! never has a bar. A click opens the session; Back returns to the list. The foot's heading
-//! has a way to every session.
+//! never has a bar. A click opens the session; Back returns to the list; its right-click menu
+//! has Move to task…. The foot's heading has a way to every session.
 
 use emberhut_api::work::RunnerSession;
 use gpui_kit::assets::IconName;
+use gpui_kit::component::menu::ContextMenuExt as _;
 use gpui_kit::prelude::*;
 use gpui_kit::{AnyElement, Div, ElementId, Entity, FontWeight, div, px};
 
@@ -14,10 +15,12 @@ use crate::store::sessions::places::SessionPlace;
 use crate::store::sessions::view::SessionRef;
 use crate::store::sessions::words::{self as session_words, Mark};
 use crate::store::tasks::clock;
+use crate::store::tasks::moving::Moving;
 use crate::store::{Page, Store};
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::column;
 use crate::ui::controls::tab_stop;
+use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
 use crate::ui::sessions::{self, Open};
 
@@ -35,12 +38,7 @@ pub(super) fn row(store: &Entity<Store>, p: &Pal, session: &RunnerSession) -> An
     } else {
         format!("No task · on {}", session.place)
     };
-    let said = session_words::summary(session).and_then(|said| {
-        said.lines()
-            .map(str::trim)
-            .find(|line| !line.is_empty())
-            .map(str::to_owned)
-    });
+    let said = first_line(session);
     let since =
         clock::instant(&session.updated_at).map(|at| clock::relative(at, jiff::Timestamp::now()));
     let spoken = a11y::line(&[
@@ -52,6 +50,7 @@ pub(super) fn row(store: &Entity<Store>, p: &Pal, session: &RunnerSession) -> An
     let page = SessionPlace::Session(SessionRef::whole(session.id.clone()));
     let store = store.clone();
     let id = session.id.as_str().to_owned();
+    let moving = Moving::of(session);
     tab_stop(
         div()
             .id(ElementId::Name(format!("loose-session-{id}").into()))
@@ -121,7 +120,18 @@ pub(super) fn row(store: &Entity<Store>, p: &Pal, session: &RunnerSession) -> An
             }),
         p,
     )
+    .context_menu(move |menu, _, _| menu.item(move_to_task::menu_item(moving.clone())))
     .into_any_element()
+}
+
+/// The first line of what `session` asks or last said.
+fn first_line(session: &RunnerSession) -> Option<String> {
+    session_words::summary(session).and_then(|said| {
+        said.lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(str::to_owned)
+    })
 }
 
 /// The foot's heading over the sessions with no task, with `All sessions`, which opens the
