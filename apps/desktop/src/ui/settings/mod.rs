@@ -10,6 +10,7 @@ mod appearance;
 mod chrome;
 mod chrome_profile;
 mod chrome_sheets;
+pub(crate) mod ember_name;
 pub(crate) mod environment;
 mod front_door;
 mod group;
@@ -34,6 +35,7 @@ use self::about::AboutPane;
 use self::appearance::AppearancePane;
 pub(crate) use self::appearance::OpenAgentRoom;
 pub(crate) use self::chrome::ChromePane;
+use self::ember_name::NameField;
 use self::front_door::{Listing, PLACEHOLDER};
 use self::group::FLASH;
 use self::parts::{nav_row, page_body};
@@ -55,6 +57,8 @@ pub(crate) struct SettingsView {
     store: Entity<Store>,
     pairing: Entity<PairingForm>,
     appearance: Entity<AppearancePane>,
+    /// Your ember's Name field.
+    name: Entity<NameField>,
     about: Entity<AboutPane>,
     chrome: Entity<ChromePane>,
     credentials: Entity<CredentialsView>,
@@ -97,6 +101,7 @@ impl SettingsView {
             cx.observe(&signed, |_, _, cx| cx.notify()).detach();
         }
         let appearance = cx.new(|cx| AppearancePane::new(store.clone(), window, cx));
+        let name = cx.new(|cx| NameField::new(store.clone(), window, cx));
         let about = cx.new(|cx| AboutPane::new(store.clone(), window, cx));
         let chrome = cx.new(|cx| ChromePane::new(store.clone(), window, cx));
         // Once a provider is saved, back to where the picker was opened from.
@@ -131,6 +136,7 @@ impl SettingsView {
             store,
             pairing,
             appearance,
+            name,
             about,
             chrome,
             credentials,

@@ -40,6 +40,8 @@ export const groupIcon: Record<GroupId, IconName> = {
 /** How the things Settings speaks of stand now: what the live lines, the suggestions and the status lines read. */
 export interface Now {
   onDuty: boolean;
+  /** Your own name for the ember; undefined while it is "Your ember". */
+  emberName?: string;
   /** Whether it is at work on something now. */
   working: boolean;
   /** How many background jobs it is running. */
@@ -136,6 +138,15 @@ export const entries: readonly Entry[] = [
     synonyms: ["pause", "resume", "off duty", "stop", "sleep", "wake", "status", "connection"],
     to: { group: "ember" },
     icon: "power-outline",
+  },
+  {
+    id: "ember-name",
+    title: "Name",
+    line: (now) => (now.emberName ? `Called ${now.emberName} · rename it` : "Give your ember a name of your own"),
+    group: "ember",
+    synonyms: ["name", "rename", "call it", "nickname", "what to call", "assistant name", "change name"],
+    to: { group: "ember" },
+    icon: "pencil-outline",
   },
   {
     id: "thinks-with",

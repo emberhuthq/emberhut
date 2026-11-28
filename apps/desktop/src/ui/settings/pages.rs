@@ -1,5 +1,5 @@
 //! What each group page holds, built of the rows and sections Settings already had: Your
-//! ember (on duty, what it thinks with and the usage, what it knows, the models under
+//! ember (on duty, its name, what it thinks with and the usage, what it knows, the models under
 //! Technical details), Devices, Connections (data sources and Chrome, the tool servers and the
 //! skills folded), Sharing, Privacy (what it knows, archived rooms, the dark room, where data
 //! goes), Advanced (updates, the server, diagnostics folded, where the agent works) and the
@@ -57,6 +57,7 @@ impl SettingsView {
                 .child(hero)
                 .children(problem.map(|problem| problem_line(p, problem))),
         )];
+        blocks.push(block(&["ember-name"], self.name.clone()));
         blocks.push(block(
             &["thinks-with"],
             section(

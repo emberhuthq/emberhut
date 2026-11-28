@@ -212,6 +212,10 @@ mod tests {
             ("agents", "show-agents"),
             ("agents below rooms", "agents-place"),
             ("move agents", "agents-place"),
+            ("name", "ember-name"),
+            ("rename", "ember-name"),
+            ("call it", "ember-name"),
+            ("nickname", "ember-name"),
         ] {
             assert_eq!(first(query), id, "{query}");
         }

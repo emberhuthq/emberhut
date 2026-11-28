@@ -48,6 +48,10 @@ describe("search", () => {
       ["memory", "about-you"],
       ["hide agents", "show-agents"],
       ["agents below rooms", "agents-place"],
+      ["name", "ember-name"],
+      ["rename", "ember-name"],
+      ["call it", "ember-name"],
+      ["nickname", "ember-name"],
     ] as const) {
       expect(first(query), query).toBe(id);
     }

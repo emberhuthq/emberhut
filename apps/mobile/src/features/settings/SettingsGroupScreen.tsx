@@ -12,6 +12,7 @@ import { useTheme } from "@/theme";
 import { Button, Chip, ListRow, Screen, Section, Text, Toggle, usePullRefresh } from "@/ui";
 import { Appearance, RoomsList } from "./Appearance";
 import { Devices, PairAnother } from "./Devices";
+import { EmberNameRow } from "./EmberName";
 import { groupStatus, type GroupId, type Now } from "./entries";
 import { Environments } from "./Environments";
 import { FallbackServer } from "./FallbackServer";
@@ -77,7 +78,7 @@ function GroupRows({ group, now }: { group: GroupId; now: Now }) {
   }
 }
 
-/** Your ember: on duty (with how it's reached), what it thinks with, what it knows. */
+/** Your ember: on duty (with how it's reached), its name, what it thinks with, what it knows. */
 function EmberRows({ now }: { now: Now }) {
   const settings = useApplySettings();
   const offline = useConnection(offlineReason);
@@ -105,6 +106,7 @@ function EmberRows({ now }: { now: Now }) {
           }
         />
       </Section>
+      <EmberNameRow />
       <OpensRows now={now} />
     </>
   );

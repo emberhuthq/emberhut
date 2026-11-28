@@ -1,5 +1,6 @@
 import { accountConfig } from "@/config/account";
 import { savedLine } from "@/features/ember/credentials";
+import { customEmberName } from "@/features/ember/name";
 import { usePrefs, useSession } from "@/state/hooks";
 import { useAgentProvider, useEmberhutState, useEnvironments, useFacts, useSwitches } from "@/state/queries";
 import { currentTheme } from "@/state/theme";
@@ -25,6 +26,7 @@ export function useSettingsNow(): Now {
   const sources = (environments.data?.groups ?? []).flatMap((g) => g.items).filter((e) => e.group === "connections");
   return {
     onDuty: state.data?.on ?? false,
+    emberName: customEmberName(state.data),
     working: (state.data?.on ?? false) && (state.data?.busy ?? false),
     jobs: (state.data?.tasks ?? []).filter((job) => job.status === "running").length,
     provider: provider.data ? savedLine(provider.data) : undefined,

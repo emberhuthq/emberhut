@@ -192,6 +192,108 @@ fn return_in_the_name_field_renames_and_a_refusal_shows_on_the_sheet(cx: &mut Te
     assert_eq!(kept, "Work", "the field goes back to the name kept");
 }
 
+/// The ember's name as the store gives it, and the Name field's text.
+fn named(
+    store: &Entity<Store>,
+    view: &Entity<SettingsView>,
+    cx: &mut VisualTestContext,
+) -> (String, String) {
+    let name = store.read_with(cx, |store, _| store.ember_name().to_owned());
+    let field = view.read_with(cx, |view, cx| view.name.read(cx).input.clone());
+    let typed = field.read_with(cx, |input, _| input.value().to_string());
+    (name, typed)
+}
+
+#[gpui_kit::test]
+fn the_name_entry_renames_the_ember_and_goes_back_to_the_default(cx: &mut TestAppContext) {
+    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
+    assert_eq!(
+        named(&store, &view, &mut cx),
+        ("Your ember".into(), String::new())
+    );
+    let field = view.read_with(&cx, |view, cx| view.name.read(cx).input.clone());
+    type_in(&field, "  Juniper ", &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls().last(),
+        Some(&Call::RenameEmber(Some("Juniper".into()))),
+        "trimmed"
+    );
+    assert_eq!(named(&store, &view, &mut cx).0, "Juniper", "shown at once");
+
+    // Save does the same; the button back to the default sends none.
+    type_in(&field, "Pip", &mut cx);
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(ember_name::NAME_SAVE, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(named(&store, &view, &mut cx).0, "Pip");
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(ember_name::NAME_RESET, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(backend.calls().last(), Some(&Call::RenameEmber(None)));
+    assert_eq!(
+        named(&store, &view, &mut cx),
+        ("Your ember".into(), String::new())
+    );
+}
+
+#[gpui_kit::test]
+fn a_name_the_server_refuses_goes_back_with_its_reason(cx: &mut TestAppContext) {
+    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
+    store.update(&mut cx, |store, cx| {
+        store.take_state_for_tests(
+            crate::fixtures::state(json!({
+                "emberName": { "name": "Pip", "custom": true, "at": null }
+            })),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    cx.update(Window::render_frame);
+    backend.replies.push_rename(Err(Error::Refused {
+        status: Some(400),
+        message: Some("name: one line of plain text".into()),
+    }));
+    let field = view.read_with(&cx, |view, cx| view.name.read(cx).input.clone());
+    type_in(&field, "Juniper", &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    cx.update(Window::render_frame);
+    assert_eq!(
+        backend.calls().last(),
+        Some(&Call::RenameEmber(Some("Juniper".into())))
+    );
+    assert_eq!(
+        named(&store, &view, &mut cx),
+        ("Pip".into(), "Pip".into()),
+        "the name and the field go back"
+    );
+    assert_eq!(
+        store.read_with(&cx, |store, _| store
+            .ember_name_problem()
+            .map(str::to_owned)),
+        Some("Not renamed: one line of plain text".into())
+    );
+
+    // A name the app can tell is too long is never sent.
+    let sent = backend.calls().len();
+    type_in(&field, &"x".repeat(30), &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(backend.calls().len(), sent);
+    assert_eq!(
+        store.read_with(&cx, |store, _| store
+            .ember_name_problem()
+            .map(str::to_owned)),
+        Some("Not renamed: 24 characters at most".into())
+    );
+}
+
 #[gpui_kit::test]
 fn return_in_fix_a_fact_saves_the_correction(cx: &mut TestAppContext) {
     let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::AboutYou));

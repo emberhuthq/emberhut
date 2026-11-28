@@ -353,6 +353,26 @@ pub(crate) const ENTRIES: &[Entry] = &[
         "connection",
     ]),
     everyday(
+        "ember-name",
+        "Name",
+        Line::Live(|now| match &now.ember_name {
+            Some(name) => format!("Called {name} · rename it"),
+            None => "Give your ember a name of your own".to_owned(),
+        }),
+        Group::Ember,
+        Destination::Group,
+        IconName::Pencil,
+    )
+    .also(&[
+        "name",
+        "rename",
+        "call it",
+        "nickname",
+        "what to call",
+        "assistant name",
+        "change name",
+    ]),
+    everyday(
         "thinks-with",
         "What your ember thinks with",
         Line::Live(|now| {
