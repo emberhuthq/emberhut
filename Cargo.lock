@@ -2559,6 +2559,7 @@ dependencies = [
  "cpal",
  "data-encoding",
  "directories",
+ "embed-resource",
  "emberhut-api",
  "emberhut-client",
  "emberhut-core",
@@ -2603,6 +2604,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "ureq",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

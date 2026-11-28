@@ -62,6 +62,11 @@ emberhut-core.workspace = true
 # RENAME_SWAP on macOS), the free space, and ending a new copy that hangs (ADR 0005).
 rustix = { workspace = true, features = ["fs", "process"] }
 
+[target.'cfg(windows)'.dependencies]
+# A release build is a windowed program; started from a terminal, it attaches to that terminal's
+# console for its output (src/main.rs). Already in the tree.
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 # The microphone, for dictation in the composer: the system's default input device (ALSA on
 # Linux). Not on macOS yet: the app may not declare microphone use there while reports render in
@@ -123,6 +128,11 @@ security-framework = { version = "3", default-features = false }
 objc2-authentication-services = { version = "0.3", default-features = false, features = ["std", "block2", "ASFoundation", "ASWebAuthenticationSession", "ASWebAuthenticationSessionCallback"] }
 # The app lock (src/lock/system.rs): Touch ID or the Mac's password, through LocalAuthentication.
 objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "block2", "LAContext"] }
+
+[build-dependencies]
+# The Windows executable's icon and version information (build.rs), compiled with the Windows SDK's
+# resource compiler. The same crate GPUI's own build uses for its manifest.
+embed-resource = "3.0.12"
 
 [dev-dependencies]
 # Signing test payloads, for the updater's verification tests.
