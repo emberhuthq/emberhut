@@ -7,13 +7,13 @@ use emberhut_core::task::live::{NewRun, Run, RunKind};
 use emberhut_core::task::{RunId, TaskId};
 use jiff::Timestamp;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, QueryFilter, QueryOrder, QuerySelect,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection,
+    EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, QuerySelect,
 };
 
-use crate::DbError;
 use crate::entity::run;
 use crate::time::{instant, millis};
+use crate::{DbError, begin_write};
 
 /// The longest `asked` a run keeps.
 const ASKED: usize = 400;
@@ -35,31 +35,29 @@ impl RunStore {
     ///
     /// [`DbError`].
     pub async fn open(&self, new: NewRun, now: Timestamp) -> Result<Run, DbError> {
-        let asked = new
-            .asked
-            .map(|asked| asked.split_whitespace().collect::<Vec<_>>().join(" "))
-            .map(|asked| asked.chars().take(ASKED).collect::<String>())
-            .filter(|asked| !asked.is_empty());
-        let row = run::ActiveModel {
-            task: Set(Some(new.task.get())),
-            machine: Set(new.machine),
-            thread: Set(new.thread),
-            turn: Set(None),
-            kind: Set(new.kind.as_str().to_owned()),
-            asked: Set(asked),
-            requested: Set(Some(millis(now))),
-            started: Set(new.started.then(|| millis(now))),
-            ended: Set(None),
-            outcome: Set(None),
-            last: Set(None),
-            status_line: Set(None),
-            inferred: Set(false),
-            applied: Set(false),
-            ..Default::default()
-        }
-        .insert(&self.conn)
-        .await?;
-        from_row(row)
+        insert(&self.conn, new, now).await
+    }
+
+    /// The open run of the thread or session `new.thread` on `new.machine`, else a new one
+    /// opened as [`Self::open`] does, in one write transaction: two events of one turn taken
+    /// at once open one run between them. The run, and whether it was opened now.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn open_thread_once(
+        &self,
+        new: NewRun,
+        now: Timestamp,
+    ) -> Result<(Run, bool), DbError> {
+        let txn = begin_write(&self.conn).await?;
+        let open = open_thread(&txn, &new.machine, &new.thread).await?;
+        let (run, opened) = match open {
+            Some(run) => (run, false),
+            None => (insert(&txn, new, now).await?, true),
+        };
+        txn.commit().await?;
+        Ok((run, opened))
     }
 
     /// Closes a run with how it ended and its last answer; `false` when it was closed already.
@@ -112,16 +110,7 @@ impl RunStore {
     ///
     /// [`DbError`].
     pub async fn open_thread(&self, machine: &str, thread: &str) -> Result<Option<Run>, DbError> {
-        run::Entity::find()
-            .filter(run::Column::Kind.eq(RunKind::Thread.as_str()))
-            .filter(run::Column::Machine.eq(machine))
-            .filter(run::Column::Thread.eq(thread))
-            .filter(run::Column::Ended.is_null())
-            .order_by_desc(run::Column::Id)
-            .one(&self.conn)
-            .await?
-            .map(from_row)
-            .transpose()
+        open_thread(&self.conn, machine, thread).await
     }
 
     /// Marks a sent run started at `now`; `false` when it had started, or ended, already.
@@ -212,6 +201,53 @@ impl RunStore {
         }
         Ok(by_task)
     }
+}
+
+/// Opens a run on `conn`: sent `now` (and started now, for a worker's session).
+async fn insert(conn: &impl ConnectionTrait, new: NewRun, now: Timestamp) -> Result<Run, DbError> {
+    let asked = new
+        .asked
+        .map(|asked| asked.split_whitespace().collect::<Vec<_>>().join(" "))
+        .map(|asked| asked.chars().take(ASKED).collect::<String>())
+        .filter(|asked| !asked.is_empty());
+    let row = run::ActiveModel {
+        task: Set(Some(new.task.get())),
+        machine: Set(new.machine),
+        thread: Set(new.thread),
+        turn: Set(None),
+        kind: Set(new.kind.as_str().to_owned()),
+        asked: Set(asked),
+        requested: Set(Some(millis(now))),
+        started: Set(new.started.then(|| millis(now))),
+        ended: Set(None),
+        outcome: Set(None),
+        last: Set(None),
+        status_line: Set(None),
+        inferred: Set(false),
+        applied: Set(false),
+        ..Default::default()
+    }
+    .insert(conn)
+    .await?;
+    from_row(row)
+}
+
+/// The open thread run of `thread` on `machine`, the newest, read on `conn`.
+async fn open_thread(
+    conn: &impl ConnectionTrait,
+    machine: &str,
+    thread: &str,
+) -> Result<Option<Run>, DbError> {
+    run::Entity::find()
+        .filter(run::Column::Kind.eq(RunKind::Thread.as_str()))
+        .filter(run::Column::Machine.eq(machine))
+        .filter(run::Column::Thread.eq(thread))
+        .filter(run::Column::Ended.is_null())
+        .order_by_desc(run::Column::Id)
+        .one(conn)
+        .await?
+        .map(from_row)
+        .transpose()
 }
 
 fn from_row(row: run::Model) -> Result<Run, DbError> {

@@ -69,41 +69,36 @@ impl TaskService {
         self.links
             .link(task, THREAD_LINK, session, Some(machine))
             .await?;
-        let open = self.runs.open_thread(machine, session).await?;
         let now = self.now();
         match turn {
             SessionTurn::Queued { asked } | SessionTurn::Running { asked } => {
                 let started = matches!(turn, SessionTurn::Running { .. });
-                match open {
-                    None => {
-                        self.runs
-                            .open(
-                                NewRun {
-                                    task,
-                                    machine: machine.to_owned(),
-                                    thread: session.to_owned(),
-                                    kind: RunKind::Thread,
-                                    asked: asked.map(str::to_owned),
-                                    started,
-                                },
-                                now,
-                            )
-                            .await?;
-                    }
-                    Some(run) if started => {
-                        self.runs.start(run.id, now).await?;
-                    }
-                    Some(_) => {}
+                let (run, opened) = self
+                    .runs
+                    .open_thread_once(
+                        NewRun {
+                            task,
+                            machine: machine.to_owned(),
+                            thread: session.to_owned(),
+                            kind: RunKind::Thread,
+                            asked: asked.map(str::to_owned),
+                            started,
+                        },
+                        now,
+                    )
+                    .await?;
+                if started && !opened {
+                    self.runs.start(run.id, now).await?;
                 }
             }
             SessionTurn::Finished { outcome, last } => {
-                if let Some(run) = open {
+                if let Some(run) = self.runs.open_thread(machine, session).await? {
                     self.runs.close(run.id, outcome, last, now).await?;
                 }
                 self.turn_ended(task).await?;
             }
             SessionTurn::Stopped { status, last } => {
-                if let Some(run) = open {
+                if let Some(run) = self.runs.open_thread(machine, session).await? {
                     self.runs.close(run.id, status, last, now).await?;
                 }
             }

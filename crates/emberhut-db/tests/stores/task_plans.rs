@@ -225,3 +225,52 @@ async fn a_turn_with_no_plan_is_noted_once_until_a_plan_is_written() {
     );
     assert!(!tasks.turn_unplanned(TaskId::new(999), at(4)).await.unwrap());
 }
+
+#[tokio::test]
+async fn a_sessions_turn_taken_twice_at_once_opens_one_run() {
+    use emberhut_core::task::live::{NewRun, RunKind};
+
+    let (_dir, db) = database().await;
+    let task = db
+        .tasks()
+        .create(
+            NewTask {
+                title: "The lexer".to_owned(),
+                ..NewTask::default()
+            },
+            Who::Person,
+            at(0),
+        )
+        .await
+        .unwrap();
+    let runs = db.runs();
+    let new = |started: bool| NewRun {
+        task: task.id,
+        machine: "build".to_owned(),
+        thread: "r-1e8".to_owned(),
+        kind: RunKind::Thread,
+        asked: None,
+        started,
+    };
+    let (queued, running) = tokio::join!(
+        runs.open_thread_once(new(false), at(1)),
+        runs.open_thread_once(new(true), at(1)),
+    );
+    let ((first, a), (second, b)) = (queued.unwrap(), running.unwrap());
+    assert_eq!(first.id, second.id, "one run for the turn");
+    assert!(a ^ b, "opened by one of the two");
+    assert!(
+        runs.close(first.id, "completed", None, at(2))
+            .await
+            .unwrap()
+    );
+    assert!(
+        runs.open_thread("build", "r-1e8").await.unwrap().is_none(),
+        "nothing left open"
+    );
+    let (next, opened) = runs.open_thread_once(new(true), at(3)).await.unwrap();
+    assert!(
+        opened && next.id != first.id,
+        "the next turn is a run of its own"
+    );
+}
