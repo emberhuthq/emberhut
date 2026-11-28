@@ -20,7 +20,9 @@ import { useEmberhutState } from "@/state/queries";
 import { useTheme } from "@/theme";
 import { ErrorState, Icon, KeyboardAvoider, Loading, Markdown, Screen, Text } from "@/ui";
 import { LiveBar, ThinkingLive } from "./LiveParts";
+import { isMovable } from "./moveToTask";
 import { SessionHeader } from "./SessionHeader";
+import { useMoveToTask } from "./SessionMenu";
 import { allSessions, isRunning, shortTitle } from "./sessionList";
 import { TodoList } from "./TodoList";
 import { isQueued, liveTodos, liveWord, runningTool, turns, type ToolCall } from "./transcript";
@@ -63,6 +65,10 @@ export function SessionScreen({ route, navigation }: RootScreenProps<"Session">)
     const task = state.data?.issues?.find((i) => i.id === t);
     return { id: t, title: task ? `${task.key} ${task.title}` : taskKey(t) };
   });
+
+  const moveTo = useMoveToTask();
+  const sessionTasks = info?.tasks ?? head?.tasks ?? [];
+  const onMove = moveTo && !agent && isMovable(id) ? () => moveTo({ id, title: name, tasks: sessionTasks }) : undefined;
 
   const send = useCallback(
     async (text: string, files: ChatFile[] = []): Promise<boolean> => {
@@ -169,6 +175,7 @@ export function SessionScreen({ route, navigation }: RootScreenProps<"Session">)
               direct={direct}
               tasks={tasks}
               problem={problem}
+              onMove={onMove}
             />
             {view.earlier && (
               <Text variant="footnote" tone="secondary">

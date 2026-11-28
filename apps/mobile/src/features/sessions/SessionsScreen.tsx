@@ -12,6 +12,7 @@ import { Button, EmptyState, Icon, Loading, Screen, Text, usePullRefresh } from 
 import { SessionFilterBar } from "./SessionFilterBar";
 import { isFiltered } from "./sessionFilters";
 import { agentsByTask, groupSessions, shortTitle } from "./sessionList";
+import { useMoveToTask } from "./SessionMenu";
 import { AgentRow, RecentRow, RunningRow, ExternalThreadRow } from "./SessionRows";
 
 type Entry =
@@ -38,6 +39,7 @@ export function SessionsScreen({
   const state = useEmberhutState(room);
   const names = useMachineNames();
   const { refreshing, onRefresh } = usePullRefresh(state.refetch);
+  const move = useMoveToTask();
 
   useLayoutEffect(() => {
     header.setOptions({
@@ -102,11 +104,11 @@ export function SessionsScreen({
                 />
               );
             case "running":
-              return <RunningRow session={item.session} onOpen={() => open(item.session)} />;
+              return <RunningRow session={item.session} onOpen={() => open(item.session)} onMove={move} />;
             case "external":
               return <ExternalThreadRow thread={item.thread} place={machineLabel(names, item.thread.machine)} />;
             case "recent":
-              return <RecentRow session={item.session} onOpen={() => open(item.session)} />;
+              return <RecentRow session={item.session} onOpen={() => open(item.session)} onMove={move} />;
           }
         }}
         renderSectionHeader={({ section }) => (

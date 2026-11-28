@@ -19,10 +19,24 @@ export interface SessionHeaderProps {
   direct: boolean;
   tasks: { id: number; title: string }[];
   problem: string | null;
+  /** Move to task…, where it's offered (a server that keeps plans). */
+  onMove?: () => void;
 }
 
-/** Its status and how long it's been running, live or reconnecting, where and on what it runs, its tasks. */
-export function SessionHeader({ title, lead, status, running, since, connected, head, direct, tasks, problem }: SessionHeaderProps) {
+/** Its status and how long it's been running, live or reconnecting, where and on what it runs, its tasks, Move to task…. */
+export function SessionHeader({
+  title,
+  lead,
+  status,
+  running,
+  since,
+  connected,
+  head,
+  direct,
+  tasks,
+  problem,
+  onMove,
+}: SessionHeaderProps) {
   const { colors, radius, spacing } = useTheme();
   const navigation = useNavigation();
   const where = [head?.place, head?.accountName ?? head?.account, head?.cwd ? shortPath(head.cwd) : null, head?.branch]
@@ -77,6 +91,20 @@ export function SessionHeader({ title, lead, status, running, since, connected, 
           <Icon name="chevron-forward" size={14} color={colors.accent} />
         </Pressable>
       ))}
+      {onMove && (
+        <Pressable
+          onPress={onMove}
+          accessibilityRole="button"
+          accessibilityLabel="Move to task…"
+          accessibilityHint="Picks the task its next turns work on"
+          style={[styles.row, { gap: spacing.sm, minHeight: 32 }]}
+        >
+          <Icon name="swap-horizontal-outline" size={16} color={colors.accent} />
+          <Text variant="callout" tone="accent" style={styles.fill}>
+            Move to task…
+          </Text>
+        </Pressable>
+      )}
       {problem && (
         <Text variant="footnote" tone="danger">
           {problem}
