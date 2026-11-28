@@ -21,7 +21,8 @@ pub(crate) async fn ui_changes_what_the_app_hides_and_answers_with_the_state() {
         before.ui,
         Some(DisplayUi {
             hide_goals: true,
-            hide_projects: true
+            hide_projects: true,
+            task_plans: false,
         }),
         "goals and projects start hidden"
     );
@@ -40,6 +41,7 @@ pub(crate) async fn ui_changes_what_the_app_hides_and_answers_with_the_state() {
     let shown_goals = DisplayUi {
         hide_goals: false,
         hide_projects: true,
+        task_plans: false,
     };
     assert_eq!(reply.state.ui, Some(shown_goals), "the other switch stays");
 
@@ -67,6 +69,7 @@ pub(crate) async fn ui_changes_what_the_app_hides_and_answers_with_the_state() {
     let after = DisplayUi {
         hide_goals: true,
         hide_projects: false,
+        task_plans: false,
     };
     assert_eq!(reply.state.ui, Some(after));
     let state: State = app

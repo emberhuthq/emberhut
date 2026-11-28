@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ids::{MachineId, RunId};
 use crate::open_enum::open_enum;
+use crate::task_plan::Plan;
 use crate::tasks::Issue;
 use crate::time::Timestamp;
 use crate::ultra::UltraRun;
@@ -47,6 +48,9 @@ pub struct TaskPage {
     /// watch.
     #[serde(default)]
     pub ultra_run: Option<UltraRun>,
+    /// Its plan, step by step, on a server that keeps plans.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<Plan>,
 }
 
 /// One step of a task's history.

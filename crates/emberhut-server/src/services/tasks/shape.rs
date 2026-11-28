@@ -189,6 +189,7 @@ pub(crate) fn issue(t: &Task, extras: Extras) -> api::tasks::Issue {
         requested: extras.requested,
         requested_by: extras.requested_by,
         send: extras.send,
+        plan: None,
     }
 }
 

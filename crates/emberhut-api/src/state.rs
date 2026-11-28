@@ -253,6 +253,10 @@ pub struct DisplayUi {
     /// Hide the projects.
     #[serde(default)]
     pub hide_projects: bool,
+    /// Tasks carry plans: show tasks as the work running, each with its plan, and the
+    /// sessions inside them rather than as a list of their own.
+    #[serde(default)]
+    pub task_plans: bool,
 }
 
 /// The account the assistant's turns run on and its use, from the last turn. Every field is

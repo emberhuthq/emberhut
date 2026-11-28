@@ -8,6 +8,7 @@ use crate::ids::{AreaId, ArtifactId, GoalId, MessageId, ProjectId, RoomId, TaskI
 use crate::open_enum::open_enum;
 use crate::plan::GoalWeek;
 use crate::task_live::TaskLive;
+use crate::task_plan::PlanSummary;
 use crate::time::{Day, Timestamp};
 use crate::x_reply::XReply;
 
@@ -287,6 +288,9 @@ pub struct Issue {
     /// What the person's last tap on its send card came to.
     #[serde(default)]
     pub send: Option<TaskSend>,
+    /// Its plan at a glance, on a server that keeps plans (empty: no plan yet).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<PlanSummary>,
 }
 
 /// The person's own request for a task: when, and the message and room it was made from.
