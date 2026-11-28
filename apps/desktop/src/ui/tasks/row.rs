@@ -3,20 +3,26 @@
 //! progress bar, a parent's subtask count that opens them under it, and its deadline chip. A
 //! click opens its page in the column; a right-click offers Mark done, Not now, Archive (or
 //! Unarchive).
+//!
+//! On a server that keeps plans, a running task's row is drawn as running (a live dot, the step
+//! it is on or what blocks it, its n/m ticks and a thin bar), and an open one says its ticks, or
+//! "No plan yet", quietly at its end.
 
 use emberhut_api::health_today::HealthToday;
 use emberhut_api::tasks::{Issue, TaskStatus};
 use gpui_kit::assets::IconName;
 use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
 use gpui_kit::prelude::*;
-use gpui_kit::{AnyElement, ElementId, Entity, FontWeight, div, px};
+use gpui_kit::{AnyElement, App, ElementId, Entity, FontWeight, div, px};
 use jiff::civil::Date;
 
 use super::marks::{deadline_chip, glyph, progress, status_icon, thousands};
+use super::plan_marks;
 use super::swipe::{RowSwipes, Swiped};
 use crate::prose::direction;
 use crate::store::lookup;
 use crate::store::tasks::counts;
+use crate::store::tasks::plan::{self, RowPlan, Tone};
 use crate::store::tasks::words;
 use crate::store::{Page, Store};
 use crate::ui::a11y::{self, Accessible as _};
@@ -56,19 +62,24 @@ pub(crate) fn parkable(task: &Issue) -> bool {
 }
 
 /// The row.
-pub(crate) fn row(store: &Entity<Store>, p: &Pal, task: &Issue, look: Look<'_>) -> AnyElement {
+pub(crate) fn row(
+    store: &Entity<Store>,
+    p: &Pal,
+    task: &Issue,
+    look: Look<'_>,
+    cx: &App,
+) -> AnyElement {
     let id = task.id;
-    let tick = tickable(task) && !look.nested;
-    let body = row_body(p, task, look);
-    let lead = if tick {
-        tab_stop(
-            super::tick::tick(store, p, id, &task.title, 17., look.ticked).border_1(),
-            p,
-        )
-        .into_any_element()
-    } else {
-        status_icon(p, task).into_any_element()
+    let planned = store
+        .read(cx)
+        .keeps_plans()
+        .then(|| plan::row_plan(task))
+        .flatten();
+    let body = match &planned {
+        Some(planned) => planned_body(p, task, planned, quiet_of(store, task, cx).as_deref()),
+        None => row_body(p, task, look),
     };
+    let lead = lead_of(store, p, task, look, planned.as_ref(), cx);
     let chip = counts::deadline_chip(task.deadline.as_ref(), task.hard_deadline, look.today);
     let subtasks = task.sub.as_ref().filter(|_| !look.nested).map(|rollup| {
         let store = store.clone();
@@ -111,6 +122,7 @@ pub(crate) fn row(store: &Entity<Store>, p: &Pal, task: &Issue, look: Look<'_>) 
         &task.title,
         &words::name(task),
         &counts::row_line(task, look.project),
+        &planned.as_ref().map_or_default(plan::spoken_row),
     ]);
     let row = div()
         .id(ElementId::Name(format!("task-{id}").into()))
@@ -143,13 +155,12 @@ pub(crate) fn row(store: &Entity<Store>, p: &Pal, task: &Issue, look: Look<'_>) 
 /// A row's text: its title, its grey line, a walk task's minutes today and its progress bar.
 fn row_body(p: &Pal, task: &Issue, look: Look<'_>) -> gpui_kit::Div {
     let id = task.id;
-    let mut body = div().flex().flex_col().flex_1().min_w_0().child(
-        div()
-            .truncate()
-            .text_size(px(13.))
-            // Its direction mark first, so a mostly Arabic title reads in its own order.
-            .child(direction::marked(&task.title)),
-    );
+    let title = div()
+        .truncate()
+        .text_size(px(13.))
+        // Its direction mark first, so a mostly Arabic title reads in its own order.
+        .child(direction::marked(&task.title));
+    let mut body = div().flex().flex_col().flex_1().min_w_0().child(title);
     let line = counts::row_line(task, look.project);
     if !line.is_empty() {
         body = body.child(
@@ -190,6 +201,116 @@ fn row_body(p: &Pal, task: &Issue, look: Look<'_>) -> gpui_kit::Div {
         body = body.child(progress(p, fraction, fill));
     }
     body
+}
+
+/// The mark a row leads with: its plan's (running, blocked, waiting on the user), else the tick
+/// of the user's own to-do, else its state icon.
+fn lead_of(
+    store: &Entity<Store>,
+    p: &Pal,
+    task: &Issue,
+    look: Look<'_>,
+    planned: Option<&RowPlan>,
+    cx: &App,
+) -> AnyElement {
+    let id = task.id;
+    let mark = planned.and_then(|planned| {
+        plan_marks::lead(
+            p,
+            planned.lead,
+            ElementId::Name(format!("task-lead-{id}").into()),
+            cx,
+        )
+    });
+    if let Some(mark) = mark {
+        mark
+    } else if tickable(task) && !look.nested {
+        tab_stop(
+            super::tick::tick(store, p, id, &task.title, 17., look.ticked).border_1(),
+            p,
+        )
+        .into_any_element()
+    } else {
+        status_icon(p, task).into_any_element()
+    }
+}
+
+/// How long `task` has gone quiet, when it runs and nothing moved for a while.
+fn quiet_of(store: &Entity<Store>, task: &Issue, cx: &App) -> Option<String> {
+    let state = store.read(cx).state()?;
+    let sessions = crate::store::sessions::lists::all(state);
+    plan::quiet(task, &sessions, jiff::Timestamp::now())
+}
+
+/// A row's text with its plan: its title; its one line (the step it is on, what it waits on or
+/// what blocks it) with `quiet 25m` at its end when it has gone quiet; then its bar with its
+/// n/m beside it, so the title keeps the width.
+fn planned_body(p: &Pal, task: &Issue, planned: &RowPlan, quiet: Option<&str>) -> gpui_kit::Div {
+    let (text, tone) = &planned.line;
+    let color = match tone {
+        Tone::Muted => p.muted,
+        Tone::Faint => p.faint,
+        Tone::Danger => p.danger,
+        Tone::Accent => p.accent,
+    };
+    let line = div()
+        .flex()
+        .items_center()
+        .gap(px(8.))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .text_size(px(11.5))
+                .text_color(color)
+                .when(*tone == Tone::Accent, |d| {
+                    d.font_weight(FontWeight::SEMIBOLD)
+                })
+                .child(text.clone()),
+        )
+        .children(quiet.map(|quiet| {
+            div()
+                .flex()
+                .flex_none()
+                .items_center()
+                .gap(px(3.))
+                .text_size(px(11.5))
+                .text_color(p.muted)
+                .child(glyph(IconName::Clock, p.muted, 11.))
+                .child(quiet.to_owned())
+        }));
+    let bar = planned.bar.as_ref().map(|bar| {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .pt(px(5.))
+            .child(div().flex_1().child(plan_marks::bar(p, bar, 4.)))
+            .children(planned.ticks.clone().map(|ticks| {
+                div()
+                    .flex_none()
+                    .min_w(px(28.))
+                    .text_size(px(11.5))
+                    .text_color(p.muted)
+                    .child(ticks)
+            }))
+    });
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(1.))
+        .flex_1()
+        .min_w_0()
+        .child(
+            div()
+                .truncate()
+                .text_size(px(13.))
+                // Its direction mark first, so a mostly Arabic title reads in its own order.
+                .child(direction::marked(&task.title)),
+        )
+        .child(line)
+        .children(bar)
 }
 
 /// `row` taking two-finger swipes: right marks the user's own task done; left puts it off a
@@ -239,7 +360,7 @@ fn with_menu(
     row.context_menu(move |mut menu, _, _| {
         let on = |action: fn(&mut Store, emberhut_api::ids::TaskId, &mut Context<'_, Store>)| {
             let store = store.clone();
-            move |_: &gpui_kit::ClickEvent, _: &mut gpui_kit::Window, cx: &mut gpui_kit::App| {
+            move |_: &gpui_kit::ClickEvent, _: &mut gpui_kit::Window, cx: &mut App| {
                 store.update(cx, |store, cx| action(store, id, cx));
             }
         };
