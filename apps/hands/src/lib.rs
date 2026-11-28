@@ -19,6 +19,12 @@
 //! as on the server ([`rules`]). Everything that touches the system goes through the
 //! [`desktop::Desktop`] trait, so the rules and the HTTP layer are tested on any platform; the
 //! real implementation is in `mac`, built on macOS only.
+//!
+//! The library is built on Unix only: its token, recordings and extension folder are kept owner-only
+//! with Unix permissions, and the helper itself runs on macOS. Elsewhere (Windows) the crate is
+//! empty and the binary says it runs on macOS only, so the workspace still builds there.
+
+#![cfg(unix)]
 
 pub mod config;
 pub mod desktop;
