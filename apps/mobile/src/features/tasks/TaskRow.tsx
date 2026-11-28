@@ -106,7 +106,7 @@ export function TaskRow({ task, project, subtasks = [], indent = false, plans = 
         ) : null}
       </Pressable>
       {open && subtasks.map((kid) => <TaskRow key={kid.id} task={kid} indent plans={plans} />)}
-      {menu && <ActionSheet visible title={task.title} actions={sheet} onClose={() => setMenu(false)} />}
+      <ActionSheet visible={menu} title={task.title} actions={sheet} onClose={() => setMenu(false)} />
     </View>
   );
 }
