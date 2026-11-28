@@ -18,7 +18,6 @@ import {
   isWebLink,
   pagePlan,
   pageStamp,
-  pageTask,
   planFraction,
   planRows,
   plansOn,
@@ -216,19 +215,17 @@ describe("the checklist", () => {
 });
 
 describe("the task page's plan", () => {
-  const page = (plan: unknown): TaskPage => ({ ...issue(1), plan }) as TaskPage;
-
-  it("reads the whole plan, or a summary alone as a plan with no steps", () => {
+  it("reads the whole plan from fullPlan, the task's own plan staying its summary", () => {
     const whole: Plan = { steps: [step(1, "todo")], summary: { done: 0, total: 1 } };
-    expect(pagePlan(page(whole))).toEqual(whole);
-    expect(pagePlan(page({ done: 0, total: 0 }))).toEqual({ steps: [], summary: { done: 0, total: 0 } });
-    expect(pagePlan(page(undefined))).toBeNull();
-    expect(pagePlan(undefined)).toBeNull();
+    const page: TaskPage = { ...issue(1, { plan: { done: 0, total: 1 } }), fullPlan: whole };
+    expect(pagePlan(page)).toEqual(whole);
+    expect(JSON.parse(JSON.stringify(page))).toMatchObject({ plan: { done: 0, total: 1 }, fullPlan: { steps: [{ id: 1 }] } });
   });
 
-  it("gives the page as a task with its summary", () => {
-    expect(pageTask(page({ steps: [], summary: { done: 1, total: 3 } })).plan).toEqual({ done: 1, total: 3 });
-    expect(pageTask(page(undefined)).plan).toBeNull();
+  it("reads a summary alone as a plan with no steps listed, and no plan as none", () => {
+    expect(pagePlan(issue(1, { plan: { done: 0, total: 0 } }))).toEqual({ steps: [], summary: { done: 0, total: 0 } });
+    expect(pagePlan(issue(1))).toBeNull();
+    expect(pagePlan(undefined)).toBeNull();
   });
 
   it("changes its stamp when the plan or the run moves", () => {

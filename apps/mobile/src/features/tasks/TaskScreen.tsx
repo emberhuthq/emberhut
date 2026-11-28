@@ -11,7 +11,7 @@ import { useTheme } from "@/theme";
 import { Card, Collapsible, EmptyState, ListRow, Loading, Screen, Section, SectionHeading, Text, usePullRefresh } from "@/ui";
 import { Activity } from "./Activity";
 import { copyDraftFor } from "./copyDraft";
-import { pagePlan, pageStamp, pageTask, stepLink } from "./plan";
+import { pagePlan, pageStamp, stepLink } from "./plan";
 import { PlanChecklist } from "./PlanChecklist";
 import { PlanHeader } from "./PlanHeader";
 import { quietMinutes, stepResults } from "./planView";
@@ -43,7 +43,7 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   const scroll = useRef<ScrollViewInstance>(null);
   const askAt = useRef(0);
   const plans = useTaskPlans();
-  const full = page.data ? pageTask(page.data) : undefined;
+  const full = page.data;
   const plan = plans ? pagePlan(page.data) : null;
   const { refetch } = page;
   // Asked again when the state says the task changed (with plans, also when its plan or its run moved); the first value
