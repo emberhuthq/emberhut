@@ -1,5 +1,6 @@
 import type { EmberhutHttp } from "../http";
 import type { Issue, TaskMessageRequest, TaskMessageResult, TaskPage, TasksPage, TasksQuery } from "../types";
+import { TASK_PATH } from "../wire";
 import { fileForSend } from "./chat";
 
 export function taskEndpoints(http: EmberhutHttp) {
@@ -21,6 +22,10 @@ export function taskEndpoints(http: EmberhutHttp) {
     /** One task with its history, subtasks, findings, links, runs, sessions, ultra run and plan. */
     get(id: number, signal?: AbortSignal): Promise<TaskPage> {
       return http.get<TaskPage>(`/api/tasks/${id}`, undefined, { signal });
+    },
+    /** Renames it; the task as it is now. Refused with the server's reason: 400 for an empty or too long title, 404. */
+    rename(id: number, title: string): Promise<Issue> {
+      return http.patch<Issue>(`${TASK_PATH}${id}`, { title });
     },
     /** Your reply on a task's page: it goes to the task (its worker, its session or Emberhut in its room), not the chat. */
     message(id: number, request: TaskMessageRequest): Promise<TaskMessageResult> {

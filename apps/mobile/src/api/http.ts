@@ -5,7 +5,7 @@ import { buildUrl, readJson, timeoutSignal, type Fetch, type Query, type UploadF
 
 export interface RequestOptions {
   /** GET without a body, POST with one, unless given. */
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Query;
   /** A JSON body; makes the request a POST. */
   json?: unknown;
@@ -141,6 +141,10 @@ export class EmberhutHttp {
 
   put<T>(path: string, json: unknown, options: Omit<RequestOptions, "json" | "method"> = {}): Promise<T> {
     return this.json<T>(path, { ...options, json, method: "PUT" });
+  }
+
+  patch<T>(path: string, json: unknown, options: Omit<RequestOptions, "json" | "method"> = {}): Promise<T> {
+    return this.json<T>(path, { ...options, json, method: "PATCH" });
   }
 
   delete<T>(path: string, options: Omit<RequestOptions, "method"> = {}): Promise<T> {

@@ -96,3 +96,9 @@ export type Author = typeof OWNER | typeof ASSISTANT;
  * on a server that keeps task plans: its next turns work on that task.
  */
 export const SESSION_TASK_ROUTE = "task";
+
+/**
+ * How one task's path starts, its id after it (`/api/tasks/<id>`): PATCH it with `{ title }` (1 to 200 characters) to
+ * rename the task, answered with the task as it is now.
+ */
+export const TASK_PATH = "/api/tasks/";
