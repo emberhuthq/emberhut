@@ -38,17 +38,29 @@ export function ChatTitle({
     >
       <View style={[styles.row, { gap: spacing.xs }]}>
         {agent && <Icon name="person-circle-outline" size={16} color={agent.enabled ? colors.accent : colors.textTertiary} />}
-        <Text variant="headline" numberOfLines={1} style={styles.shrink}>
+        <Text variant="headline" numberOfLines={1} maxFontSizeMultiplier={barTextScale} style={styles.shrink}>
           {name}
         </Text>
         <Icon name="chevron-down" size={14} color={colors.textSecondary} />
       </View>
-      <Text variant="caption" tone={agent && !agent.enabled ? "tertiary" : status.tone} numberOfLines={1}>
+      <Text
+        variant="caption"
+        tone={agent && !agent.enabled ? "tertiary" : status.tone}
+        numberOfLines={1}
+        maxFontSizeMultiplier={barTextScale}
+      >
         {caption}
       </Text>
     </Pressable>
   );
 }
+
+/**
+ * How far the title block grows with Dynamic Type: it lives in the 44 pt navigation bar, as UIKit's own titles do, and
+ * those keep their size. The headline's 22 pt line and the caption's 16 pt one fill 44 pt at 1.15×; any larger and the
+ * block spills out of the bar, off the centre the bar's buttons line up with.
+ */
+const barTextScale = 1.15;
 
 const styles = StyleSheet.create({
   title: { maxWidth: 220, alignItems: "center" },
