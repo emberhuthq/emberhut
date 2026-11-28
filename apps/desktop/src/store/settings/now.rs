@@ -35,6 +35,8 @@ pub(crate) struct Now {
     pub(crate) on_duty: bool,
     /// What it is doing, as the sidebar says it.
     pub(crate) doing: String,
+    /// The user's own name for it; none while it is "Your ember".
+    pub(crate) ember_name: Option<String>,
     /// Whether it is at work on something now.
     pub(crate) working: bool,
     /// How many background jobs it is running.
@@ -165,6 +167,7 @@ impl Store {
         Now {
             on_duty: self.is_on_duty(),
             doing: self.status().text,
+            ember_name: self.ember_custom_name().map(str::to_owned),
             working: self.is_working(),
             jobs: state.map_or(0, |state| {
                 state.tasks.iter().filter(|task| task.is_running()).count()

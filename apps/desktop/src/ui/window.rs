@@ -257,7 +257,15 @@ impl MainWindow {
         window: &mut Window,
         cx: &mut Context<'_, Self>,
     ) -> Self {
-        cx.observe(&store, |_, _, cx| cx.notify()).detach();
+        // The front window keeps the menus' words (the ember's name) as the store's.
+        cx.observe_in(&store, window, |this, store, window, cx| {
+            if window.is_window_active() {
+                let ember = store.read(cx).ember_name().to_owned();
+                menus::refresh(this.sidebar_open, &ember, cx);
+            }
+            cx.notify();
+        })
+        .detach();
         let column = Column::new(store.clone(), window, cx);
         cx.observe_in(&column, window, Self::column_moved).detach();
         Self::follow_for_report(&store, window, cx);
@@ -297,7 +305,8 @@ impl MainWindow {
                 windows::note_front(window.window_handle(), cx);
             }
             presence::set_active(id, active, &this.store, cx);
-            menus::refresh(this.sidebar_open, cx);
+            let ember = this.store.read(cx).ember_name().to_owned();
+            menus::refresh(this.sidebar_open, &ember, cx);
         })
         .detach();
         cx.observe_window_visibility(window, move |this, visibility, _, cx| {
@@ -468,7 +477,8 @@ impl MainWindow {
         // With the sidebar hidden nothing is translucent: the window stops blurring.
         let page = self.store.read(cx).theme().page().clone();
         super::look::show_sidebar(self.sidebar_open, &page, window, cx);
-        menus::refresh(self.sidebar_open, cx);
+        let ember = self.store.read(cx).ember_name().to_owned();
+        menus::refresh(self.sidebar_open, &ember, cx);
         cx.notify();
     }
 

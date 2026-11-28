@@ -1,4 +1,5 @@
-//! The sidebar's first row, your ember: the assistant's little picture and its name. A click
+//! The sidebar's first row, your ember: the assistant's little picture and its name (the one
+//! the user gave it, cut with an ellipsis when it is long, else "Your ember"). A click
 //! (or Return or Space) opens the main room, lit while it is open, with a dot while it has
 //! something unread. Its menu (On duty, what it knows about the user, Settings) opens on a
 //! right-click and from the ellipsis inside the row, which shows on hover and keyboard focus.
@@ -32,9 +33,6 @@ use crate::store::settings::SettingsPane;
 use crate::store::status::{StatusLine, Tone};
 use crate::store::{Page, Store};
 use crate::ui::a11y;
-
-/// What the sidebar calls the assistant.
-pub(crate) const NAME: &str = "Your ember";
 
 /// The hover group of the row, which shows its menu button.
 const GROUP: &str = "ember-row";
@@ -107,6 +105,7 @@ pub(crate) fn row_with_menu(
     let on_duty = store.is_on_duty();
     let working = on_duty && store.is_working();
     let status = store.status();
+    let name = store.ember_name().to_owned();
     let help = format!(
         "Opens your ember's chat · {}\nOn duty: when off, your ember does nothing and wakes for \
          nothing; it still answers you in the chat.",
@@ -114,7 +113,7 @@ pub(crate) fn row_with_menu(
     );
     let note = Note::of(on_duty, working, status, unread);
     let spoken = a11y::line(&[
-        NAME,
+        &name,
         note.as_ref().map_or("", Note::text),
         if unread && note != Some(Note::New) {
             "new answer"
@@ -132,7 +131,7 @@ pub(crate) fn row_with_menu(
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_size(px(13.5))
                 .truncate()
-                .child(NAME),
+                .child(name.clone()),
         )
         .when_some(note, |d, note| {
             d.child(
@@ -154,7 +153,7 @@ pub(crate) fn row_with_menu(
         .child(picture(on_duty, working, p, motion::reduced(cx)))
         .child(text)
         .when(unread, |d| d.child(dot(p.accent, 6.)))
-        .child(menu_button(&window.store, on_duty, p))
+        .child(menu_button(&window.store, &name, on_duty, p))
         .on_click(cx.listener(move |this, _, window, cx| this.open(Page::Room(id), window, cx)))
         .test_support();
     div()
@@ -211,7 +210,8 @@ fn glow(p: &Pal, reduced: bool) -> AnyElement {
 
 /// The ellipsis inside the row that opens its menu: hidden until the row is under the pointer
 /// or the button has the keyboard.
-fn menu_button(store: &Entity<Store>, on_duty: bool, p: &Pal) -> impl IntoElement {
+fn menu_button(store: &Entity<Store>, name: &str, on_duty: bool, p: &Pal) -> impl IntoElement {
+    let label = format!("{name}'s menu");
     Button::new("ember-menu")
         .icon(
             Icon::new(AssetIcon::Ellipsis)
@@ -220,8 +220,8 @@ fn menu_button(store: &Entity<Store>, on_duty: bool, p: &Pal) -> impl IntoElemen
         )
         .ghost()
         .xsmall()
-        .tooltip("Your ember's menu")
-        .accessibility_label("Your ember's menu")
+        .tooltip(label.clone())
+        .accessibility_label(label)
         .opacity(0.)
         .group_hover(GROUP, |style| style.opacity(1.))
         .focus_visible(|style| style.opacity(1.))
@@ -398,7 +398,38 @@ mod tests {
     #[gpui_kit::test]
     fn ready_the_row_is_one_line_without_a_glow(cx: &mut TestAppContext) {
         let (_, _, cx) = open(json!({}), json!({}), cx);
-        assert_eq!(shown(cx), (NAME.to_owned(), false, false));
+        assert_eq!(shown(cx), ("Your ember".to_owned(), false, false));
+    }
+
+    #[gpui_kit::test]
+    fn the_row_shows_the_name_the_user_gave(cx: &mut TestAppContext) {
+        let ember = json!({ "emberName": { "name": "Juniper", "custom": true, "at": null } });
+        let (_, _, cx) = open(json!({"unread": 1}), ember, cx);
+        assert_eq!(shown(cx), ("Juniper, New answer".to_owned(), true, false));
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            assert_eq!(
+                window.find("ember-menu").label(),
+                Some("Juniper's menu"),
+                "its menu too"
+            );
+        });
+    }
+
+    #[gpui_kit::test]
+    fn a_long_name_is_cut_with_an_ellipsis(cx: &mut TestAppContext) {
+        let long = "W".repeat(24);
+        let ember = json!({ "emberName": { "name": long, "custom": true, "at": null } });
+        let (_, _, cx) = open(json!({}), ember, cx);
+        assert_eq!(shown(cx).0, long, "the whole name is read out");
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            let row = window.find("ember").bounds();
+            assert!(
+                row.size.width < px(400.),
+                "the row keeps the sidebar's width"
+            );
+        });
     }
 
     #[gpui_kit::test]

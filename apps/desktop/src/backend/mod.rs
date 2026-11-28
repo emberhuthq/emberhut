@@ -36,6 +36,7 @@ use emberhut_api::chat::{ChatFile, ChatPage};
 use emberhut_api::chrome::{ChromeAction, ChromeReply};
 use emberhut_api::connect::{LinkStatementRequest, SignedLink};
 use emberhut_api::dark::{DarkEvent, DarkRoom};
+use emberhut_api::ember_name::EmberName;
 use emberhut_api::environments::{EnvActionRequest, EnvPage};
 use emberhut_api::facts::FactsPage;
 use emberhut_api::headers::ETag;
@@ -172,6 +173,14 @@ pub(crate) trait Backend: Send + Sync {
     ///
     /// As [`Backend::state`].
     fn change_theme(&self, change: &ThemeChange) -> Result<ThemePage, Error>;
+
+    /// Renames the ember (`None`: back to "Your ember"); the name as the server keeps it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`]; a name the server doesn't take is [`Error::Refused`] with its
+    /// reason.
+    fn rename_ember(&self, name: Option<&str>) -> Result<EmberName, Error>;
 
     /// The machines page.
     ///

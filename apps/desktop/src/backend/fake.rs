@@ -14,6 +14,7 @@ use emberhut_api::approvals::{
 use emberhut_api::auth::PairingCode;
 use emberhut_api::calls::RecordCallRequest;
 use emberhut_api::chat::{ChatFile, ChatPage, FileKind};
+use emberhut_api::ember_name::EmberName;
 use emberhut_api::headers::ETag;
 use emberhut_api::ids::{ApprovalId, DeviceId, MessageId, RoomId, TaskId};
 use emberhut_api::live::LiveEvent;
@@ -106,6 +107,8 @@ pub(crate) enum Call {
     LinkStatement(emberhut_api::connect::LinkStatementRequest),
     /// A theme change: its preset, and whether it was only a preview.
     ChangeTheme(Option<String>, bool),
+    /// A rename of the ember: the name sent (none: back to the default).
+    RenameEmber(Option<String>),
     /// The machines.
     Machines,
     /// A file, by its path.
@@ -688,6 +691,11 @@ impl Backend for FakeBackend {
             page.choice.appearance = appearance.clone();
         }
         Ok(page)
+    }
+
+    fn rename_ember(&self, name: Option<&str>) -> Result<EmberName, Error> {
+        self.record(Call::RenameEmber(name.map(str::to_owned)));
+        self.replies.rename(name)
     }
 
     fn machines(&self) -> Result<MachinesPage, Error> {

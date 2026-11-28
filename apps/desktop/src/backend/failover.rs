@@ -32,6 +32,7 @@ use emberhut_api::chat::{ChatFile, ChatPage};
 use emberhut_api::chrome::{ChromeAction, ChromeReply};
 use emberhut_api::connect::{LinkStatementRequest, SignedLink};
 use emberhut_api::dark::{DarkEvent, DarkRoom};
+use emberhut_api::ember_name::EmberName;
 use emberhut_api::environments::{EnvActionRequest, EnvPage};
 use emberhut_api::facts::FactsPage;
 use emberhut_api::headers::ETag;
@@ -465,6 +466,10 @@ impl Backend for Failover {
 
     fn change_theme(&self, change: &ThemeChange) -> Result<ThemePage, Error> {
         self.active().change_theme(change)
+    }
+
+    fn rename_ember(&self, name: Option<&str>) -> Result<EmberName, Error> {
+        self.active().rename_ember(name)
     }
 
     fn machines(&self) -> Result<MachinesPage, Error> {
