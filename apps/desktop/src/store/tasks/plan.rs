@@ -476,7 +476,13 @@ pub(crate) fn checklist(plan: &Plan, earlier: bool, later: bool) -> Vec<Item<'_>
 #[must_use]
 pub(crate) fn so_far(step: &PlanStep, now: Timestamp) -> Option<String> {
     let started = clock::instant(step.started.as_ref()?)?;
-    Some(format!("{} so far", clock::span(started, now)))
+    let span = clock::span(started, now);
+    // Minutes are enough here: `6m 3s` reads `6m`.
+    let span = match span.split_once(' ') {
+        Some((minutes, seconds)) if seconds.ends_with('s') => minutes.to_owned(),
+        _ => span,
+    };
+    Some(format!("{span} so far"))
 }
 
 /// The steps' results, in plan order: each link and the step that made it.
