@@ -253,6 +253,7 @@ impl SetupView {
             .disabled(busy)
             .on_click(move |_, _, cx| store.update(cx, Store::continue_home));
         let shows_form = setup.shows_elsewhere() || here == Here::TypeCode;
+        let signed_in = self.store.read(cx).is_signed_in();
         div()
             .flex()
             .flex_col()
@@ -291,7 +292,7 @@ impl SetupView {
                 self.store.read(cx).on_cloud_waitlist(),
                 p,
             ))
-            .child(always_on(&self.store, p))
+            .child(always_on(&self.store, signed_in, p))
             .children(status)
             .when(here != Here::TypeCode, |d| {
                 d.child(div().flex().pt(px(4.)).child(continue_button))
@@ -646,7 +647,7 @@ fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement 
 
 /// Why an always-on home matters: a small picture (this computer asleep, an always-on one
 /// lit) and a line.
-fn always_on(store: &Entity<Store>, p: &Pal) -> impl IntoElement {
+fn always_on(store: &Entity<Store>, signed_in: bool, p: &Pal) -> impl IntoElement {
     let store = store.clone();
     let place =
         |glyph: IconName, badge: Option<IconName>, color, badge_color, words: &'static str| {
@@ -721,19 +722,17 @@ fn always_on(store: &Entity<Store>, p: &Pal) -> impl IntoElement {
                 .text_color(p.muted)
                 .child(always_on_line()),
         )
-        .child(
-            Button::new("setup-add-hut")
-                .ghost()
-                .small()
-                .label("Add another hut")
-                .tooltip("Pair an always-on computer with a code from it")
-                .on_click(move |_, _, cx| {
-                    store.update(cx, |store, cx| {
-                        store.choose_home(HomeChoice::Elsewhere, cx);
-                        store.continue_home(cx);
-                    });
-                }),
-        )
+        // Another computer joins once this ember has a hut (a code needs a signed-in one).
+        .when(signed_in, |d| {
+            d.child(
+                Button::new("setup-add-hut")
+                    .ghost()
+                    .small()
+                    .label("Add another hut")
+                    .tooltip("Another computer joins your ember with a code")
+                    .on_click(move |_, _, cx| store.update(cx, Store::open_add_hut)),
+            )
+        })
         .test_support()
 }
 

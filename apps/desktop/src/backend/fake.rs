@@ -191,6 +191,8 @@ pub(crate) enum Call {
     UseAccount(UseAccountRequest),
     /// `join_waitlist`.
     JoinWaitlist(String),
+    /// `runner_pair_code`.
+    RunnerPairCode,
     /// The jobs read, fresh or not.
     Jobs(bool),
     /// A job stopped or cleared.
@@ -255,6 +257,10 @@ pub(crate) struct FakeBackend {
     recordings: Mutex<VecDeque<Result<(), Error>>>,
     transcripts: Mutex<VecDeque<Result<String, Error>>>,
     calls: Mutex<Vec<Call>>,
+    /// The runners `runners` lists (a test adds one as a hut joins).
+    pub(crate) runners: Mutex<Vec<emberhut_api::runner::pairing::RunnerRow>>,
+    /// Whether a runner code's address reaches past this computer.
+    pub(crate) runners_reachable: Mutex<bool>,
     /// What a live stream sends before it waits for `stop`.
     live: Vec<RoomEvent>,
     /// The files on the server, by path.
@@ -318,6 +324,8 @@ impl FakeBackend {
             recordings: Mutex::new(VecDeque::new()),
             transcripts: Mutex::new(VecDeque::new()),
             calls: Mutex::new(Vec::new()),
+            runners: Mutex::new(Vec::new()),
+            runners_reachable: Mutex::new(true),
             live: Vec::new(),
             files: HashMap::new(),
             catch_ups: Mutex::new(VecDeque::new()),
@@ -1040,6 +1048,33 @@ impl Backend for FakeBackend {
     fn join_waitlist(&self, list: &str) -> Result<(), Error> {
         self.record(Call::JoinWaitlist(list.to_owned()));
         Ok(())
+    }
+
+    fn runner_pair_code(&self) -> Result<emberhut_api::runner::pairing::RunnerCode, Error> {
+        self.record(Call::RunnerPairCode);
+        let code = "ABCD-EFGH";
+        let server = "http://hut.example:18990";
+        Ok(emberhut_api::runner::pairing::RunnerCode {
+            code: code.to_owned(),
+            expires_at: Timestamp::new("2026-11-28T12:10:00.000Z"),
+            server: server.to_owned(),
+            reachable: *self.runners_reachable.lock().expect("the fake's lock"),
+            install: emberhut_api::runner::pairing::RunnerInstall {
+                command: format!("emberhut-runner install --server {server} --pair {code}"),
+                shell: format!(
+                    "curl -fsSL https://example.com/install-runner.sh | sh -s -- --server {server} --pair {code}"
+                ),
+                powershell: format!(
+                    "irm https://example.com/install-runner.ps1 | iex; Install-Runner -Server {server} -Pair {code}"
+                ),
+            },
+        })
+    }
+
+    fn runners(&self) -> Result<emberhut_api::runner::pairing::RunnersPage, Error> {
+        Ok(emberhut_api::runner::pairing::RunnersPage {
+            runners: self.runners.lock().expect("the fake's lock").clone(),
+        })
     }
 
     fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {

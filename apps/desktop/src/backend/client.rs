@@ -507,6 +507,14 @@ impl Backend for EmberhutBackend {
         self.client.join_waitlist(list).map_err(error)
     }
 
+    fn runner_pair_code(&self) -> Result<emberhut_api::runner::pairing::RunnerCode, Error> {
+        self.client.runner_pair_code(None).map_err(error)
+    }
+
+    fn runners(&self) -> Result<emberhut_api::runner::pairing::RunnersPage, Error> {
+        self.client.runners().map_err(error)
+    }
+
     fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
         self.client.agent_accounts().map_err(error)
     }

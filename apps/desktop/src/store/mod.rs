@@ -31,6 +31,7 @@ pub(crate) mod files;
 mod flaky;
 pub(crate) mod gate;
 pub(crate) mod goals;
+pub(crate) mod huts_add;
 pub(crate) mod images;
 mod in_flight;
 mod kept;
@@ -299,6 +300,8 @@ pub(crate) struct Store {
     credentials: credentials::Credentials,
     /// The first-run setup.
     setup: setup::Setup,
+    /// "Add a hut": another computer joining as a hut.
+    adding_hut: huts_add::AddingHut,
 }
 
 impl Store {
@@ -417,6 +420,7 @@ impl Store {
             primary_retry: fallback::Retry::default(),
             credentials: credentials::Credentials::default(),
             setup,
+            adding_hut: huts_add::AddingHut::default(),
         }
     }
 

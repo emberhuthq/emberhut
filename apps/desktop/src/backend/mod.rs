@@ -549,6 +549,20 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`]; [`Error::Refused`] with the server's words.
     fn join_waitlist(&self, list: &str) -> Result<(), Error>;
 
+    /// A one-time code that pairs another computer's runner as a hut, with what to run there.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`].
+    fn runner_pair_code(&self) -> Result<emberhut_api::runner::pairing::RunnerCode, Error>;
+
+    /// The runners the server calls: its huts.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`].
+    fn runners(&self) -> Result<emberhut_api::runner::pairing::RunnersPage, Error>;
+
     /// The agent CLI accounts the server runs on and whether each can take work.
     ///
     /// # Errors

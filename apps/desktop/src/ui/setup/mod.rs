@@ -21,6 +21,7 @@ mod yours;
 use emberhut_api::ids::RoomId;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
+use gpui_kit::component::Sizable as _;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
@@ -79,6 +80,8 @@ pub(crate) struct SetupView {
     name: Entity<InputState>,
     /// "Make it yours": Your ember's look picker, in its setup variant.
     look: Entity<LookPicker>,
+    /// "Add a hut"'s sheet's focus.
+    hut_focus: FocusHandle,
 }
 
 impl SetupView {
@@ -127,6 +130,7 @@ impl SetupView {
             fold: None,
             name,
             look,
+            hut_focus: cx.focus_handle(),
         }
     }
 
@@ -286,6 +290,7 @@ impl SetupView {
         p: &Pal,
         cx: &Context<'_, Self>,
     ) -> AnyElement {
+        let signed_in = self.store.read(cx).is_signed_in();
         let setup = self.store.read(cx).setup();
         let state = setup.state(step).clone();
         let is_open = step == open;
@@ -363,6 +368,20 @@ impl SetupView {
                     )
                     .when(step == SetupStep::Home && done && keeps, |d| {
                         d.child(div().flex().child(keep::change_button(&self.store)))
+                    })
+                    .when(step == SetupStep::Home && done && signed_in, |d| {
+                        let store = self.store.clone();
+                        d.child(
+                            div().flex().child(
+                                Button::new("setup-rail-add-hut")
+                                    .ghost()
+                                    .small()
+                                    .label("Add another hut")
+                                    .on_click(move |_, _, cx| {
+                                        store.update(cx, Store::open_add_hut);
+                                    }),
+                            ),
+                        )
                     }),
             )
             .test_support()
@@ -470,5 +489,11 @@ impl Render for SetupView {
                 d.child(div().absolute().inset_0().child(self.chrome.clone()))
             })
             .children(keep_sheet)
+            .children(crate::ui::add_hut::add_hut_sheet(
+                &self.store,
+                &self.hut_focus,
+                &p,
+                cx,
+            ))
     }
 }

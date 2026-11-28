@@ -337,3 +337,52 @@ fn make_it_yours_names_the_ember_live_and_keeps_the_name(cx: &mut TestAppContext
         "sent to the server"
     );
 }
+
+#[gpui_kit::test]
+fn add_another_hut_shows_the_line_to_run_and_says_when_the_hut_joined(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]).with_session());
+    *backend.runners_reachable.lock().unwrap() = false;
+    let (store, cx) = open(&backend, false, cx);
+    store.update(cx, |store, cx| {
+        store.take_state_for_tests(crate::fixtures::state(json!({})), cx);
+        store.preview_setup(Some(SetupStep::Light), cx);
+    });
+    assert!(
+        shows(cx, "setup-rail-add-hut"),
+        "once the ember has its hut"
+    );
+    cx.update(|window, cx| window.click("setup-rail-add-hut", cx));
+    cx.run_until_parked();
+    assert!(backend.calls().contains(&Call::RunnerPairCode));
+    assert!(
+        shows(cx, "add-hut-command"),
+        "the line to run on the other computer"
+    );
+    assert!(shows(cx, "add-hut-shell"));
+    assert!(
+        shows(cx, "add-hut-unreachable"),
+        "said plainly when it can't be reached"
+    );
+
+    backend
+        .runners
+        .lock()
+        .unwrap()
+        .push(emberhut_api::runner::pairing::RunnerRow {
+            name: "studio".to_owned(),
+            place: "Studio".to_owned(),
+            url: "http://studio.example:8806".to_owned(),
+            source: emberhut_api::runner::pairing::RunnerSource::Paired,
+            platform: Some("macos".to_owned()),
+            version: Some("0.1.0".to_owned()),
+            created: None,
+        });
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(4));
+    cx.run_until_parked();
+    assert_eq!(
+        store.read_with(cx, |store, _| store.add_hut().clone()),
+        crate::store::huts_add::AddHut::Joined("studio".to_owned())
+    );
+    assert!(shows(cx, "add-hut-joined"));
+}
