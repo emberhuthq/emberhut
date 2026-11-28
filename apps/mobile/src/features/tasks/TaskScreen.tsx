@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { View } from "react-native";
-import { type Issue } from "@/api";
+import { View, type ScrollViewInstance } from "react-native";
+import { type Issue, type Plan, type TaskArtifact } from "@/api";
+import { allSessions } from "@/features/sessions/sessionList";
 import { mainRoom } from "@/config";
 import { inBackground } from "@/log";
 import type { RootScreenProps } from "@/navigation/types";
@@ -10,8 +11,10 @@ import { useTheme } from "@/theme";
 import { Card, Collapsible, EmptyState, ListRow, Loading, Screen, Section, SectionHeading, Text, usePullRefresh } from "@/ui";
 import { Activity } from "./Activity";
 import { copyDraftFor } from "./copyDraft";
-import { pagePlan, pageStamp, pageTask } from "./plan";
+import { pagePlan, pageStamp, pageTask, stepLink } from "./plan";
 import { PlanChecklist } from "./PlanChecklist";
+import { PlanHeader } from "./PlanHeader";
+import { quietMinutes, stepResults } from "./planView";
 import { DecisionBlock, DecisionContext } from "./Decision";
 import { standing, timeline } from "./taskPage";
 import { leaveSoon, TaskActionsBar } from "./TaskActionsBar";
@@ -25,8 +28,10 @@ import { Brief, Details, Finding, Findings, Folded, History, SinceAsked, StopWor
  * your own reply), then the work itself (where it stands, what it made, its subtasks, its runs and sessions), then the rest
  * folded (details, the brief, history). The answers and actions stay pinned at the bottom.
  *
- * While the server keeps task plans: the plan first, as a checklist its agent ticks, then what needs you, then the
- * activity (each turn in a line, the sessions one tap away) instead of where it stands, the runs and the sessions.
+ * While the server keeps task plans: under the title what's done, now, next and what needs you (PlanHeader), the plan as
+ * a checklist its agent ticks, then what needs you, your reply, the files and results (each step's first), then one
+ * activity feed (turns, history, files, with the sessions one tap away) instead of where it stands, the runs, the
+ * sessions and the history.
  */
 export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   const { id } = route.params;
@@ -35,6 +40,8 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   const fromState = state.data?.issues?.find((t) => t.id === id);
   const page = useTask(id);
   const pull = usePullRefresh(page.refetch);
+  const scroll = useRef<ScrollViewInstance>(null);
+  const askAt = useRef(0);
   const plans = useTaskPlans();
   const full = page.data ? pageTask(page.data) : undefined;
   const plan = plans ? pagePlan(page.data) : null;
@@ -76,23 +83,55 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   const room = state.data?.rooms?.find((r) => r.project != null && r.project === task.pid)?.id ?? mainRoom;
   // The page's own summary goes with its steps; the state's until the page answers.
   const summary = plans ? (plan?.summary ?? task.plan ?? null) : null;
+  const shown: Plan | null = summary ? (plan ?? { steps: [], summary }) : null;
+  const sessions = full?.sessions ?? [];
+  const toAsk = decision ? () => scroll.current?.scrollTo({ y: Math.max(askAt.current - spacing.md, 0), animated: true }) : undefined;
+  // Each step's result first, then what the task produced.
+  const fromSteps = stepResults(shown).flatMap(({ step, link }): TaskArtifact[] => {
+    const read = stepLink(link);
+    if (!read || read.kind === "text") return [];
+    return [
+      {
+        id: -step.id,
+        kind: read.kind === "web" ? "link" : "file",
+        name: `From: ${step.title}`,
+        caption: read.text,
+        url: link,
+        at: step.finished ?? step.updated,
+      },
+    ];
+  });
   return (
     <View style={{ flex: 1 }}>
-      <Screen scroll {...pull}>
+      <Screen scroll {...pull} scrollRef={scroll}>
         <View style={{ gap: spacing.sm, paddingHorizontal: spacing.xs }}>
           <Text variant="title" selectable>
             {task.title}
           </Text>
-          <LiveCard task={task} runs={runs} />
-          {decision && !summary ? <DecisionContext decision={decision} decideBy={task.decideBy} /> : null}
+          {shown ? (
+            <PlanHeader
+              task={task}
+              plan={shown}
+              sessions={sessions}
+              quiet={quietMinutes(task, [...sessions, ...allSessions(state.data)])}
+              onAsk={toAsk}
+            />
+          ) : (
+            <LiveCard task={task} runs={runs} />
+          )}
+          {decision && !shown ? <DecisionContext decision={decision} decideBy={task.decideBy} /> : null}
         </View>
-        {summary ? <PlanChecklist plan={plan} summary={summary} /> : null}
-        {decision && summary ? (
-          <View style={{ paddingHorizontal: spacing.xs }}>
-            <DecisionContext decision={decision} decideBy={task.decideBy} />
+        {shown ? <PlanChecklist plan={shown} onAnswer={toAsk} /> : null}
+        {decision && shown ? (
+          <View style={{ gap: spacing.md }} onLayout={(e) => (askAt.current = e.nativeEvent.layout.y)}>
+            <View style={{ paddingHorizontal: spacing.xs }}>
+              <DecisionContext decision={decision} decideBy={task.decideBy} />
+            </View>
+            <DecisionBlock decision={decision} updated={task.updated} artifacts={task.artifacts ?? []} onAnswer={answer} />
           </View>
+        ) : decision ? (
+          <DecisionBlock decision={decision} updated={task.updated} artifacts={task.artifacts ?? []} onAnswer={answer} />
         ) : null}
-        {decision ? <DecisionBlock decision={decision} updated={task.updated} artifacts={task.artifacts ?? []} onAnswer={answer} /> : null}
         {task.status !== "canceled" ? (
           <View style={{ gap: spacing.sm }}>
             <SectionHeading>
@@ -105,7 +144,8 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
             />
           </View>
         ) : null}
-        {decision && results.length > 0 ? (
+        {shown ? <Results items={[...fromSteps, ...results]} title="Files and results" /> : null}
+        {!shown && decision && results.length > 0 ? (
           <Folded title={`Files and results · ${results.length}`}>
             <Results items={results} title="Files and results" />
           </Folded>
@@ -124,12 +164,12 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
             </Card>
           </View>
         ) : null}
-        {!decision ? <Results items={results} /> : null}
+        {!shown && !decision ? <Results items={results} /> : null}
         <Subtasks task={task} full={full} navigate={(kid) => navigation.push("Task", { id: kid })} />
         <Finding task={full ?? task} navigate={(other) => navigation.push("Task", { id: other })} />
         <Findings full={full} navigate={(other) => navigation.push("Task", { id: other })} />
         {plans ? (
-          <Activity runs={runs} sessions={full?.sessions ?? []} />
+          <Activity runs={runs} sessions={sessions} history={history} artifacts={[...fromSteps, ...results]} />
         ) : (
           <>
             {runs.length > 0 ? <RunList runs={runs} /> : null}
@@ -149,7 +189,7 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
         {decision ? <SinceAsked history={history} asked={decision.asked} question={decision.question} /> : null}
         <Details task={task} full={full} state={state.data} navigate={navigation} />
         <Brief task={task} />
-        <History history={history} />
+        {plans ? null : <History history={history} />}
         {task.status === "working" ? <StopWorker task={task} /> : null}
       </Screen>
       <TaskActionsBar task={task} issues={state.data?.issues ?? []} decision={decision} answersInPage={answersInPage} room={room} />
