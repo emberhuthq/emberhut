@@ -25,7 +25,7 @@ function useReducedMotion(): boolean {
  */
 export function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   const { colors } = useTheme();
-  const tint = color ?? colors.working;
+  const tint = color ?? colors.running;
   const reduced = useReducedMotion();
   const [turn] = useState(() => new Animated.Value(0));
   useEffect(() => {
@@ -126,7 +126,7 @@ export function SegmentBar({
   label: string;
 }) {
   const { colors, radius } = useTheme();
-  const fill: Record<Segment, string> = { done: colors.done, doing: colors.working, blocked: colors.danger, todo: colors.border };
+  const fill: Record<Segment, string> = { done: colors.done, doing: colors.running, blocked: colors.danger, todo: colors.border };
   const shown = Math.min(Math.max(fraction, 0), 1);
   return (
     <View

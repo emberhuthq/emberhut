@@ -27,11 +27,13 @@ export interface Palette {
   switchThumb: string;
   /** What waits on you: the theme's accent. */
   needsYou: string;
-  /**
-   * Running: a run going on a task, a step being worked on. The theme's warn, as on the desktop; always drawn with a
-   * shape (a spinner, a ring), so it isn't colour alone.
-   */
+  /** Work going on: a busy room, the assistant's steps, a run's chip. The theme's info. */
   working: string;
+  /**
+   * Running, in the task plans' views: a run going on a task, a step being worked on. The theme's warn, as on the
+   * desktop; always drawn with a shape (a spinner, a ring), so it isn't colour alone.
+   */
+  running: string;
   /** Queued, and other quiet information. */
   info: string;
   done: string;
@@ -62,7 +64,8 @@ export function paletteFrom(t: ThemeTokens, scheme: "light" | "dark"): Palette {
     onStatus: dark ? t.background : t.surface,
     switchThumb: dark ? t.text : t.surface,
     needsYou: t.accent,
-    working: t.warn,
+    working: t.info,
+    running: t.warn,
     info: t.info,
     done: t.success,
     warning: t.warn,
