@@ -33,6 +33,12 @@ impl Loose<'_> {
     pub(crate) fn len(&self) -> usize {
         self.waiting.len() + self.running.len() + self.recent.len()
     }
+
+    /// Whether there are none: the list shows no foot for them then.
+    #[must_use]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The sessions in `state` that work on no task, as of `now`: the user's own and the
@@ -116,5 +122,21 @@ mod tests {
             "the last day's, newest first"
         );
         assert_eq!(loose.len(), 4);
+    }
+
+    /// Once every session is on a task (the server gives new ones one), and the finished ones
+    /// with none are older than a day, there is no foot to show.
+    #[test]
+    fn with_every_session_on_a_task_there_are_none() {
+        let now: Timestamp = "2026-11-28T09:00:00Z".parse().unwrap();
+        let state = state(json!({
+            "mySessions": [
+                session("mine", "running", "2026-11-28T08:59:00Z", &[4]),
+                session("old", "completed", "2026-11-20T00:00:00Z", &[]),
+            ],
+            "sessions": [session("assistant", "waiting", "2026-11-28T08:00:00Z", &[5])],
+        }));
+        assert!(loose(&state, now).is_empty());
+        assert!(!loose(&state, "2026-11-20T09:00:00Z".parse().unwrap()).is_empty());
     }
 }

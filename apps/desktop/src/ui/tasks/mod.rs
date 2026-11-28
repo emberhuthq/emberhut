@@ -416,7 +416,7 @@ impl Rows<'_> {
                 body = self.task(body, task);
             }
         }
-        if loose.len() > 0 {
+        if !loose.is_empty() {
             body = body.child(loose::section_head(p, loose.len()));
             body = body.children(
                 loose
@@ -427,7 +427,7 @@ impl Rows<'_> {
                     .map(|session| self.session(session)),
             );
         }
-        if list.is_empty() && loose.len() == 0 {
+        if list.is_empty() && loose.is_empty() {
             body = body.child(
                 div()
                     .px(px(8.))
