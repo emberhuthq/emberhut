@@ -64,12 +64,21 @@ pub(super) fn head(body: Div, part: &Part<'_>, cx: &Context<'_, TaskView>) -> Di
     {
         lines.push(("Blocked", words_of(blocker, p.danger, false)));
     }
-    if let Some(eta) = task
-        .plan
-        .as_ref()
-        .and_then(|summary| plan::eta_line(summary, now))
+    if let Some(summary) = &task.plan
+        && let Some(eta) = plan::eta_line(summary, now)
     {
-        lines.push(("ETA", words_of(eta, p.muted, false)));
+        // Without the agent's estimate the line only says when the plan last moved.
+        let label = if summary.eta.is_some() {
+            "ETA"
+        } else {
+            "Updated"
+        };
+        let eta = if summary.eta.is_some() {
+            eta
+        } else {
+            eta.trim_start_matches("updated ").to_owned()
+        };
+        lines.push((label, words_of(eta, p.muted, false)));
     }
     let mut head = div().flex().flex_col().gap(px(5.)).pt(px(10.));
     for (label, value) in lines {
