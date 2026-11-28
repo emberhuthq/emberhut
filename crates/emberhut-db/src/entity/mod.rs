@@ -56,6 +56,7 @@ pub(crate) mod note;
 pub(crate) mod pairing_code;
 pub(crate) mod party;
 pub(crate) mod party_message;
+pub(crate) mod plan_step;
 pub(crate) mod pref;
 pub(crate) mod project;
 pub(crate) mod pull;

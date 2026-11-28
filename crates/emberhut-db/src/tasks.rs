@@ -24,7 +24,10 @@ use crate::entity::{area, issue, issue_event};
 use crate::time::{instant, millis};
 use crate::{DbError, begin_write};
 
+mod plan;
 mod rooms;
+
+pub use plan::StoredPlan;
 
 /// Why a task could not be made or changed: one of the rules said no, or the database failed.
 #[derive(Debug, thiserror::Error)]
@@ -33,6 +36,9 @@ pub enum TaskStoreError {
     /// A rule refused it; the text is for the caller.
     #[error(transparent)]
     Refused(#[from] TaskRefusal),
+    /// A plan rule refused it; the text is for the caller.
+    #[error(transparent)]
+    Plan(#[from] emberhut_core::task::plan::PlanRefusal),
     /// The database failed.
     #[error(transparent)]
     Db(#[from] DbError),

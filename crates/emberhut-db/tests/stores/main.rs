@@ -20,6 +20,7 @@ mod rooms;
 mod secret_links;
 mod sessions;
 mod settings;
+mod task_plans;
 mod tasks;
 mod threads;
 mod workers;
