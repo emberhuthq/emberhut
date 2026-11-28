@@ -181,6 +181,30 @@ The live browser view follows the same rule: the stream address the server sends
 https, or plain http to a private or CGNAT IP. On iOS anything else is blocked by ATS; a page that fails to load says
 why, with Retry.
 
+## Tasks with plans
+
+A server that keeps task plans says so in the state (`ui.taskPlans`). Then every task carries the plan its agent ticks as it
+goes: the state's tasks have it at a glance (`plan`: done of total, the current step, what blocks it, the estimate, when it
+changed), and a task's page has every step (`GET /api/tasks/<id>`'s `plan`). The step states are wire words in
+`src/api/wire.ts`; the reading is `features/tasks/plan.ts` and `planView.ts`, with their tests. Without the switch (an older
+server) nothing below happens and the app is as it was.
+
+- **Tabs**: Your ember's, Needs you, Tasks and More. Sessions leaves the tab bar and opens as a page from More (and from the
+  chat's Sessions button). The switch's last value is kept with the prefs, so the bar is right before the state answers.
+- **Tasks**: a line to what needs you (its tab lists it), then Running (a blocked task that runs stays here with its red
+  mark; then the sessions running with no task), Blocked, Open, and the other sessions with no task (waiting on you, or
+  finished in the last day), each opening its session. A row leads with a shape for its state (a turning ring while a run
+  goes, red when blocked, the ember dot when it waits on you), keeps its title whole, says the step it's on or what blocks
+  it, "quiet 25m" once a running task's plan and session haven't moved for 20 minutes, and ends on a bar with a segment per
+  step (plain past 12) and its ticks. Running is the theme's warn colour, as on the desktop, always with a shape.
+- **A task's page**: under the title its state, Now, what needs you or blocks it (a tap scrolls to the ask), Next, the
+  estimate and its session; the count ("4 of 8 done · 1 blocked · 1 skipped") over the segmented bar; the checklist (the
+  current step lit with its time so far, sub-steps indented, a step's result under it, folded around the current step past
+  eight rows); the ask; your reply; Files and results, each step's first; one Activity feed of turns, history and files
+  (All, Turns, Plan, Files) with each turn's session one tap away. An empty plan reads "No plan yet".
+- **Live**: the list follows the state's poll; an open page is fetched again when the state says its task, its plan or its
+  run moved.
+
 ## Manual checks before a store upload
 
 Not run by CI (no Xcode or Android SDK there); record the result in the pull request.
@@ -201,8 +225,8 @@ Not run by CI (no Xcode or Android SDK there); record the result in the pull req
   and a tap above it closes it. The chat's title is centred, and the Sessions button's count sits whole on its icon's
   corner.
 - The native chrome, on iOS 26 and on one older iOS (18):
-  - the five tabs: four with SF Symbols, Your ember's with the ember in its own colours (grey off duty), and the
-    Needs you badge;
+  - the five tabs (four with `ui.taskPlans` on: Sessions moves under More): four with SF Symbols, Your ember's with the
+    ember in its own colours (grey off duty), and the Needs you badge;
   - large titles that collapse as Needs you, Tasks, Sessions and More scroll;
   - the chat's solid header with no scroll-edge fade over its list, on a cold start straight into the chat (iOS 26
     Simulator: quit the app, open it), and again after switching rooms and tabs;
