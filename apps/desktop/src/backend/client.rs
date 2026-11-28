@@ -57,7 +57,7 @@ use super::{
     Backend, Error, FreshState, RoomEvent, SharedBytes, StateReply, TooLarge, UploadSource,
 };
 use crate::config::{AppFiles, Server, ServerUrl};
-use crate::wire::{MoveToTask, MovedToTask, SESSION_TASK_ROUTE};
+use crate::wire::{MoveToTask, MovedToTask, SESSION_TASK_ROUTE, TaskRename};
 
 /// `emberhut-client`, as the app's backend.
 #[derive(Debug)]
@@ -409,6 +409,13 @@ impl Backend for EmberhutBackend {
 
     fn act_on_tasks(&self, action: &TaskAction) -> Result<(), Error> {
         self.client.act_on_tasks(action).map_err(error)
+    }
+
+    fn rename_task(&self, id: TaskId, title: &str) -> Result<Issue, Error> {
+        let change = TaskRename {
+            title: title.to_owned(),
+        };
+        self.client.change_task(id, &change).map_err(error)
     }
 
     fn session_transcript(&self, id: &SessionId, query: &StepsQuery) -> Result<Transcript, Error> {
@@ -841,6 +848,42 @@ mod tests {
         assert_eq!(requests[0].method, "POST");
         assert_eq!(requests[0].target, "/api/runner/sessions/r-1/task");
         assert_eq!(requests[0].json(), json!({"task": 7}));
+    }
+
+    #[test]
+    fn a_task_is_renamed_or_the_server_says_why_not() {
+        let server = TestServer::start(2, |request| {
+            match request.json()["title"].as_str().unwrap_or_default() {
+                "" => Reply::json(
+                    400,
+                    &json!({"ok": false, "error": "a title is 1 to 200 characters"}),
+                ),
+                title => Reply::json(
+                    200,
+                    &serde_json::to_value(crate::fixtures::issue(
+                        4,
+                        "todo",
+                        json!({"title": title}),
+                    ))
+                    .unwrap(),
+                ),
+            }
+        });
+        let backend = backend(&server);
+        let renamed = backend.rename_task(TaskId::new(4), "Bake rye").unwrap();
+        assert_eq!(
+            (renamed.id, renamed.title.as_str()),
+            (TaskId::new(4), "Bake rye")
+        );
+        let refused = backend.rename_task(TaskId::new(4), "").unwrap_err();
+        assert_eq!(
+            refused.server_message(),
+            Some("a title is 1 to 200 characters")
+        );
+        let requests = server.finish();
+        assert_eq!(requests[0].method, "PATCH");
+        assert_eq!(requests[0].target, "/api/tasks/4");
+        assert_eq!(requests[0].json(), json!({"title": "Bake rye"}));
     }
 
     #[test]

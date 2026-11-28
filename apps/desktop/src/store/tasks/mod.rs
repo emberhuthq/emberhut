@@ -17,6 +17,7 @@ pub(crate) mod loose;
 pub(crate) mod moving;
 pub(crate) mod pages;
 pub(crate) mod plan;
+pub(crate) mod rename;
 pub(crate) mod replies;
 pub(crate) mod runs;
 pub(crate) mod search;

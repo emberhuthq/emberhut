@@ -30,13 +30,12 @@ use crate::ui::a11y::Accessible as _;
 use crate::ui::controls::tab_stop;
 use crate::ui::move_to_task;
 use crate::ui::palette::Pal;
-use crate::ui::reads::reads;
 use crate::ui::sessions::{self, Open};
 use crate::ui::tasks::marks::{glyph, status_icon, tone_color};
 use crate::ui::tasks::plan_marks;
 
 /// The title and the head's lines.
-pub(super) fn head(body: Div, part: &Part<'_>, view: &TaskView) -> Div {
+pub(super) fn head(body: Div, part: &Part<'_>, view: &TaskView, cx: &Context<'_, TaskView>) -> Div {
     let (p, task) = (part.p, part.task);
     let now = part.now.timestamp();
     let full = part.page.and_then(|page| page.plan.as_ref());
@@ -122,14 +121,9 @@ pub(super) fn head(body: Div, part: &Part<'_>, view: &TaskView) -> Div {
                 .child(value.flex_1().min_w_0()),
         );
     }
-    body.child(
-        reads(&task.title)
-            .pt(px(14.))
-            .text_size(px(18.))
-            .font_weight(FontWeight::BOLD),
-    )
-    .child(head)
-    .children(session_line(part))
+    body.child(super::title::title(part, view, cx))
+        .child(head)
+        .children(session_line(part))
 }
 
 /// A head line's words.

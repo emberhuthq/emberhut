@@ -42,6 +42,15 @@ pub(crate) struct MovedToTask {
     pub(crate) task: TaskId,
 }
 
+/// The body of a task's rename: `PATCH` on the task's own path (`/api/tasks/{id}`, which the
+/// contract names for `GET`), answered with the task as it is now; the server takes 1 to 200
+/// characters.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(crate) struct TaskRename {
+    /// The new title.
+    pub(crate) title: String,
+}
+
 /// The steps of a task's history that only change its state, in the words the server writes.
 pub(crate) const QUIET_STEPS: [&str; 11] = [
     "Started",

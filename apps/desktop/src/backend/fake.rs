@@ -154,6 +154,8 @@ pub(crate) enum Call {
     MessageTask(TaskId, String),
     /// An action on tasks.
     Act(TaskAction),
+    /// A task renamed: the task and its new title.
+    RenameTask(TaskId, String),
     /// A session's transcript: the session and the query string.
     Transcript(SessionId, String),
     /// A session's live stream followed: the session and the query string.
@@ -271,6 +273,8 @@ pub(crate) struct FakeBackend {
     /// The answers to project changes, device sign-outs and task actions, in turn (then they
     /// go through).
     actions: Mutex<VecDeque<Result<(), Error>>>,
+    /// The answers to renames, in turn (by default each goes through).
+    renames: Mutex<VecDeque<Result<(), Error>>>,
     /// The runner sessions' transcripts, streams and answers.
     pub(crate) sessions: SessionReplies,
     /// The answers about the assistant's browser.
@@ -321,6 +325,7 @@ impl FakeBackend {
             found: Mutex::new(VecDeque::new()),
             task_messages: Mutex::new(VecDeque::new()),
             actions: Mutex::new(VecDeque::new()),
+            renames: Mutex::new(VecDeque::new()),
             sessions: SessionReplies::default(),
             browser: BrowserReplies::default(),
             party: PartyReplies::default(),
@@ -415,6 +420,14 @@ impl FakeBackend {
     /// Queues the answer to the next message on a task.
     pub(crate) fn push_task_message(&self, reply: Result<TaskMessageReply, Error>) {
         self.task_messages
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push_back(reply);
+    }
+
+    /// Queues the answer to the next rename (by default it goes through).
+    pub(crate) fn push_rename(&self, reply: Result<(), Error>) {
+        self.renames
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push_back(reply);
@@ -832,6 +845,16 @@ impl Backend for FakeBackend {
             .unwrap_or_else(PoisonError::into_inner)
             .pop_front()
             .unwrap_or(Ok(()))
+    }
+
+    fn rename_task(&self, id: TaskId, title: &str) -> Result<Issue, Error> {
+        self.record(Call::RenameTask(id, title.to_owned()));
+        self.renames
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pop_front()
+            .unwrap_or(Ok(()))
+            .map(|()| crate::fixtures::issue(id.get(), "todo", serde_json::json!({"title": title})))
     }
 
     fn record_call(&self, request: &RecordCallRequest) -> Result<(), Error> {

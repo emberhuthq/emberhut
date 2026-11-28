@@ -15,6 +15,7 @@ mod reply;
 mod results;
 mod text;
 mod thumb;
+mod title;
 mod top;
 mod width;
 mod work;
@@ -28,7 +29,7 @@ use emberhut_api::tasks::Issue;
 use emberhut_api::time::Day;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::date_picker::{DatePickerEvent, DatePickerState};
-use gpui_kit::component::input::{InputEvent, TextareaState};
+use gpui_kit::component::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::prelude::*;
 use gpui_kit::{AnyElement, Div, Entity, FontWeight, ScrollHandle, Window, div, point, px};
 use jiff::ZonedDateTime;
@@ -80,6 +81,10 @@ pub(crate) struct TaskView {
     column: Entity<Column>,
     /// The task the page's own state is for.
     shown: Option<TaskId>,
+    /// The title's field, for a rename.
+    title_field: Entity<InputState>,
+    /// Edit title was pressed: the field is up.
+    renaming: Option<title::Renaming>,
     reply: Entity<TextareaState>,
     notes: Entity<TextareaState>,
     /// What the notes field was last filled from (the task's body then).
@@ -141,6 +146,7 @@ impl TaskView {
             }
         })
         .detach();
+        let title_field = title::field(window, cx);
         let deadline_picker = cx.new(|cx| DatePickerState::new(window, cx));
         cx.subscribe_in(
             &deadline_picker,
@@ -185,6 +191,8 @@ impl TaskView {
             store,
             column,
             shown: None,
+            title_field,
+            renaming: None,
             reply,
             notes,
             notes_from: String::new(),
@@ -284,6 +292,7 @@ impl TaskView {
         cx: &mut Context<'_, Self>,
     ) {
         self.shown = task;
+        self.renaming = None;
         self.writing = false;
         self.open_texts.clear();
         self.reading = None;
@@ -612,7 +621,7 @@ impl TaskView {
     /// notes) and Stop on a working task.
     fn planned_body(&self, part: &Part<'_>, cx: &Context<'_, Self>) -> AnyElement {
         let mut body = div().flex().flex_col();
-        body = plan::head(body, part, self);
+        body = plan::head(body, part, self, cx);
         body = plan::section_of(body, part, self, cx);
         body = plan::needs_you(body, part, self, cx);
         body = reply::section(body, part, self, cx);

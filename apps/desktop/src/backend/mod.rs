@@ -407,6 +407,14 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`]; [`Error::Refused`] with the server's reason.
     fn act_on_tasks(&self, action: &TaskAction) -> Result<(), Error>;
 
+    /// Renames task `id` to `title`: the task as it is now.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`]; [`Error::Refused`] with the server's reason: 400 for an empty or
+    /// too long title, 404 for a task it doesn't have.
+    fn rename_task(&self, id: TaskId, title: &str) -> Result<Issue, Error>;
+
     /// A runner session's transcript: its head and newest steps, or those after one.
     ///
     /// # Errors

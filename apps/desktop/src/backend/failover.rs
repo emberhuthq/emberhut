@@ -602,6 +602,10 @@ impl Backend for Failover {
         self.active().act_on_tasks(action)
     }
 
+    fn rename_task(&self, id: TaskId, title: &str) -> Result<Issue, Error> {
+        self.active().rename_task(id, title)
+    }
+
     fn session_transcript(&self, id: &SessionId, query: &StepsQuery) -> Result<Transcript, Error> {
         self.active().session_transcript(id, query)
     }

@@ -12,28 +12,19 @@ use super::text::{Long, collapsible, rich};
 use super::{Part, TaskView, section};
 use crate::brand::APP_NAME;
 use crate::store::tasks::{clock, runs, words};
-use crate::ui::reads::reads;
 use crate::ui::tasks::marks::{status_icon, tone_color};
 
-/// The title, the live card and the decision.
+/// The title (and its rename), the live card and the decision.
 pub(super) fn title_and_state(
     body: Div,
     part: &Part<'_>,
     view: &TaskView,
     cx: &Context<'_, TaskView>,
 ) -> Div {
-    asks(title_and_live(body, part), part, view, cx)
-}
-
-/// The title and the live card.
-pub(super) fn title_and_live(body: Div, part: &Part<'_>) -> Div {
-    body.child(
-        reads(&part.task.title)
-            .pt(px(14.))
-            .text_size(px(18.))
-            .font_weight(FontWeight::BOLD),
-    )
-    .child(live_card(part))
+    let body = body
+        .child(super::title::title(part, view, cx))
+        .child(live_card(part));
+    asks(body, part, view, cx)
 }
 
 /// What the task asks of the user: an X post to look at, and the decision.
