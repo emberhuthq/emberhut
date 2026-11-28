@@ -657,7 +657,13 @@ fn share(store: &Entity<Store>, p: &Pal) -> Div {
                 .border_color(p.border)
                 .bg(p.surface)
                 .child(Icon::new(IconName::Users).size(px(18.)).text_color(p.muted))
-                .child(div().flex_1().text_size(px(13.5)).child(SHARE_LINE))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(px(13.5))
+                        .child(SHARE_LINE),
+                )
                 .child(tag("Early preview", p.muted)),
         )
         .child(
