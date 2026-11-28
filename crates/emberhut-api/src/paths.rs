@@ -57,6 +57,10 @@ pub const MCP_ROOM: &str = crate::wire::mcp::ROOM_PATH;
 /// task.
 pub const MCP_WORKER: &str = "/mcp/worker";
 
+/// `POST`: the MCP endpoint the runners' sessions call, with the runner sessions' token: a
+/// task's plan and the task. The path is in [`crate::wire`].
+pub const MCP_RUNNER: &str = crate::wire::mcp::RUNNER_PATH;
+
 /// The ultra gate an ultra run's lead's hook asks before each new sub-agent and shell
 /// command, with its task's token.
 pub const ULTRA_GATE: &str = "/ultra/gate";

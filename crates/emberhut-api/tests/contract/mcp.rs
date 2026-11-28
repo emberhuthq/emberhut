@@ -67,3 +67,22 @@ fn a_display_change_writes_only_the_switches_given() {
     };
     assert_eq!(to_value(&request), json!({ "ui": { "hideGoals": false } }));
 }
+
+#[test]
+fn the_runners_shared_list_carries_the_runner_sessions_entry_as_written() {
+    use emberhut_api::runners::SharedMcp;
+    use emberhut_api::wire::mcp::{RUNNER_PATH, SERVER_NAME, SESSION_HEADER, SESSION_HEADER_VALUE};
+
+    assert_eq!(emberhut_api::paths::MCP_RUNNER, RUNNER_PATH);
+    let wire = json!({ "mcpServers": { SERVER_NAME: {
+        "type": "http",
+        "url": format!("http://127.0.0.1:18990{RUNNER_PATH}"),
+        "headers": { "Authorization": "Bearer t", SESSION_HEADER: SESSION_HEADER_VALUE },
+    } } });
+    let list: SharedMcp = from_value(wire.clone());
+    assert_eq!(
+        list.mcp_servers[SERVER_NAME]["headers"][SESSION_HEADER], "${EMBERHUT_SESSION}",
+        "the variable the runner sets, filled in by the agent CLI"
+    );
+    assert_eq!(to_value(&list), wire);
+}
