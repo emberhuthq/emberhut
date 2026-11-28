@@ -28,6 +28,11 @@ export interface ComposerProps {
   /** A send that reports whether it went: the words and files stay in the box until it did. */
   onSend: (text: string, files: ChatFile[]) => void | Promise<boolean>;
   disabled?: boolean;
+  /**
+   * The box is laid out but not shown (the screen keeps it at opacity 0 until the room's first data, to know its height).
+   * Its glass is made again when it's shown: see the field below.
+   */
+  hidden?: boolean;
 }
 
 /**
@@ -47,6 +52,7 @@ export function Composer({
   stopLabel = "Stop Emberhut",
   onSend,
   disabled = false,
+  hidden = false,
 }: ComposerProps) {
   const { colors, radius, spacing, type } = useTheme();
   const [attaching, setAttaching] = useState(false);
@@ -91,7 +97,11 @@ export function Composer({
       {uploads.uploads.length > 0 && <UploadStrip uploads={uploads.uploads} onRemove={uploads.remove} />}
       {voice.error && <ErrorLine text={voice.error} onHide={voice.clearError} />}
       {uploads.error && <ErrorLine text={uploads.error} onHide={uploads.clearError} />}
-      <Glass style={[styles.field, { borderRadius: radius.lg + 4 }]}>
+      {/* Liquid Glass made while the box is at opacity 0 may never draw: UIKit skips the effect at low opacity, and
+          expo-glass-effect's wait for visibility doesn't always put it back. The white text then sits straight on the
+          messages and pictures under it and can't be read. So the glass (and the field in it, whose text is the screen's)
+          is made afresh once the box is shown, at full opacity. */}
+      <Glass key={hidden ? "hidden" : "shown"} style={[styles.field, { borderRadius: radius.lg + 4 }]}>
         <IconButton icon="add" label="Attach a picture or file" onPress={() => setAttaching(true)} disabled={disabled} />
         <TextInput
           value={text}
