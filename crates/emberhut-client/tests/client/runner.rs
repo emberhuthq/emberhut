@@ -1,8 +1,8 @@
-//! The runner sessions: a transcript, the live stream, a message, Stop, settings, a new session
-//! and its sheet, and an external thread's steps.
+//! The runner sessions: a transcript, the live stream, a message, Stop, settings, a move to
+//! another task, a new session and its sheet, and an external thread's steps.
 
-use emberhut_api::ids::{MachineId, SessionId, ToolCallId};
-use emberhut_api::runner::actions::{Effort, SendToSession, SessionSettings};
+use emberhut_api::ids::{MachineId, SessionId, TaskId, ToolCallId};
+use emberhut_api::runner::actions::{Effort, MoveSession, SendToSession, SessionSettings};
 use emberhut_api::runner::new_session::{BranchQuery, FolderQuery, OpenSession, Worktree};
 use emberhut_api::runner::transcript::{SessionLive, StepsQuery};
 use emberhut_api::threads::ActivityQuery;
@@ -142,6 +142,38 @@ fn a_message_stop_and_settings_post_their_bodies() {
     assert_eq!(sent[0].json(), json!({ "effort": "max" }));
     let stop = &server.requests_to("/api/runner/sessions/r-1a/stop")[0];
     assert_eq!((stop.method.as_str(), stop.json()), ("POST", json!({})));
+}
+
+#[test]
+fn a_move_to_another_task_posts_the_task() {
+    let server = TestServer::start(|request| match request.json()["task"].as_i64() {
+        Some(12) => Reply::Json(200, fixture("runner_move_reply.json")),
+        _ => Reply::Json(404, json!({ "ok": false, "error": "no such task" })),
+    });
+    let client = server.client(fresh("r1"));
+    let to = MoveSession {
+        task: TaskId::new(12),
+    };
+    let moved = client.move_session(&session(), &to).unwrap();
+    assert!(moved.ok);
+    assert_eq!(moved.task, TaskId::new(12));
+    let sent = &server.requests_to("/api/runner/sessions/r-1a/task")[0];
+    assert_eq!(
+        (sent.method.as_str(), sent.json()),
+        ("POST", fixture("runner_move_request.json"))
+    );
+    let error = client
+        .move_session(
+            &session(),
+            &MoveSession {
+                task: TaskId::new(99),
+            },
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&error, Error::Status { status: 404, message: Some(m) } if m == "no such task"),
+        "{error:?}"
+    );
 }
 
 #[test]

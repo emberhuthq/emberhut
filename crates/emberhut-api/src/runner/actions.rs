@@ -1,12 +1,12 @@
 //! The person driving a session: a message (`POST .../send`), Stop (`POST .../stop`: the step it's
 //! on ends and nothing queued runs), Stop this turn (`POST .../interrupt`: what is queued runs
-//! next) and its model and effort for the next turn (`POST .../settings`, the person's own
-//! sessions).
+//! next), its model and effort for the next turn (`POST .../settings`, the person's own
+//! sessions) and the task it works for (`POST .../task`, on a server that keeps plans).
 
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::chat::ChatFile;
-use crate::ids::TurnId;
+use crate::ids::{TaskId, TurnId};
 use crate::open_enum::open_enum;
 
 /// The words a message with files and no words of its own is sent as.
@@ -115,6 +115,28 @@ pub struct SessionSettings {
     /// The effort.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effort: Option<Effort>,
+}
+
+/// `POST .../task`: move the session to another task, on a server that keeps plans. Its link
+/// and its open run go to `task`, and both tasks' histories say so; a task the server made for
+/// the session that is left with nothing of its own is put away (`Merged into T-n`). 404 for a
+/// session or a task the server doesn't know (and on a server that doesn't keep plans), 400 for
+/// a task that is done or archived, each with an [`ErrorBody`](crate::error::ErrorBody).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct MoveSession {
+    /// The task it works for from now on.
+    pub task: TaskId,
+}
+
+/// `POST .../task`'s answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct MovedSession {
+    /// Always `true`: a refusal is an `ErrorBody`.
+    pub ok: bool,
+    /// The task it works for now.
+    pub task: TaskId,
 }
 
 #[cfg(test)]

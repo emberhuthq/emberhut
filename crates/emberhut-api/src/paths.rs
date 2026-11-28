@@ -123,8 +123,8 @@ pub const RUNNER_FOLDERS: &str = "/api/runner/folders";
 /// worktree ([`crate::runner::new_session::BranchQuery`]).
 pub const RUNNER_BRANCHES: &str = "/api/runner/branches";
 
-/// One route of session `id`: `transcript`, `live`, `send`, `stop`, `interrupt` or `settings`
-/// (see [`crate::runner`]).
+/// One route of session `id`: `transcript`, `live`, `send`, `stop`, `interrupt`, `settings` or
+/// `task` (see [`crate::runner`]).
 #[must_use]
 pub fn session(id: &crate::ids::SessionId, route: SessionRoute) -> String {
     format!("{RUNNER_SESSIONS}/{id}/{}", route.as_str())
@@ -145,6 +145,8 @@ pub enum SessionRoute {
     Interrupt,
     /// `POST`: its model and effort.
     Settings,
+    /// `POST`: move it to another task ([`crate::runner::actions::MoveSession`]).
+    Task,
 }
 
 impl SessionRoute {
@@ -158,6 +160,7 @@ impl SessionRoute {
             Self::Stop => "stop",
             Self::Interrupt => "interrupt",
             Self::Settings => "settings",
+            Self::Task => "task",
         }
     }
 }

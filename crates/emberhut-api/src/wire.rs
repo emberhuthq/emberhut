@@ -3,7 +3,8 @@
 //! The modules that use one name it under its own name and point here
 //! ([`crate::headers::LOOKING`], [`crate::mcp::SERVER_NAME`], [`crate::paths::MCP_ROOM`],
 //! [`crate::push::ANDROID_CHANNEL`], [`crate::threads::ACTIVITY`]), or, in the server, name
-//! them from here. The MCP endpoint's values are in [`mcp`].
+//! them from here. The MCP endpoint's values are in [`mcp`], a runner session's meta keys in
+//! [`session_meta`].
 //!
 //! Wire enum words name their constant here too (the assistant's and the owner's words). A
 //! serde field name has to be written out where the field is: the state's running-threads key
@@ -12,6 +13,7 @@
 //! [`ASSISTANT_ACCOUNT_FIELD`].
 
 pub mod mcp;
+pub mod session_meta;
 
 /// The assistant: a session message's sender, a note's author, where a task's message went and
 /// the owner of the assistant's own tasks.

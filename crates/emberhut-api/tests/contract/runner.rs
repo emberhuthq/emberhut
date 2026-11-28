@@ -1,9 +1,12 @@
-//! The runner sessions: a transcript, the live stream, a reply, a new session with its folders
-//! and branches, the state's agents, sessions, external threads and accounts, and an external thread's steps.
+//! The runner sessions: a transcript, the live stream, a reply, a move to another task, a new
+//! session with its folders and branches, the state's agents, sessions, external threads and
+//! accounts, and an external thread's steps.
 
 use emberhut_api::chat::FileKind;
 use emberhut_api::ids::{MachineId, SessionId, TaskId, ToolCallId, TurnId};
-use emberhut_api::runner::actions::{Effort, SendToSession, SentToSession};
+use emberhut_api::runner::actions::{
+    Effort, MoveSession, MovedSession, SendToSession, SentToSession,
+};
 use emberhut_api::runner::agents::AgentWho;
 use emberhut_api::runner::new_session::{BranchList, FolderList, OpenSession, OpenedSession};
 use emberhut_api::runner::steps::{Sender, StepKind, TodoStatus};
@@ -94,6 +97,22 @@ fn a_reply_and_its_answer_keep_their_shape() {
     assert!(worker.queued, "a worker counts what waits");
     let none: SentToSession = from_value(serde_json::json!({ "ok": true }));
     assert!(!none.queued && none.turn.is_none());
+}
+
+#[test]
+fn a_move_to_another_task_and_its_answer_keep_their_shape() {
+    let to: MoveSession = assert_round_trip("runner_move_request.json");
+    assert_eq!(to.task, TaskId::new(12));
+    let moved: MovedSession = assert_round_trip("runner_move_reply.json");
+    assert!(moved.ok);
+    assert_eq!(moved.task, TaskId::new(12));
+    assert_eq!(
+        emberhut_api::paths::session(
+            &SessionId::from("r-3c"),
+            emberhut_api::paths::SessionRoute::Task
+        ),
+        "/api/runner/sessions/r-3c/task"
+    );
 }
 
 #[test]

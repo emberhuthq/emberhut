@@ -9,7 +9,9 @@ use std::time::Duration;
 use emberhut_api::error::OkReply;
 use emberhut_api::ids::SessionId;
 use emberhut_api::paths::{self, SessionRoute};
-use emberhut_api::runner::actions::{SendToSession, SentToSession, SessionSettings, Stopped};
+use emberhut_api::runner::actions::{
+    MoveSession, MovedSession, SendToSession, SentToSession, SessionSettings, Stopped,
+};
 use emberhut_api::runner::new_session::{
     BranchList, BranchQuery, FolderList, FolderQuery, OpenSession, OpenedSession,
 };
@@ -117,6 +119,17 @@ impl Client {
         let _: OkReply =
             exchange::json(self.post(&paths::session(id, SessionRoute::Settings), settings)?)?;
         Ok(())
+    }
+
+    /// Moves a session to another task (`POST .../task`), on a server that keeps plans.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Status`] 404 for a session or task the server doesn't know (or a server that
+    /// doesn't keep plans), 400 for a task that is done or archived; [`Error::SignInRequired`],
+    /// the transport's and decoding errors.
+    pub fn move_session(&self, id: &SessionId, to: &MoveSession) -> Result<MovedSession, Error> {
+        exchange::json(self.post(&paths::session(id, SessionRoute::Task), to)?)
     }
 
     /// Opens a session of the person's own with their first message
