@@ -714,7 +714,10 @@ values.
 
 A runner is a program on one of the person's machines that runs coding-agent sessions (ADR
 0017). The server reaches each one's API at `--runner NAME=URL`; each runner has its own token
-(a `NAME=TOKEN` line of `--runner-tokens`), which the server sends it and it presents back.
+(a `NAME=TOKEN` line of `--runner-tokens`), which the server sends it and it presents back. A
+runner can also be paired at run time with a one-time code (below): the server keeps its
+address and token in its database, and it is a runner like a configured one, on every route
+here.
 
 The routes below that act (opening a session, a reply, stop, interrupt and settings, a move
 to another task, a worker's reply and stop, stopping a job, pinning the assistant's account, a switch), and
@@ -724,6 +727,102 @@ first.", "signIn": true }`, report mode included. Reading, and "Check now"
 (`POST /api/usage/check`, `POST /api/environments/check`), passes the session gate as
 anything else does. A session's id is `r-` and lowercase hex digits; the server puts no other
 id into a runner's path, from a route or from the assistant's tools.
+
+### POST /api/runners/codes
+
+A one-time code a new runner pairs with, on a signed-in device (401 `signIn` without one, in
+either auth mode). The body may be empty, or name the server's address as the app reaches it,
+when it knows one another machine can reach (`NewRunnerCode`):
+
+```json
+{ "server": "https://emberhut.example.com" }
+```
+
+200 (`RunnerCode`):
+
+```json
+{
+  "code": "ABCD-EFGH",
+  "expiresAt": "<instant>",
+  "server": "https://emberhut.example.com",
+  "reachable": true,
+  "install": {
+    "command": "emberhut-runner install --server https://emberhut.example.com --pair ABCD-EFGH",
+    "shell": "curl -fsSL https://github.com/emberhuthq/emberhut/releases/download/v<version>/install-runner.sh | sh -s -- --server https://emberhut.example.com --pair ABCD-EFGH",
+    "powershell": "$env:EMBERHUT_SERVER=\"https://emberhut.example.com\"; $env:EMBERHUT_PAIR_CODE=\"ABCD-EFGH\"; irm https://github.com/emberhuthq/emberhut/releases/download/v<version>/install-runner.ps1 | iex"
+  }
+}
+```
+
+The code follows a device code's rules (8 characters, 10 minutes, once, only its hash kept),
+in a table of its own: a runner's code never signs a device in, nor the other way round.
+`server` is the address in the lines, picked in this order: the body's `server`; the public
+URL (`EMBERHUT_PUBLIC_URL`), then the listen address, when another machine can reach them;
+the address the request came in on, over the server's own listener (never a relayed one),
+when it isn't loopback; else that address or the server's own. `reachable` is false when the
+address is loopback (`127.0.0.1`, `localhost`), which only this computer reaches: the app
+says so rather than show lines that can't work elsewhere. `install` holds the lines to copy:
+`command` with the runner already installed, `shell` for macOS and Linux, `powershell` for
+Windows (as an administrator); `<version>` is the server's release, an address a shell would
+read otherwise is quoted. 400 for a `server` that isn't `http://` or `https://` with a host,
+without `?` or `#`.
+
+`emberhut-server pair-runner` prints the same on the server's machine (`--json` for the
+answer's fields), from the database and the `--listen` and `--public-url` settings serving
+uses, or `--server URL`.
+
+### POST /api/runner/pair
+
+A new runner trades the code for its name and token. No session: the code is the proof.
+
+```json
+{ "code": "ABCD-EFGH", "name": "build", "url": "http://192.0.2.7:8806", "place": "Build box", "platform": "linux", "version": "1.4.0" }
+```
+
+`PairRunner`. `code` is read as a device code is (case, spaces and the dash don't matter).
+`name` is 1 to 40 of `A-Z`, `a-z`, `0-9`, `-` and `_`, not `codes`; `url` is the address the
+server calls the runner at, `http://` or `https://` with a host, without `?` or `#`, its final
+`/` dropped; `place` (optional) is its machine in words, one line, at most 60 characters;
+`platform` and `version` are one line each, 1 to 40 characters.
+
+| Status | Body |
+|---|---|
+| 200 | `{ "name": "build", "token": "<token>" }` (`PairedRunner`) |
+| 400 | `{ "error" }`: a name, address, place, platform or version the server doesn't take, or a body that isn't JSON; the code stays unused |
+| 401 | `{ "error" }`: `"Type the pairing code."`, `"That code isn't right. Check it, or make a new one."`, `"That code was already used. Make a new one."`, `"That code has expired. Make a new one."` |
+| 409 | `{ "error" }`: every name near the one asked for (`build` to `build-99`) is another runner's; the code stays unused |
+| 429 | `{ "error": "Too many wrong codes. Try again in N minutes." }` with `Retry-After`: 5 wrong runner codes in 10 minutes stop every runner code for every caller (a brake apart from devices') |
+
+A name another runner has, configured or paired, is never taken over: the runner is paired
+under the first free one of `build-2`, `build-3`, ... (cut short to stay within 40
+characters), and `name` says which. The runner reports itself by that name from then on. The
+token is 32 random bytes in URL-safe base64, shown once; the server sends it as `Authorization:
+Bearer <token>` on every call to the runner, and takes it on `/api/runner/events`,
+`/api/runner/machine` and `/api/runner/mcp` as that runner's, compared in constant time like a
+configured runner's.
+
+### GET /api/runners
+
+Every runner the server knows (`RunnersPage`), no token listed: the configured ones in their
+order, then the paired ones by name.
+
+```json
+{ "runners": [
+  { "name": "runner", "place": "Linux PC", "url": "http://192.0.2.10:8806", "source": "flag" },
+  { "name": "build", "place": "Build box", "url": "http://192.0.2.7:8806", "source": "paired",
+    "platform": "linux", "version": "1.4.0", "created": "<instant>" }
+] }
+```
+
+`source` is `flag` or `paired` (a client keeps a word it doesn't know). Reading passes the
+session gate as anything else does.
+
+### DELETE /api/runners/{name}
+
+Forgets a paired runner, on a signed-in device (401 `signIn` without one): its token stops
+working at once and the server no longer calls it. 200 `{ "ok": true }`; 404 `{ "error" }` for a
+name no paired runner has; 409 `{ "error" }` for a runner only the server's configuration
+names (`--runner`), which is changed there.
 
 ### POST /api/runner/events
 
