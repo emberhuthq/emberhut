@@ -51,7 +51,7 @@ fn page() -> TaskPage {
             ],
             "artifacts": [{"id": 4, "kind": "md", "caption": null, "at": "2026-11-28T07:30:00Z",
                 "name": "notes.md", "url": "/api/artifacts/4", "thumb": null}],
-            "plan": {"steps": [
+            "fullPlan": {"steps": [
                 step(1, "done", Some("2026-11-28T08:10:00Z")),
                 step(2, "skipped", Some("2026-11-28T07:40:00Z")),
                 step(3, "blocked", None),
