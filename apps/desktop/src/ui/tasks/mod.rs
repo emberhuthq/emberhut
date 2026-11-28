@@ -1,9 +1,16 @@
 //! Tasks: one flat list (what needs you, today's, the rest) under a search over every task and
 //! the filter bar, with New task in the head, the archived tasks folded at the foot, and an
 //! empty state that says whether nothing is open or the filter hides it.
+//!
+//! On a server that keeps plans, Tasks is the main place: under Needs you come what runs and
+//! what is blocked, each row with its plan, and at the foot the sessions with no task as items
+//! of their own (waiting, running, then the last day's), with a way to every session, so no
+//! work leaves the screen.
 
 mod filter_bar;
+mod loose;
 pub(crate) mod marks;
+pub(crate) mod plan_marks;
 pub(crate) mod row;
 pub(crate) mod swipe;
 pub(crate) mod tick;
@@ -18,7 +25,7 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::prelude::*;
-use gpui_kit::{Div, Entity, FontWeight, ScrollHandle, SharedString, Window, div, px};
+use gpui_kit::{App, Div, Entity, FontWeight, ScrollHandle, SharedString, Window, div, px};
 use jiff::civil::Date;
 
 use self::marks::{glyph, progress, thousands};
@@ -33,6 +40,7 @@ use crate::store::lookup;
 use crate::store::tasks::clock;
 use crate::store::tasks::filter::TaskFilter;
 use crate::store::tasks::list::{self, TaskList};
+use crate::store::tasks::loose::{self as loose_sessions, Loose};
 use crate::store::tasks::search::Found;
 
 /// The Tasks page.
@@ -101,7 +109,8 @@ impl TasksView {
         cx.notify();
     }
 
-    fn head(p: &Pal, count: usize, cx: &Context<'_, Self>) -> Div {
+    /// The head: Tasks, how many are open (and, with plans, how many run), New task.
+    fn head(p: &Pal, count: usize, running: usize, cx: &Context<'_, Self>) -> Div {
         div()
             .flex()
             .items_center()
@@ -120,7 +129,11 @@ impl TasksView {
                 div()
                     .text_size(px(12.))
                     .text_color(p.muted)
-                    .child(format!("{count} open")),
+                    .child(if running > 0 {
+                        format!("{count} open · {running} running")
+                    } else {
+                        format!("{count} open")
+                    }),
             )
             .child(div().flex_1())
             .child(
@@ -212,7 +225,7 @@ impl Render for TasksView {
                 .size_full()
                 .flex()
                 .flex_col()
-                .child(Self::head(&p, 0, cx))
+                .child(Self::head(&p, 0, 0, cx))
                 .child(
                     scroller("tasks-scroll", &self.scroll)
                         .child(body.child(loading(&p, "Loading…"))),
@@ -220,6 +233,12 @@ impl Render for TasksView {
         };
         let filter = store.task_filter();
         let list = TaskList::new(state, store.answers().gone(), &filter, today);
+        // The sessions with no task go with the list only when nothing narrows it.
+        let loose = if store.keeps_plans() && filter.is_empty() {
+            loose_sessions::loose(state, jiff::Timestamp::now())
+        } else {
+            Loose::default()
+        };
         let rows = Rows {
             store: &store_entity,
             read: store,
@@ -228,20 +247,23 @@ impl Render for TasksView {
             today,
             hides_projects,
             swipes: &self.swipes,
+            cx,
         };
         let search = store.tasks().search();
         if search.is_on() {
             body = body.child(section_head(&p, "Tasks", None, false));
             body = rows.found(body, search.lookup().found(), search.text());
         } else {
-            body = rows.list(body, &list, filter.is_empty());
+            body = rows.list(body, &list, &loose, filter.is_empty());
             body = body.child(archived_fold(&store_entity, &rows, &p));
         }
+        let count = list.len();
+        let running = list.running.len();
         div()
             .size_full()
             .flex()
             .flex_col()
-            .child(Self::head(&p, list.len(), cx))
+            .child(Self::head(&p, count, running, cx))
             .child(scroller("tasks-scroll", &self.scroll).child(body))
     }
 }
@@ -255,6 +277,7 @@ struct Rows<'a> {
     today: Date,
     hides_projects: bool,
     swipes: &'a RowSwipes,
+    cx: &'a App,
 }
 
 impl Rows<'_> {
@@ -275,7 +298,7 @@ impl Rows<'_> {
             swipes: Some(self.swipes),
             ticked: self.read.is_ticked(task.id),
         };
-        column = column.child(row::row(self.store, self.p, task, look));
+        column = column.child(row::row(self.store, self.p, task, look, self.cx));
         if open {
             for subtask in list::subtasks(self.state, task.id, self.read.answers().gone()) {
                 column = column.child(row::row(
@@ -288,6 +311,7 @@ impl Rows<'_> {
                         ticked: false,
                         ..look
                     },
+                    self.cx,
                 ));
             }
         }
@@ -295,8 +319,8 @@ impl Rows<'_> {
     }
 
     /// The list's sections, the health card under Today, the empty state and what the filter
-    /// hides.
-    fn list(&self, mut body: Div, list: &TaskList<'_>, unfiltered: bool) -> Div {
+    /// hides; with plans, what runs and the sessions with no task (`loose`).
+    fn list(&self, mut body: Div, list: &TaskList<'_>, loose: &Loose<'_>, unfiltered: bool) -> Div {
         let p = self.p;
         if !list.needs_you.is_empty() {
             body = body.child(section_head(
@@ -307,6 +331,14 @@ impl Rows<'_> {
             ));
             for task in &list.needs_you {
                 body = self.task(body, task);
+            }
+        }
+        for (title, tasks) in [("Running", &list.running), ("Blocked", &list.blocked)] {
+            if !tasks.is_empty() {
+                body = body.child(section_head(p, title, Some(tasks.len()), false));
+                for task in tasks {
+                    body = self.task(body, task);
+                }
             }
         }
         let health = self.state.health.as_ref().filter(|_| unfiltered);
@@ -330,7 +362,18 @@ impl Rows<'_> {
                 body = self.task(body, task);
             }
         }
-        if list.is_empty() {
+        if loose.len() > 0 {
+            body = body.child(loose::section_head(p, loose.len()));
+            body = body.children(
+                loose
+                    .waiting
+                    .iter()
+                    .chain(&loose.running)
+                    .chain(&loose.recent)
+                    .map(|session| self.session(session)),
+            );
+        }
+        if list.is_empty() && loose.len() == 0 {
             body = body.child(
                 div()
                     .px(px(8.))
@@ -366,6 +409,11 @@ impl Rows<'_> {
             ));
         }
         body
+    }
+
+    /// A session with no task, as an item of the list: it opens the session.
+    fn session(&self, session: &emberhut_api::work::RunnerSession) -> gpui_kit::AnyElement {
+        loose::row(self.store, self.p, session)
     }
 
     /// Tasks found by the server: a spinner while they come, `No task matches …` when none do.
