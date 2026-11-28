@@ -92,10 +92,13 @@ left out, and a build without a dialect ignores it):
   row, or at start-up a first check and 2 quick retries that fail, every request goes to the
   fallback server, and a bar over the chat says the server isn't answering and that you're on
   the fallback server.
-- The app never turns back by itself: what you do on the fallback server stays there, and
-  turning back unasked would split your work between two servers. The bar's **Try again** asks
-  the server and turns back only if it answers. A relaunch stays on the fallback server too
-  (`fallback.json` remembers it) until you turn back.
+- While the fallback server answers, the app never turns back by itself: what you do on the
+  fallback server stays there, and turning back unasked would split your work between two
+  servers. The bar's **Try again** asks the server and turns back only if it answers. A relaunch
+  stays on the fallback server too (`fallback.json` remembers it) until you turn back.
+- On the fallback server the app asks its `GET /health` every 15 s as well. After 3 failed
+  checks in a row it asks the server at each check, and turns back as soon as the server
+  answers: a fallback that is down too holds no work to split.
 - Each server has its own session. On macOS that is a Keychain item per server address, so
   moving a server's address from `server` to `fallback` keeps it signed in as the fallback;
   the new server is paired as usual. Elsewhere the fallback's session is in `fallback/`.
