@@ -9,6 +9,7 @@ import { useEmberhutState, useTask } from "@/state/queries";
 import { useTheme } from "@/theme";
 import { Card, Collapsible, EmptyState, ListRow, Loading, Screen, Section, SectionHeading, Text, usePullRefresh } from "@/ui";
 import { copyDraftFor } from "./copyDraft";
+import { pageTask } from "./plan";
 import { DecisionBlock, DecisionContext } from "./Decision";
 import { standing, timeline } from "./taskPage";
 import { leaveSoon, TaskActionsBar } from "./TaskActionsBar";
@@ -28,7 +29,7 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   const fromState = state.data?.issues?.find((t) => t.id === id);
   const page = useTask(id);
   const pull = usePullRefresh(page.refetch);
-  const full = page.data;
+  const full = page.data ? pageTask(page.data) : undefined;
   const { refetch } = page;
   // Asked again when the state says the task changed; the first value seen is what the page's own fetch already has.
   const updated = fromState?.updated;

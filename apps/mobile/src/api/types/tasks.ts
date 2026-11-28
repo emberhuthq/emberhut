@@ -1,7 +1,7 @@
 import type { ChatFile } from "./chat";
 import type { Day, Instant } from "./common";
 import type { RunnerSession } from "./sessions";
-import type { ASSISTANT, Author } from "../wire";
+import type { ASSISTANT, Author, StepState } from "../wire";
 
 /** todo, working (a worker is on it), waiting (needs your decision), done, canceled (shown as Archived). */
 export type TaskStatus = "todo" | "working" | "waiting" | "done" | "canceled";
@@ -223,6 +223,60 @@ export interface UltraRun {
   lead: UltraLead | null;
 }
 
+/** One step of a task's plan. Steps nest one level: a step with a `parent` is a sub-step of that top-level step. */
+export interface PlanStep {
+  /** Stable for the life of its plan, unique within its task. */
+  id: number;
+  /** The top-level step it is a sub-step of; none for a top-level step. */
+  parent?: number | null;
+  /** One short line ("Build the Mac app"). */
+  title: string;
+  /** A string, so a state the app doesn't know still reads (as not started). */
+  state: StepState | (string & {});
+  /** What it came to, or what blocks it. */
+  note?: string | null;
+  /** What it produced: a pull request, a page, a file. */
+  link?: string | null;
+  started?: Instant | null;
+  /** When it was done or skipped. */
+  finished?: Instant | null;
+  updated: Instant;
+}
+
+/** The step a task is on: the first one being worked on, else the first not started. */
+export interface CurrentStep {
+  id: number;
+  title: string;
+  /** doing, todo or blocked. */
+  state: StepState | (string & {});
+}
+
+/**
+ * A plan at a glance, on every task of a server that keeps plans. Sub-steps count in place of the step they make up;
+ * skipped steps count in neither number. `total` 0: no plan yet.
+ */
+export interface PlanSummary {
+  done: number;
+  total: number;
+  /** The step being worked on, or next. */
+  current?: CurrentStep | null;
+  /** What blocks the plan: the first blocked step's note, else its title. */
+  blocker?: string | null;
+  /** The agent's estimate of what is left, in words ("about 2 hours"). */
+  eta?: string | null;
+  /** When the plan last changed; none while it is empty and never written. */
+  updated?: Instant | null;
+  /** A turn of work on the task ended while its plan was still empty: when the last one did. */
+  unplannedTurn?: Instant | null;
+}
+
+/** A task's whole plan (GET /api/tasks/<id>'s `plan`). */
+export interface Plan {
+  /** Every step in order: each top-level step, then its sub-steps. */
+  steps: PlanStep[];
+  summary: PlanSummary;
+}
+
 /** A task (its key built by `taskKey`), yours or Emberhut's. Fields marked "fetched alone" come only from GET /api/tasks/<id>. */
 export interface Issue {
   id: number;
@@ -284,6 +338,14 @@ export interface Issue {
   runs?: RunInfo[] | null;
   sessions?: RunnerSession[] | null;
   ultraRun?: UltraRun | null;
+  /** Its plan at a glance, on a server that keeps plans (state.ui.taskPlans); `total` 0: no plan yet. */
+  plan?: PlanSummary | null;
+}
+
+/** GET /api/tasks/<id>: the task with everything its page shows; its `plan` is the whole plan, step by step. */
+export interface TaskPage extends Omit<Issue, "plan"> {
+  /** On a server that keeps plans. */
+  plan?: Plan | null;
 }
 
 /** GET /api/tasks. Statuses are the server's raw ones, comma separated. */
