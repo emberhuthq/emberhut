@@ -254,8 +254,9 @@ pub struct DisplayUi {
     #[serde(default)]
     pub hide_projects: bool,
     /// Tasks carry plans: show tasks as the work running, each with its plan, and the
-    /// sessions inside them rather than as a list of their own.
-    #[serde(default)]
+    /// sessions inside them rather than as a list of their own. Left out when off, so the
+    /// state reads as it did before plans.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub task_plans: bool,
 }
 

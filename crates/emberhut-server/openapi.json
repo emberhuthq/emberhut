@@ -12744,7 +12744,7 @@
           },
           "taskPlans": {
             "type": "boolean",
-            "description": "Tasks carry plans: show tasks as the work running, each with its plan, and the\nsessions inside them rather than as a list of their own."
+            "description": "Tasks carry plans: show tasks as the work running, each with its plan, and the\nsessions inside them rather than as a list of their own. Left out when off, so the\nstate reads as it did before plans."
           }
         }
       },
