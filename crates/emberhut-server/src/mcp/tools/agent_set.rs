@@ -15,7 +15,7 @@ use emberhut_core::task::TaskId;
 
 use super::{
     AnyTool, ToolContext, ToolError, ToolSet, agent_memory, agent_tasks, agents, approvals,
-    room_tools, tool, ultra, workers,
+    room_tools, task_plan, tool, ultra, workers,
 };
 
 /// Every configured agent's own tools, whatever it lists.
@@ -158,6 +158,9 @@ pub(crate) fn agent_worker_tools(ultra: bool) -> ToolSet {
         tool(workers::WorkerAsk),
         tool(workers::TaskRunner),
         tool(workers::WorkerDone),
+        tool(task_plan::PlanSet),
+        tool(task_plan::PlanStepTool),
+        tool(task_plan::PlanRead),
         tool(approvals::ApprovalRequest),
         tool(approvals::ApprovalStatus),
         tool(approvals::ApprovalWithdraw),

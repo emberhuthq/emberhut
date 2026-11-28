@@ -17,7 +17,7 @@ use emberhut_core::task::TaskId;
 use serde_json::Value;
 
 use crate::app::AppState;
-use crate::mcp::tools::{ToolContext, ToolSet, agent_worker_tools, worker_tools};
+use crate::mcp::tools::{PLAN_TOOLS, ToolContext, ToolSet, agent_worker_tools, worker_tools};
 use crate::mcp::{self, Answer};
 use crate::services::agents::scope::TaskOwner;
 
@@ -101,10 +101,16 @@ pub(super) async fn mcp_worker(
             .flatten()
             .is_some_and(|d| d.task.ultra);
     let (room, tools) = worker_tools_of(&app, task, ultra).await;
+    let tools = if app.task_plans() {
+        tools
+    } else {
+        tools.without(&PLAN_TOOLS)
+    };
     let ctx = ToolContext {
         app,
         room,
         worker: Some(task),
+        session: None,
     };
     match mcp::answer(&body, &tools, &ctx).await {
         Answer::Reply(reply) => (StatusCode::OK, Json(reply)).into_response(),

@@ -20,6 +20,7 @@ use serde_json::Value;
 use crate::app::AppState;
 
 pub(crate) use agent_set::{agent_tools, agent_worker_tools};
+pub(crate) use task_plan::PLAN_TOOLS;
 
 mod agent_memory;
 mod agent_set;
@@ -46,6 +47,7 @@ mod routines;
 mod runners;
 mod secret_links;
 mod slack;
+mod task_plan;
 mod tasks;
 mod theme;
 mod threads;
@@ -77,6 +79,9 @@ pub(crate) fn room_tools() -> ToolSet {
         tool(tasks::Projects),
         tool(tasks::ProjectSet),
         tool(tasks::AreaSet),
+        tool(task_plan::PlanSet),
+        tool(task_plan::PlanStepTool),
+        tool(task_plan::PlanRead),
         tool(plan::Plan),
         tool(plan::GoalSet),
         tool(plan::GoalDrop),
@@ -215,6 +220,9 @@ pub(crate) fn worker_tools(ultra: bool) -> ToolSet {
         tool(workers::WorkerAsk),
         tool(workers::TaskRunner),
         tool(workers::WorkerDone),
+        tool(task_plan::PlanSet),
+        tool(task_plan::PlanStepTool),
+        tool(task_plan::PlanRead),
     ]);
     if ultra {
         tools.extend([
@@ -264,6 +272,10 @@ pub(crate) struct ToolContext {
     pub(crate) room: RoomId,
     /// The task whose worker called (the worker endpoint), when it was one.
     pub(crate) worker: Option<emberhut_core::task::TaskId>,
+    /// The runner session that called, as its request named it
+    /// ([`emberhut_api::wire::mcp::SESSION_HEADER`]): a session id in its checked form, else
+    /// none.
+    pub(crate) session: Option<String>,
 }
 
 /// One MCP tool.
@@ -510,6 +522,13 @@ impl ToolSet {
     /// The tool called `name`.
     pub(crate) fn get(&self, name: &str) -> Option<&dyn AnyTool> {
         self.iter().find(|tool| tool.name() == name)
+    }
+
+    /// These tools without the ones called one of `names`.
+    #[must_use]
+    pub(crate) fn without(mut self, names: &[&str]) -> Self {
+        self.tools.retain(|tool| !names.contains(&tool.name()));
+        self
     }
 }
 

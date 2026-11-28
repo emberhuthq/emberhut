@@ -11,9 +11,10 @@ use emberhut_api::error::ErrorBody;
 use emberhut_api::mcp::{RpcRequest, RpcResponse, codes};
 
 use crate::app::AppState;
-use crate::mcp::tools::{ToolContext, ToolSet, agent_tools, family_tools, room_tools};
+use crate::mcp::tools::{PLAN_TOOLS, ToolContext, ToolSet, agent_tools, family_tools, room_tools};
 use crate::mcp::{self, Answer};
 use crate::services::family::{FAMILY_ROOMS, NOT_AVAILABLE};
+use crate::services::runners::SessionId;
 
 /// One MCP message (JSON-RPC 2.0) from a room's agent session: `initialize`, `ping`,
 /// `tools/list` or `tools/call`. The bearer is the room's agent token, not a device's.
@@ -101,16 +102,35 @@ pub(super) async fn mcp_room(
                 .into_response();
         }
     };
+    let tools = if app.task_plans() {
+        tools
+    } else {
+        tools.without(&PLAN_TOOLS)
+    };
     let ctx = ToolContext {
         app,
         room,
         worker: None,
+        session: calling_session(&request),
     };
     match mcp::answer(&body, &tools, &ctx).await {
         Answer::Reply(reply) => (StatusCode::OK, Json(reply)).into_response(),
         Answer::Unreadable(reply) => (StatusCode::BAD_REQUEST, Json(reply)).into_response(),
         Answer::Accepted => StatusCode::ACCEPTED.into_response(),
     }
+}
+
+/// The runner session a call names in its [`emberhut_api::wire::mcp::SESSION_HEADER`]: only a
+/// session id in its checked form (`r-` and hex digits), so a value the agent CLI left
+/// unexpanded, or anything else, names none.
+fn calling_session(request: &HeaderMap) -> Option<String> {
+    let value = request
+        .get(emberhut_api::wire::mcp::SESSION_HEADER)?
+        .to_str()
+        .ok()?;
+    SessionId::parse(value.trim())
+        .ok()
+        .map(|id| id.as_str().to_owned())
 }
 
 /// The tools `room`'s session gets: the default agent's room tools, or a configured agent's
