@@ -87,6 +87,7 @@ impl Store {
             SettingsPane::Ember => {
                 self.load_credentials(cx);
                 self.load_facts(cx);
+                self.load_theme(cx);
             }
             SettingsPane::Connections => self.settings.switches.kick(),
             SettingsPane::Devices => self.machines.kick(),

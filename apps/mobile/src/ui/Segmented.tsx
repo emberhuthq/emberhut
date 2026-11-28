@@ -1,9 +1,11 @@
 import { Pressable, View } from "react-native";
 import { minTap, useTheme } from "@/theme";
+import { Icon, type IconName } from "./Icon";
 import { Text } from "./Text";
 
 export interface SegmentedProps<T extends string> {
-  options: readonly { value: T; label: string }[];
+  /** Each choice; one with an icon shows the icon alone, its label read out. */
+  options: readonly { value: T; label: string; icon?: IconName }[];
   value: T;
   onChange: (value: T) => void;
   accessibilityLabel: string;
@@ -21,7 +23,7 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
       accessibilityState={{ disabled }}
       style={{
         flexDirection: "row",
-        backgroundColor: colors.surfaceRaised,
+        backgroundColor: colors.track,
         borderRadius: radius.md,
         padding: 3,
         gap: 3,
@@ -45,12 +47,18 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
               justifyContent: "center",
               borderRadius: radius.sm,
               paddingHorizontal: spacing.sm,
-              backgroundColor: selected ? colors.surface : "transparent",
+              borderWidth: 1,
+              borderColor: selected ? colors.raisedEdge : "transparent",
+              backgroundColor: selected ? colors.raised : "transparent",
             }}
           >
-            <Text variant="callout" weight={selected ? "600" : "400"} tone={selected ? "primary" : "secondary"}>
-              {option.label}
-            </Text>
+            {option.icon ? (
+              <Icon name={option.icon} size={18} color={selected ? colors.text : colors.textSecondary} />
+            ) : (
+              <Text variant="callout" weight={selected ? "600" : "400"} tone={selected ? "primary" : "secondary"}>
+                {option.label}
+              </Text>
+            )}
           </Pressable>
         );
       })}

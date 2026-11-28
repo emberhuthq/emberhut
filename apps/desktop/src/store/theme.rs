@@ -109,6 +109,12 @@ impl Store {
         self.theme.fixed = Some(choice);
     }
 
+    /// Holds `page` as the theme the server sent, for the views' tests.
+    #[cfg(test)]
+    pub(crate) fn put_theme_for_tests(&mut self, page: ThemePage) {
+        self.theme.page = page;
+    }
+
     /// Fetches the theme from the server.
     pub(crate) fn load_theme(&mut self, cx: &mut Context<'_, Self>) {
         if self.theme.loading {
@@ -159,6 +165,20 @@ impl Store {
             self.set_theme(page, false, cx);
         }
         self.theme.preview = None;
+        self.send_theme(choice, true, cx);
+    }
+
+    /// The ember's tint: shown at once, then saved on the server like a preset.
+    pub(crate) fn pick_ember_tint(&mut self, tint: String, cx: &mut Context<'_, Self>) {
+        let mut choice = self
+            .theme
+            .pending
+            .clone()
+            .unwrap_or_else(|| self.theme.page.choice.clone());
+        choice.ember_tint = tint;
+        if let Some(page) = with_choice(&self.theme.page, &choice) {
+            self.set_theme(page, false, cx);
+        }
         self.send_theme(choice, true, cx);
     }
 
@@ -251,6 +271,7 @@ impl Store {
                 preset: Some(choice.preset),
                 appearance: Some(choice.appearance),
                 accent: accent_change(choice.accent),
+                ember_tint: Some(choice.ember_tint),
                 preview: false,
             };
             let page = cx

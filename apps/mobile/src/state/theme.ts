@@ -15,8 +15,8 @@ export interface ThemeState {
   /** The choice a state poll carried: fetches the theme when another device changed it, sends a held change. */
   noteState: (choice: ThemeChoice | null | undefined) => void;
   /**
-   * Applies a change at once and saves it. A preset or the appearance works offline (from the cached presets, sent
-   * later); a custom accent needs the server, and its preview's answer to show before the server's.
+   * Applies a change at once and saves it. A preset, the appearance or the ember's tint works offline (from the cached
+   * presets, sent later); a custom accent needs the server, and its preview's answer to show before the server's.
    */
   choose: (change: ThemeChange, preview?: ThemePage) => Promise<void>;
   /** A custom accent's tokens and contrast, nothing saved. */
@@ -44,6 +44,7 @@ export function applyLocally(page: ThemePage, change: ThemeChange, preview?: The
     next = { ...next, tokens: { light: preset.light, dark: preset.dark }, choice: { ...next.choice, preset: id, accent: null } };
   }
   if (change.appearance) next = { ...next, choice: { ...next.choice, appearance: change.appearance } };
+  if (change.emberTint) next = { ...next, choice: { ...next.choice, emberTint: change.emberTint } };
   return next;
 }
 

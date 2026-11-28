@@ -5,6 +5,7 @@
     "preset": "blue",
     "appearance": "dark",
     "accent": null,
+    "emberTint": "amber",
     "at": "2026-11-24T12:00:00.000Z"
   },
   "tokens": {
@@ -183,5 +184,11 @@
     "warn",
     "danger",
     "info"
+  ],
+  "tints": [
+    { "id": "ember", "name": "Ember" },
+    { "id": "amber", "name": "Amber" },
+    { "id": "coral", "name": "Coral" },
+    { "id": "blue", "name": "Blue flame" }
   ]
 }

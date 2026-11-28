@@ -4,8 +4,9 @@
 //! with a dot while it has something unread. Its menu (On duty, what it knows about the user, Settings) opens on a
 //! right-click and from the ellipsis inside the row, which shows on hover and keyboard focus.
 //! Off duty the picture is dimmed and grey; while it works a soft glow breathes around it
-//! (still under Reduce Motion). A second line says Off duty, what it is doing or what is wrong,
-//! or that a new answer waits; otherwise the row is one line high.
+//! (still under Reduce Motion). The picture is the ember in the tint its look names. A second
+//! line says Off duty, what it is doing or what is wrong, or that a new answer waits; otherwise
+//! the row is one line high.
 
 use std::time::Duration;
 
@@ -16,7 +17,7 @@ use gpui_kit::component::menu::{ContextMenuExt as _, DropdownMenu as _, PopupMen
 use gpui_kit::component::{Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Animation, AnimationExt as _, AnyElement, BoxShadow, Entity, FontWeight, Hsla,
+    Animation, AnimationExt as _, AnyElement, BoxShadow, ElementId, Entity, FontWeight, Hsla,
     TestSupportExt as _, Window, div, img, pulsating_between, px,
 };
 
@@ -27,7 +28,7 @@ use super::routes;
 use super::sidebar::row;
 use super::widgets::dot;
 use super::window::{MainWindow, Room0};
-use crate::assets::FACE;
+use crate::assets::face;
 use crate::motion;
 use crate::store::settings::SettingsPane;
 use crate::store::status::{StatusLine, Tone};
@@ -104,6 +105,7 @@ pub(crate) fn row_with_menu(
     let unread = main.is_some_and(|room| room.unread > 0);
     let on_duty = store.is_on_duty();
     let working = on_duty && store.is_working();
+    let tint = store.theme().page().choice.ember_tint.clone();
     let status = store.status();
     let name = store.ember_name().to_owned();
     // The tip starts with the name in full: the row cuts a long one.
@@ -152,7 +154,7 @@ pub(crate) fn row_with_menu(
         .h_auto()
         .min_h(px(28.))
         .py(px(3.))
-        .child(picture(on_duty, working, p, motion::reduced(cx)))
+        .child(picture(&tint, on_duty, working, p, motion::reduced(cx)))
         .child(text)
         .when(unread, |d| d.child(dot(p.accent, 6.)))
         .child(menu_button(&window.store, &name, on_duty, p))
@@ -167,19 +169,22 @@ pub(crate) fn row_with_menu(
         .into_any_element()
 }
 
-/// The little ember: dimmed off duty; while it works, a glow around it that breathes, or holds
-/// still when the system asks for `reduced` motion.
-fn picture(on_duty: bool, working: bool, p: &Pal, reduced: bool) -> impl IntoElement {
+/// The little ember in its `tint`: dimmed off duty; while it works, a glow around it that
+/// breathes, or holds still when the system asks for `reduced` motion.
+fn picture(tint: &str, on_duty: bool, working: bool, p: &Pal, reduced: bool) -> impl IntoElement {
     div()
+        .id(ElementId::Name(format!("ember-face-{tint}").into()))
         .relative()
         .flex_none()
         .size(px(PICTURE))
         .when(working, |d| d.child(glow(p, reduced)))
         .child(
-            img(FACE)
+            img(face(tint))
                 .size_full()
                 .when(!on_duty, |picture| picture.grayscale(true).opacity(0.5)),
         )
+        // Seen by the headless tests (a no-op outside them).
+        .test_support()
 }
 
 /// The working glow: a soft halo in the palette's glow colour, under the picture.
@@ -453,6 +458,24 @@ mod tests {
             shown(cx),
             ("Your ember, New answer".to_owned(), true, false)
         );
+    }
+
+    #[gpui_kit::test]
+    fn the_picture_is_the_ember_in_the_tint_of_its_look(cx: &mut TestAppContext) {
+        let (store, _, cx) = open(json!({}), json!({}), cx);
+        let drawn = |cx: &mut VisualTestContext, tint: &str| {
+            cx.update(|window, cx| {
+                window.render_frame(cx);
+                window
+                    .try_find(ElementId::Name(format!("ember-face-{tint}").into()))
+                    .is_some()
+            })
+        };
+        assert!(drawn(cx, "ember"), "the brand's own colours at first");
+        store.update(cx, |store, cx| store.pick_ember_tint("coral".into(), cx));
+        cx.run_until_parked();
+        assert!(drawn(cx, "coral"), "the tint picked");
+        assert!(!drawn(cx, "ember"));
     }
 
     #[test]

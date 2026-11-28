@@ -9,8 +9,14 @@ export const TAB_NAME = 12;
 /** The ember's two pictures: as it is, and dimmed and grey for off duty. */
 export type EmberFaces<Picture> = { readonly on: Picture; readonly off: Picture };
 
+/** The ember's pictures in `tint`, from its picture in each tint (`ember`, the default's, when this build lacks it). */
+export function tintedFaces<Picture>(tint: string, tinted: Readonly<Record<string, Picture>>, off: Picture): EmberFaces<Picture> {
+  return { on: tinted[tint] ?? (tinted.ember as Picture), off };
+}
+
 /**
- * Your ember's tab: its title (the name you gave it, cut when long, else "Your ember"), and the ember itself as its icon on both platforms, drawn in its own colours ("original":
+ * Your ember's tab: its title (the name you gave it, cut when long, else "Your ember"), and the ember itself as its icon on
+ * both platforms, drawn in its tint ("original":
  * the bar doesn't tint it as it does the other tabs' icons). Dimmed while the assistant is off duty; plain until the
  * state says (`onDuty` undefined).
  */

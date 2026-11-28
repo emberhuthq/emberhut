@@ -64,6 +64,15 @@ pub(crate) struct Pal {
     pub(crate) on_queued: Hsla,
     /// A card on the page.
     pub(crate) card: Hsla,
+    /// A segmented switch's track: set into the page in light, lifted off it in dark.
+    pub(crate) track: Hsla,
+    /// The chosen segment, raised off the track.
+    pub(crate) raised: Hsla,
+    /// The chosen segment's edge.
+    pub(crate) raised_edge: Hsla,
+    /// The edge of a choice not chosen (a look's card): the border in light; in dark, a line
+    /// lifted off the card so it shows.
+    pub(crate) outline: Hsla,
     /// The sidebar's fill: the background, a little translucent over the window's material
     /// (see [`Pal::with_material`]).
     pub(crate) sidebar: Hsla,
@@ -102,6 +111,13 @@ const HOVER_DARK: f32 = 0.07;
 const PRESSED_LIGHT: f32 = 0.10;
 const PRESSED_DARK: f32 = 0.13;
 
+/// In dark, the share of the text colour lifted into a card for a segmented switch's track,
+/// its chosen segment, that segment's edge, and the edge of a choice not chosen.
+const TRACK_DARK: f32 = 0.05;
+const RAISED_DARK: f32 = 0.12;
+const RAISED_EDGE_DARK: f32 = 0.2;
+const OUTLINE_DARK: f32 = 0.09;
+
 /// The share of the user's bubble left in a waiting message's fill, the rest the surface.
 const QUEUED: f32 = 0.6;
 
@@ -138,6 +154,8 @@ impl Pal {
             hex(&tokens.accent)
         };
         let queued = mix(mine, hex(&tokens.surface), QUEUED);
+        // Lines and raised parts on a dark card: the text lifted into it.
+        let lifted = |share| color(mix(hex(&tokens.text), hex(&tokens.surface_raised), share));
         // Every colour the sidebar draws text and icons in.
         let inks = [
             &tokens.text,
@@ -188,6 +206,26 @@ impl Pal {
                 c(&tokens.surface_raised)
             } else {
                 c(&tokens.background)
+            },
+            track: if dark {
+                lifted(TRACK_DARK)
+            } else {
+                c(&tokens.surface_raised)
+            },
+            raised: if dark {
+                lifted(RAISED_DARK)
+            } else {
+                c(&tokens.surface)
+            },
+            raised_edge: if dark {
+                lifted(RAISED_EDGE_DARK)
+            } else {
+                c(&tokens.border)
+            },
+            outline: if dark {
+                lifted(OUTLINE_DARK)
+            } else {
+                c(&tokens.border)
             },
             sidebar: c(&tokens.background),
             material: Material::Opaque,

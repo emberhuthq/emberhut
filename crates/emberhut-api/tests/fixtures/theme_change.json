@@ -1,1 +1,1 @@
-{ "preset": "teal", "appearance": "dark", "accent": null, "preview": true }
+{ "preset": "teal", "appearance": "dark", "accent": null, "emberTint": "blue", "preview": true }

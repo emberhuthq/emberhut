@@ -1,8 +1,10 @@
 //! Appearance: light or dark (or the system's), the sidebar's agents (shown or hidden, above
-//! or below the rooms), the colour presets, a custom colour typed as hex, and a preview of what
-//! the colour paints. A typed colour is previewed by the server
+//! or below the rooms), the colour presets with a row to Your ember's look (the same choice,
+//! picked by how it looks), a custom colour typed as hex, and a preview of what the colour
+//! paints. A typed colour is previewed by the server
 //! (which holds it to WCAG AA) once the typing stops; Apply or Return uses it.
 
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui_kit::TestSupportExt as _;
@@ -12,17 +14,18 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{Disableable as _, Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Action, Div, ElementId, Entity, FontWeight, Hsla, Stateful, Task, Window, div, px, relative,
+    Action, App, Div, ElementId, Entity, FontWeight, Hsla, Task, Window, div, px, relative,
 };
 
-use super::parts::{note, page_body, problem_line, section};
+use super::parts::{nav_row, note, page_body, problem_line, section};
 use crate::color::normalize_hex;
 use crate::store::approvals::shown::visible;
 use crate::store::approvals::words::agent_line;
 use crate::store::settings::appearance::{NOT_A_HEX, contrast_line, preset_name, to_preview};
+use crate::store::settings::chrome::Health;
 use crate::store::{AgentsPlace, Store};
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::controls::tab_stop;
+use crate::ui::controls::{segment, segments, tab_stop};
 use crate::ui::palette::Pal;
 use crate::ui::spotlight::SEARCH_KEYS;
 use crate::ui::widgets::dot;
@@ -48,6 +51,12 @@ pub(crate) const AGENTS_ABOVE: &str = "agents-above";
 /// A hidden agent's row, before its room's id, for tests to find.
 pub(crate) const HIDDEN_AGENT: &str = "hidden-agent";
 
+/// What the page runs to open Your ember's look.
+type OnLook = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// The row to Your ember's look, for tests to find.
+pub(crate) const LOOK_ROW: &str = "look-row";
+
 /// How long after the last key a typed colour is previewed.
 const PREVIEW_AFTER: Duration = Duration::from_millis(350);
 
@@ -60,12 +69,16 @@ pub(crate) struct AppearancePane {
     note: Option<&'static str>,
     /// The preview waiting for the typing to stop.
     pending_preview: Option<Task<()>>,
+    /// Opens Your ember's look, where it lives.
+    on_look: OnLook,
 }
 
 impl AppearancePane {
-    /// The page over `store`, its field holding the custom colour in use.
+    /// The page over `store`, its field holding the custom colour in use; `on_look` opens Your
+    /// ember's look.
     pub(crate) fn new(
         store: Entity<Store>,
+        on_look: impl Fn(&mut Window, &mut App) + 'static,
         window: &mut Window,
         cx: &mut Context<'_, Self>,
     ) -> Self {
@@ -93,7 +106,24 @@ impl AppearancePane {
             hex,
             note: None,
             pending_preview: None,
+            on_look: Rc::new(on_look),
         }
+    }
+
+    /// The row to Your ember's look: the same theme, each preset drawn as a card.
+    fn look_row(&self, p: &Pal) -> impl IntoElement {
+        let on_look = Rc::clone(&self.on_look);
+        nav_row(
+            LOOK_ROW,
+            p,
+            (IconName::Palette, p.accent),
+            "Your ember's look",
+            ("Pick the theme by how it looks".to_owned(), Health::Off),
+            "",
+        )
+        .on_click(move |_, window, cx| on_look(window, cx))
+        // Seen by the headless tests (a no-op outside them).
+        .test_support()
     }
 
     /// The colour changed: its preview once the typing stops (or none, for one that isn't).
@@ -151,12 +181,7 @@ impl AppearancePane {
 
     /// System, Light or Dark.
     fn modes(&self, chosen: &Appearance, p: &Pal) -> Div {
-        let mut modes = div()
-            .flex()
-            .gap(px(2.))
-            .p(px(2.))
-            .rounded(px(9.))
-            .bg(p.surface_raised);
+        let mut modes = segments(p);
         for (id, appearance, label) in [
             ("mode-system", Appearance::System, "System"),
             ("mode-light", Appearance::Light, "Light"),
@@ -296,7 +321,10 @@ impl Render for AppearancePane {
                 &p,
                 "Colour",
                 None,
-                vec![self.presets(&page, &p).into_any_element()],
+                vec![
+                    self.presets(&page, &p).into_any_element(),
+                    self.look_row(&p).into_any_element(),
+                ],
                 Some("What waits on you, buttons, links and progress take it.".to_owned()),
             ))
             .child(section(
@@ -466,14 +494,7 @@ impl AppearancePane {
                     switch_store.update(cx, |store, cx| store.show_agents(*on, cx));
                 }),
         );
-        let mut places = div()
-            .flex()
-            .flex_none()
-            .gap(px(2.))
-            .p(px(2.))
-            .rounded(px(9.))
-            .bg(p.surface_raised)
-            .when(!shown, |d| d.opacity(0.5));
+        let mut places = segments(p).when(!shown, |d| d.opacity(0.5));
         for (id, chosen, label) in [
             (AGENTS_BELOW, AgentsPlace::Below, "Below rooms"),
             (AGENTS_ABOVE, AgentsPlace::Above, "Above rooms"),
@@ -575,25 +596,4 @@ fn hidden_agent(
         });
     // Seen by the headless tests (a no-op outside them).
     tab_stop(row, p).test_support()
-}
-
-/// One of the Mode switch's segments.
-fn segment(id: &'static str, label: &'static str, on: bool, p: &Pal) -> Stateful<Div> {
-    div()
-        .id(id)
-        .button_named(label)
-        .aria_selected(on)
-        .px(px(12.))
-        .py(px(5.))
-        .rounded(px(7.))
-        .cursor_pointer()
-        .text_size(px(12.5))
-        .when(on, |d| {
-            d.bg(p.surface)
-                .border_1()
-                .border_color(p.border)
-                .font_weight(FontWeight::SEMIBOLD)
-        })
-        .when(!on, |d| d.text_color(p.muted))
-        .child(label)
 }

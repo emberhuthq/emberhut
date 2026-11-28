@@ -190,6 +190,15 @@ export const entries: readonly Entry[] = [
     icon: "school-outline",
   },
   {
+    id: "ember-look",
+    title: "Look",
+    line: "Your ember's theme, picked by how it looks",
+    group: "ember",
+    synonyms: ["theme", "colour", "color", "look", "style", "dark", "tint"],
+    to: { group: "ember" },
+    icon: "color-palette-outline",
+  },
+  {
     id: "models",
     title: "Technical details",
     line: "The model and the side rooms' fast model",

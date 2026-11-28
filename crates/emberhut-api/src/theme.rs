@@ -1,5 +1,6 @@
 //! The theme: one choice per person, the same on every device. `GET /api/theme` gives the choice
-//! with its colour tokens in both appearances and every preset's; `POST /api/theme` changes it.
+//! with its colour tokens in both appearances, every preset's, and the tints the ember's face can
+//! be drawn in; `POST /api/theme` changes it.
 //! The state carries the choice alone ([`ThemeChoice`]): a newer `at` than a device's own means
 //! another device changed it, so fetch the page.
 
@@ -25,8 +26,15 @@ open_enum! {
 /// The preset a choice starts from when none was made.
 pub const DEFAULT_PRESET: &str = "paper";
 
-/// A theme choice: a preset (its accent family on its neutrals), an appearance, and an optional
-/// custom accent.
+/// The ember's tint when none was chosen: the brand's own colours.
+pub const DEFAULT_TINT: &str = "ember";
+
+fn default_tint() -> String {
+    DEFAULT_TINT.to_owned()
+}
+
+/// A theme choice: a preset (its accent family on its neutrals), an appearance, an optional
+/// custom accent, and the ember's tint.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ThemeChoice {
@@ -36,17 +44,23 @@ pub struct ThemeChoice {
     pub appearance: Appearance,
     /// A custom accent (`#RRGGBB`) in place of the preset's; none: the preset's own.
     pub accent: Option<String>,
+    /// The tint the ember's face is drawn in (`ember`, `amber`, `coral` or `blue`); a choice saved
+    /// before tints, or naming one no longer offered, reads as the default, `ember`.
+    #[serde(rename = "emberTint", default = "default_tint")]
+    pub ember_tint: String,
     /// When it last changed; none: never set (the default).
     pub at: Option<Timestamp>,
 }
 
 impl Default for ThemeChoice {
-    /// The server's default: the paper preset, following the system, never set.
+    /// The server's default: the paper preset, following the system, the ember in its own
+    /// colours, never set.
     fn default() -> Self {
         Self {
             preset: DEFAULT_PRESET.to_owned(),
             appearance: Appearance::System,
             accent: None,
+            ember_tint: default_tint(),
             at: None,
         }
     }
@@ -140,6 +154,17 @@ pub struct Preset {
     pub dark: Tokens,
 }
 
+/// A tint the ember's face can be drawn in. The apps hold the face drawn in each tint they know;
+/// one they don't know draws as the default.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct EmberTint {
+    /// Its id.
+    pub id: String,
+    /// Its name, as shown.
+    pub name: String,
+}
+
 /// `GET /api/theme`'s answer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -156,6 +181,9 @@ pub struct ThemePage {
     pub presets: Vec<Preset>,
     /// The token names, in order.
     pub names: Vec<String>,
+    /// The ember's tints, the default first; a server before tints lists none.
+    #[serde(default)]
+    pub tints: Vec<EmberTint>,
 }
 
 impl ThemePage {
@@ -194,6 +222,11 @@ pub struct ThemeChange {
     #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
     #[cfg_attr(feature = "validate", garde(custom(crate::rules::accent_change)))]
     pub accent: AccentChange,
+    /// The ember's tint's id. Lower-case ASCII, 1 to 32 characters (the server trims and
+    /// lower-cases).
+    #[serde(default, rename = "emberTint", skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(ascii, length(min = 1, max = 32)))]
+    pub ember_tint: Option<String>,
     /// Work the page out without saving it.
     #[serde(default, skip_serializing_if = "crate::serde_util::is_false")]
     #[cfg_attr(feature = "validate", garde(skip))]
@@ -296,6 +329,25 @@ mod tests {
         let choice = ThemeChoice::default();
         assert_eq!(choice.preset, "paper");
         assert_eq!(choice.appearance, Appearance::System);
+        assert_eq!(choice.ember_tint, "ember");
         assert_eq!(Appearance::default(), Appearance::System);
+    }
+
+    #[test]
+    fn a_choice_saved_before_tints_reads_as_the_ember_in_its_own_colours() {
+        let old: ThemeChoice = serde_json::from_str(
+            r#"{"preset":"teal","appearance":"dark","accent":null,"at":null}"#,
+        )
+        .unwrap();
+        assert_eq!(old.ember_tint, DEFAULT_TINT);
+        let json = serde_json::to_value(&old).unwrap();
+        assert_eq!(json["emberTint"], "ember");
+        let change: ThemeChange = serde_json::from_str(r#"{"emberTint":"coral"}"#).unwrap();
+        assert_eq!(change.ember_tint.as_deref(), Some("coral"));
+        assert_eq!(
+            serde_json::to_string(&ThemeChange::default()).unwrap(),
+            "{}",
+            "a tint left out is kept"
+        );
     }
 }

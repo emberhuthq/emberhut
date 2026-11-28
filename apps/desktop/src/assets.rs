@@ -1,7 +1,6 @@
-//! The files built into the app: its face picture, the one provider logo the repository has,
-//! and fonts, then the icons it draws:
-//! gpui-kit's default bundle (the components' own icons) and the Lucide icons the app's views
-//! name beyond it ([`AppIcons`]).
+//! The files built into the app: its face picture in each tint, the one provider logo the
+//! repository has, and fonts, then the icons it draws: gpui-kit's default bundle (the
+//! components' own icons) and the Lucide icons the app's views name beyond it ([`AppIcons`]).
 
 use std::borrow::Cow;
 
@@ -9,6 +8,36 @@ use gpui_kit::{App, AssetSource, Result, SharedString};
 
 /// The assistant's face, as the sidebar and the sign-in screen show it.
 pub(crate) const FACE: &str = "face.png";
+
+/// The face in each tint but the default (`face-<tint>.png`): the brand's mark with the tint's
+/// colours (`assets/brand/README.md`), by the tint's id.
+const TINTED_FACES: [(&str, &str, &[u8]); 3] = [
+    (
+        "amber",
+        "face-amber.png",
+        include_bytes!("../assets/face-amber.png"),
+    ),
+    (
+        "coral",
+        "face-coral.png",
+        include_bytes!("../assets/face-coral.png"),
+    ),
+    (
+        "blue",
+        "face-blue.png",
+        include_bytes!("../assets/face-blue.png"),
+    ),
+];
+
+/// The face in the ember's `tint`: [`FACE`] for the default, and for a tint this build has no
+/// picture of (one a newer server lists).
+#[must_use]
+pub(crate) fn face(tint: &str) -> &'static str {
+    TINTED_FACES
+        .iter()
+        .find(|(id, _, _)| *id == tint)
+        .map_or(FACE, |(_, path, _)| path)
+}
 
 /// Claude's mark, for its row among the providers the ember can think with: the website's own
 /// file (`site/shared/logos/claude.svg`), drawn in its colours.
@@ -134,6 +163,9 @@ impl AssetSource for Assets {
         if path == FACE {
             return Ok(Some(Cow::Borrowed(include_bytes!("../assets/face.png"))));
         }
+        if let Some((_, _, bytes)) = TINTED_FACES.iter().find(|(_, face, _)| *face == path) {
+            return Ok(Some(Cow::Borrowed(bytes)));
+        }
         if path == CLAUDE_LOGO {
             return Ok(Some(Cow::Borrowed(include_bytes!(
                 "../../../site/shared/logos/claude.svg"
@@ -251,6 +283,21 @@ mod tests {
                 "{path} is in the default bundle already"
             );
         }
+    }
+
+    #[test]
+    fn every_tint_has_its_face_and_an_unknown_one_is_the_default() {
+        for tint in emberhut_core::theme::TINTS {
+            let path = face(tint.id);
+            assert_eq!(
+                path == FACE,
+                tint.id == emberhut_core::theme::DEFAULT_TINT,
+                "{}",
+                tint.id
+            );
+            assert!(matches!(Assets.load(path), Ok(Some(_))), "{path}");
+        }
+        assert_eq!(face("nowhere"), FACE);
     }
 
     #[test]

@@ -1,8 +1,8 @@
 import type { ThemePage, ThemePreset, ThemeTokens } from "@/api";
 
 // The paper preset as the server resolves it (version 1), the server's default: kraft paper and brown-black ink with an
-// ember accent, and the blue preset beside it to pick. What the app shows before Emberhut has ever answered, so the first
-// launch looks right offline too.
+// ember accent, the blue preset beside it to pick, and the ember's tints. What the app shows before Emberhut has ever
+// answered, so the first launch looks right offline too.
 
 const light: ThemeTokens = {
   accent: "#B83D0C",
@@ -78,7 +78,7 @@ const blue: ThemePreset = {
 
 export const builtInTheme: ThemePage = {
   version: 1,
-  choice: { preset: "paper", appearance: "system", accent: null, at: null },
+  choice: { preset: "paper", appearance: "system", accent: null, emberTint: "ember", at: null },
   tokens: { light, dark },
   contrast: {
     light: { accentOnBackground: 4.99, accentOnSurface: 5.57, onAccent: 5.36, adjusted: false },
@@ -87,4 +87,10 @@ export const builtInTheme: ThemePage = {
   },
   presets: [{ id: "paper", name: "Paper", light, dark }, blue],
   names: Object.keys(light) as (keyof ThemeTokens)[],
+  tints: [
+    { id: "ember", name: "Ember" },
+    { id: "amber", name: "Amber" },
+    { id: "coral", name: "Coral" },
+    { id: "blue", name: "Blue flame" },
+  ],
 };

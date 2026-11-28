@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { Alert, View } from "react-native";
 import { aboutYouTitle } from "@/features/aboutYou/facts";
 import { emberCalled } from "@/features/ember/name";
+import { LookPicker } from "@/features/ember/LookPicker";
 import { inBackground } from "@/log";
 import type { RootScreenProps } from "@/navigation/types";
 import { sessionStore } from "@/services";
@@ -56,6 +57,7 @@ function GroupRows({ group, now, renaming }: { group: GroupId; now: Now; renamin
         <>
           <EmberHero now={now} renaming={renaming} />
           <OpensRows now={now} />
+          <LookSection />
         </>
       );
     case "appearance":
@@ -83,6 +85,18 @@ function GroupRows({ group, now, renaming }: { group: GroupId; now: Now; renamin
     case "account":
       return <Text tone="secondary">Your emberhut.com account opens from More.</Text>;
   }
+}
+
+/** Your ember's look, below its card and what it opens: the same theme as Appearance. */
+function LookSection() {
+  const { spacing } = useTheme();
+  return (
+    <Section title="Look" subtitle="Also in Appearance. Syncs to your other devices.">
+      <View key="look" style={{ padding: spacing.md }}>
+        <LookPicker />
+      </View>
+    </Section>
+  );
 }
 
 /** What it thinks with and what it knows, each called by the ember's name: rows that open their screens. */

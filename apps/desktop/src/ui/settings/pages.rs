@@ -1,9 +1,9 @@
 //! What each group page holds, built of the rows and sections Settings already had: Your
 //! ember (its name as the hero's title with on duty, what it thinks with and the usage, what it
-//! knows, the models under Technical details), Devices, Connections (data sources and Chrome, the tool servers and the
-//! skills folded), Sharing, Privacy (what it knows, archived rooms, the dark room, where data
-//! goes), Advanced (updates, the server, diagnostics folded, where the agent works) and the
-//! account.
+//! knows, its look, the models under Technical details), Devices, Connections (data sources and
+//! Chrome, the tool servers and the skills folded), Sharing, Privacy (what it knows, archived
+//! rooms, the dark room, where data goes), Advanced (updates, the server, diagnostics folded,
+//! where the agent works) and the account.
 
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
@@ -17,7 +17,7 @@ use super::SettingsView;
 use super::group::{Block, block, plain};
 use super::parts::{nav_row, note, problem_line, section, tag};
 use super::{account, places, switches, thinks_with_row, updates, usage};
-use crate::assets::FACE;
+use crate::assets::face;
 use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::{self as chrome_words, Health};
 use crate::store::settings::entries::{Fold, duty_word};
@@ -32,6 +32,9 @@ use crate::ui::widgets::group;
 const DATA_FLOW: &str = "Your messages, and what your ember reads to answer them (facts about \
     you, mail, pages), go to the model you picked. Gmail and Slack are read from their own \
     servers. Phone alerts pass through Apple's push service.";
+
+/// What the Look block says under its title.
+const LOOK: &str = "Also in Appearance. Syncs to your other devices.";
 
 /// Sharing's one honest line.
 const SHARING: &str = "Today sharing is set up through your server's API, for developers. \
@@ -103,6 +106,21 @@ impl SettingsView {
                 None,
             ),
         ));
+        blocks.push(block(
+            &["ember-look"],
+            section(
+                p,
+                div().flex().flex_col().gap(px(2.)).child("Look").child(
+                    div()
+                        .font_weight(FontWeight::NORMAL)
+                        .text_color(p.faint)
+                        .child(LOOK),
+                ),
+                None,
+                vec![self.look.clone().into_any_element()],
+                None,
+            ),
+        ));
         let models = now
             .models
             .clone()
@@ -125,9 +143,10 @@ impl SettingsView {
         blocks
     }
 
-    /// Your ember's hero: its face; its name as the title, renamed in place; what it is doing
-    /// and what On duty means; the On duty switch, which a long name doesn't push out.
+    /// Your ember's hero: its face in its tint; its name as the title, renamed in place; what it
+    /// is doing and what On duty means; the On duty switch, which a long name doesn't push out.
     fn hero(&self, now: &Now, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
+        let tint = self.store.read(cx).theme().page().choice.ember_tint.clone();
         let on = now.on_duty;
         let duty = self.store.clone();
         let reset = self.name.update(cx, |name, cx| name.reset_link(p, cx));
@@ -140,7 +159,7 @@ impl SettingsView {
             .border_1()
             .border_color(p.border)
             .bg(p.card)
-            .child(img(FACE).size(px(44.)).rounded_full().flex_none())
+            .child(img(face(&tint)).size(px(44.)).rounded_full().flex_none())
             .child(
                 div()
                     .flex()

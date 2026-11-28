@@ -27,6 +27,8 @@ export interface ThemeChoice {
   appearance: Appearance;
   /** A custom accent in place of the preset's; null for the preset's own. */
   accent: string | null;
+  /** The tint the ember's face is drawn in (`ember`, the brand's own, by default); a server before tints has none. */
+  emberTint?: string;
   /** When it last changed; null: never set (the default). */
   at: Instant | null;
 }
@@ -50,6 +52,12 @@ export interface ThemePreset {
   dark: ThemeTokens;
 }
 
+/** A tint the ember's face can be drawn in; the app draws one it has no picture of as the default. */
+export interface EmberTint {
+  id: string;
+  name: string;
+}
+
 /** GET /api/theme: the choice resolved, and every preset so a preset can be switched offline. */
 export interface ThemePage {
   /** The presets' values: a cache is kept per version. */
@@ -59,6 +67,8 @@ export interface ThemePage {
   contrast: { light: ThemeContrast; dark: ThemeContrast; aa: boolean };
   presets: ThemePreset[];
   names: (keyof ThemeTokens)[];
+  /** The ember's tints, the default first; a server before tints lists none. */
+  tints?: EmberTint[];
 }
 
 /** POST /api/theme: the fields given change, the rest stay. */
@@ -67,6 +77,8 @@ export interface ThemeChange {
   appearance?: Appearance;
   /** "#RRGGBB" or "#RGB"; null goes back to the preset's own. */
   accent?: string | null;
+  /** One of the page's tints. */
+  emberTint?: string;
 }
 
 export type ThemeReply = Reply & ThemePage;

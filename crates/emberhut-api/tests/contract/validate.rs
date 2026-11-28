@@ -134,6 +134,8 @@ fn a_theme_change_is_checked() {
     fails::<ThemeChange>("theme_change.json", "appearance", &json!("sepia"));
     fails::<ThemeChange>("theme_change.json", "accent", &json!("blue"));
     fails::<ThemeChange>("theme_change.json", "preset", &json!(""));
+    fails::<ThemeChange>("theme_change.json", "emberTint", &json!(""));
+    fails::<ThemeChange>("theme_change.json", "emberTint", &json!("x".repeat(33)));
     let change = ThemeChange {
         accent: AccentChange::Set("#36f".to_owned()),
         ..ThemeChange::default()
