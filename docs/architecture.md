@@ -31,6 +31,7 @@ emberhut/
 ├── apps/
 │   ├── desktop/          GPUI desktop app, Rust (crate emberhut-desktop)
 │   ├── mobile/           React Native app, iOS and Android
+│   ├── runner/           the runner on each machine, TypeScript on the Claude Agent SDK
 │   └── web/              web app, TypeScript and React
 ├── crates/
 │   ├── emberhut-server/      the server: an axum binary, and the OpenAPI document it serves
@@ -62,6 +63,7 @@ emberhut/
 | `apps/` | Everything a user installs or opens; each app is built and shipped on its own. |
 | `apps/desktop` | The Mac (later Linux and Windows) app, in GPUI so it shares Rust types with the server. It can run the server on its own computer, the hut ([ADR 0030](adr/0030-the-hut-inside-the-app.md)): the binary ships in the bundle and is driven as a process, never linked. |
 | `apps/mobile` | The iOS and Android app, in React Native, one codebase for both phones. |
+| `apps/runner` | The runner: the process on each machine that runs coding-agent sessions for the server (ADR 0017). TypeScript, because the Claude Agent SDK it hosts is ([ADR 0033](adr/0033-the-runner-in-typescript.md)). |
 | `apps/web` | The browser app, in TypeScript and React, sharing the generated client with mobile. |
 | `crates/` | Every Rust library and the server, so `crates/*` is the Rust workspace's member glob. |
 | `crates/emberhut-server` | The HTTP/SSE server: routing, middleware, wiring. It is the only place that serves the API, so it owns `openapi.json`. |
@@ -157,6 +159,7 @@ area's logic lives in its service (`services/<area>.rs`), tested on its own; the
 | `packages/api-client` and the `js` CI job | after the first slice |
 | `packages/design-tokens` | later |
 | `apps/mobile` | yes: the React Native app (iOS and Android), checked by the `js` CI job (ADR 0003); its API client is hand-written until `packages/api-client` |
+| `apps/runner` | yes: checked by the `js` CI job, its side of the runner contract recorded in `crates/emberhut-api/tests/fixtures/runner/`; downloads built by `runner-build.yml` |
 | `apps/web`, `deploy/` | placeholders |
 | The MCP endpoint and its tools, the settings actions, the state's sections (ADR 0009) | yes: the registries, with `theme`, `ui` and the theme routes; the areas add theirs |
 | Tasks, projects, areas, findings, artifacts, runs and the plan (ADR 0015) | yes: the tables, the board and the state's keys, `/api/tasks*`, `/api/artifacts/*`, `/api/scheduled`, their settings actions and tools; the workers, runner sessions and projects' rooms plug in when their areas land |

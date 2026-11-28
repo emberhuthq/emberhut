@@ -18,6 +18,7 @@ and the server it talks to, both written in Rust. Website: [emberhut.com](https:
 apps/desktop        the desktop app Emberhut (GPUI), macOS first, Linux and Windows next
 apps/hands          Emberhut Hands, the helper on the owner's Mac (Accessibility, screen, recording)
 apps/mobile         the React Native app for iOS and Android (moving in)
+apps/runner         the runner: runs coding-agent sessions on each machine (TypeScript, Agent SDK)
 apps/web            the web app, TypeScript and React (coming)
 crates/emberhut-server  the server (axum)
 crates/emberhut-core    domain logic, no I/O

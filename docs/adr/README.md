@@ -34,3 +34,4 @@ accepted ADR are allowed; a changed decision still needs a new ADR. Format:
 | [0028](0028-agent-model-providers.md) | The agent's model provider: chosen from the apps, handed to the CLI in its environment | Proposed |
 | [0029](0029-openai-bridge.md) | The OpenAI bridge: Anthropic's Messages API on loopback, answered by a Chat Completions endpoint | Proposed |
 | [0030](0030-the-hut-inside-the-app.md) | The hut inside the app: the desktop app runs the server on its own computer | Proposed |
+| [0033](0033-the-runner-in-typescript.md) | The runner: in the repository, in TypeScript on the Agent SDK, paired and installed per user | Proposed |
