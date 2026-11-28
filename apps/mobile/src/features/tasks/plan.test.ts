@@ -22,7 +22,6 @@ import {
   planFraction,
   planRows,
   plansOn,
-  runningTasks,
   stepLabel,
   stepLink,
   stepState,
@@ -243,20 +242,6 @@ describe("the task page's plan", () => {
 });
 
 describe("the Tasks list with plans", () => {
-  it("lists the open tasks a run is going on", () => {
-    const state = {
-      room: 1,
-      issues: [
-        issue(1, { status: "working", live: { state: "running", alarm: false } }),
-        issue(2, { status: "working", live: { state: "queued", alarm: false } }),
-        issue(3, { status: "working", live: { state: "stalled", alarm: false } }),
-        issue(4, { status: "done", live: { state: "running", alarm: false } }),
-        issue(5, { status: "working", live: { state: "running", alarm: false } }),
-      ],
-    } as EmberhutState;
-    expect(runningTasks(state, new Set([5])).map((t) => t.id)).toEqual([1, 2]);
-  });
-
   it("keeps sessions with no task: running, waiting, and finished ones for a day", () => {
     const state = {
       room: 1,
