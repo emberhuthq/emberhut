@@ -92,7 +92,7 @@ emberhut-desktop ──► emberhut-client ──► emberhut-api ──► embe
 emberhut-server ──► emberhut-api, emberhut-core, emberhut-db
 emberhut-relay ──► emberhut-api, emberhut-identity
 emberhut-db ──► emberhut-core
-xtask ──► (no workspace crates)
+xtask ──► emberhut-api (the release feed), emberhut-core
 mobile, web ──► packages/api-client ◄── crates/emberhut-server/openapi.json
             └─► packages/design-tokens
 
@@ -164,7 +164,8 @@ area's logic lives in its service (`services/<area>.rs`), tested on its own; the
 | The agent runtime (a CLI session per room, failover, interrupt), the wake rule, check-ins, watches, routines and the assistant's own tools (ADR 0014) | yes: `Silent` unless `EMBERHUT_AGENT_COMMAND` is set |
 | The assistant's workers (a CLI session per task on `POST /mcp/worker`), ultra runs (`POST /ultra/gate`) and the guard rails: grants, the chat's OK, a card's Send it, Go ahead cards, outward steps, the ask guard, keys masked (ADR 0018) | yes: workers run when `EMBERHUT_AGENT_COMMAND` is set; the ask guard's judge with it |
 | The agent's model provider, saved from the apps (ADR 0028), and the OpenAI bridge the CLI reaches `openai` and `openai-compatible` through, on its own loopback listener (ADR 0029) | yes: the bridge listens when `EMBERHUT_AGENT_COMMAND` is set |
-| Releases: CHANGELOG, `cargo xtask release`, the tag job, the desktop updater (ADR 0005) | planned |
+| Releases on GitHub (ADR 0032, docs/releasing.md): `cargo xtask release`, `release.yml`, the signed feed | yes: the first tag still to cut |
+| The desktop updater (ADR 0005) reading GitHub's releases | in progress |
 | Connectivity (ADR 0007): `crates/emberhut-identity`, the connect, relay and directory types in `emberhut-api`, and the shared vectors | yes |
 | Connectivity (ADR 0007): the account directory (`crates/emberhut-relay`, `emberhut-relay serve --role directory`, docs/directory.md) | yes: plain HTTP behind a TLS proxy until the gateway brings TLS |
 | Connectivity (ADR 0007): the server's probe (`GET /api/connect/probe`) | yes: direct listeners; relayed probes come with sealed sessions |

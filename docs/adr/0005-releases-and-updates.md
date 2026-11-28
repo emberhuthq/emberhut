@@ -1,6 +1,12 @@
 # 0005. Releases and updates
 
-- Status: Proposed
+- Status: Proposed; superseded in part by [ADR 0032](0032-github-releases.md): releases are
+  GitHub Releases rather than the app's server (section 5 and the server routes), versions and
+  builds come from the tag rather than a committed counter and `CHANGELOG.md` (section 1), and
+  CI builds and publishes around the Mac's signing step rather than `release prepare`, `tag` and
+  `publish` (section 2). The update key signs in CI's tag-only publish stage; the Developer ID
+  identity stays on the Mac, as section 2's trust model says. The updater's checks (sections 3
+  and 4) stand.
 - Date: 2026-11-25
 
 ## Context
