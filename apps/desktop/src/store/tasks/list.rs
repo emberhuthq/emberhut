@@ -1,8 +1,8 @@
 //! The Tasks list as one flat list: what needs the user, then (on a server that keeps plans)
-//! what runs now and what is blocked, then today's (ranked by the server), then the rest in project order and then
-//! the server's. Tasks of paused or archived projects
-//! wait off the list; a parent shows once, its subtasks under it on demand. The filter narrows
-//! it, and says how many it hides.
+//! what runs now and what is blocked, then today's (ranked by the server), then the rest in
+//! project order and then the server's. Tasks of paused or archived projects wait off the list;
+//! a parent shows once, its subtasks under it on demand. The filter narrows it, and says how many
+//! it hides.
 
 use std::collections::HashSet;
 
