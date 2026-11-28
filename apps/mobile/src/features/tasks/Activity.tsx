@@ -1,101 +1,221 @@
 import { useNavigation } from "@react-navigation/native";
 import { useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import type { RunInfo, RunnerSession } from "@/api";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { OWNER, type RunInfo, type RunnerSession, type TaskArtifact, type TaskMoment } from "@/api";
 import { StatusMark } from "@/features/sessions/StatusMark";
 import { sessionStatusText, shortTitle } from "@/features/sessions/sessionList";
-import { useTheme } from "@/theme";
-import { Chip, Icon, ListRow, Section, Text } from "@/ui";
-import { activity, taskSessions, type ActivityItem } from "./plan";
-import { runTones, runWhen } from "./TaskProgress";
+import { daysFromToday, weekday } from "@/format/time";
+import { useTheme, type Palette } from "@/theme";
+import { Chip, Icon, ListRow, Section, Segmented, Text, type IconName } from "@/ui";
+import { taskSessions, type ActivityItem } from "./plan";
+import { activityFeed, type FeedFilter, type FeedItem } from "./planView";
+import { Spinner } from "./PlanMarks";
+import { runTones } from "./TaskProgress";
+
+const filters: { value: FeedFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "turns", label: "Turns" },
+  { value: "plan", label: "Plan" },
+  { value: "files", label: "Files" },
+];
 
 /**
- * What happened on a task, under its plan: each turn of work in a line or two (what it was asked, the first line of its
- * answer, its STATUS), newest first, each with its session one tap away; then the task's sessions, each opening its
- * transcript. Transcripts themselves stay on the session's screen.
+ * What happened on a task, under its plan and its ask: each turn of work in a line or two (what it was asked, the first
+ * line of its answer, its STATUS) with its session one tap away, the history (ticks, skips, blocks, plan changes) and
+ * what it produced, in one feed, newest first, with a filter. Then the task's sessions. Transcripts stay on the session's
+ * screen.
  */
-export function Activity({ runs, sessions }: { runs: RunInfo[]; sessions: RunnerSession[] }) {
+export function Activity({
+  runs,
+  sessions,
+  history,
+  artifacts,
+}: {
+  runs: RunInfo[];
+  sessions: RunnerSession[];
+  history: TaskMoment[];
+  artifacts: TaskArtifact[];
+}) {
+  const { spacing } = useTheme();
+  const [filter, setFilter] = useState<FeedFilter>("all");
   const [all, setAll] = useState(false);
-  const items = activity(runs, sessions);
-  const shown = all ? items : items.slice(0, 5);
+  const items = activityFeed(runs, sessions, history, artifacts, filter);
+  const shown = all ? items : items.slice(0, 8);
+  const turns = runs.length;
   return (
     <>
-      <Section title="Activity" count={items.length}>
-        {shown.map((item) => (
-          <ActivityRow key={item.run.id} item={item} />
-        ))}
-        {items.length > shown.length ? (
-          <ListRow key="all" title={`Show all ${items.length} turns`} onPress={() => setAll(true)} opens={false} />
-        ) : null}
-      </Section>
+      <View style={{ gap: spacing.sm }}>
+        <Section
+          title="Activity"
+          action={turns > 0 ? <Text variant="footnote" tone="secondary">{`${turns} ${turns === 1 ? "turn" : "turns"}`}</Text> : undefined}
+        >
+          <View key="filter" style={{ padding: spacing.sm }}>
+            <Segmented options={filters} value={filter} onChange={setFilter} accessibilityLabel="Show in the activity" />
+          </View>
+          {shown.map((item, i) => (
+            <FeedRow key={`${item.kind}-${i}`} item={item} />
+          ))}
+          {shown.length === 0 ? <ListRow key="none" title="Nothing here yet." /> : null}
+          {items.length > shown.length ? (
+            <ListRow key="all" title={`Show all ${items.length}`} onPress={() => setAll(true)} opens={false} />
+          ) : null}
+        </Section>
+      </View>
       <TaskSessions sessions={sessions} />
     </>
   );
 }
 
-function ActivityRow({ item }: { item: ActivityItem }) {
+/** "14:05" today; "Mon" and the time before. */
+function when(at: number): [string, string | null] {
+  if (!at || at === Number.MAX_SAFE_INTEGER) return ["", null];
+  const date = new Date(at);
+  const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return [time, daysFromToday(date) === 0 ? null : weekday(date)];
+}
+
+function FeedRow({ item }: { item: FeedItem }) {
   const { colors, spacing } = useTheme();
-  const navigation = useNavigation();
-  const { run, status } = item;
-  const mark = item.going ? colors.working : status ? colors[runTones[status.kind]] : item.failed ? colors.danger : colors.textTertiary;
-  const said = item.said ?? (item.going ? (run.started ? "Working on it…" : "Not started yet") : null);
-  const session = item.session;
+  const [time, day] = when(item.at);
   return (
     <View style={[styles.row, { gap: spacing.md, padding: spacing.lg, backgroundColor: colors.surface }]}>
-      <View
-        style={[styles.dot, { borderColor: mark, backgroundColor: item.going ? mark : "transparent" }]}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
-      <View style={{ flex: 1, gap: spacing.xs }}>
-        <View
-          accessible
-          accessibilityLabel={[
-            runWhen(run),
-            item.asked ? `Asked: ${item.asked}` : null,
-            said,
-            status?.text,
-            item.failed ? `Turn ${item.failed}` : null,
-          ]
-            .filter(Boolean)
-            .join(". ")}
-          style={{ gap: spacing.xs }}
-        >
-          <Text variant="caption" tone="secondary">
-            {runWhen(run)}
+      <View style={styles.time} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Text variant="caption" tone="tertiary">
+          {time}
+        </Text>
+        {day ? (
+          <Text variant="caption" tone="tertiary">
+            {day}
           </Text>
-          {item.asked ? (
-            <Text variant="footnote" tone="secondary" numberOfLines={1}>
-              Asked: {item.asked}
-            </Text>
-          ) : null}
-          {said ? (
-            <Text variant="callout" tone={item.said ? "primary" : "tertiary"} numberOfLines={2}>
-              {said}
-            </Text>
-          ) : null}
-          {status ? (
-            <Chip label={status.text} tone={runTones[status.kind]} />
-          ) : item.failed ? (
-            <Chip label={`Turn ${item.failed}`} tone="danger" />
-          ) : null}
-        </View>
-        {session ? (
-          <Pressable
-            onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={`Open session ${shortTitle(session.title)}`}
-            style={[styles.open, { gap: spacing.xs }]}
-          >
-            <Icon name="terminal-outline" size={14} color={colors.accent} />
-            <Text variant="footnote" tone="accent" weight="600">
-              Open session
-            </Text>
-          </Pressable>
         ) : null}
       </View>
+      <View style={styles.fill}>
+        {item.kind === "turn" ? (
+          <Turn item={item.item} time={[day, time].filter(Boolean).join(" ")} />
+        ) : item.kind === "moment" ? (
+          <Moment moment={item.moment} time={[day, time].filter(Boolean).join(" ")} />
+        ) : (
+          <File artifact={item.artifact} />
+        )}
+      </View>
     </View>
+  );
+}
+
+function Turn({ item, time }: { item: ActivityItem; time: string }) {
+  const { colors, spacing } = useTheme();
+  const navigation = useNavigation();
+  const { run, status, session } = item;
+  const said = item.said ?? (item.going ? (run.started ? "Working on it…" : "Not started yet") : null);
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <View
+        accessible
+        accessibilityLabel={[
+          time,
+          item.going ? "running now" : null,
+          item.asked ? `Asked: ${item.asked}` : null,
+          said,
+          status?.text,
+          item.failed ? `Turn ${item.failed}` : null,
+        ]
+          .filter(Boolean)
+          .join(". ")}
+        style={{ gap: spacing.xs }}
+      >
+        {item.asked ? (
+          <Text variant="footnote" tone="secondary" numberOfLines={1}>
+            Asked: {item.asked}
+          </Text>
+        ) : null}
+        {said ? (
+          <View style={[styles.line, { gap: spacing.sm }]}>
+            {item.going ? <Spinner size={12} /> : null}
+            <Text variant="callout" tone={item.said ? "primary" : "tertiary"} numberOfLines={3} style={styles.fill}>
+              {said}
+            </Text>
+          </View>
+        ) : null}
+        {status ? (
+          <Chip label={status.text} tone={runTones[status.kind]} />
+        ) : item.failed ? (
+          <Chip label={`Turn ${item.failed}`} tone="danger" />
+        ) : null}
+      </View>
+      {session ? (
+        <Pressable
+          onPress={() => navigation.navigate("Session", { id: session.id, title: shortTitle(session.title) })}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Open session ${shortTitle(session.title)}`}
+          style={[styles.line, { gap: spacing.xs, alignSelf: "flex-start" }]}
+        >
+          <Icon name="terminal-outline" size={13} color={colors.textTertiary} />
+          <Text variant="footnote" tone="secondary" numberOfLines={1} style={styles.shrink}>
+            {`${shortTitle(session.title)} on ${session.place}`}
+          </Text>
+          <Text variant="footnote" tone="accent" weight="600">
+            {" · Open session ›"}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+const momentMarks: [RegExp, IconName, keyof Palette][] = [
+  [/\bticked\b/i, "checkmark", "done"],
+  [/\bskipped\b/i, "remove", "textTertiary"],
+  [/\bblocked\b/i, "alert-circle-outline", "danger"],
+  [/\b(plan|step)\b/i, "list-outline", "textSecondary"],
+];
+
+function Moment({ moment, time }: { moment: TaskMoment; time: string }) {
+  const { colors, spacing } = useTheme();
+  const [, icon, tint] = momentMarks.find(([test]) => test.test(moment.text)) ?? [null, "ellipse-outline", "textTertiary"];
+  const who = moment.who === OWNER ? "You" : null;
+  return (
+    <View
+      style={[styles.line, { gap: spacing.sm, alignItems: "flex-start" }]}
+      accessible
+      accessibilityLabel={`${time}. ${who ? `${who}: ` : ""}${moment.text}`}
+    >
+      <View style={{ paddingTop: 2 }}>
+        <Icon name={icon} size={14} color={colors[tint]} />
+      </View>
+      <Text variant="footnote" tone="secondary" style={styles.fill}>
+        {who ? <Text variant="footnote" weight="600">{`${who}: `}</Text> : null}
+        {moment.text}
+      </Text>
+    </View>
+  );
+}
+
+function File({ artifact }: { artifact: TaskArtifact }) {
+  const { colors, spacing } = useTheme();
+  const navigation = useNavigation();
+  const web = /^https?:\/\//.test(artifact.url);
+  const open = () => {
+    if (web) void Linking.openURL(artifact.url).catch(() => undefined);
+    else
+      navigation.navigate("File", {
+        path: artifact.url,
+        name: artifact.name,
+        kind: artifact.kind === "video" ? "video" : artifact.thumb ? "image" : "file",
+      });
+  };
+  return (
+    <Pressable
+      onPress={open}
+      accessibilityRole={web ? "link" : "button"}
+      accessibilityLabel={`Open ${artifact.caption ?? artifact.name}`}
+      style={[styles.line, { gap: spacing.sm }]}
+    >
+      <Icon name={web ? "link-outline" : "document-outline"} size={14} color={colors.accent} />
+      <Text variant="footnote" tone="accent" numberOfLines={1} style={styles.shrink}>
+        {artifact.caption ?? artifact.name}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -112,9 +232,8 @@ function TaskSessions({ sessions }: { sessions: RunnerSession[] }) {
           accessibilityRole="button"
           accessibilityLabel={`Open session ${shortTitle(s.title)}, ${sessionStatusText(s.status)}`}
           style={({ pressed }) => [
-            styles.row,
+            styles.line,
             {
-              alignItems: "center",
               gap: spacing.md,
               paddingHorizontal: spacing.lg,
               paddingVertical: spacing.md,
@@ -141,6 +260,8 @@ function TaskSessions({ sessions }: { sessions: RunnerSession[] }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row" },
-  dot: { width: 10, height: 10, marginTop: 5, borderRadius: 5, borderWidth: 2 },
-  open: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", paddingTop: 2 },
+  line: { flexDirection: "row", alignItems: "center" },
+  time: { width: 40, alignItems: "flex-start" },
+  fill: { flex: 1 },
+  shrink: { flexShrink: 1 },
 });
