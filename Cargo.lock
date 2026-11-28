@@ -12807,8 +12807,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "emberhut-api",
  "emberhut-core",
+ "jiff",
+ "minisign",
+ "minisign-verify",
  "serde_json",
+ "sha2 0.11.1",
  "tempfile",
  "url",
 ]

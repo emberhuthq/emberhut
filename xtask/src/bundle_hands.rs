@@ -51,6 +51,7 @@ pub(crate) fn run(args: &HandsArgs) -> anyhow::Result<()> {
         profile,
         jobs: args.jobs,
         feature: None,
+        targets: &[],
     };
     let messages = cmd::stdout(&mut cargo_build(
         workspace::cargo(),

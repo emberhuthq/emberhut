@@ -1,6 +1,7 @@
 //! The bundle's `Info.plist`.
 
 use crate::bundle_macos::app::{BUNDLE_ID, DISPLAY_NAME, EXECUTABLE, ICON_NAME, URL_SCHEME};
+use crate::bundle_macos::plan::BundleVersion;
 use crate::bundle_macos::xml::escape;
 
 /// One value in a plist.
@@ -55,9 +56,18 @@ fn entry(key: &str, value: &Value<'_>, depth: usize) -> String {
     )
 }
 
-/// The `Info.plist` XML of Emberhut.app at `version`.
+/// The `Info.plist` XML of a development build of Emberhut.app at `version`.
+#[cfg(test)]
 #[must_use]
 pub(crate) fn info_plist(version: &str) -> String {
+    info_plist_for(&BundleVersion::development(version))
+}
+
+/// The `Info.plist` XML of Emberhut.app at `version`: `CFBundleShortVersionString` is the plain
+/// `X.Y.Z`, `CFBundleVersion` the build number of a release, and `EmberhutVersion` the full
+/// version (`0.1.0-rc.1`).
+#[must_use]
+pub(crate) fn info_plist_for(version: &BundleVersion) -> String {
     let entries = [
         ("CFBundleName", Value::String(DISPLAY_NAME)),
         ("CFBundleDisplayName", Value::String(DISPLAY_NAME)),
@@ -65,8 +75,9 @@ pub(crate) fn info_plist(version: &str) -> String {
         ("CFBundleExecutable", Value::String(EXECUTABLE)),
         ("CFBundleIconFile", Value::String(ICON_NAME)),
         ("CFBundlePackageType", Value::String("APPL")),
-        ("CFBundleShortVersionString", Value::String(version)),
-        ("CFBundleVersion", Value::String(version)),
+        ("CFBundleShortVersionString", Value::String(&version.short)),
+        ("CFBundleVersion", Value::String(&version.bundle)),
+        ("EmberhutVersion", Value::String(&version.full)),
         ("CFBundleInfoDictionaryVersion", Value::String("6.0")),
         ("LSMinimumSystemVersion", Value::String("13.0")),
         (
@@ -114,7 +125,9 @@ pub(crate) fn document(entries: &[(&str, Value<'_>)]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::info_plist;
+    use super::{info_plist, info_plist_for};
+    use crate::bundle_macos::plan::BundleVersion;
+    use crate::release::tag::Tag;
 
     /// The `<string>` value that follows `<key>{key}</key>` in `xml`.
     fn string_after(xml: &str, key: &str) -> Option<String> {
@@ -160,6 +173,28 @@ mod tests {
         assert!(xml.contains("<key>NSHighResolutionCapable</key><true/>"));
         assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"));
         assert!(xml.ends_with("</dict>\n</plist>\n"));
+    }
+
+    #[test]
+    fn a_release_carries_its_build_and_full_version() {
+        let version = BundleVersion::release(&Tag::parse("v0.1.0-rc.1").unwrap());
+        let xml = info_plist_for(&version);
+        assert_eq!(
+            string_after(&xml, "CFBundleShortVersionString").as_deref(),
+            Some("0.1.0")
+        );
+        assert_eq!(
+            string_after(&xml, "CFBundleVersion").as_deref(),
+            Some("10001")
+        );
+        assert_eq!(
+            string_after(&xml, "EmberhutVersion").as_deref(),
+            Some("0.1.0-rc.1")
+        );
+        assert_eq!(
+            string_after(&info_plist("0.1.0"), "EmberhutVersion").as_deref(),
+            Some("0.1.0")
+        );
     }
 
     #[test]

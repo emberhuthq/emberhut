@@ -20,6 +20,15 @@ serde_json.workspace = true
 url.workspace = true
 # The private-network rules the helper keeps, checked at install time too.
 emberhut-core.workspace = true
+# The release feed's types and the update signature's trusted comment (`release feed`).
+emberhut-api.workspace = true
+# The feed's date and publication time.
+jiff = { workspace = true, features = ["std"] }
+# Signs release payloads with the update key; `release verify-feed` checks them as the app does.
+minisign.workspace = true
+minisign-verify.workspace = true
+# The payloads' and the notes' SHA-256 (the feed, SHA256SUMS).
+sha2.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -112,7 +112,9 @@ mod tests {
             command.try_get_matches_from(["cargo xtask", "bundle-hands"].iter().chain(args))?;
         match Cli::from_arg_matches(&matches)?.task {
             Task::BundleHands(hands) => Ok(hands),
-            Task::BundleMacos(_) | Task::WindowsInstaller(_) => panic!("bundle-hands"),
+            Task::BundleMacos(_) | Task::WindowsInstaller(_) | Task::Release(_) => {
+                panic!("bundle-hands")
+            }
         }
     }
 

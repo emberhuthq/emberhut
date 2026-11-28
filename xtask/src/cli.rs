@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use crate::bundle_hands::HandsArgs;
 use crate::bundle_macos::BundleArgs;
 use crate::bundle_windows::WindowsArgs;
+use crate::release::ReleaseArgs;
 
 /// Repository tasks for emberhut, run with `cargo xtask <task>`.
 #[derive(Debug, Parser)]
@@ -20,11 +21,14 @@ pub(crate) struct Cli {
 pub(crate) enum Task {
     /// Build the desktop app and package it as a signed Emberhut.app for macOS.
     ///
-    /// Builds `emberhut-desktop` and the hut's `emberhut-server` at low priority, assembles
-    /// `target/bundle/Emberhut.app` (Info.plist, icon, both binaries; `--no-hut` leaves the
-    /// server out), signs it, optionally notarizes it, zips it to
-    /// `target/bundle/Emberhut-<version>-macos-<arch>.zip` and optionally installs it to
-    /// /Applications/Emberhut.app. Runs on macOS only; it needs the Xcode command line tools.
+    /// Builds `emberhut-desktop` and the hut's `emberhut-server` at low priority (for both Mac
+    /// processors with `--universal`), assembles `target/bundle/Emberhut.app` (Info.plist, icon,
+    /// both binaries; `--no-hut` leaves the server out), signs it, optionally notarizes it, zips
+    /// it to `target/bundle/Emberhut-<version>-macos-<arch>.zip`, optionally images it as a
+    /// `.dmg` beside the zip and optionally installs it to /Applications/Emberhut.app. With
+    /// `EMBERHUT_VERSION` and `EMBERHUT_BUILD` set (`cargo xtask release version` prints them)
+    /// it is a release build of that version. Runs on macOS only; it needs the Xcode command
+    /// line tools.
     BundleMacos(BundleArgs),
 
     /// Build Emberhut Hands, the Mac helper, and package it as a signed `Emberhut Hands.app`.
@@ -44,6 +48,10 @@ pub(crate) enum Task {
     /// Windows only; it needs the MSVC build tools and `wix` 5.0.2 (a .NET tool).
     #[command(name = "bundle-windows")]
     WindowsInstaller(WindowsArgs),
+
+    /// The steps of a GitHub release: tag numbers, notes, the updater's signed feed, a new
+    /// update key, and the Mac's part (docs/releasing.md).
+    Release(ReleaseArgs),
 }
 
 #[cfg(test)]

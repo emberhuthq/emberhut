@@ -71,6 +71,80 @@ pub(crate) fn notary_accepted(output: &str) -> bool {
     output.lines().any(|line| line.trim() == ACCEPTED)
 }
 
+/// The `notarytool submit … --wait` command that sends `file` (a zip or a disk image) with
+/// `notarization`'s credentials. An API key is passed by its path: notarytool reads it in place.
+#[must_use]
+pub(crate) fn notary_submit_command(file: &Path, notarization: &Notarization) -> Command {
+    let mut submit = Command::new(tool::XCRUN);
+    submit.args(["notarytool", "submit"]).arg(file);
+    match notarization {
+        Notarization::Profile { keychain_profile } => {
+            submit.args(["--keychain-profile", keychain_profile]);
+        }
+        Notarization::ApiKey {
+            key,
+            key_id,
+            issuer,
+        } => {
+            submit
+                .arg("--key")
+                .arg(key)
+                .args(["--key-id", key_id, "--issuer", issuer]);
+        }
+    }
+    submit.arg("--wait");
+    submit
+}
+
+/// Sends `file` to Apple's notary service and waits for the verdict, which is kept in `log`.
+///
+/// # Errors
+///
+/// Fails when submitting fails or Apple doesn't accept the file; the error then holds
+/// notarytool's output.
+pub(crate) fn notarize_file(
+    file: &Path,
+    notarization: &Notarization,
+    log: &Path,
+) -> anyhow::Result<()> {
+    if let Notarization::ApiKey { key, .. } = notarization
+        && !key.is_file()
+    {
+        bail!("the App Store Connect API key {} is missing", key.display());
+    }
+    say(&format!(
+        "Submitting {} to Apple's notary service and waiting for its verdict",
+        file.display()
+    ));
+    let mut submit = notary_submit_command(file, notarization);
+    let verdict = cmd::capture(&mut submit)?;
+    let text = verdict.combined();
+    fs::write(log, &text).with_context(|| format!("writing {}", log.display()))?;
+    if !verdict.status.success() || !notary_accepted(&text) {
+        bail!(
+            "`{}` did not accept {} ({}):\n{}",
+            cmd::describe(&submit),
+            file.display(),
+            verdict.status,
+            text.trim_end()
+        );
+    }
+    Ok(())
+}
+
+/// Staples the notary ticket to `path` (an app or a disk image).
+///
+/// # Errors
+///
+/// Fails when `stapler` fails.
+pub(crate) fn staple(path: &Path) -> anyhow::Result<()> {
+    cmd::run(
+        Command::new(tool::XCRUN)
+            .args(["stapler", "staple"])
+            .arg(path),
+    )
+}
+
 /// Sends the bundle to Apple's notary service, waits for the verdict and staples the ticket.
 ///
 /// # Errors
@@ -81,31 +155,10 @@ pub(crate) fn notarize(notarization: &Notarization, layout: &Layout) -> anyhow::
     let bundle = layout.app_bundle();
     let upload = layout.notary_upload();
     zip_bundle(&bundle, &upload)?;
-    say("Submitting to Apple's notary service and waiting for its verdict");
-    let mut submit = Command::new(tool::XCRUN);
-    submit.args(["notarytool", "submit"]).arg(&upload).args([
-        "--keychain-profile",
-        &notarization.keychain_profile,
-        "--wait",
-    ]);
-    let verdict = cmd::capture(&mut submit)?;
-    let text = verdict.combined();
-    let log = layout.notary_log();
-    fs::write(&log, &text).with_context(|| format!("writing {}", log.display()))?;
+    let verdict = notarize_file(&upload, notarization, &layout.notary_log());
     remove_file_if_present(&upload)?;
-    if !verdict.status.success() || !notary_accepted(&text) {
-        bail!(
-            "`{}` did not accept the app ({}):\n{}",
-            cmd::describe(&submit),
-            verdict.status,
-            text.trim_end()
-        );
-    }
-    cmd::run(
-        Command::new(tool::XCRUN)
-            .args(["stapler", "staple"])
-            .arg(&bundle),
-    )?;
+    verdict?;
+    staple(&bundle)?;
     say("Notarized and stapled");
     Ok(())
 }
@@ -129,8 +182,8 @@ pub(crate) fn zip_bundle(bundle: &Path, zip: &Path) -> anyhow::Result<()> {
 mod tests {
     use std::path::Path;
 
-    use super::{codesign_command, notary_accepted};
-    use crate::bundle_macos::plan::Signing;
+    use super::{codesign_command, notary_accepted, notary_submit_command};
+    use crate::bundle_macos::plan::{Notarization, Signing};
     use crate::cmd::describe;
 
     #[test]
@@ -164,6 +217,27 @@ mod tests {
             describe(&command),
             "/usr/bin/codesign --force --options runtime --entitlements hands.entitlements \
              --sign - 'Emberhut Hands.app'"
+        );
+    }
+
+    #[test]
+    fn notarytool_gets_a_profile_or_the_api_key_in_place() {
+        let profile = Notarization::Profile {
+            keychain_profile: "emberhut-notary".into(),
+        };
+        assert_eq!(
+            describe(&notary_submit_command(Path::new("a.dmg"), &profile)),
+            "/usr/bin/xcrun notarytool submit a.dmg --keychain-profile emberhut-notary --wait"
+        );
+        let key = Notarization::ApiKey {
+            key: "/keys/AuthKey_ABC123.p8".into(),
+            key_id: "ABC123".into(),
+            issuer: "00000000-0000-0000-0000-000000000000".into(),
+        };
+        assert_eq!(
+            describe(&notary_submit_command(Path::new("server.zip"), &key)),
+            "/usr/bin/xcrun notarytool submit server.zip --key /keys/AuthKey_ABC123.p8 \
+             --key-id ABC123 --issuer 00000000-0000-0000-0000-000000000000 --wait"
         );
     }
 

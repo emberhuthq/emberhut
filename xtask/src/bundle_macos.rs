@@ -1,4 +1,5 @@
-//! `cargo xtask bundle-macos`: build, bundle, sign, notarize, zip and install, in that order.
+//! `cargo xtask bundle-macos`: build, bundle, sign, notarize, zip, image and install, in that
+//! order.
 //! The bundle holds the hut's server, `Contents/MacOS/emberhut-server`, unless `--no-hut`
 //! (ADR 0030).
 //!
@@ -9,6 +10,7 @@ mod app;
 mod args;
 mod assemble;
 pub(crate) mod build;
+pub(crate) mod dmg;
 mod install;
 pub(crate) mod ownership;
 pub(crate) mod plan;
@@ -19,32 +21,75 @@ pub(crate) mod validate;
 mod xml;
 
 use std::fs;
+use std::path::PathBuf;
 
 use anyhow::{Context as _, bail};
 
-use self::app::{Layout, VERSION, arch_label};
+pub(crate) use self::app::Layout;
+use self::app::VERSION;
 pub(crate) use self::args::BundleArgs;
+use self::plan::{BundlePlan, BundleVersion};
 use crate::say;
 use crate::workspace::Workspace;
 
-/// Runs `bundle-macos` with `args`.
+/// What a run of `bundle-macos` made.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Bundled {
+    /// The signed (and maybe notarized) `Emberhut.app`.
+    pub(crate) app: PathBuf,
+    /// Its zip.
+    pub(crate) zip: PathBuf,
+    /// The disk image, with `--dmg`.
+    pub(crate) dmg: Option<PathBuf>,
+    /// The hut's server as built (universal when the app is), before the bundle's copy was
+    /// signed; `None` with `--no-hut`.
+    pub(crate) server: Option<PathBuf>,
+}
+
+/// Fails off macOS, before anything runs.
 ///
-/// Everything that can be checked up front (the OS, the options, the icon, the install
-/// destination) is checked before the build starts.
+/// # Errors
+///
+/// Fails when not on macOS.
+pub(crate) fn require_macos(task: &str) -> anyhow::Result<()> {
+    if !cfg!(target_os = "macos") {
+        bail!(
+            "{task} makes a macOS app bundle and needs macOS and its tools (codesign, \
+             ditto, hdiutil, iconutil, lipo, sips, xcrun); this is {}",
+            std::env::consts::OS
+        );
+    }
+    Ok(())
+}
+
+/// Runs `bundle-macos` with `args`; a release build when `EMBERHUT_VERSION` and
+/// `EMBERHUT_BUILD` are set.
+///
+/// Everything that can be checked up front (the OS, the options, the version, the icon, the
+/// install destination) is checked before the build starts.
 ///
 /// # Errors
 ///
 /// Fails when not on macOS, the options don't combine, or any step fails.
 pub(crate) fn run(args: &BundleArgs) -> anyhow::Result<()> {
-    if !cfg!(target_os = "macos") {
-        bail!(
-            "bundle-macos makes a macOS app bundle and needs macOS and its tools (codesign, \
-             ditto, iconutil, sips, xcrun); this is {}",
-            std::env::consts::OS
-        );
-    }
-    let plan = args.plan()?;
+    require_macos("bundle-macos")?;
+    let mut plan = args.plan()?;
+    let env = |key| std::env::var(key).ok().filter(|value| !value.is_empty());
+    plan.version = BundleVersion::resolve(
+        env("EMBERHUT_VERSION").as_deref(),
+        env("EMBERHUT_BUILD").as_deref(),
+        VERSION,
+    )?;
     let layout = Layout::new(Workspace::discover()?);
+    bundle(&plan, &layout).map(drop)
+}
+
+/// Builds, assembles, signs, notarizes, zips, images and installs as `plan` says.
+///
+/// # Errors
+///
+/// Fails when any step fails.
+pub(crate) fn bundle(plan: &BundlePlan, layout: &Layout) -> anyhow::Result<Bundled> {
     let icon = layout.icon_source();
     if !icon.is_file() {
         bail!("the app icon {} is missing", icon.display());
@@ -52,11 +97,14 @@ pub(crate) fn run(args: &BundleArgs) -> anyhow::Result<()> {
     if plan.install {
         install::preflight()?;
     }
+    if let Some((version, build)) = &plan.version.release {
+        say(&format!("A release build: {version}, build {build}"));
+    }
 
-    let built = build::build(&plan, &layout)?;
+    let built = build::build(plan, layout)?;
     let out_dir = layout.out_dir();
     fs::create_dir_all(&out_dir).with_context(|| format!("creating {}", out_dir.display()))?;
-    assemble::assemble(&layout, &built)?;
+    assemble::assemble(layout, &built, &plan.version)?;
     let app = layout.app_bundle();
     // Nested code is signed before the bundle that seals it, with the same identity and the
     // hardened runtime, as notarization asks.
@@ -65,12 +113,21 @@ pub(crate) fn run(args: &BundleArgs) -> anyhow::Result<()> {
     }
     sign::sign(&plan.signing, &app, None)?;
     if let Some(notarization) = &plan.notarization {
-        sign::notarize(notarization, &layout)?;
+        sign::notarize(notarization, layout)?;
     }
 
-    let zip = layout.zip(VERSION, arch_label(std::env::consts::ARCH));
+    let version = &plan.version.full;
+    let zip = layout.zip(version, plan.arch_label());
     sign::zip_bundle(&app, &zip)?;
     say(&format!("Zipped {}", zip.display()));
+
+    let dmg = if plan.dmg {
+        let dmg = dmg::make(plan, layout, version, plan.arch_label())?;
+        say(&format!("Made {}", dmg.display()));
+        Some(dmg)
+    } else {
+        None
+    };
 
     if plan.install {
         let installed = install::install(&app)?;
@@ -81,7 +138,12 @@ pub(crate) fn run(args: &BundleArgs) -> anyhow::Result<()> {
             app.display()
         ));
     }
-    Ok(())
+    Ok(Bundled {
+        app,
+        zip,
+        dmg,
+        server: built.server,
+    })
 }
 
 #[cfg(test)]

@@ -32,10 +32,7 @@ impl Workspace {
     /// Fails when xtask's manifest directory has no parent, or `cargo metadata` fails or
     /// reports no target directory.
     pub(crate) fn discover() -> anyhow::Result<Self> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .context("xtask's manifest directory has no parent")?
-            .to_path_buf();
+        let root = Self::root_dir();
         // Run in the caller's directory, like the `cargo xtask` that started us: cargo finds
         // its config files from there and resolves a relative CARGO_TARGET_DIR against it.
         let mut metadata = Command::new(cargo());
@@ -57,6 +54,13 @@ impl Workspace {
             )
         })?;
         Ok(Self::new(root, target))
+    }
+
+    /// The workspace root: xtask's parent directory, as compiled in.
+    #[must_use]
+    pub(crate) fn root_dir() -> PathBuf {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        manifest.parent().unwrap_or(manifest).to_path_buf()
     }
 
     /// The workspace root, where the top `Cargo.toml` is.

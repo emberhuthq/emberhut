@@ -97,12 +97,6 @@ objc2-core-media = { version = "0.3", default-features = false }
 objc2-foundation = { version = "0.3", default-features = false }
 objc2-screen-capture-kit = { version = "0.3", default-features = false }
 
-# The product's build number (ADR 0005): one counter for the desktop and the phones, raised by
-# one every release, compiled into a published build as EMBERHUT_BUILD. 5 is the floor the ADR sets;
-# the first release raises it past the highest build either store has accepted.
-[workspace.metadata.release]
-build = 5
-
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_docs = "warn"
