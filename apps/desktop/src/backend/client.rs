@@ -503,6 +503,10 @@ impl Backend for EmberhutBackend {
         self.client.use_account(request).map_err(error)
     }
 
+    fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        self.client.join_waitlist(list).map_err(error)
+    }
+
     fn jobs(&self, fresh: bool) -> Result<JobsPage, Error> {
         self.client.jobs(fresh).map_err(error)
     }

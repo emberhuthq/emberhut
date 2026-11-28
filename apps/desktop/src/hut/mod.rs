@@ -14,6 +14,7 @@
 //! time. The processes, the loopback and the folders are given to [`LocalHut::new`]
 //! ([`Spawner`], [`HutNet`], [`HutPaths`]), so the tests run all of it against fakes.
 
+mod accounts;
 mod error;
 mod net;
 mod pair;
@@ -35,6 +36,7 @@ use emberhut_identity::MachineId;
 use gpui_kit::AppContext as _;
 use gpui_kit::{App, Task};
 
+pub(crate) use self::accounts::{HutAccount, STANDIN_ENV};
 pub(crate) use self::error::HutError;
 pub(crate) use self::net::{Heard, HutNet, LoopbackNet};
 pub(crate) use self::paths::{HutPaths, Manager, Place};
@@ -163,6 +165,8 @@ struct Inner {
     machine: Mutex<Option<MachineId>>,
     /// Held by the call running, so calls run one at a time.
     busy: Mutex<()>,
+    /// The accounts' sign-ins under way (the CLI waits for the browser, then exits).
+    logins: Mutex<Vec<Box<dyn Running>>>,
 }
 
 /// Takes `mutex` whatever an earlier holder did.
@@ -189,6 +193,7 @@ impl LocalHut {
                 child: Mutex::new(None),
                 machine: Mutex::new(None),
                 busy: Mutex::new(()),
+                logins: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -747,6 +752,9 @@ impl LocalHut {
         let agent = paths.agent();
         if let Some(agent) = agent.as_deref().and_then(Path::to_str) {
             args.extend(["--agent-command".to_owned(), agent.to_owned()]);
+        }
+        if let Some(accounts) = self.account_flags() {
+            args.extend(["--agent-accounts".to_owned(), accounts]);
         }
         Ok(Serve {
             program: server.to_path_buf(),

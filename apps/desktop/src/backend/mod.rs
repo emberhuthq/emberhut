@@ -542,6 +542,13 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`]; [`Error::Refused`] with the server's words.
     fn use_account(&self, request: &UseAccountRequest) -> Result<UseAccountReply, Error>;
 
+    /// Asks to hear when `list` (`cloud-home`) is ready; kept on the server.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`]; [`Error::Refused`] with the server's words.
+    fn join_waitlist(&self, list: &str) -> Result<(), Error>;
+
     /// The background jobs on the machines; `fresh` looks again on the server.
     ///
     /// # Errors

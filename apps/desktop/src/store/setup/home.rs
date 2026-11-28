@@ -46,6 +46,12 @@ pub(crate) trait LocalHome {
     fn relight(&self, _server: &ServerUrl, _cx: &mut App) -> Task<Relit> {
         Task::ready(Relit::NotHere)
     }
+
+    /// The hut, when Emberhut here is this app's own: its Claude accounts are signed in and
+    /// used through it. `None` for any other home.
+    fn hut(&self) -> Option<LocalHut> {
+        None
+    }
 }
 
 /// What [`LocalHome::relight`] found.
@@ -160,6 +166,10 @@ impl LocalHome for HutHome {
 
     fn keep_lit(&self, keep: KeepLit, cx: &mut App) -> Option<Task<Result<(), String>>> {
         Some(in_words(self.hut.keep_lit(keep, cx), cx))
+    }
+
+    fn hut(&self) -> Option<LocalHut> {
+        Some(self.hut.clone())
     }
 
     fn relight(&self, server: &ServerUrl, cx: &mut App) -> Task<Relit> {

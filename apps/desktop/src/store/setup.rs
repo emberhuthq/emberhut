@@ -20,6 +20,7 @@
 //! again when the app talks to it and it is out ([`Store::relight_home`]).
 
 mod home;
+mod plans;
 mod relight;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -35,6 +36,7 @@ use serde::{Deserialize, Serialize};
 pub(crate) use self::home::{
     CANT_HERE, DevHome, HutHome, LocalHome, NoLocalHome, Relit, on_this_computer,
 };
+pub(crate) use self::plans::Plans;
 pub(crate) use self::relight::Relighting;
 
 use super::{Store, update_or_log};
@@ -235,6 +237,10 @@ pub(crate) enum Ending {
 struct SetupFile {
     /// How the setup ended, once it did.
     ended: Option<Ending>,
+    /// The person asked to hear when renting a home in the cloud is ready (kept on their
+    /// server too, once there is one).
+    #[serde(rename = "cloudWaitlist", skip_serializing_if = "std::ops::Not::not")]
+    cloud_waitlist: bool,
 }
 
 /// A connection on the "Show it your world" step.
@@ -357,6 +363,8 @@ pub(crate) struct Setup {
     keep: Keeping,
     /// Emberhut here started again at launch.
     relighting: Relighting,
+    /// The plans' accounts ("Light it").
+    plans: Plans,
 }
 
 /// How Emberhut here is kept lit, and the sheet that changes it.
@@ -397,6 +405,7 @@ impl Setup {
             asked: BTreeSet::new(),
             keep: Keeping::default(),
             relighting: Relighting::default(),
+            plans: Plans::default(),
         }
     }
 
@@ -612,7 +621,7 @@ impl Store {
         for earlier in &SetupStep::ALL[..until] {
             let line = match earlier {
                 SetupStep::Home => self.home_line(),
-                SetupStep::Light => lit_line(self.credentials().saved()),
+                SetupStep::Light => self.light_line(),
                 SetupStep::Reach | SetupStep::World | SetupStep::Share => {
                     self.setup.steps[earlier.index()] = StepState::Skipped;
                     continue;
@@ -634,7 +643,10 @@ impl Store {
     fn enter(&mut self, step: Option<SetupStep>, cx: &mut Context<'_, Self>) {
         self.setup.open = step;
         match step {
-            Some(SetupStep::Light) => self.open_credentials(cx),
+            Some(SetupStep::Light) => {
+                self.open_credentials(cx);
+                self.load_plans(cx);
+            }
             Some(SetupStep::Reach) => {
                 // Without a state yet, the first one to come says who was signed in already.
                 self.setup.known_devices = self.state.is_some().then(|| self.signed_in_devices());
@@ -685,6 +697,53 @@ impl Store {
         self.setup.showing = false;
         self.setup.open = None;
         self.setup.kept.ended = Some(ending);
+        self.keep_setup_file(cx);
+        cx.notify();
+    }
+
+    /// "Lit it" step's line: the plan's account it is lit with, else the provider saved.
+    fn light_line(&self) -> String {
+        self.setup
+            .plans
+            .lit_line()
+            .unwrap_or_else(|| lit_line(self.credentials().saved()))
+    }
+
+    /// "Tell me when it's ready" on renting a home in the cloud: kept in `setup.json`, and on
+    /// the server once there is one (nothing is paid or sent anywhere else).
+    pub(crate) fn join_cloud_waitlist(&mut self, cx: &mut Context<'_, Self>) {
+        if self.setup.kept.cloud_waitlist {
+            return;
+        }
+        self.setup.kept.cloud_waitlist = true;
+        self.keep_setup_file(cx);
+        self.tell_server_waitlist(cx);
+        cx.notify();
+    }
+
+    /// Tells the server the person is on the cloud waitlist, when they are and it is signed in
+    /// (again at every sign-in: the server keeps the first time).
+    fn tell_server_waitlist(&self, cx: &mut Context<'_, Self>) {
+        if !self.setup.kept.cloud_waitlist || !self.is_signed_in() {
+            return;
+        }
+        let backend = std::sync::Arc::clone(&self.backend);
+        cx.background_spawn(async move {
+            if let Err(error) = backend.join_waitlist("cloud-home") {
+                log::info!("the server didn't keep the cloud waitlist: {error}");
+            }
+        })
+        .detach();
+    }
+
+    /// Whether the person asked to hear when renting a home in the cloud is ready.
+    #[must_use]
+    pub(crate) fn on_cloud_waitlist(&self) -> bool {
+        self.setup.kept.cloud_waitlist
+    }
+
+    /// Writes `setup.json`.
+    fn keep_setup_file(&mut self, cx: &mut Context<'_, Self>) {
         if let Some(files) = self.files.clone() {
             let kept = self.setup.kept;
             let (number, written) = self.setup.writes.next();
@@ -693,7 +752,6 @@ impl Store {
             })
             .detach();
         }
-        cx.notify();
     }
 
     /// The user picks where the ember lives.
@@ -887,6 +945,7 @@ impl Store {
     /// This device paired (from the setup's form, or the sign-in screen's): step 1 is done if
     /// it is open.
     pub(super) fn setup_signed_in(&mut self, cx: &mut Context<'_, Self>) {
+        self.tell_server_waitlist(cx);
         if self.setup.showing && self.setup.open == Some(SetupStep::Home) {
             self.home_given(cx);
         } else {
@@ -897,7 +956,7 @@ impl Store {
     /// A provider was saved from "Light it": the step is done.
     pub(crate) fn setup_lit(&mut self, cx: &mut Context<'_, Self>) {
         self.setup.lit = LitCheck::Lit;
-        let line = lit_line(self.credentials().saved());
+        let line = self.light_line();
         self.step_done(SetupStep::Light, line, cx);
     }
 

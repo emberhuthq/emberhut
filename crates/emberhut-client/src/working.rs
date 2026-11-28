@@ -66,6 +66,25 @@ impl Client {
         exchange::json(self.post(paths::ACCOUNTS_USE, request)?)
     }
 
+    /// Asks to hear when `list` is ready (`PUT /api/waitlist/{list}`, `cloud-home`): kept on
+    /// the server, nothing paid.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Status`] 400 for a list the server doesn't know, 404 from a server without
+    /// waitlists; [`Error::SignInRequired`] and the transport's errors.
+    pub fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        let answer = self.put_within(
+            &format!("/api/waitlist/{list}"),
+            &serde_json::json!({}),
+            std::time::Duration::from_secs(20),
+        )?;
+        if !answer.status().is_success() {
+            return Err(exchange::refusal(answer));
+        }
+        Ok(())
+    }
+
     /// The background jobs on the machines (`GET /api/jobs`); `fresh` looks again rather
     /// than taking the server's few-seconds-old list.
     ///

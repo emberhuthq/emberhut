@@ -189,6 +189,8 @@ pub(crate) enum Call {
     CheckUsage,
     /// The assistant's account picked.
     UseAccount(UseAccountRequest),
+    /// `join_waitlist`.
+    JoinWaitlist(String),
     /// The jobs read, fresh or not.
     Jobs(bool),
     /// A job stopped or cleared.
@@ -1032,6 +1034,11 @@ impl Backend for FakeBackend {
 
     fn check_usage(&self) -> Result<(), Error> {
         self.record(Call::CheckUsage);
+        Ok(())
+    }
+
+    fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        self.record(Call::JoinWaitlist(list.to_owned()));
         Ok(())
     }
 

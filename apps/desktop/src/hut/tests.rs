@@ -56,6 +56,8 @@ struct World {
     managed_file: Option<String>,
     /// Whether launchd refuses to load the launch agent.
     refuses_agent: bool,
+    /// The CLI folders the person finished signing in to in the browser.
+    signed_in: BTreeSet<OsString>,
 }
 
 impl World {
@@ -173,6 +175,19 @@ impl Spawner for FakeSpawner {
                 stdout: String::new(),
                 stderr: "Bootstrap failed: 5: Input/output error".to_owned(),
             },
+            ["auth", "status", "--json"] => {
+                let dir = run
+                    .env
+                    .iter()
+                    .find(|(name, _)| name == "CLAUDE_CONFIG_DIR")
+                    .map(|(_, dir)| dir.clone())
+                    .unwrap_or_default();
+                if world.signed_in.contains(&dir) {
+                    ok(r#"{"loggedIn":true,"email":"ada@example.com","subscriptionType":"max"}"#)
+                } else {
+                    ok(r#"{"loggedIn":false}"#)
+                }
+            }
             ["bootout", _] | ["--user", "stop", _] => {
                 world.put_out_service();
                 ok("")
@@ -269,6 +284,7 @@ impl Setup {
                 },
                 managed_file: None,
                 refuses_agent: false,
+                signed_in: BTreeSet::new(),
             })),
             dir,
         };
@@ -1210,4 +1226,53 @@ fn a_hut_launchd_refuses_runs_on_as_the_apps_child() {
     );
     let state = setup.state();
     assert_eq!((state.keep, state.pid), (KeepLit::default(), Some(102)));
+}
+
+#[test]
+fn a_claude_account_signs_in_through_anthropic_and_the_hut_runs_on_it() {
+    let setup = Setup::new(Os::Mac);
+    let hut = setup.hut();
+    assert_eq!(hut.start_now().unwrap(), url(18990));
+
+    assert_eq!(hut.add_account_now().unwrap(), "claude-1");
+    let dir = setup.paths().data().join("accounts/claude-1");
+    let login = setup.world().spawned.last().cloned().unwrap();
+    assert_eq!(
+        login.words(),
+        ["auth", "login", "--claudeai"],
+        "Anthropic's own sign-in"
+    );
+    assert!(
+        login
+            .env
+            .contains(&("CLAUDE_CONFIG_DIR".to_owned(), dir.clone().into_os_string())),
+        "on the account's own folder"
+    );
+    assert!(dir.is_dir());
+    assert!(
+        !hut.accounts_now()[0].signed_in,
+        "not before the browser page is done"
+    );
+
+    setup.world().signed_in.insert(dir.clone().into_os_string());
+    let account = hut.accounts_now().remove(0);
+    assert!(account.signed_in);
+    assert_eq!(account.email.as_deref(), Some("ada@example.com"));
+    assert_eq!(account.plan_name(), "Claude Max");
+
+    assert_eq!(hut.use_accounts_now().unwrap(), url(18990));
+    let serve = setup.world().spawned.last().cloned().unwrap();
+    let flag = format!("claude-1={}", dir.display());
+    assert!(
+        serve
+            .words()
+            .windows(2)
+            .any(|pair| pair[0] == "--agent-accounts" && pair[1] == flag),
+        "the server runs on the account: {:?}",
+        serve.words()
+    );
+
+    hut.remove_account_now("claude-1").unwrap();
+    assert!(hut.accounts_now().is_empty());
+    assert!(!dir.exists(), "its folder goes");
 }

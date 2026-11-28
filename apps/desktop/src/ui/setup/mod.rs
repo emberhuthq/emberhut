@@ -12,6 +12,7 @@
 pub(crate) mod banner;
 mod ember;
 mod keep;
+mod plans;
 mod steps;
 #[cfg(test)]
 mod tests;
@@ -69,6 +70,8 @@ pub(crate) struct SetupView {
     scroll: ScrollHandle,
     /// The keep-lit sheet's focus, and whether it took it since the sheet opened.
     keep_focus: (FocusHandle, bool),
+    /// "Light it": which way with a key is unfolded.
+    fold: Option<plans::Fold>,
 }
 
 impl SetupView {
@@ -99,6 +102,7 @@ impl SetupView {
             qr: PairingQr::default(),
             scroll: ScrollHandle::new(),
             keep_focus: (cx.focus_handle(), false),
+            fold: None,
         }
     }
 

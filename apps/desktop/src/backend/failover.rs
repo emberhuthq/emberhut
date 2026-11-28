@@ -683,6 +683,10 @@ impl Backend for Failover {
         self.active().use_account(request)
     }
 
+    fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        self.active().join_waitlist(list)
+    }
+
     fn jobs(&self, fresh: bool) -> Result<JobsPage, Error> {
         self.active().jobs(fresh)
     }

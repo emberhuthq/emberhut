@@ -119,9 +119,12 @@ fn light_it_shows_the_picker_and_saving_lights_the_ember(cx: &mut TestAppContext
         store.read_with(cx, |store, _| store.setup().open()),
         Some(SetupStep::Light)
     );
-    assert!(shows(cx, "provider-anthropic"), "the picker, in the step");
+    assert!(shows(cx, "setup-plan-claude"), "the plans first");
+    assert!(!shows(cx, "provider-anthropic"), "the keys folded");
     assert!(backend.calls().contains(&Call::AgentProvider));
-    cx.update(|window, cx| window.click("provider-anthropic", cx));
+    cx.update(|window, cx| window.click("setup-fold-claude", cx));
+    cx.run_until_parked();
+    assert!(shows(cx, "provider-anthropic"), "the picker, unfolded under Claude");
     store.update(cx, |store, cx| {
         store.type_provider_key("sk-ant-example", cx);
         store.test_provider(cx);

@@ -79,6 +79,12 @@ pub(crate) enum HutError {
          with systemd."
     )]
     NoService,
+    /// There is no `claude` on this computer to sign in with.
+    #[error(
+        "There's no Claude Code on this computer to sign in with. Install it from \
+         claude.com/claude-code, then try again."
+    )]
+    NoAgent,
     /// `launchctl` or `systemctl` refused.
     #[error("Couldn't {what}: {said}")]
     Service {
