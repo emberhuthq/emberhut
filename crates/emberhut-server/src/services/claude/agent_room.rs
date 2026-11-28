@@ -226,8 +226,14 @@ impl AgentRooms {
         meta.uid() == server.uid() && meta.mode() & 0o022 == 0
     }
 
-    /// Whether a file with `meta` is safe to run from: not knowable here, so no.
+    /// Whether a file with `meta` is safe to run from: not knowable here (the owner and the
+    /// write access are Unix's), so no.
     #[cfg(not(unix))]
+    #[expect(
+        clippy::unused_async,
+        clippy::unused_async_trait_impl,
+        reason = "the Unix check reads the data folder's owner"
+    )]
     async fn owned_safely(&self, _: &std::fs::Metadata) -> bool {
         false
     }

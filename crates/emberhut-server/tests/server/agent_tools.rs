@@ -342,9 +342,16 @@ async fn an_agent_answers_in_its_own_conversations_in_plain_text_and_reads_its_t
     // A file of the owner's, outside the agent's folders, directly or through a link in its
     // folder: refused.
     let owners = desk.owners_file("contract.pdf", b"%PDF the owner's");
-    let link = desk.folder().join("innocent.pdf");
-    std::os::unix::fs::symlink(&owners, &link).unwrap();
-    for file in [owners.clone(), link.display().to_string()] {
+    // (Links need Unix here: on Windows, making one takes a privilege.)
+    #[cfg(unix)]
+    let links = {
+        let link = desk.folder().join("innocent.pdf");
+        std::os::unix::fs::symlink(&owners, &link).unwrap();
+        vec![link.display().to_string()]
+    };
+    #[cfg(not(unix))]
+    let links = Vec::new();
+    for file in std::iter::once(owners.clone()).chain(links) {
         let refused = desk
             .call(
                 "agent_reply",

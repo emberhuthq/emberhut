@@ -5,7 +5,9 @@
 use emberhut_db::{Database, RemoteFile};
 use serde_json::json;
 
+#[cfg(unix)]
 use emberhut_server::app::Dependencies;
+#[cfg(unix)]
 use emberhut_server::config::AuthMode;
 use emberhut_server::services::runner_api::by;
 use emberhut_server::services::runners::SessionId;

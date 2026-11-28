@@ -73,6 +73,11 @@ zeroize = { workspace = true }
 # Stopping the agent CLI's process group (`kill(-pgid, sig)`), without `unsafe`.
 rustix = { workspace = true, features = ["process", "system"] }
 
+[target.'cfg(windows)'.dependencies]
+# Which file an open handle is (its volume and file index) and how many names it has, for a
+# step's files (src/services/approvals/files.rs), without `unsafe`. Already in the tree.
+winapi-util = "0.1.11"
+
 [dev-dependencies]
 http-body-util = { workspace = true }
 sea-orm = { workspace = true, features = ["runtime-tokio", "sqlx-sqlite"] }

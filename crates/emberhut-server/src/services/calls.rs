@@ -941,7 +941,12 @@ pub(crate) async fn make_private_dir(dir: &Path) -> std::io::Result<()> {
     builder.create(dir).await
 }
 
-/// Makes `file` readable by the server's user only.
+/// Makes `file` readable by the server's user only (Unix; elsewhere the data folder's own
+/// access applies, as for the folders [`make_private_dir`] makes).
+#[cfg_attr(
+    not(unix),
+    expect(clippy::unused_async, reason = "only Unix sets a file's permissions")
+)]
 async fn private_file(file: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     {
@@ -949,7 +954,7 @@ async fn private_file(file: &Path) -> std::io::Result<()> {
         tokio::fs::set_permissions(file, std::fs::Permissions::from_mode(0o600)).await?;
     }
     #[cfg(not(unix))]
-    let _unused = file;
+    let _ = file;
     Ok(())
 }
 

@@ -166,14 +166,18 @@ async fn an_agents_workers_file_tools_reach_only_its_folders() {
         let held = gate(&desk, task, tool, input, &cwd).await.unwrap();
         assert!(held.starts_with("Not yours to open"), "{tool}: {held}");
     }
-    let link = folder.join("innocent.pdf");
-    std::os::unix::fs::symlink(&owners, &link).unwrap();
-    assert!(
-        gate(&desk, task, "Read", json!({ "file_path": link }), &cwd)
-            .await
-            .is_some(),
-        "a link out of its folder"
-    );
+    // (Links need Unix here: on Windows, making one takes a privilege.)
+    #[cfg(unix)]
+    {
+        let link = folder.join("innocent.pdf");
+        std::os::unix::fs::symlink(&owners, &link).unwrap();
+        assert!(
+            gate(&desk, task, "Read", json!({ "file_path": link }), &cwd)
+                .await
+                .is_some(),
+            "a link out of its folder"
+        );
+    }
     let other = gate(
         &desk,
         task,

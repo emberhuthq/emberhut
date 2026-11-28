@@ -3,8 +3,9 @@
 //! leave is checked on the file actually read, not on a path:
 //!
 //! - the file is opened once; the private and hidden checks run on the real path of the open
-//!   handle (on Linux, `/proc/self/fd`; elsewhere, the canonical path, which must still be the
-//!   opened file), so a link swapped in between the check and the read changes nothing;
+//!   handle (on Linux, `/proc/self/fd`; on macOS and Windows, the canonical path, which must
+//!   still be the opened file), so a link swapped in between the check and the read changes
+//!   nothing;
 //! - a private file (the secrets folder, the server's keys, the owner's key folders), a hidden
 //!   one, a system file (under `/proc`, `/sys` or `/dev`, whose size says nothing of what it
 //!   holds), an empty one and one with other names (a hard link to a private file has an
@@ -184,7 +185,7 @@ fn read_one(
     if meta.len() == 0 {
         return Err(FileRefused::Empty(shown));
     }
-    if has_other_names(&meta) {
+    if has_other_names(&handle, &meta) {
         return Err(FileRefused::Linked(shown));
     }
     if meta.len() > FILE_MAX {
@@ -211,10 +212,11 @@ enum RealPath {
     Io(io::Error),
     /// The path no longer names the opened file.
     #[cfg_attr(
-        target_os = "linux",
+        any(target_os = "linux", not(any(unix, windows))),
         expect(
             dead_code,
-            reason = "on Linux the handle names its own path, so it can't have changed"
+            reason = "on Linux the handle names its own path, so it can't have changed; \
+                      elsewhere no path is known"
         )
     )]
     Changed,
@@ -242,8 +244,25 @@ fn real_path(path: &Path, handle: &File) -> Result<PathBuf, RealPath> {
     Ok(real)
 }
 
+/// The real path of `handle`, opened from `path`: the canonical path, which must still be the
+/// opened file (the same volume and file index), so a swap is refused.
+#[cfg(windows)]
+fn real_path(path: &Path, handle: &File) -> Result<PathBuf, RealPath> {
+    use winapi_util::file::{Information, information};
+    let identity = |info: &Information| (info.volume_serial_number(), info.file_index());
+    let real = std::fs::canonicalize(path).map_err(RealPath::Io)?;
+    let opened = information(handle).map_err(RealPath::Io)?;
+    let named = winapi_util::Handle::from_path_any(&real)
+        .and_then(|named| information(&named))
+        .map_err(RealPath::Io)?;
+    if identity(&named) != identity(&opened) {
+        return Err(RealPath::Changed);
+    }
+    Ok(real)
+}
+
 /// The real path of an open file, where the system can't tell it: unknown, so nothing is sent.
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn real_path(_: &Path, _: &File) -> Result<PathBuf, RealPath> {
     Err(RealPath::Io(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -251,16 +270,23 @@ fn real_path(_: &Path, _: &File) -> Result<PathBuf, RealPath> {
     )))
 }
 
-/// Whether the file has other names: a hard link elsewhere.
+/// Whether the open file has other names: a hard link elsewhere.
 #[cfg(unix)]
-fn has_other_names(meta: &std::fs::Metadata) -> bool {
+fn has_other_names(_: &File, meta: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt as _;
     meta.nlink() > 1
 }
 
-/// Whether the file has other names: not known on this system, so none.
-#[cfg(not(unix))]
-fn has_other_names(_: &std::fs::Metadata) -> bool {
+/// Whether the open file has other names: a hard link elsewhere (when the system can't say,
+/// it is taken to have some, so it isn't sent).
+#[cfg(windows)]
+fn has_other_names(handle: &File, _: &std::fs::Metadata) -> bool {
+    winapi_util::file::information(handle).map_or(true, |info| info.number_of_links() > 1)
+}
+
+/// Whether the open file has other names: not known on this system, so none.
+#[cfg(not(any(unix, windows)))]
+fn has_other_names(_: &File, _: &std::fs::Metadata) -> bool {
     false
 }
 
@@ -301,12 +327,17 @@ mod tests {
         assert_eq!(read[0].digest, FileDigest::of("cover.png", b"png bytes"));
         assert!(bytes_if_unchanged(&read[0]).await.is_some());
 
-        let link = dir.path().join("innocent.txt");
-        std::os::unix::fs::symlink(secrets.join("key"), &link).unwrap();
-        assert!(matches!(
-            read_all(&[link], &private, None).await,
-            Err(FileRefused::Private(_))
-        ));
+        // A link to a private file is refused by its real path (links need Unix here: on
+        // Windows, making one takes a privilege).
+        #[cfg(unix)]
+        {
+            let link = dir.path().join("innocent.txt");
+            std::os::unix::fs::symlink(secrets.join("key"), &link).unwrap();
+            assert!(matches!(
+                read_all(&[link], &private, None).await,
+                Err(FileRefused::Private(_))
+            ));
+        }
         assert!(matches!(
             read_all(&[hidden], &private, None).await,
             Err(FileRefused::Hidden(_))
@@ -357,6 +388,7 @@ mod tests {
 
     /// What is sent is read from the handle that was checked: a link swapped in at the path
     /// afterwards sends nothing of what it points at.
+    #[cfg(unix)]
     #[tokio::test]
     async fn a_link_swapped_in_after_the_check_sends_the_file_that_was_checked() {
         let dir = folder();
@@ -410,15 +442,18 @@ mod tests {
             read_all(std::slice::from_ref(&owners), &private, Some(&roots)).await,
             Err(FileRefused::Outside(_))
         ));
-        let link = root.join("innocent.pdf");
-        std::os::unix::fs::symlink(&owners, &link).unwrap();
-        assert!(
-            matches!(
-                read_all(&[link], &private, Some(&roots)).await,
-                Err(FileRefused::Outside(_))
-            ),
-            "a link in its folder to a file outside"
-        );
+        #[cfg(unix)]
+        {
+            let link = root.join("innocent.pdf");
+            std::os::unix::fs::symlink(&owners, &link).unwrap();
+            assert!(
+                matches!(
+                    read_all(&[link], &private, Some(&roots)).await,
+                    Err(FileRefused::Outside(_))
+                ),
+                "a link in its folder to a file outside"
+            );
+        }
         assert!(
             read_all(&[owners], &private, None).await.is_ok(),
             "the owner's own steps"

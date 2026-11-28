@@ -3,21 +3,25 @@
 //! allowed, its accounts' secret paths in the environment, only its allowed tools in the
 //! CLI's `dontAsk` mode; a disabled agent's room takes no turns. The default agent's session
 //! is as it was.
-#![expect(
-    clippy::unwrap_used,
-    clippy::too_many_lines,
-    reason = "a test helper, and a test that walks one agent's session from start to end"
-)]
+#![expect(clippy::unwrap_used, reason = "a test helper, and tests")]
 
 use std::sync::Arc;
 
+#[cfg(unix)]
 use emberhut_api::mcp::SERVER_NAME;
+#[cfg(unix)]
 use emberhut_core::RoomId;
-use emberhut_server::services::claude::{AgentRooms, ClaudeAssistant, FIXED_CORE};
-use serde_json::{Value, json};
+#[cfg(unix)]
+use emberhut_server::services::claude::FIXED_CORE;
+use emberhut_server::services::claude::{AgentRooms, ClaudeAssistant};
+#[cfg(unix)]
+use serde_json::Value;
+use serde_json::json;
 
 use crate::common::{Call, TestApp};
-use crate::fake_cli::{FakeCli, config, init, is_request, is_user, result};
+#[cfg(unix)]
+use crate::fake_cli::is_request;
+use crate::fake_cli::{FakeCli, config, init, is_user, result};
 
 fn answering() -> Arc<FakeCli> {
     FakeCli::new(|launch, line| {
@@ -47,7 +51,15 @@ async fn app_with(cli: &Arc<FakeCli>) -> TestApp {
     .await
 }
 
+// Unix only: a configured agent's MCP configuration file is taken only when the server's user
+// owns it and no one else may write it, which the server checks on Unix; elsewhere such a file
+// is refused, and the agent runs without it.
+#[cfg(unix)]
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "a test that walks one agent's session from start to end"
+)]
 async fn an_agents_room_runs_as_that_agent() {
     let cli = answering();
     let app = app_with(&cli).await;

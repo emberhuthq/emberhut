@@ -363,6 +363,13 @@ fn private_temp_file(folder: &Path) -> io::Result<tempfile::NamedTempFile> {
 
 /// Refuses a key file that users other than the server's can read (Unix only; elsewhere the
 /// folder's permissions apply, unchecked).
+#[cfg_attr(
+    not(unix),
+    expect(
+        clippy::unnecessary_wraps,
+        reason = "only Unix's permission check refuses"
+    )
+)]
 fn refuse_if_shared(path: &Path, meta: &std::fs::Metadata) -> Result<(), KeyFileError> {
     #[cfg(unix)]
     {
