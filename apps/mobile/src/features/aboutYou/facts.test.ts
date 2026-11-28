@@ -12,7 +12,9 @@ import {
   lessonText,
   lessonsToReview,
   stillOnTrial,
+  toConfirm,
   trialsShown,
+  whyIKnow,
   withChange,
 } from "./facts";
 
@@ -104,5 +106,31 @@ describe("What your ember knows about you", () => {
     expect(learningFold.getState().open).toBe(true);
     learningFold.getState().toggle();
     expect(learningFold.getState().open).toBe(false);
+  });
+
+  it("lists the facts that wait for you apart, and says why your ember knows each", () => {
+    const facts = [
+      fact("sara", "people", { origin: "assistant", from: "chat #12" }),
+      fact("orders", "preferences", { pending: true, origin: "message", from: "chat #40" }),
+      fact("kept", "proof", { pending: true }),
+    ];
+    expect(factGroups(facts, "").flatMap((g) => g.facts.map((f) => f.id))).toEqual(["sara"]);
+    expect(toConfirm(facts, "").map((f) => f.id)).toEqual(["orders"]);
+    expect(toConfirm(facts, "nothing like it")).toEqual([]);
+    expect(whyIKnow(facts[0]!)).toBe("You told your ember · chat #12");
+    expect(whyIKnow(facts[1]!)).toBe("From someone else's message · chat #40");
+    expect(whyIKnow(fact("old", "home"))).toBeNull();
+  });
+
+  it("shows a confirm, a pin and a forget everywhere at once", () => {
+    const page: FactsPage = {
+      facts: [fact("orders", "preferences", { pending: true }), fact("sara", "people"), fact("rent", "money")],
+    };
+    const confirmed = withChange(page, { factConfirm: "orders" });
+    expect(confirmed.facts.find((f) => f.id === "orders")?.pending).toBe(false);
+    const pinned = withChange(page, { factProfile: { id: "sara", profile: "pin" } });
+    expect(pinned.facts.find((f) => f.id === "sara")?.profile).toBe("pin");
+    expect(withChange(pinned, { factProfile: { id: "sara", profile: null } }).facts.find((f) => f.id === "sara")?.profile).toBeUndefined();
+    expect(withChange(page, { factForget: { id: "rent", pieces: [3] } }).facts.map((f) => f.id)).toEqual(["orders", "sara"]);
   });
 });

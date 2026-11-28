@@ -13,20 +13,25 @@ import {
   changeProblem,
   categoryChips,
   decideBy,
+  forgetEverywhere,
   factGroups,
   groupsShown,
   lessonText,
   lessonsToReview,
   searchPlaceholder,
+  toConfirm,
+  toConfirmFooter,
   trialsShown,
+  whyIKnow,
 } from "./facts";
 import { useLearningFold } from "./learningFold";
 import { useFactChange } from "./useFactChange";
 
 /**
  * What your ember knows about you. Under the search, "Learning from you" folded into one line: the lessons from your
- * corrections, each to keep or drop before the weekly review decides. Then the facts by category, with a chip per category
- * to narrow them; a tap (or the pencil) fixes a fact, the bin forgets it after asking once.
+ * corrections, each to keep or drop before its days are up. Then "To confirm": what your ember kept from someone else's
+ * message, unused until you confirm it. Then the facts by category, with a chip per category to narrow them; a tap (or the
+ * pencil) fixes a fact, the bin forgets it everywhere after asking once.
  */
 export function AboutYouScreen() {
   const facts = useFacts();
@@ -44,8 +49,9 @@ export function AboutYouScreen() {
   const shown = groupsShown(groups, chip);
   const active = shown.length === groups.length ? null : chip;
   const trials = trialsShown(facts.data.trials ?? [], query);
+  const waiting = toConfirm(facts.data.facts, query);
   const forget = (fact: Fact) =>
-    Alert.alert(`Forget "${fact.title}"?`, "Your ember stops using it.", [
+    Alert.alert(`Forget "${fact.title}" everywhere?`, forgetEverywhere, [
       { text: "Cancel", style: "cancel" },
       { text: "Forget", style: "destructive", onPress: () => change.mutate({ factDrop: fact.id }) },
     ]);
@@ -84,6 +90,13 @@ export function AboutYouScreen() {
           onKeep={(rule) => change.mutate({ trialKeep: rule.id })}
           onDrop={drop}
         />
+      ) : null}
+      {waiting.length > 0 ? (
+        <Section title="To confirm" count={waiting.length} footer={toConfirmFooter}>
+          {waiting.map((fact) => (
+            <FactRow key={fact.id} fact={fact} onForget={() => forget(fact)} onConfirm={() => change.mutate({ factConfirm: fact.id })} />
+          ))}
+        </Section>
       ) : null}
       {groups.length > 0 ? <Chips chips={chips} active={active} onChoose={setChip} /> : null}
       {shown.map((group) => (
@@ -167,7 +180,8 @@ function LessonRow({ rule, onKeep, onDrop }: { rule: TrialRule; onKeep: () => vo
       ) : null}
       <Text tone={said ? "secondary" : "primary"}>{lesson}</Text>
       <Text variant="caption" tone="tertiary">
-        On trial until {ends ? shortDate(ends) : "?"}. If you don&rsquo;t choose, the weekly review decides.
+        On trial until {ends ? shortDate(ends) : "?"}. If you don&rsquo;t choose, your ember keeps it then, unless the same mistake came
+        back.
       </Text>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
         {(
@@ -258,12 +272,12 @@ function RowButton({ icon, label, onPress, color }: { icon: IconName; label: str
   );
 }
 
-/** A fact: a tap or the pencil fixes it, the bin forgets it. */
-function FactRow({ fact, onForget }: { fact: Fact; onForget: () => void }) {
+/** A fact: a tap or the pencil fixes it, the bin forgets it; one waiting for you also has a tick to confirm it. */
+function FactRow({ fact, onForget, onConfirm }: { fact: Fact; onForget: () => void; onConfirm?: () => void }) {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation();
   const updated = parseInstant(fact.updated);
-  const meta = [fact.source, updated ? shortDate(updated) : null].filter(Boolean).join(" · ");
+  const meta = [whyIKnow(fact) ?? fact.source, updated ? shortDate(updated) : null].filter(Boolean).join(" · ");
   const edit = () => navigation.navigate("Fact", { id: fact.id });
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.surface }}>
@@ -284,6 +298,9 @@ function FactRow({ fact, onForget }: { fact: Fact; onForget: () => void }) {
           <Text variant="callout" weight="600">
             {fact.title}
           </Text>
+          {fact.profile === "pin" ? (
+            <Icon name="pin" size={13} color={colors.textTertiary} accessibilityLabel="Always in what your ember knows" />
+          ) : null}
           {fact.important ? (
             <Icon name="notifications" size={13} color={colors.warning} accessibilityLabel="Tells you right away when they write" />
           ) : null}
@@ -301,6 +318,9 @@ function FactRow({ fact, onForget }: { fact: Fact; onForget: () => void }) {
         ) : null}
       </Pressable>
       <View style={{ flexDirection: "row", paddingTop: spacing.sm, paddingRight: spacing.xs }}>
+        {onConfirm ? (
+          <RowButton icon="checkmark-circle-outline" label={`Confirm ${fact.title}`} onPress={onConfirm} color={colors.primary} />
+        ) : null}
         <RowButton icon="create-outline" label={`Edit ${fact.title}`} onPress={edit} color={colors.textSecondary} />
         <RowButton icon="trash-outline" label={`Forget ${fact.title}`} onPress={onForget} color={colors.danger} />
       </View>

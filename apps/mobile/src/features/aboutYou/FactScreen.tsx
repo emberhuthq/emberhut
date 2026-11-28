@@ -5,6 +5,7 @@ import type { RootScreenProps } from "@/navigation/types";
 import { useFacts } from "@/state/queries";
 import { useTheme } from "@/theme";
 import { Button, EmptyState, ListRow, Loading, Screen, Section, Text, TextField, Toggle } from "@/ui";
+import { forgetEverywhere, whyIKnow } from "./facts";
 import { useFactChange } from "./useFactChange";
 
 /** Fix a fact (your ember uses your version from then on), wake your ember for a person's messages, or forget it. */
@@ -47,7 +48,7 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
   const unchanged = text.trim() === "" || text.trim() === fact.text.trim();
   const save = () => send({ factSet: { id: fact.id, category: fact.category, title: fact.title, text: text.trim() } });
   const forget = () =>
-    Alert.alert(`Forget "${fact.title}"?`, "Your ember stops using it.", [
+    Alert.alert(`Forget "${fact.title}" everywhere?`, forgetEverywhere, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Forget",
@@ -66,7 +67,7 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
           placeholder="What's true"
         />
         <Text variant="footnote" tone="secondary" style={{ paddingHorizontal: spacing.xs }}>
-          From {fact.source || "your ember"}. Your ember will use your version from now on.
+          {whyIKnow(fact) ?? `From ${fact.source || "your ember"}`}. Your ember will use your version from now on.
         </Text>
         <Button label="Save" onPress={save} disabled={unchanged || sending} />
         {failed}
@@ -94,12 +95,46 @@ function FactEditor({ fact, send, sending, failed, setTitle }: EditorProps) {
           />
         </Section>
       ) : null}
+      <Section
+        title="What your ember always knows"
+        footer="A few lines about you are in front of your ember every time it starts. Pin this to keep it there, or leave it out."
+      >
+        {fact.pending ? (
+          <ListRow
+            key="confirm"
+            title="Waiting for you to confirm it"
+            trailing={<Button label="Confirm" onPress={() => change.mutate({ factConfirm: fact.id })} disabled={change.isPending} />}
+          />
+        ) : null}
+        <ListRow
+          key="pin"
+          title="Always keep this in mind"
+          trailing={
+            <Toggle
+              value={fact.profile === "pin"}
+              onChange={(on) => change.mutate({ factProfile: { id: fact.id, profile: on ? "pin" : null } })}
+              label="Always keep this in mind"
+            />
+          }
+        />
+        <ListRow
+          key="hide"
+          title="Leave it out"
+          trailing={
+            <Toggle
+              value={fact.profile === "hide"}
+              onChange={(on) => change.mutate({ factProfile: { id: fact.id, profile: on ? "hide" : null } })}
+              label="Leave it out"
+            />
+          }
+        />
+      </Section>
       {change.isError ? (
         <Text variant="footnote" tone="danger">
           Not saved: {change.error.message}
         </Text>
       ) : null}
-      <Button label="Forget this" variant="destructive" icon="trash-outline" onPress={forget} disabled={sending} />
+      <Button label="Forget this everywhere" variant="destructive" icon="trash-outline" onPress={forget} disabled={sending} />
     </Screen>
   );
 }

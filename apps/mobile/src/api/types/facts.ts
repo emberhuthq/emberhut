@@ -16,6 +16,14 @@ export interface Fact {
   chats?: string[];
   /** The project it belongs to; missing means shared. */
   project?: string;
+  /** Who put it there: "owner", "assistant" (in a turn you started), "message" (in a turn someone else's message started), "web" or "import"; missing from before it was kept. */
+  origin?: string;
+  /** Where in the record it was said ("chat #22"). */
+  from?: string;
+  /** Waits for you to confirm it: your ember doesn't use it until you do. */
+  pending?: boolean;
+  /** Your say on what your ember always knows: "pin" (always) or "hide" (never). */
+  profile?: "pin" | "hide";
 }
 
 export interface Lesson {

@@ -1,12 +1,15 @@
-//! `GET /api/facts` (the "About you" page: the facts and the assistant's rules) and the quick
-//! notes, `GET /api/notes` and `POST /api/notes`.
+//! `GET /api/facts` (the "About you" page: the facts and the assistant's rules), what "Forget
+//! everywhere" would take out with a fact (`GET /api/facts/forget`), everything kept as one zip
+//! (`GET /api/memory/export`), and the quick notes, `GET /api/notes` and `POST /api/notes`.
 
 use axum::Json;
-use axum::extract::State;
-use axum::http::StatusCode;
+use axum::extract::{Query, State};
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use emberhut_api::error::ErrorBody;
-use emberhut_api::facts::{FactsPage, Lesson as ApiLesson, Trial as TrialRule};
+use emberhut_api::facts::{
+    FactsPage, ForgetPreview, Lesson as ApiLesson, RecordPiece, Trial as TrialRule,
+};
 use emberhut_api::ids::{LessonId, TrialId};
 use emberhut_api::notes::{Note, NoteAuthor as NoteWho, NoteSave, NoteSaved, NotesPage};
 use emberhut_api::time::Day;
@@ -49,6 +52,159 @@ pub(super) async fn facts(
         lessons: lessons.into_iter().map(lesson_to_api).collect(),
         trials: trials.into_iter().map(trial_to_api).collect(),
     }))
+}
+
+/// `GET /api/facts/forget`'s query.
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct ForgetQuery {
+    /// The fact's id (`health/blood-test`).
+    id: String,
+}
+
+/// What "Forget everywhere" would take out with a fact: the fact, and the pieces of the record
+/// (chat, sessions, voice notes, notes, tasks) that say it. Nothing is changed; `factForget` (or
+/// `factDrop`, for every piece listed) forgets.
+#[utoipa::path(
+    get,
+    path = "/api/facts/forget",
+    tag = "memory",
+    params(ForgetQuery),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "The fact and the pieces that say it", body = ForgetPreview),
+        (status = 400, description = "There is no such fact", body = ErrorBody),
+        (
+            status = 401,
+            description = "Sign-in is enforced and there is no session",
+            body = ErrorBody
+        ),
+    )
+)]
+pub(super) async fn forget_preview(
+    State(app): State<AppState>,
+    _viewer: Viewer,
+    Query(query): Query<ForgetQuery>,
+) -> Result<Response, ApiError> {
+    let facts = app.facts().facts(None).await.map_err(fact_fault)?;
+    let Some(fact) = facts.into_iter().find(|fact| fact.id == query.id) else {
+        return Ok(refused(format!("no fact {}", query.id)));
+    };
+    let pieces = match app.recall().saying(&fact.id).await {
+        Ok(pieces) => pieces,
+        Err(crate::services::recall::RecallError::Facts(FactError::Refused(why))) => {
+            return Ok(refused(why));
+        }
+        Err(error) => {
+            return Err(ApiError::State(
+                crate::services::state::StateError::section(error),
+            ));
+        }
+    };
+    Ok(Json(ForgetPreview {
+        fact: fact_to_api(fact),
+        pieces: pieces
+            .into_iter()
+            .map(|doc| RecordPiece {
+                id: doc.id,
+                source: doc.source,
+                title: doc.title,
+                text: emberhut_core::memory::cut(&doc.text, 600).to_owned(),
+                place: doc.place,
+                at: doc.at.map(timestamp_to_api),
+            })
+            .collect(),
+    })
+    .into_response())
+}
+
+/// A 400 `{ ok: false, error }`.
+fn refused(error: String) -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorBody {
+            ok: Some(false),
+            ..ErrorBody::new(error)
+        }),
+    )
+        .into_response()
+}
+
+/// Everything the assistant keeps about the person, as one zip: `context/` (one markdown file per
+/// fact, the profile, the tombstones of what was forgotten) and `memory.json` (the quick notes and
+/// diary, the corrections, the standing rules and the rules on trial). Only a signed-in device
+/// gets it, in either auth mode.
+#[utoipa::path(
+    get,
+    path = "/api/memory/export",
+    tag = "memory",
+    security(("bearer" = [])),
+    responses(
+        (
+            status = 200,
+            description = "The zip",
+            content_type = "application/zip",
+            body = Vec<u8>,
+            headers(("content-disposition" = String, description = "attachment, with the \
+                file's name: emberhut-memory-<UTC day>.zip"))
+        ),
+        (
+            status = 401,
+            description = "No signed-in device (in either auth mode)",
+            body = ErrorBody
+        ),
+    )
+)]
+pub(super) async fn export(
+    State(app): State<AppState>,
+    device: Result<SignedIn, ApiError>,
+) -> Result<Response, ApiError> {
+    device.map_err(|error| match error {
+        ApiError::DeviceRequired => ApiError::SignInRequired,
+        other => other,
+    })?;
+    let learning = app.learning();
+    let memory = serde_json::json!({
+        "notes": app.notes().list(None, None).await.map_err(db_fault)?
+            .into_iter().map(note_to_api).collect::<Vec<_>>(),
+        "corrections": learning.corrections(36_500).await.map_err(db_fault)?
+            .into_iter()
+            .map(|correction| serde_json::json!({
+                "id": correction.id,
+                "at": emberhut_core::memory::iso(correction.at),
+                "said": correction.said,
+                "wrong": correction.wrong,
+                "lesson": correction.lesson,
+                "lessonToOwner": correction.lesson_to_owner,
+                "source": correction.source,
+            }))
+            .collect::<Vec<_>>(),
+        "lessons": learning.lessons().await.map_err(db_fault)?
+            .into_iter().map(lesson_to_api).collect::<Vec<_>>(),
+        "trials": learning.trials().await.map_err(db_fault)?
+            .into_iter().map(trial_to_api).collect::<Vec<_>>(),
+    });
+    let folder = app.facts().folder().to_path_buf();
+    let zip = tokio::task::spawn_blocking(move || crate::services::export::zip(&folder, &memory))
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .map_err(|error| {
+            tracing::error!(%error, "the memory export failed");
+            ApiError::Internal
+        })?;
+    let day =
+        emberhut_core::memory::cut(&emberhut_core::memory::iso(app.facts().now()), 10).to_owned();
+    let disposition = format!("attachment; filename=\"emberhut-memory-{day}.zip\"");
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/zip")
+        .header(header::CACHE_CONTROL, "no-store")
+        .header(
+            header::CONTENT_DISPOSITION,
+            HeaderValue::from_str(&disposition).map_err(|_| ApiError::Internal)?,
+        )
+        .body(axum::body::Body::from(zip))
+        .map_err(|_| ApiError::Internal)
 }
 
 /// Every quick note and diary entry, newest first.

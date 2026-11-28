@@ -155,6 +155,7 @@ impl Tool for AgentFactSet {
                 text: args.text,
                 source: args.source,
                 project: ProjectChange::Keep,
+                ..SetFact::default()
             })
             .await
             .map_err(fact_error)?;

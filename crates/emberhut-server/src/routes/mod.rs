@@ -168,6 +168,8 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(tasks::scheduled))
         .routes(routes!(events::events))
         .routes(routes!(memory::facts))
+        .routes(routes!(memory::forget_preview))
+        .routes(routes!(memory::export))
         .routes(routes!(memory::notes, memory::save_note))
         .routes(routes!(runner::events))
         .routes(routes!(runner::machine))

@@ -33,7 +33,16 @@ export interface SettingsChange {
   option?: number;
   factSet?: { id?: string; category: string; title: string; text: string; project?: string | null };
   personSet?: { id: string; important: boolean };
+  /** Forget a fact everywhere: the fact, what was said about it in your ember's record, and a tombstone so it isn't kept again. */
   factDrop?: string;
+  /** Forget a fact everywhere, with the pieces of the record you picked (all when left out). */
+  factForget?: { id: string; pieces?: number[] };
+  /** Confirm a fact that waits for you. */
+  factConfirm?: string;
+  /** Pin a fact in what your ember always knows, hide it from that, or neither (null). */
+  factProfile?: { id: string; profile: "pin" | "hide" | null };
+  /** The nightly memory review on or off. */
+  memoryNightly?: boolean;
   trialDrop?: number;
   /** Keep a lesson on trial now, as a standing rule, instead of waiting for the weekly review. */
   trialKeep?: number;

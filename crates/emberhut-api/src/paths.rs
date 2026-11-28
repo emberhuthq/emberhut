@@ -78,6 +78,12 @@ pub const TRANSCRIBE: &str = "/api/transcribe";
 pub const SWITCHES: &str = "/api/switches";
 /// `GET`: what the assistant knows about the person, and its rules on trial.
 pub const FACTS: &str = "/api/facts";
+/// `GET ?id=<fact id>`: the pieces of the record that say what a fact says, which "Forget
+/// everywhere" offers to take out with it ([`crate::facts::ForgetPreview`]).
+pub const FACT_FORGET: &str = "/api/facts/forget";
+/// `GET`: everything the assistant keeps about the person, as one zip: the context folder (one
+/// file per fact, the profile) and `memory.json` (notes, corrections, rules).
+pub const MEMORY_EXPORT: &str = "/api/memory/export";
 /// `POST`: pair, rename, unpair or pause a Chrome profile ([`crate::chrome::ChromeAction`]).
 pub const CHROME: &str = "/api/chrome";
 /// `GET ?q=&limit=&...`: tasks from the whole list ([`crate::task_search::TaskQuery`]);
