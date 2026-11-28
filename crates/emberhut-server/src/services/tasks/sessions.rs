@@ -135,11 +135,11 @@ impl TaskService {
         Ok(())
     }
 
-    /// Closes, as [`LOST`], every open thread run whose turn's end was missed, on a server that
+    /// Closes, as `LOST`, every open thread run whose turn's end was missed, on a server that
     /// keeps plans (the tasks' tick, and so start-up too): its session's record (kept from the
     /// runners' events, and from the coding-thread app's listing) says it is not working, or
-    /// there is no record any more, for [`LOST_AFTER`] since it was last heard of; or the
-    /// record still says it works but nothing has been heard for [`SILENT_AFTER`]. How many it
+    /// there is no record any more, for `LOST_AFTER` since it was last heard of; or the
+    /// record still says it works but nothing has been heard for `SILENT_AFTER`. How many it
     /// closed.
     ///
     /// # Errors
