@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { View, type ScrollViewInstance } from "react-native";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Pressable, View, type ScrollViewInstance } from "react-native";
 import { type Issue, type Plan, type TaskArtifact } from "@/api";
 import { allSessions } from "@/features/sessions/sessionList";
 import { mainRoom } from "@/config";
@@ -8,7 +8,20 @@ import type { RootScreenProps } from "@/navigation/types";
 import { actionsStore } from "@/services";
 import { useEmberhutState, useTask } from "@/state/queries";
 import { useTheme } from "@/theme";
-import { Card, Collapsible, EmptyState, ListRow, Loading, Screen, Section, SectionHeading, Text, usePullRefresh } from "@/ui";
+import {
+  ActionSheet,
+  Card,
+  Collapsible,
+  EmptyState,
+  Icon,
+  ListRow,
+  Loading,
+  Screen,
+  Section,
+  SectionHeading,
+  Text,
+  usePullRefresh,
+} from "@/ui";
 import { Activity } from "./Activity";
 import { copyDraftFor } from "./copyDraft";
 import { pagePlan, pageStamp, stepLink } from "./plan";
@@ -32,10 +45,12 @@ import { Brief, Details, Finding, Findings, Folded, History, SinceAsked, StopWor
  * a checklist its agent ticks, then what needs you, your reply, the files and results (each step's first), then one
  * activity feed (turns, history, files, with the sessions one tap away) instead of where it stands, the runs, the
  * sessions and the history.
+ *
+ * The header's menu has Rename, which opens the title in a field of its own (RenameTaskScreen).
  */
 export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   const { id } = route.params;
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const state = useEmberhutState();
   const fromState = state.data?.issues?.find((t) => t.id === id);
   const page = useTask(id);
@@ -60,9 +75,20 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
   // page is fetched again whenever the state says the task changed.
   const task: Issue | undefined = fromState ? { ...fromState, artifacts: fromState.artifacts ?? full?.artifacts } : full;
   const key = task?.key;
+  const title = task?.title;
+  const [menuOpen, setMenuOpen] = useState(false);
   useLayoutEffect(() => {
-    if (key) navigation.setOptions({ title: key });
-  }, [navigation, key]);
+    navigation.setOptions({
+      ...(key ? { title: key } : {}),
+      headerRight: title
+        ? () => (
+            <Pressable onPress={() => setMenuOpen(true)} accessibilityRole="button" accessibilityLabel="Task menu" hitSlop={8}>
+              <Icon name="ellipsis-horizontal-circle-outline" color={colors.accent} />
+            </Pressable>
+          )
+        : undefined,
+    });
+  }, [navigation, key, title, colors.accent]);
 
   if (!task) {
     if (page.isError) return <EmptyState icon="document-text-outline" title="Task not found" message={page.error.message} />;
@@ -187,6 +213,20 @@ export function TaskScreen({ route, navigation }: RootScreenProps<"Task">) {
         {task.status === "working" ? <StopWorker task={task} /> : null}
       </Screen>
       <TaskActionsBar task={task} issues={state.data?.issues ?? []} decision={decision} answersInPage={answersInPage} room={room} />
+      {menuOpen ? (
+        <ActionSheet
+          visible
+          title={task.key}
+          actions={[
+            {
+              label: "Rename",
+              icon: "create-outline",
+              onPress: () => navigation.navigate("RenameTask", { id: task.id, title: task.title }),
+            },
+          ]}
+          onClose={() => setMenuOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }

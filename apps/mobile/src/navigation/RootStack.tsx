@@ -26,6 +26,7 @@ import { SettingsGroupScreen } from "@/features/settings/SettingsGroupScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { AreaScreen } from "@/features/tasks/AreaScreen";
 import { ProjectScreen } from "@/features/tasks/ProjectScreen";
+import { RenameTaskScreen } from "@/features/tasks/RenameTaskScreen";
 import { TaskScreen } from "@/features/tasks/TaskScreen";
 import { TodayScreen } from "@/features/tasks/TodayScreen";
 import { notificationLinking } from "@/push/native";
@@ -119,6 +120,7 @@ export function RootStack() {
           <Stack.Screen name="SessionList" component={SessionsScreen} options={{ title: "Sessions" }} />
           <Stack.Screen name="NewSession" component={NewSessionScreen} options={{ title: "New session", presentation: "modal" }} />
           <Stack.Screen name="MoveToTask" component={MoveToTaskScreen} options={{ title: "Move to task", presentation: "modal" }} />
+          <Stack.Screen name="RenameTask" component={RenameTaskScreen} options={{ title: "Rename task", presentation: "modal" }} />
           <Stack.Screen
             name="Browser"
             component={BrowserScreen}

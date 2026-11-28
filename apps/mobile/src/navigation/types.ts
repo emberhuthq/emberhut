@@ -37,6 +37,8 @@ export type RootStackParamList = {
    * on now, left out of the list; `title` shows while the state hasn't the session.
    */
   MoveToTask: { session: string; title?: string; tasks?: number[] };
+  /** Rename, from a task page's menu: `title` shows while the state hasn't the task. */
+  RenameTask: { id: number; title: string };
   /** The Sessions list on a page of its own, from More, while the server keeps task plans and Tasks are the main surface. */
   SessionList: undefined;
   /** Emberhut's browser, live, and taking it over. */

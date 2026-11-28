@@ -173,6 +173,23 @@ export function useMoveSession() {
 }
 
 /**
+ * Renames a task from its page. Settled, the states and every task page are fetched again, so the list and the page say
+ * the new title.
+ */
+export function useRenameTask() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ task, title }: { task: number; title: string }) => api.tasks.rename(task, title),
+    onSettled: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.allStates }),
+        client.invalidateQueries({ queryKey: queryKeys.allTasks }),
+      ]);
+    },
+  });
+}
+
+/**
  * Follows a room's live line while mounted. When a turn ends (null after a line), the answer is already in the server's
  * chat: the state is fetched again so the answer and the end of the working sign land together. An approval request's
  * change (the stream's `approvals` event) fetches the states and the approvals pages again.
