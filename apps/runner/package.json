@@ -1,0 +1,38 @@
+{
+  "name": "@emberhut/runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Emberhut runner: the daemon on each machine that runs coding-agent sessions for an Emberhut server",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0"
+  },
+  "bin": {
+    "emberhut-runner": "bin/emberhut-runner.js"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/cli.ts run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "package": "node --disable-warning=ExperimentalWarning scripts/package.ts",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm test"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.332"
+  },
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/js": "^9.39.5",
+    "@types/node": "~22.18.13",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.74.0",
+    "vitest": "^3.2.7"
+  }
+}
