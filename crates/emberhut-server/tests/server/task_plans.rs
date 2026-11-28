@@ -841,3 +841,45 @@ pub(crate) async fn a_steps_limits_count_characters_not_bytes() {
     .await;
     assert!(error(&over).contains("200"), "{over:?}");
 }
+
+#[tokio::test]
+pub(crate) async fn a_runner_event_is_taken_when_its_tasks_bookkeeping_fails() {
+    let app = app(true).await;
+    let id = task(&app, "the lexer").await;
+    // Every link written from now on fails.
+    let conn = sea_orm::Database::connect(app.url.as_str()).await.unwrap();
+    sea_orm::ConnectionTrait::execute_unprepared(
+        &conn,
+        "CREATE TRIGGER no_links BEFORE INSERT ON links BEGIN SELECT RAISE(ABORT, 'no links'); END",
+    )
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    report(
+        &app,
+        &session_event(
+            id,
+            "r-b0b",
+            "note",
+            "running",
+            json!({ "text": "Half way there" }),
+        ),
+    )
+    .await;
+    let db = emberhut_db::Database::connect(&app.url).await.unwrap();
+    let log: Vec<String> = db
+        .log()
+        .recent(5)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|line| line.text)
+        .collect();
+    assert!(
+        log.iter()
+            .any(|line| line == "Runner session \"The lexer\": Half way there"),
+        "the note is written all the same: {log:?}"
+    );
+    assert_eq!(page_runs(&app, id).await, 0);
+}

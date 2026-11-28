@@ -30,7 +30,7 @@ use tokio_util::sync::CancellationToken;
 use crate::convert::{room_to_api, timestamp_to_api};
 use crate::services::activity::ActivityLog;
 use crate::services::runner_api::{ByteStream, RunnerApi, RunnerError, Verb, by};
-use crate::services::tasks::{SessionTurn, TaskError, TaskService};
+use crate::services::tasks::{SessionTurn, TaskService};
 use crate::services::threads::ThreadService;
 use crate::services::transfer::{TransferError, TransferService};
 
@@ -65,9 +65,6 @@ pub enum SessionError {
     /// A file couldn't be sent with the turn.
     #[error(transparent)]
     Transfer(#[from] TransferError),
-    /// The session's task couldn't be read or written.
-    #[error(transparent)]
-    Task(#[from] TaskError),
     /// The request can't be done as asked (nothing to send, nothing to start with).
     #[error("{0}")]
     Refused(String),
@@ -621,10 +618,21 @@ impl RunnerService {
                     last: thread.last.as_deref(),
                 },
             };
-            self.parts
+            // The task's bookkeeping never fails the event: its note and account lines go on.
+            if let Err(error) = self
+                .parts
                 .tasks
                 .session_turn(task, machine, &id, turn)
-                .await?;
+                .await
+            {
+                tracing::warn!(
+                    task = %task.key(),
+                    %machine,
+                    session = %id,
+                    %error,
+                    "a runner session's turn could not be kept on its task"
+                );
+            }
         }
         match kind.as_str() {
             "note" => {
