@@ -104,7 +104,7 @@ impl TaskService {
     }
 
     /// Whether a session the runner says was opened at `created` (when it says) is new enough
-    /// to get a task made for it: opened at or after [`SINCE`]; with no time from the runner,
+    /// to get a task made for it: opened at or after `SINCE`; with no time from the runner,
     /// when the server had no record of it before (`first_seen`).
     ///
     /// # Errors
