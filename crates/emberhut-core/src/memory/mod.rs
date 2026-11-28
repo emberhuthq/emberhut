@@ -6,8 +6,10 @@
 //! read.
 
 pub mod facts;
+pub mod forget;
 pub mod learning;
 pub mod notes;
+pub mod profile;
 pub mod recall;
 pub mod wire;
 

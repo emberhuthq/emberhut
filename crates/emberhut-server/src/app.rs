@@ -163,6 +163,7 @@ struct Inner {
     notes: NoteService,
     learning: LearningService,
     recall: RecallService,
+    nightly: crate::services::nightly::NightlyService,
     context: ContextService,
     runners: RunnerService,
     machines: MachineService,
@@ -655,8 +656,23 @@ impl AppState {
             voice: db.voice_notes(),
             embedder,
             transcripts,
-            zone,
+            zone: zone.clone(),
         });
+        let nightly =
+            crate::services::nightly::NightlyService::new(crate::services::nightly::NightlyParts {
+                settings: db.settings(),
+                learning: learning.clone(),
+                facts: facts.clone(),
+                profile: crate::services::profile::ProfileService::new(
+                    facts.clone(),
+                    db.projects(),
+                    Arc::clone(&clock),
+                    zone.clone(),
+                ),
+                talk: talk.clone(),
+                clock: Arc::clone(&clock),
+                zone,
+            });
         let context = ContextService::new(db.settings(), Arc::clone(&clock));
         let RunnerArea {
             transfer,
@@ -855,6 +871,7 @@ impl AppState {
                 notes,
                 learning,
                 recall,
+                nightly,
                 context,
                 runners: runner_service,
                 machines,
@@ -981,6 +998,12 @@ impl AppState {
     #[must_use]
     pub fn recall(&self) -> &RecallService {
         &self.inner.recall
+    }
+
+    /// The nightly memory review.
+    #[must_use]
+    pub fn nightly(&self) -> &crate::services::nightly::NightlyService {
+        &self.inner.nightly
     }
 
     /// The assistant's running awareness (its open loops and notes).

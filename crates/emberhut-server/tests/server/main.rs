@@ -61,6 +61,7 @@ mod mcp;
 mod memory;
 mod memory_runtime;
 mod memory_settings;
+mod memory_trust;
 mod messaging_fakes;
 mod messaging_guard;
 mod morning_brief;

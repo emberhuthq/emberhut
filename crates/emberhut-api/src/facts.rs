@@ -68,6 +68,21 @@ pub struct Fact {
     /// The project it belongs to (its name); none: every room has it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
+    /// Who put it there: `owner`, `assistant` (in a turn the person started), `message`
+    /// (in a turn something else started: someone else's message, mail, a scheduled wake),
+    /// `web` or `import`; none from before this was kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    /// Where in the record it was said (`chat #22`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// It waits for the person to confirm it ("To confirm"), and is not in what the assistant
+    /// always knows until they do.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pending: bool,
+    /// The person's say on the profile: `pin` (always in it) or `hide` (never).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
 }
 
 impl Fact {
@@ -76,6 +91,35 @@ impl Fact {
     pub fn is_important(&self) -> bool {
         self.important == Some(true)
     }
+}
+
+/// One piece of the record recall holds, as "Forget everywhere" lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct RecordPiece {
+    /// Its id in recall's index.
+    pub id: i64,
+    /// Its kind: `chat`, `session`, `summary`, `task`, `voice` or `note`.
+    pub source: String,
+    /// What it is, in a few words.
+    pub title: String,
+    /// What it says (at most 600 characters of it).
+    pub text: String,
+    /// Where it is (`chat #12`).
+    pub place: String,
+    /// When it was said, if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<Timestamp>,
+}
+
+/// `GET /api/facts/forget`'s answer: the fact, and the pieces of the record that say it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ForgetPreview {
+    /// The fact.
+    pub fact: Fact,
+    /// The pieces, best first.
+    pub pieces: Vec<RecordPiece>,
 }
 
 /// A standing rule the person agreed to.

@@ -124,7 +124,19 @@ async fn a_message_is_answered_by_the_room_s_cli_session() {
     assert!(append.contains("Event:"), "{append}");
     assert!(append.contains("NO_REPLY"), "{append}");
     assert!(append.contains("Rooms: you are in Main"), "{append}");
-    assert!(append.ends_with("Answer in one line."), "{append}");
+    assert!(append.contains("Answer in one line."), "{append}");
+    // The built-in memory rules, then what the assistant always knows about the owner.
+    assert!(
+        append.contains("Memory. What you know about the owner"),
+        "{append}"
+    );
+    assert!(append.contains("search it before you ask"), "{append}");
+    assert!(
+        append.ends_with(
+            "About the user: nothing kept yet. Keep what will matter later with fact_set."
+        ),
+        "{append}"
+    );
     assert_eq!(cli.said(), ["Hello"]);
 }
 
@@ -725,4 +737,42 @@ async fn a_background_task_is_stopped_through_its_room_s_session() {
         .collect();
     assert_eq!(stops.len(), 1);
     assert_eq!(stops[0]["request"]["task_id"], "bg-1");
+}
+
+#[tokio::test]
+async fn a_long_session_hears_what_it_always_knows_when_that_changes() {
+    let cli = echoing();
+    let app = TestApp::with_agent(agent(&cli, config(&[]))).await;
+    let session = app.sign_in().await;
+    let say = |text: &str| {
+        Call::post(paths::TALK)
+            .token(&session)
+            .json(&json!({ "text": text }))
+    };
+    app.call(say("Hello")).await;
+    app.settle().await;
+    // The owner keeps a fact in the app; the same session's next turn starts with it.
+    app.call(Call::post(paths::SETTINGS).token(&session).json(&json!({
+        "factSet": { "category": "preferences", "title": "Mornings", "text": "No calls before 10" }
+    })))
+    .await;
+    app.call(say("What do you know?")).await;
+    app.settle().await;
+    app.call(say("And now?")).await;
+    app.settle().await;
+    assert_eq!(cli.launches().len(), 1, "one session throughout");
+    let said = cli.said();
+    assert_eq!(said[0], "Hello");
+    assert!(
+        said[1].starts_with("(What you always know about the user changed"),
+        "{}",
+        said[1]
+    );
+    assert!(
+        said[1].contains("No calls before 10 [preferences/mornings]"),
+        "{}",
+        said[1]
+    );
+    assert!(said[1].ends_with("What do you know?"), "{}", said[1]);
+    assert_eq!(said[2], "And now?", "told once");
 }

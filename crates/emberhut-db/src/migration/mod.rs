@@ -32,6 +32,7 @@ mod m20261127_000001_agents_and_approvals;
 mod m20261127_000002_agent_worker_shell;
 mod m20261127_000003_correction_lesson_to_owner;
 mod m20261128_000001_task_plans;
+mod m20261128_000010_memory_trust;
 
 /// Every migration of the server's database.
 #[derive(Debug)]
@@ -64,6 +65,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261127_000002_agent_worker_shell::Migration),
             Box::new(m20261127_000003_correction_lesson_to_owner::Migration),
             Box::new(m20261128_000001_task_plans::Migration),
+            Box::new(m20261128_000010_memory_trust::Migration),
         ]
     }
 }

@@ -2,7 +2,7 @@
 //! the owner (the context folder, one short fact per file, by category), its cards on the
 //! people the owner talks with, and its running awareness.
 
-use emberhut_core::memory::facts::CATEGORIES;
+use emberhut_core::memory::facts::{CATEGORIES, origin};
 use serde::Deserialize;
 
 use super::{NoArgs, Tool, ToolContext, ToolError, ToolOutput};
@@ -63,8 +63,9 @@ impl Tool for Facts {
 
     fn description(&self) -> &'static str {
         "Everything you keep about the user in your context folder: short facts by category \
-         (people, work, money, preferences, health, home, projects), each with its id, source \
-         and date. The user reads and edits them in the app."
+         (people, work, money, preferences, health, home, projects), each with its id, source, \
+         origin and date; pending ones wait for the user to confirm them. The user reads and \
+         edits them in the app. What matters most is already in your prompt (About the user)."
     }
 
     async fn call(&self, ctx: &ToolContext, args: FactsArgs) -> Result<ToolOutput, ToolError> {
@@ -118,13 +119,18 @@ impl Tool for FactSetTool {
 
     fn description(&self) -> &'static str {
         "Keep one fact about the user (new: no id; change: its id). title: a few words. text: \
-         one or two plain sentences they'd recognise. source: where it came from (\"they said, \
-         14 Oct\", \"a message from a friend\"). One fact per thing: update, don't duplicate. \
+         one or two plain sentences they'd recognise, with dates as dates (\"3 Dec\", not \"next \
+         week\"). source: where it came from (\"they said, 14 Oct\", \"a message from a \
+         friend\"). One fact per thing: update the one there is, don't add a near copy. \
          project: the project it belongs to (its name), so that project's room starts with it; \
-         leave it out for what every room needs."
+         leave it out for what every room needs. Kept while you handle an Event (someone else's \
+         message, mail, a scheduled wake), it waits for the user to confirm it."
     }
 
     async fn call(&self, ctx: &ToolContext, args: FactSetArgs) -> Result<ToolOutput, ToolError> {
+        // The server decides how far the fact can be trusted, from what started the turn.
+        let started = ctx.app.talk().started(ctx.room);
+        let by_event = ctx.worker.is_none() && started.is_some_and(|start| !start.by_owner);
         let id = ctx
             .app
             .facts()
@@ -135,10 +141,78 @@ impl Tool for FactSetTool {
                 text: args.text,
                 source: args.source,
                 project: args.project,
+                origin: Some(
+                    if by_event {
+                        origin::MESSAGE
+                    } else {
+                        origin::ASSISTANT
+                    }
+                    .to_owned(),
+                ),
+                from: started.map(|start| format!("chat #{}", start.message.get())),
+                pending: by_event,
             })
             .await
             .map_err(fact_error)?;
-        Ok(ToolOutput::text(format!("Kept as {id}.")))
+        Ok(ToolOutput::text(if by_event {
+            format!(
+                "Kept as {id}, waiting for the user to confirm it: it came from a turn they \
+                 didn't start, so it isn't in what you know of them until they do."
+            )
+        } else {
+            format!("Kept as {id}.")
+        }))
+    }
+}
+
+/// Confirms a fact that waits for the owner.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FactConfirmTool;
+
+/// `fact_confirm`'s arguments.
+#[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
+pub(crate) struct FactConfirmArgs {
+    /// The fact's id.
+    #[garde(length(min = 1, max = 200))]
+    id: String,
+}
+
+impl Tool for FactConfirmTool {
+    type Args = FactConfirmArgs;
+
+    fn name(&self) -> &'static str {
+        "fact_confirm"
+    }
+
+    fn description(&self) -> &'static str {
+        "The user confirmed a fact that was waiting for them (pending: kept from someone else's \
+         message or another event): it becomes part of what you always know. Only when the user \
+         says so in their own message."
+    }
+
+    async fn call(
+        &self,
+        ctx: &ToolContext,
+        args: FactConfirmArgs,
+    ) -> Result<ToolOutput, ToolError> {
+        let by_owner = ctx.worker.is_none()
+            && ctx
+                .app
+                .talk()
+                .started(ctx.room)
+                .is_none_or(|start| start.by_owner);
+        if !by_owner {
+            return Err(ToolError::refused(
+                "Only the user confirms a fact, in a message of their own; this turn started \
+                 from an event.",
+            ));
+        }
+        ctx.app
+            .facts()
+            .confirm(&args.id)
+            .await
+            .map_err(fact_error)?;
+        Ok(ToolOutput::text(format!("{} is confirmed.", args.id)))
     }
 }
 

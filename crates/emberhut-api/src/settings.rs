@@ -95,8 +95,19 @@ pub enum SettingsAction {
     /// Mark whether a person's messages wake the assistant at once:
     /// `{ personSet: { id, important } }`.
     PersonSet(PersonChange),
-    /// Forget a fact: `{ factDrop }`.
+    /// Forget a fact everywhere: `{ factDrop }`. The fact, the pieces of the record that say
+    /// it (recall's), and their vectors go, and a tombstone keeps it from being kept again.
     FactDrop(FactId),
+    /// Forget a fact everywhere, with the pieces of the record to take out with it (from
+    /// `GET /api/facts/forget`): `{ factForget: { id, pieces } }`.
+    FactForget(FactForget),
+    /// Confirm a fact that waits for the person: `{ factConfirm }`.
+    FactConfirm(FactId),
+    /// Pin a fact in the profile, hide it from it, or neither:
+    /// `{ factProfile: { id, profile } }`.
+    FactProfile(FactProfile),
+    /// Turn the nightly memory review on or off: `{ memoryNightly }`.
+    MemoryNightly(bool),
     /// Drop a rule on trial: `{ trialDrop }`.
     TrialDrop(TrialId),
     /// Keep a rule on trial now, as a standing rule, without waiting for the weekly review:
@@ -240,6 +251,34 @@ pub struct FactChange {
     pub text: String,
 }
 
+/// `factForget`: a fact to forget everywhere, and the pieces of the record to take out with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "validate", derive(garde::Validate))]
+pub struct FactForget {
+    /// The fact.
+    #[cfg_attr(feature = "validate", garde(skip))]
+    pub id: FactId,
+    /// The pieces' ids, as `GET /api/facts/forget` lists them; none: every one it lists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(length(max = 500)))]
+    pub pieces: Option<Vec<i64>>,
+}
+
+/// `factProfile`: the person's say on a fact in the profile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "validate", derive(garde::Validate))]
+pub struct FactProfile {
+    /// The fact.
+    #[cfg_attr(feature = "validate", garde(skip))]
+    pub id: FactId,
+    /// `pin`, `hide`, or none (as it comes).
+    #[serde(default)]
+    #[cfg_attr(feature = "validate", garde(length(max = 10)))]
+    pub profile: Option<String>,
+}
+
 /// `personSet`: whether a person's messages wake the assistant at once (instead of with its
 /// next look, every 15 minutes).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -354,10 +393,26 @@ pub struct SettingsRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(dive))]
     pub person_set: Option<PersonChange>,
-    /// The fact to forget.
+    /// The fact to forget everywhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(skip))]
     pub fact_drop: Option<FactId>,
+    /// The fact to forget everywhere, with the pieces of the record to take out with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(dive))]
+    pub fact_forget: Option<FactForget>,
+    /// The fact the person confirms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(skip))]
+    pub fact_confirm: Option<FactId>,
+    /// The person's say on a fact in the profile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(dive))]
+    pub fact_profile: Option<FactProfile>,
+    /// The nightly memory review on or off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "validate", garde(skip))]
+    pub memory_nightly: Option<bool>,
     /// The rule on trial to drop.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "validate", garde(dive))]
@@ -430,6 +485,10 @@ pub struct SettingsReply {
 }
 
 impl From<SettingsAction> for SettingsRequest {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one arm per action, each naming its keys"
+    )]
     fn from(action: SettingsAction) -> Self {
         let none = Self::default();
         match action {
@@ -509,6 +568,22 @@ impl From<SettingsAction> for SettingsRequest {
             },
             SettingsAction::FactDrop(fact) => Self {
                 fact_drop: Some(fact),
+                ..none
+            },
+            SettingsAction::FactForget(forget) => Self {
+                fact_forget: Some(forget),
+                ..none
+            },
+            SettingsAction::FactConfirm(fact) => Self {
+                fact_confirm: Some(fact),
+                ..none
+            },
+            SettingsAction::FactProfile(say) => Self {
+                fact_profile: Some(say),
+                ..none
+            },
+            SettingsAction::MemoryNightly(on) => Self {
+                memory_nightly: Some(on),
                 ..none
             },
             SettingsAction::TrialDrop(trial) => Self {

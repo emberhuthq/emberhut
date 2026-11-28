@@ -411,6 +411,8 @@ imported! {
         rule: Option<i64>,
         /// The lesson as one short line to the owner.
         lesson_to_owner: Option<String>,
+        /// What the nightly review made of a noticed candidate.
+        triaged: Option<String>,
     }
 }
 

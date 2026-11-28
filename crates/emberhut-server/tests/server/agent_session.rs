@@ -74,6 +74,12 @@ async fn an_agents_room_runs_as_that_agent() {
         json!({ "command": "example-admin", "args": ["--stdio"] }).to_string(),
     )
     .unwrap();
+    // Only its owner may write it, whatever the umask the tests run under.
+    std::fs::set_permissions(
+        &config_file,
+        std::os::unix::fs::PermissionsExt::from_mode(0o644),
+    )
+    .unwrap();
     let tools = app
         .call(
             Call::put("/api/agents/client-a/tools")

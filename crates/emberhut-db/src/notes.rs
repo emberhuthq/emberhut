@@ -4,8 +4,8 @@ use emberhut_core::memory::notes::{Note, NoteAuthor, assistant_uid};
 use emberhut_core::memory::wire;
 use jiff::Timestamp;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder,
 };
 
 use crate::entity::note;
@@ -65,6 +65,22 @@ impl NoteStore {
             .into_iter()
             .map(from_row)
             .collect()
+    }
+
+    /// What changes whenever a note is written or deleted: how many there are and when the
+    /// last was changed (`3 @ 1764000000000`).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn stamp(&self) -> Result<String, DbError> {
+        let count = note::Entity::find().count(&self.conn).await?;
+        let last = note::Entity::find()
+            .order_by_desc(note::Column::Updated)
+            .one(&self.conn)
+            .await?
+            .map_or(0, |row| row.updated);
+        Ok(format!("{count} @ {last}"))
     }
 
     /// The note `uid`, if there is one.
