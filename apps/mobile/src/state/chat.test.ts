@@ -32,6 +32,13 @@ describe("join", () => {
 });
 
 describe("chat store", () => {
+  it("holds a room's empty first page: a room with no messages yet is open, not still opening", () => {
+    const { api } = fakeApi();
+    const store = createChatStore(api);
+    store.getState().hold(5, []);
+    expect(store.getState().chats[5]).toEqual([]);
+  });
+
   it("catches up from the last message held, then loads earlier ones until the first", async () => {
     const { server, api } = fakeApi();
     server.on("GET", "/api/history", (r) => {

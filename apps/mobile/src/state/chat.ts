@@ -37,9 +37,11 @@ export function createChatStore(api: EmberhutApi) {
     complete: {},
 
     hold(room, page) {
-      const held = get().chats[room] ?? [];
+      const known = get().chats[room];
+      const held = known ?? [];
       const next = join(held, page);
-      if (next.length === held.length && next.every((m, i) => m === held[i])) return;
+      // A room's first page is held even when empty: a room with no messages yet is open, not still opening.
+      if (known !== undefined && next.length === held.length && next.every((m, i) => m === held[i])) return;
       // The page started the chat over after a gap: what's before it is unknown again.
       const oldest = held[0]?.id;
       const restarted = oldest !== undefined && !next.some((m) => m.id === oldest);
