@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ThemeTokens } from "@/api";
 import { builtInTheme } from "./builtIn";
-import { contrast as ratio, mix, paletteFrom } from "./colors";
+import { contrast as ratio, mix, paletteFrom, THEIRS_APART } from "./colors";
 
 describe("palette from the theme's tokens", () => {
   const { light, dark } = builtInTheme.tokens;
@@ -31,6 +31,8 @@ describe("palette from the theme's tokens", () => {
       danger: "#A51D2D",
       bubbleMine: "#B83D0C",
       onBubbleMine: "#FFF8EF",
+      bubbleTheirs: "#FFFDF9",
+      bubbleTheirsEdge: "#DCD6CD",
     });
   });
 
@@ -84,5 +86,27 @@ describe("palette from the theme's tokens", () => {
       expect(ratio(p.onPrimary, p.primary)).toBeGreaterThanOrEqual(4.5);
       expect(ratio(p.onBubbleMine, p.bubbleMine)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it("sets the assistant's bubble apart from the chat's background, its words readable, in every preset", () => {
+    for (const preset of builtInTheme.presets) {
+      for (const scheme of ["light", "dark"] as const) {
+        const p = paletteFrom(preset[scheme], scheme);
+        const where = `${preset.id} ${scheme}`;
+        expect(p.bubbleTheirs, where).not.toBe(p.background);
+        // Its fill or its edge shows where it ends.
+        const apart = Math.max(ratio(p.bubbleTheirs, p.background), ratio(p.bubbleTheirsEdge, p.background));
+        expect(apart, where).toBeGreaterThanOrEqual(THEIRS_APART);
+        for (const ink of [p.text, p.textSecondary, p.textTertiary, p.accent]) {
+          expect(ratio(ink, p.bubbleTheirs), `${where} ${ink}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it("lifts the dark bubble off the dark background, where the raised surface sits too close to it", () => {
+    const p = paletteFrom(dark, "dark");
+    expect(ratio(dark.surfaceRaised, dark.background)).toBeLessThan(THEIRS_APART);
+    expect(ratio(p.bubbleTheirs, p.background)).toBeGreaterThanOrEqual(THEIRS_APART);
   });
 });

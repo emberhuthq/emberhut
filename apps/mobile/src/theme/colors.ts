@@ -42,7 +42,13 @@ export interface Palette {
   /** Your own chat bubble and its text. */
   bubbleMine: string;
   onBubbleMine: string;
+  /** The assistant's chat bubble and its edge; its words keep the theme's text and link colours. */
+  bubbleTheirs: string;
+  bubbleTheirsEdge: string;
 }
+
+/** How far the assistant's bubble stands from the chat's background, at least: enough to see where it ends. */
+export const THEIRS_APART = 1.2;
 
 /** The palette of one appearance. */
 export function paletteFrom(t: ThemeTokens, scheme: "light" | "dark"): Palette {
@@ -74,7 +80,23 @@ export function paletteFrom(t: ThemeTokens, scheme: "light" | "dark"): Palette {
     // a calmer one, the accent sunk into the surface; at 35% the light text still reads 4.5:1 on it for any accent.
     bubbleMine: dark ? mix(t.accent, t.surface, 0.35) : t.accent,
     onBubbleMine: dark ? t.text : t.onAccent,
+    bubbleTheirs: theirsFill(t, dark),
+    bubbleTheirsEdge: t.border,
   };
+}
+
+/**
+ * The assistant's bubble on the chat's background. Light: the surface, a card lighter than the page, where every text
+ * colour already reads 4.5:1, its edge the border. Dark: the raised surface, lifted toward the text a step at a time
+ * until it stands {@link THEIRS_APART} from the background (a dark card a shade off a dark page doesn't show).
+ */
+export function theirsFill(t: ThemeTokens, dark: boolean): string {
+  if (!dark) return t.surface;
+  let fill = t.surfaceRaised;
+  for (let share = 0.01; contrast(fill, t.background) < THEIRS_APART && share <= 0.5; share += 0.01) {
+    fill = mix(t.text, t.surfaceRaised, share);
+  }
+  return fill;
 }
 
 /** WCAG 2's contrast ratio of two "#RRGGBB" colours: 1 (the same) to 21 (black on white). */

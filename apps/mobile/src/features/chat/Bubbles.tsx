@@ -69,16 +69,35 @@ export interface AssistantBubbleProps extends BubbleProps {
 }
 
 /**
- * Emberhut's answer: across the whole width with no bubble, as chat assistants commonly show answers, so a long one
- * reads like a page; what it's about as chips after it. Its height is its words' own: nothing sizes it but its content.
+ * Emberhut's answer: in its own bubble on the left, as yours is on the right; what it's about as chips after it. A
+ * bubble holding a list, a quote, a table or code takes the full width it may have. Its height is its words' own:
+ * nothing sizes it but its content.
  */
 export const AssistantBubble = memo(function AssistantBubble({ text, files, refs, onLink, onMenu, taskStatus }: AssistantBubbleProps) {
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
+  const words = text.trim() !== "";
+  const rich = useMemo(() => parseBlocks(text).some((block) => block.kind !== "para"), [text]);
   return (
-    <View style={[styles.answer, { gap: spacing.sm }]}>
+    <View style={[styles.answer, rich && styles.answerWide, { gap: spacing.sm }]}>
       {files && files.length > 0 && <Attachments files={files} />}
-      {text.trim() !== "" && (
-        <Pressable onLongPress={onMenu} delayLongPress={350} accessibilityHint={onMenu ? "Long press to reply or copy" : undefined}>
+      {words && (
+        <Pressable
+          testID="assistant-bubble"
+          onLongPress={onMenu}
+          delayLongPress={350}
+          accessibilityHint={onMenu ? "Long press to reply or copy" : undefined}
+          style={[
+            styles.bubble,
+            {
+              backgroundColor: colors.bubbleTheirs,
+              borderColor: colors.bubbleTheirsEdge,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderBottomLeftRadius: corner,
+              paddingHorizontal: spacing.md + 2,
+              paddingVertical: spacing.sm + 1,
+            },
+          ]}
+        >
           <Markdown text={text} split taskRefs onLink={onLink} image={inlineImage} />
         </Pressable>
       )}
@@ -115,7 +134,9 @@ const styles = StyleSheet.create({
   // A bubble holding a list, a quote or code gets the full 80%: sized to its words, its rows would be measured at one
   // width and drawn at another, and lines would spill out of it.
   mineWide: { width: "80%", alignItems: "stretch" },
-  answer: { alignSelf: "stretch" },
+  answer: { alignSelf: "flex-start", alignItems: "flex-start", maxWidth: "88%" },
+  // As yours: a bubble holding a list, a quote or code gets the full width, measured and drawn at the same one.
+  answerWide: { width: "88%", alignItems: "stretch" },
   bubble: { borderRadius: radius },
   stamp: { paddingTop: 10, paddingBottom: 2 },
   inlineImage: { width: 240, height: 180, borderRadius: 12 },
