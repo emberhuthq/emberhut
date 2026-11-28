@@ -206,7 +206,7 @@ fn parts(
                 .max_w(relative(0.82))
                 .px(px(14.))
                 .py(px(9.))
-                .bg(p.surface_raised)
+                .bg(p.theirs)
                 .line_height(px(21.))
                 .child(prose::answer(&row.parsed, &row.place, store, p, cx))
                 .context_menu(menu)
