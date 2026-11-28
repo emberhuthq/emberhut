@@ -62,7 +62,10 @@ reads GitHub's public API, with no credential, and verifies every payload as bef
   succeeded and that the draft exists; then it builds the universal app and server, signs and
   notarizes them (with a notarytool keychain profile or an App Store Connect API key read in
   place), runs Gatekeeper's checks and the app's `--self-check` from the disk image when a desktop
-  session is there, uploads the two assets to the draft, and starts the publish stage.
+  session is there, uploads the two assets to the draft, and starts the publish stage. Before
+  that it signs and notarizes the runner binaries CI left unsigned in the draft's macOS runner
+  archives (an unsigned binary hangs behind the macOS firewall), repacks them with the same
+  entries and uploads them again, so the publish stage sums and scans the signed files.
 - **CI publishes.** The publish stage (`workflow_dispatch`, `stage=publish`, on the tag's ref)
   refuses unless the draft holds every asset a release must have. It downloads all the draft's
   assets, whichever job added them, unpacks

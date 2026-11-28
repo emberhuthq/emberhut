@@ -13,6 +13,7 @@ pub(crate) mod feed;
 mod keygen;
 mod mac;
 pub(crate) mod notes;
+mod runner;
 pub(crate) mod tag;
 
 use std::fs;
@@ -118,8 +119,9 @@ pub(crate) enum Step {
     /// The Mac's part of a release: after checking the tag, CI's tag run and the draft, build
     /// the universal app and server, sign them with the Keychain's Developer ID identity,
     /// notarize them, upload `Emberhut-<version>-macos-universal.dmg` and
-    /// `emberhut-server-<version>-macos-universal.tar.gz` to the draft release, and start the
-    /// release workflow's publish stage. Runs on macOS only.
+    /// `emberhut-server-<version>-macos-universal.tar.gz` to the draft release, sign and notarize
+    /// the runner binaries in the draft's `emberhut-runner-<version>-macos-*.tar.gz` and upload
+    /// them again, and start the release workflow's publish stage. Runs on macOS only.
     Mac(MacArgs),
 }
 

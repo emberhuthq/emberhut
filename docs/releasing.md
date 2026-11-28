@@ -101,7 +101,14 @@ the tag's build-stage run ("Release v0.1.0-rc.1 (build)") succeeded and that the
 unless given), signs, notarizes, runs Gatekeeper's checks and the app's `--self-check` from the
 disk image (only in a logged-in desktop session; otherwise it says it skipped them), uploads
 `Emberhut-V-macos-universal.dmg` and `emberhut-server-V-macos-universal.tar.gz` to the draft, and
-starts the publish stage. `--no-publish` stops after the upload.
+starts the publish stage. Before starting it, it signs the runner: CI puts
+`emberhut-runner-V-macos-arm64.tar.gz` and `…-macos-x64.tar.gz` on the draft unsigned (an
+unsigned binary hangs behind the macOS firewall), and `release mac` downloads each into a
+private folder, signs `emberhut-runner` (hardened runtime, timestamp, identifier
+`com.emberhut.runner`), notarizes it as a zip, repacks it with the same folder, names and modes
+(checking that `tar -tzf` lists the same entries) and uploads it again with `--clobber`. With no
+runner archives on the draft it says so and skips this. `--no-publish` stops before starting the
+publish stage.
 
 ## The assets
 
@@ -114,6 +121,7 @@ V is the full version (`0.1.0-rc.1`).
 | `emberhut-server-V-linux-x64.tar.gz`, `…-linux-arm64.tar.gz` | The server alone, for Linux | CI |
 | `emberhut-server-V-macos-universal.tar.gz` | The server alone, for macOS; signed and notarized | the Mac |
 | `emberhut-server-V-windows-x64.zip` | The server alone, for Windows | CI |
+| `emberhut-runner-V-macos-arm64.tar.gz`, `…-macos-x64.tar.gz` | The runner for macOS; signed and notarized | CI builds, the Mac signs |
 | `emberhut-desktop-macos.json`, `emberhut-desktop-windows.json` | The updater's feeds: the release, its notes, and each installer's URL, size, SHA-256 and minisign signature | the publish stage |
 | `SHA256SUMS`, `SHA256SUMS.minisig` | The SHA-256 of every other asset, and its signature by the update key | the publish stage |
 

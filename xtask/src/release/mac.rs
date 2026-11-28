@@ -10,7 +10,10 @@
 //!    zip: a bare binary can't be stapled) and packed with the licenses and README;
 //! 4. Gatekeeper's checks and the app's `--self-check` smoke run, from the disk image, when a
 //!    desktop session is there for them;
-//! 5. both assets uploaded to the draft, and the workflow's publish stage started.
+//! 5. both assets uploaded to the draft;
+//! 6. the runner's macOS archives that CI put on the draft unsigned, if any, signed, notarized,
+//!    repacked as they were and uploaded again (`release::runner`);
+//! 7. the workflow's publish stage started, unless `--no-publish`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -286,6 +289,7 @@ pub(crate) fn run(args: &MacArgs) -> anyhow::Result<()> {
 
     say(&format!("Uploading to the draft release {}", tag.name()));
     cmd::run(&mut upload_command(&tag, &[dmg, archive]))?;
+    super::runner::sign_runners(&plan, &layout, &tag)?;
     if args.no_publish {
         say(&format!(
             "Uploaded; start the publish stage with `{}`",
