@@ -38,7 +38,10 @@ pub mod telemetry;
 pub use routes::{DocumentError, openapi, openapi_json};
 
 use app::{AppState, Dependencies, router};
-use config::{AuthMode, IdConfig, MacHelperConfig, PairConfig, ServeConfig, VoiceSettings};
+use config::{
+    AuthMode, IdConfig, MacHelperConfig, PairConfig, PairRunnerConfig, PublicUrl, ServeConfig,
+    VoiceSettings,
+};
 use identity::{KeyFileError, Machine};
 use services::calendar::{CalendarProvider, HttpMacCalendar, NoCalendar};
 use services::calls::{CallTranscriber, CallsConfig, CommandTranscriber, NoTranscriber};
@@ -97,6 +100,9 @@ pub enum RunError {
     /// A pairing code could not be made.
     #[error("cannot make a pairing code")]
     Pairing(#[from] PairingError),
+    /// A runner pairing code could not be made.
+    #[error("cannot make a runner pairing code")]
+    RunnerPairing(#[from] services::runner_pairing::RunnerPairingError),
     /// The machine's key couldn't be read.
     #[error(transparent)]
     MachineKey(#[from] KeyFileError),
@@ -185,6 +191,8 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
             }
         })
     });
+    // The paired runners are read before anything reaches a runner or a runner reports.
+    state.runner_pairing().load().await?;
     let paused = state.parties().pause_left_running().await?;
     if paused > 0 {
         tracing::info!(paused, "parties left running were paused");
@@ -450,6 +458,10 @@ async fn dependencies(
         },
         machine: Some(Arc::new(machine)),
         pairing_routes: services::advertise::configured_routes(
+            config.listen,
+            config.public_url.as_ref(),
+        ),
+        runner_routes: services::advertise::runner_routes(
             config.listen,
             config.public_url.as_ref(),
         ),
@@ -1090,6 +1102,76 @@ pub async fn make_pairing_code(config: &PairConfig) -> Result<CommandLineCode, R
         issued,
         machine: machine.id(),
         link,
+    })
+}
+
+/// A one-time code for a new runner, as `emberhut-server pair-runner` prints it: the code, the
+/// server's address the runner is to use, and the lines that install and pair a runner.
+#[derive(Debug)]
+pub struct RunnerCodeLines {
+    /// The code and when it stops working.
+    pub issued: IssuedCode,
+    /// The server's address in the lines.
+    pub server: services::runner_install::ServerAddress,
+    /// The lines.
+    pub install: emberhut_api::runner::pairing::RunnerInstall,
+}
+
+impl RunnerCodeLines {
+    /// The code as `pair-runner --json` prints it: the fields `POST /api/runners/codes`
+    /// answers (`code`, `expiresAt`, `server`, `reachable`, `install`).
+    #[must_use]
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "code": self.issued.code.to_string(),
+            "expiresAt": self.issued.expires_at.to_string(),
+            "server": self.server.url,
+            "reachable": self.server.reachable,
+            "install": self.install,
+        })
+    }
+}
+
+/// A one-time code for a new runner, for `emberhut-server pair-runner`: made in the database
+/// `config` names, as `POST /api/runners/codes` makes one, so the server that serves the
+/// database takes it, with the address the runner is to use (`--server`, else the public URL
+/// or the listen address when another machine can reach them) and the lines that install it.
+///
+/// # Errors
+///
+/// [`RunError::Database`] (also when there is no database there, or it needs migrating) or
+/// [`RunError::RunnerPairing`].
+pub async fn make_runner_code(config: &PairRunnerConfig) -> Result<RunnerCodeLines, RunError> {
+    let db = Database::open_existing(&config.database.url).await?;
+    let own = config.public_url.as_ref().map_or_else(
+        || format!("http://{}", config.listen),
+        |url| url.as_str().to_owned(),
+    );
+    let pairing = services::runner_pairing::RunnerPairingService::new(
+        services::runner_pairing::RunnerPairingParts {
+            paired: services::paired_runners::PairedRunners::new(db.paired_runners()),
+            configured: Arc::new(services::runner_api::NoRunners),
+            clock: Arc::new(SystemClock),
+            random: Arc::new(OsRandom),
+            advertised: services::advertise::runner_routes(
+                config.listen,
+                config.public_url.as_ref(),
+            ),
+            own,
+        },
+    );
+    let server = pairing.address(config.server.as_ref().map(PublicUrl::as_str), None);
+    let issued = pairing.new_code(CodeMaker::CommandLine).await?;
+    db.close().await?;
+    let install = services::runner_install::install_lines(
+        &server.url,
+        &issued.code.to_string(),
+        services::runner_install::RELEASE_VERSION,
+    );
+    Ok(RunnerCodeLines {
+        issued,
+        server,
+        install,
     })
 }
 

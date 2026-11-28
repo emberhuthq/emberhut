@@ -1,10 +1,11 @@
 //! `emberhut-server`: serves the emberhut API, prints a pairing code and its link (`emberhut-server pair`,
-//! or `pair --json` for a program) or the machine's id (`emberhut-server id`), links the machine to an emberhut.com account
+//! or `pair --json` for a program), a runner's pairing code (`emberhut-server pair-runner`) or the
+//! machine's id (`emberhut-server id`), links the machine to an emberhut.com account
 //! (`emberhut-server link`, `emberhut-server unlink`).
 //!
 //! Configuration comes from flags and `EMBERHUT_*` environment variables (`emberhut-server --help`).
 
-use std::io::Write as _;
+use std::io::Write;
 
 use anyhow::Context as _;
 use clap::Parser as _;
@@ -31,6 +32,20 @@ async fn main() -> anyhow::Result<()> {
                 print_pairing(&made, &config.database.url)
                     .context("cannot print the pairing code")?;
             }
+        }
+        Command::PairRunner(config) => {
+            let made = emberhut_server::make_runner_code(&config)
+                .await
+                .with_context(|| {
+                    format!("no runner pairing code was made in {}", config.database.url)
+                })?;
+            let mut out = std::io::stdout();
+            if config.json {
+                writeln!(out, "{}", made.to_json())
+            } else {
+                print_runner_code(&mut out, &made, &config)
+            }
+            .context("cannot print the runner pairing code")?;
         }
         Command::Id(config) => {
             let id = emberhut_server::machine_id(&config).context("no machine id")?;
@@ -86,4 +101,45 @@ fn print_pairing(
         emberhut_server::terminal_qr(link, colors).context("cannot draw the link's QR code")?;
     writeln!(out, "Scan it in the Emberhut app:\n{qr}")?;
     Ok(())
+}
+
+/// Prints a runner code made on the command line: the code, the server's address the runner
+/// is to use (with a word when only this computer reaches it), and the lines to run on the
+/// runner's machine.
+fn print_runner_code(
+    out: &mut impl Write,
+    made: &emberhut_server::RunnerCodeLines,
+    config: &emberhut_server::config::PairRunnerConfig,
+) -> std::io::Result<()> {
+    writeln!(
+        out,
+        "Runner pairing code: {} (works once, until {}; in {})",
+        made.issued.code,
+        made.issued.expires_at.strftime("%H:%M:%S UTC"),
+        config.database.url.path().display()
+    )?;
+    writeln!(out, "Server address for the runner: {}", made.server.url)?;
+    if !made.server.reachable {
+        writeln!(
+            out,
+            "Only this computer reaches that address. For a runner on another machine, set \
+             EMBERHUT_PUBLIC_URL, listen on an address other machines reach (EMBERHUT_LISTEN), \
+             or name one with --server."
+        )?;
+    }
+    writeln!(
+        out,
+        "\nOn the runner's machine, with emberhut-runner installed:\n  {}",
+        made.install.command
+    )?;
+    writeln!(
+        out,
+        "Or install it too, on macOS and Linux:\n  {}",
+        made.install.shell
+    )?;
+    writeln!(
+        out,
+        "On Windows, in PowerShell as an administrator:\n  {}",
+        made.install.powershell
+    )
 }

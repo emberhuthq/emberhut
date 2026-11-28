@@ -260,13 +260,13 @@ impl RunnerService {
         self.parts.api.as_ref()
     }
 
-    /// The configured runners' names.
+    /// The known runners' names: the configured ones, then the paired ones.
     #[must_use]
     pub fn machines(&self) -> Vec<String> {
         self.parts.api.machines()
     }
 
-    /// Whether `machine` is a configured runner.
+    /// Whether `machine` is a known runner, configured or paired.
     #[must_use]
     pub fn is_runner(&self, machine: &str) -> bool {
         self.machines().iter().any(|known| known == machine)
@@ -1407,11 +1407,9 @@ impl RunnerService {
         }
     }
 
-    /// Looks at every runner every `every` until `stop`, when any is configured.
+    /// Looks at every runner every `every` until `stop`. It runs with no runner known too: a
+    /// runner paired later is looked at from the next tick.
     pub async fn keep_looking(self, every: Duration, stop: CancellationToken) {
-        if self.machines().is_empty() {
-            return;
-        }
         let mut ticks = tokio::time::interval(every);
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {

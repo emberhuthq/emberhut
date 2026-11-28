@@ -58,6 +58,9 @@ pub enum Command {
     /// Print a one-time code that pairs a new device, for the first device or one that cannot
     /// reach a signed-in one, with its pairing link and the link's QR code.
     Pair(PairConfig),
+    /// Print a one-time code that pairs a new runner (`POST /api/runner/pair`), as `POST
+    /// /api/runners/codes` makes on a signed-in device, for a server set up from a terminal.
+    PairRunner(PairRunnerConfig),
     /// Print this machine's id: the hash of its public key, as pairing links and the account's
     /// list of machines show it.
     Id(IdConfig),
@@ -922,6 +925,29 @@ pub struct PairConfig {
     pub json: bool,
 }
 
+/// `emberhut-server pair-runner`: the database the code goes in, and the server's addresses
+/// the install lines may name, from the same settings as serving.
+#[derive(Clone, Debug, Args)]
+pub struct PairRunnerConfig {
+    /// The database.
+    #[command(flatten)]
+    pub database: DatabaseConfig,
+    /// The address the server listens on: the runner's when another machine can reach it and
+    /// there is no public URL.
+    #[arg(long, env = "EMBERHUT_LISTEN", default_value = "127.0.0.1:18990")]
+    pub listen: SocketAddr,
+    /// The address the person's devices reach this server at: the runner's first.
+    #[arg(long = "public-url", env = "EMBERHUT_PUBLIC_URL")]
+    pub public_url: Option<PublicUrl>,
+    /// The address the runner is to reach this server at, in place of the ones above.
+    #[arg(long, value_name = "URL")]
+    pub server: Option<PublicUrl>,
+    /// Print one line of JSON for a program to read (`code`, `expiresAt`, `server`,
+    /// `reachable`, `install`) instead of the code and the lines in words.
+    #[arg(long)]
+    pub json: bool,
+}
+
 /// `emberhut-server id`: the database the key is kept beside, and the key.
 #[derive(Clone, Debug, Args)]
 pub struct IdConfig {
@@ -1293,6 +1319,41 @@ mod tests {
             panic!("pair was asked for");
         };
         assert!(json.json);
+    }
+
+    #[test]
+    fn pair_runner_takes_the_database() {
+        let Command::PairRunner(words) =
+            parse(&["pair-runner", "--database-url", "sqlite:///srv/emberhut.db"])
+                .unwrap()
+                .into_command()
+        else {
+            panic!("pair-runner was asked for");
+        };
+        assert_eq!(words.database.url.as_str(), "sqlite:///srv/emberhut.db");
+        assert!(!words.json, "words unless asked");
+        assert_eq!(words.server, None);
+        let Command::PairRunner(json) = parse(&[
+            "pair-runner",
+            "--json",
+            "--public-url",
+            "https://emberhut.example.com/",
+            "--server",
+            "http://192.0.2.10:18990",
+        ])
+        .unwrap()
+        .into_command() else {
+            panic!("pair-runner was asked for");
+        };
+        assert!(json.json);
+        assert_eq!(
+            json.public_url.as_ref().map(PublicUrl::as_str),
+            Some("https://emberhut.example.com")
+        );
+        assert_eq!(
+            json.server.as_ref().map(PublicUrl::as_str),
+            Some("http://192.0.2.10:18990")
+        );
     }
 
     #[test]

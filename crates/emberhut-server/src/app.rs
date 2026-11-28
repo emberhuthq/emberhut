@@ -79,6 +79,7 @@ use crate::services::machines::MachineService;
 use crate::services::messaging::hooks::{ServerTasks, WhatsAppAnswers};
 use crate::services::messaging::{Messaging, MessagingDeps, MessagingParts};
 use crate::services::notes::NoteService;
+use crate::services::paired_runners::PairedRunners;
 use crate::services::pairing::PairingService;
 use crate::services::parties::PartyService;
 use crate::services::personal::{PersonalDependencies, PersonalServices};
@@ -89,7 +90,9 @@ use crate::services::recall::{Embedder, NoEmbedder, RecallParts, RecallService};
 use crate::services::report::ReportLog;
 use crate::services::rooms::RoomsService;
 use crate::services::routines::RoutineService;
-use crate::services::runner_api::{NoRunners, RunnerApi};
+use crate::services::runner_api::{HttpRunners, NoRunners, RunnerApi};
+use crate::services::runner_pairing::{RunnerPairingParts, RunnerPairingService};
+use crate::services::runner_registry::RunnerRegistry;
 use crate::services::runners::{RunnerParts, RunnerService};
 use crate::services::same_task::SameTaskService;
 use crate::services::schedule_sources::AssistantSchedule;
@@ -168,6 +171,7 @@ struct Inner {
     recall: RecallService,
     context: ContextService,
     runners: RunnerService,
+    runner_pairing: RunnerPairingService,
     machines: MachineService,
     accounts: AccountService,
     transfer: TransferService,
@@ -243,7 +247,8 @@ pub struct Dependencies {
     pub embedder: Arc<dyn Embedder>,
     /// The folder of agent transcripts recall indexes, if any.
     pub transcripts: Option<PathBuf>,
-    /// The runners on the person's machines.
+    /// The runners the server's configuration names on the person's machines. The runners
+    /// paired at run time are added to them.
     pub runners: Arc<dyn RunnerApi>,
     /// The file of MCP servers the runners' sessions get too (`{ "mcpServers": { ... } }`).
     pub runner_mcp: Option<PathBuf>,
@@ -299,6 +304,9 @@ pub struct Dependencies {
     pub machine: Option<Arc<Machine>>,
     /// The routes a pairing link names, best first (none by default).
     pub pairing_routes: Vec<String>,
+    /// The configured addresses a new runner is given to reach the server at, best first
+    /// (`services::advertise::runner_routes`; none by default).
+    pub runner_routes: Vec<String>,
     /// The outside services approvals are routed through, and the server's public address
     /// (none by default: approvals are made in the apps only).
     pub approvals: ApprovalDeps,
@@ -397,6 +405,7 @@ impl Default for Dependencies {
             room_reminders: Arc::new(NoReminders),
             machine: None,
             pairing_routes: Vec::new(),
+            runner_routes: Vec::new(),
             approvals: ApprovalDeps::default(),
             agent_slack: Arc::new(NoAgentSlack),
             provider_api: Arc::new(NoProviderApi),
@@ -454,11 +463,13 @@ impl AppState {
             room_reminders,
             machine,
             pairing_routes,
+            runner_routes,
             approvals: approval_deps,
             agent_slack,
             provider_api,
             agent_bridge,
         } = dependencies;
+        let runner_own = public_url.clone();
         let WorkerSetup {
             runtime: worker_runtime,
             limits: worker_limits,
@@ -677,6 +688,7 @@ impl AppState {
         let RunnerArea {
             transfer,
             runner_service,
+            runner_pairing,
             machines,
             jobs,
             accounts,
@@ -694,6 +706,8 @@ impl AppState {
             runners,
             assistant_tasks: &assistant_tasks,
             tasks: &tasks,
+            advertised: runner_routes,
+            own: runner_own,
         });
         let guard = Guard::new(GuardParts {
             db: db.clone(),
@@ -879,6 +893,7 @@ impl AppState {
                 recall,
                 context,
                 runners: runner_service,
+                runner_pairing,
                 machines,
                 accounts,
                 transfer,
@@ -1211,6 +1226,12 @@ impl AppState {
         &self.inner.runners
     }
 
+    /// Pairing runners at run time, and the list of every runner the server knows.
+    #[must_use]
+    pub fn runner_pairing(&self) -> &RunnerPairingService {
+        &self.inner.runner_pairing
+    }
+
     /// The runner machines' samples and states.
     #[must_use]
     pub fn machines(&self) -> &MachineService {
@@ -1379,12 +1400,17 @@ struct RunnerInputs<'a> {
     runners: Arc<dyn RunnerApi>,
     assistant_tasks: &'a Arc<dyn AssistantTasks>,
     tasks: &'a TaskService,
+    /// The configured addresses a new runner is given, best first.
+    advertised: Vec<String>,
+    /// The server's own address, its links' base.
+    own: String,
 }
 
 /// The runners' services, wired together.
 struct RunnerArea {
     transfer: TransferService,
     runner_service: RunnerService,
+    runner_pairing: RunnerPairingService,
     machines: MachineService,
     jobs: JobService,
     accounts: AccountService,
@@ -1404,10 +1430,30 @@ fn runner_area(inputs: RunnerInputs<'_>) -> RunnerArea {
         uploads,
         home,
         private,
-        runners,
+        runners: configured,
         assistant_tasks,
         tasks,
+        advertised,
+        own,
     } = inputs;
+    let paired = PairedRunners::new(db.paired_runners());
+    let paired_api: Arc<dyn RunnerApi> = match crate::http::shared_client() {
+        Ok(client) => Arc::new(HttpRunners::over(client, Arc::new(paired.clone()))),
+        Err(error) => {
+            tracing::error!(error = %crate::error::chain(&error), "paired runners can't be reached");
+            Arc::new(NoRunners)
+        }
+    };
+    let runners: Arc<dyn RunnerApi> =
+        Arc::new(RunnerRegistry::new(Arc::clone(&configured), paired_api));
+    let runner_pairing = RunnerPairingService::new(RunnerPairingParts {
+        paired,
+        configured,
+        clock: Arc::clone(clock),
+        random: Arc::clone(random),
+        advertised,
+        own,
+    });
     let transfer = TransferService::new(TransferParts {
         api: Arc::clone(&runners),
         pulls: db.pulls(),
@@ -1464,6 +1510,7 @@ fn runner_area(inputs: RunnerInputs<'_>) -> RunnerArea {
     RunnerArea {
         transfer,
         runner_service,
+        runner_pairing,
         machines,
         jobs,
         accounts,
