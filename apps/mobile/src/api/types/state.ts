@@ -310,7 +310,12 @@ export interface EmberhutState {
   chromePairing?: ChromePairing[] | null;
   chromeLatest?: string | null;
   /** What the app hides for now. */
-  ui?: { hideGoals?: boolean | null; hideProjects?: boolean | null } | null;
+  ui?: {
+    hideGoals?: boolean | null;
+    hideProjects?: boolean | null;
+    /** The server keeps a plan on every task: tasks, each with its plan, are the work running, sessions inside them. */
+    taskPlans?: boolean | null;
+  } | null;
   /** The newest build per platform. */
   builds?: { ios?: number | null; mac?: number | null } | null;
   /** Your theme choice; a server on older code has none. */
