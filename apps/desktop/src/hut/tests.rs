@@ -985,7 +985,9 @@ fn keeping_the_hut_lit_on_macos_loads_its_launch_agent_and_unloads_it() {
     let hut = setup.hut();
     let plist = setup
         .home()
-        .join("Library/LaunchAgents/com.emberhut.hut.plist");
+        .join("Library")
+        .join("LaunchAgents")
+        .join("com.emberhut.hut.plist");
     let keep = KeepLit {
         when_closed: true,
         at_login: true,

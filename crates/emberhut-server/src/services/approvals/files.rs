@@ -155,7 +155,12 @@ fn read_one(
         path: shown.clone(),
         source,
     };
-    let handle = File::open(path).map_err(unreadable)?;
+    let handle = match File::open(path) {
+        Ok(handle) => handle,
+        // Windows opens no folder as a file: it is refused as one.
+        Err(_) if path.is_dir() => return Err(FileRefused::NotAFile(shown)),
+        Err(error) => return Err(unreadable(error)),
+    };
     let real = real_path(path, &handle).map_err(|error| match error {
         RealPath::Io(source) => unreadable(source),
         RealPath::Changed => FileRefused::Changed(shown.clone()),

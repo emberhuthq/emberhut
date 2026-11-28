@@ -131,7 +131,8 @@ mod tests {
         let err = run(&mut Command::new("false")).unwrap_err();
         let message = err.to_string();
         assert!(message.contains("`false` failed"), "{message}");
-        assert!(message.contains("exit status: 1"), "{message}");
+        // `exit status: 1` on Unix, `exit code: 1` on Windows.
+        assert!(message.contains(": 1)"), "{message}");
     }
 
     #[test]
@@ -149,6 +150,6 @@ mod tests {
         let text = stdout(Command::new("sh").args(["-c", "echo out"])).unwrap();
         assert_eq!(text, "out\n");
         let err = stdout(Command::new("sh").args(["-c", "exit 2"])).unwrap_err();
-        assert!(err.to_string().contains("exit status: 2"), "{err}");
+        assert!(err.to_string().contains(": 2)"), "{err}");
     }
 }

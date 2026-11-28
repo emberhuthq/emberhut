@@ -218,11 +218,13 @@ mod tests {
 
     #[test]
     fn only_absolute_folders_of_the_path_are_searched() {
-        let path = std::env::join_paths(["/usr/bin", ".", "bin"]).ok();
+        // An absolute folder on this system (`/usr/bin` isn't one on Windows).
+        let absolute = std::env::temp_dir();
+        let path =
+            std::env::join_paths([absolute.as_path(), Path::new("."), Path::new("bin")]).ok();
         let found = folders(path);
-        assert_eq!(found[0], PathBuf::from("/usr/bin"));
-        assert!(found.iter().all(|folder| folder.is_absolute()), "{found:?}");
-        assert_eq!(found.len(), 1 + FOLDERS.len());
+        assert_eq!(found[0], absolute);
+        assert_eq!(found[1..], FOLDERS.map(PathBuf::from), "{found:?}");
     }
 
     #[test]

@@ -1141,9 +1141,17 @@ mod tests {
             title: "--help me -now".to_owned(),
             tracks: vec![(PathBuf::from("-mic.m4a"), Some("Me".to_owned()))],
         });
+        // `./-out.md`; `.\-out.md` on Windows.
+        let here = |name: &str| Path::new(".").join(name).into_os_string();
+        let mut mic = here("-mic.m4a");
+        mic.push("=Me");
         assert_eq!(
             args,
-            ["./-out.md", "\u{2010}\u{2010}help me -now", "./-mic.m4a=Me"]
+            [
+                here("-out.md"),
+                OsString::from("\u{2010}\u{2010}help me -now"),
+                mic,
+            ]
         );
         assert_eq!(title_arg("-"), "\u{2010}");
         assert_eq!(title_arg("a-b"), "a-b");

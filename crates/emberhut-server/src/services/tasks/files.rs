@@ -423,7 +423,7 @@ mod tests {
         std::fs::write(home.path().join("secrets/key.png"), b"png").unwrap();
         let files = files_in(home.path());
         let real = std::fs::canonicalize(home.path()).unwrap();
-        let chart = format!("{}/out/chart.png", real.display());
+        let chart = real.join("out").join("chart.png").display().to_string();
         assert_eq!(
             files
                 .attachable(&format!("{}/out/chart.png.", home.path().display()))
@@ -500,7 +500,7 @@ mod tests {
         let real = std::fs::canonicalize(&home).unwrap();
         assert_ne!(real, home, "the home is reached through a link");
 
-        let chart = format!("{}/out/chart.png", real.display());
+        let chart = real.join("out").join("chart.png").display().to_string();
         for written in [format!("{}/out/chart.png", home.display()), chart.clone()] {
             assert_eq!(
                 files.attachable(&written).await,

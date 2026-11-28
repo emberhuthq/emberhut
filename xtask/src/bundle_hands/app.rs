@@ -108,11 +108,13 @@ mod tests {
             layout.entitlements(),
             Path::new("/w/target/bundle/emberhut-hands.entitlements")
         );
+        let zip = layout.zip();
+        assert!(zip.starts_with("/w/target/bundle"), "{}", zip.display());
         assert!(
-            layout
-                .zip()
-                .to_string_lossy()
-                .starts_with("/w/target/bundle/Emberhut-Hands-")
+            zip.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("Emberhut-Hands-")),
+            "{}",
+            zip.display()
         );
     }
 }

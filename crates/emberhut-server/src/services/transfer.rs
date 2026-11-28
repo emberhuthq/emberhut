@@ -447,6 +447,8 @@ mod tests {
     fn the_database_its_journals_and_the_machine_key_are_kept_beside_it() {
         let files = beside_database(Path::new("/data/emberhut.db"));
         let files: Vec<&str> = files.iter().filter_map(|file| file.to_str()).collect();
+        // The key is joined to the folder: `/data\machine.key` on Windows.
+        let key = Path::new("/data").join("machine.key");
         assert_eq!(
             files,
             [
@@ -454,7 +456,7 @@ mod tests {
                 "/data/emberhut.db-wal",
                 "/data/emberhut.db-shm",
                 "/data/emberhut.db-journal",
-                "/data/machine.key"
+                key.to_str().unwrap(),
             ]
         );
         assert_eq!(beside_database(Path::new("")), Vec::<PathBuf>::new());
