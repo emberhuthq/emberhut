@@ -136,7 +136,9 @@ impl TaskService {
         let made = self
             .create(
                 NewTask {
-                    title: new.title,
+                    // Made from what someone wrote, which may hold a key: masked, as the
+                    // history is.
+                    title: emberhut_core::guard::key_mask::mask(&new.title, &[], None),
                     owner: Some(new.owner),
                     ..NewTask::default()
                 },

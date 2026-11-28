@@ -883,3 +883,95 @@ pub(crate) async fn a_move_needs_a_known_session_and_an_open_task() {
         .await;
     assert_eq!(anonymous.status, 401);
 }
+
+#[tokio::test]
+pub(crate) async fn events_taken_at_once_make_one_task_for_a_session() {
+    let app = app(true).await;
+    app.state.tasks().tick().await.unwrap();
+    let now = app.clock_now();
+    let direct = json!({ "direct": true });
+    let queued = event(
+        "r-99",
+        "turn_queued",
+        "queued",
+        direct.clone(),
+        Some(now),
+        json!({ "turn": { "id": "r-99:1", "n": 1, "by": "owner", "prompt": "Fix the build" } }),
+    );
+    let started = event(
+        "r-99",
+        "turn_started",
+        "running",
+        direct,
+        Some(now),
+        json!({ "turn": { "id": "r-99:1" } }),
+    );
+    // A runner that sends again what the server was still taking (its request timed out).
+    futures_util::future::join_all([
+        report(&app, &queued),
+        report(&app, &started),
+        report(&app, &queued),
+        report(&app, &started),
+    ])
+    .await;
+    let made = all_tasks(&app).await;
+    assert_eq!(made.len(), 1, "one task for one session: {made:?}");
+    assert_eq!(linked(&app, "r-99").await, made);
+}
+
+#[tokio::test]
+pub(crate) async fn a_title_made_from_a_message_masks_a_key_in_it() {
+    let app = app(true).await;
+    app.state.tasks().tick().await.unwrap();
+    let now = app.clock_now();
+    report(
+        &app,
+        &event(
+            "r-5",
+            "turn_queued",
+            "queued",
+            json!({ "direct": true }),
+            Some(now),
+            json!({ "turn": { "id": "r-5:1", "n": 1, "by": "owner",
+                              "prompt": "use sk-abcdefghijklmnopqrstuvwxyz0123 for it" } }),
+        ),
+    )
+    .await;
+    let made = all_tasks(&app).await;
+    assert_eq!(made.len(), 1);
+    let title = issue(&app, made[0]).await.title;
+    assert!(!title.contains("sk-abcdefghij"), "{title}");
+}
+
+#[tokio::test]
+pub(crate) async fn a_session_linked_to_several_tasks_works_for_the_one_its_meta_names() {
+    let app = app(true).await;
+    let other = task(&app, "Other").await;
+    let named = task(&app, "Named").await;
+    app.state
+        .tasks()
+        .link_session(&[other, named], "r-6", "build")
+        .await
+        .unwrap();
+    report(
+        &app,
+        &event(
+            "r-6",
+            "turn_started",
+            "running",
+            json!({ "task": named.get() }),
+            Some(app.clock_now()),
+            json!({ "turn": { "id": "r-6:1" } }),
+        ),
+    )
+    .await;
+    let runs = |page: Option<emberhut_api::task_page::TaskPage>| {
+        page.unwrap().runs.unwrap_or_default().len()
+    };
+    assert_eq!(
+        runs(app.state.tasks().detail(named).await.unwrap()),
+        1,
+        "its run is on the task named"
+    );
+    assert_eq!(runs(app.state.tasks().detail(other).await.unwrap()), 0);
+}

@@ -237,6 +237,10 @@ pub struct RunnerParts {
 pub struct RunnerService {
     parts: RunnerParts,
     looks: Arc<Mutex<BTreeMap<String, RunnerLook>>>,
+    /// Held while a session with no task is linked to its parent's or gets one made for it,
+    /// and while a session moves to another task: two events of one session taken at once (a
+    /// runner sending again what the server was still taking) make one task, not two.
+    tasking: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl RunnerService {
@@ -246,6 +250,7 @@ impl RunnerService {
         Self {
             parts,
             looks: Arc::default(),
+            tasking: Arc::default(),
         }
     }
 
@@ -660,11 +665,18 @@ impl RunnerService {
         turn: Option<&Value>,
     ) -> Result<Vec<TaskId>, TaskError> {
         let tasks = &self.parts.tasks;
-        let linked = tasks.session_tasks(id).await?;
+        let mut linked = tasks.session_tasks(id).await?;
+        let named = task_in(session);
         if !linked.is_empty() {
+            // Its turns are runs of the task its meta names while it is linked to it, as
+            // before it was linked to others too.
+            if let Some(at) = named.and_then(|named| linked.iter().position(|task| *task == named))
+            {
+                linked[..=at].rotate_right(1);
+            }
             return Ok(linked);
         }
-        if let Some(task) = task_in(session) {
+        if let Some(task) = named {
             return Ok(vec![task]);
         }
         let parent = session
@@ -680,6 +692,46 @@ impl RunnerService {
         if !tasks.is_new_session(created, first_seen).await? {
             return Ok(Vec::new());
         }
+        let place = self.place(machine);
+        let title = messaged.then(|| {
+            let prompt = turn
+                .and_then(|turn| text(turn, "prompt"))
+                .map(|prompt| asked(&prompt))
+                .or_else(|| thread.ask.clone())
+                .unwrap_or_default();
+            task_session::title_from(&prompt)
+                .or_else(|| task_session::title_from(&thread.title))
+                .unwrap_or_else(|| task_session::session_title("", &place))
+        });
+        // Done to its end even when the event's request is dropped half way (the runner gave
+        // up waiting and sends it again): a task made and not yet linked would be made again.
+        let this = self.clone();
+        let (machine, id, parent) = (machine.to_owned(), id.to_owned(), parent.map(str::to_owned));
+        tokio::spawn(async move {
+            this.link_or_make(&machine, &id, parent.as_deref(), title, &place)
+                .await
+        })
+        .await
+        .unwrap_or_else(|error| Err(TaskError::refused(error.to_string())))
+    }
+
+    /// Links the session `id` on `machine`, which has no task, to its `parent`'s tasks, else
+    /// (with a `title`: one of the person's own sessions, at its first message) to a task made
+    /// for it now; one event of a session at a time, so a second finds what the first did.
+    async fn link_or_make(
+        &self,
+        machine: &str,
+        id: &str,
+        parent: Option<&str>,
+        title: Option<String>,
+        place: &str,
+    ) -> Result<Vec<TaskId>, TaskError> {
+        let _one = self.tasking.lock().await;
+        let tasks = &self.parts.tasks;
+        let linked = tasks.session_tasks(id).await?;
+        if !linked.is_empty() {
+            return Ok(linked);
+        }
         if let Some(parent) = parent {
             let theirs = tasks.session_tasks(parent).await?;
             let linked = tasks.link_session(&theirs, id, machine).await?;
@@ -687,23 +739,14 @@ impl RunnerService {
                 return Ok(linked);
             }
         }
-        if !messaged {
+        let Some(title) = title else {
             return Ok(Vec::new());
-        }
-        let place = self.place(machine);
-        let prompt = turn
-            .and_then(|turn| text(turn, "prompt"))
-            .map(|prompt| asked(&prompt))
-            .or_else(|| thread.ask.clone())
-            .unwrap_or_default();
-        let title = task_session::title_from(&prompt)
-            .or_else(|| task_session::title_from(&thread.title))
-            .unwrap_or_else(|| task_session::session_title("", &place));
+        };
         let made = tasks
             .make_session_task(SessionTask {
                 title,
                 owner: Owner::Person,
-                why: task_session::opened_from(&place),
+                why: task_session::opened_from(place),
                 session: Some(id.to_owned()),
             })
             .await?;
@@ -1167,6 +1210,8 @@ impl RunnerService {
         let Some(thread) = self.session(id.as_str()).await? else {
             return Err(SessionMoveError::NoSession(id.to_string()));
         };
+        // Not while an event links it or makes it a task, nor during another move of it.
+        let _one = self.tasking.lock().await;
         let from = self
             .parts
             .tasks
