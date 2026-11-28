@@ -80,8 +80,8 @@ function StepRow({ row, onAnswer }: { row: PlanRow; onAnswer?: () => void }) {
     row.state === STEP_STATE.done ? (
       <Icon name="checkmark-circle" size={size + 2} color={colors.done} />
     ) : row.state === STEP_STATE.doing ? (
-      <View style={[styles.center, { width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: colors.working }]}>
-        <View style={{ width: size / 2.6, height: size / 2.6, borderRadius: size, backgroundColor: colors.working }} />
+      <View style={[styles.center, { width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: colors.running }]}>
+        <View style={{ width: size / 2.6, height: size / 2.6, borderRadius: size, backgroundColor: colors.running }} />
       </View>
     ) : row.state === STEP_STATE.blocked ? (
       <BlockedMark size={size} />
@@ -102,7 +102,7 @@ function StepRow({ row, onAnswer }: { row: PlanRow; onAnswer?: () => void }) {
           paddingRight: spacing.sm,
           paddingLeft: spacing.sm + (sub ? 34 : 0),
           borderRadius: radius.md,
-          backgroundColor: doing ? mix(colors.working, colors.surface, 0.12) : "transparent",
+          backgroundColor: doing ? mix(colors.running, colors.surface, 0.12) : "transparent",
         },
       ]}
     >
