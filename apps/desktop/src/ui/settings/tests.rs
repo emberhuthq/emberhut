@@ -19,6 +19,7 @@ use super::*;
 use crate::backend::Error;
 use crate::backend::fake::{Call, FakeBackend};
 use crate::store::settings::chrome::ChromeSheet;
+use crate::store::settings::chrome_install::{InstallState, Installer, Written};
 use crate::store::settings::entries::Fold;
 use crate::ui::report::ReportSize;
 use crate::ui::window::MainWindow;
@@ -127,6 +128,58 @@ fn a_skills_switch_sends_its_change_from_under_connections_fold(cx: &mut TestApp
             on: false
         }))
     );
+}
+
+/// Writes nothing: says it wrote Chrome's entry, and counts the times it was asked.
+#[derive(Debug, Default)]
+struct WroteEntry(std::sync::atomic::AtomicUsize);
+
+impl Installer for WroteEntry {
+    fn install(&self) -> Result<Written, String> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(Written {
+            place: "/Users/ada/Library/Application Support/Google/Chrome/External Extensions"
+                .into(),
+            already: false,
+            next: "Chrome shows “New extension added” the next time it starts: click Enable.",
+        })
+    }
+}
+
+#[gpui_kit::test]
+fn add_to_chrome_writes_the_entry_only_when_pressed(cx: &mut TestAppContext) {
+    let (_backend, store, _, mut cx) = open_settings_view(cx, Some(SettingsPane::ChromeProfiles));
+    let fake = Arc::new(WroteEntry::default());
+    store.update(&mut cx, |store, cx| {
+        store.set_chrome_installer(Arc::clone(&fake) as Arc<dyn Installer>);
+        store.show_chrome_sheet(Some(ChromeSheet::Add), cx);
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        assert!(
+            window.try_find("chrome-store-page").is_some(),
+            "the store's page is offered"
+        );
+        window.click("chrome-install", cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(fake.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(store.read_with(&cx, |store, _| matches!(
+        store.chrome().install(),
+        InstallState::Written(_)
+    )));
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        assert!(
+            window.try_find("chrome-install").is_none(),
+            "pressed once, it's done"
+        );
+        assert!(
+            window.try_find("chrome-get-link").is_some(),
+            "then the profile's link"
+        );
+    });
 }
 
 #[gpui_kit::test]

@@ -89,8 +89,9 @@ pub(super) fn page(
             d.child(icon_line(
                 IconName::RefreshCw,
                 p.warn,
-                "To update: in that profile open chrome://extensions and press reload on the \
-                 extension (or restart Chrome)."
+                "Chrome updates the extension from the Chrome Web Store by itself; restart \
+                 Chrome to have it now. A copy loaded unpacked updates with reload at \
+                 chrome://extensions."
                     .to_owned(),
             ))
         })

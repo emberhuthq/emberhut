@@ -1,6 +1,7 @@
 //! The sheets over the Chrome profiles: a profile's page (`chrome_profile`), naming a new
-//! profile, and a link to pair (Copy, and Share where the system has a share menu) with its
-//! pairing live; and the pieces they share.
+//! profile (after adding the extension to Chrome, on the user's OK), and a link to pair (Copy,
+//! and Share where the system has a share menu) with its pairing live; and the pieces they
+//! share.
 
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
@@ -18,6 +19,7 @@ use super::share;
 use crate::brand::APP_NAME;
 use crate::store::Store;
 use crate::store::settings::chrome::{ChromeSheet, offered_names};
+use crate::store::settings::chrome_install::{ChromeOs, InstallState, store_page};
 use crate::store::settings::words::clock;
 use crate::ui::palette::Pal;
 use emberhut_api::chrome::{ChromeAction, ChromePairing, ChromeProfile};
@@ -94,6 +96,7 @@ pub(super) fn act(store: &gpui_kit::Entity<Store>, action: ChromeAction, cx: &mu
 
 /// Naming a new profile: the name (with the usual ones not taken yet), then Get link.
 fn add(pane: &ChromePane, p: &Pal, cx: &mut Context<'_, ChromePane>) -> (String, Div) {
+    let install = install_group(pane, p, cx);
     let store = pane.store.read(cx);
     let offered = offered_names(store.chrome_profiles());
     let (busy, problem) = (
@@ -115,6 +118,7 @@ fn add(pane: &ChromePane, p: &Pal, cx: &mut Context<'_, ChromePane>) -> (String,
         .flex()
         .flex_col()
         .gap(px(10.))
+        .child(install)
         .child(
             div()
                 .text_size(px(12.))
@@ -126,8 +130,8 @@ fn add(pane: &ChromePane, p: &Pal, cx: &mut Context<'_, ChromePane>) -> (String,
         .child(note(
             p,
             format!(
-                "{APP_NAME} gives you a link. Open it in that Chrome profile: if the extension \
-                 isn't there yet, the page shows how to add it, then it pairs by itself."
+                "{APP_NAME} gives you a link. Open it in that Chrome profile once the extension \
+                 is on: it asks you to pair, then this waits until it has."
             ),
         ))
         .child(
@@ -259,7 +263,88 @@ fn pairing_status(paired: Option<&ChromeProfile>, live: bool, p: &Pal) -> Div {
     }
 }
 
-/// The three steps to put the extension in a profile that lacks it.
+/// Adding the extension to Chrome, before a profile's link: what happens, then Add to Chrome
+/// (nothing is written before it); once written, where and what Chrome does next, with the
+/// store's page as the way that works at once.
+fn install_group(pane: &ChromePane, p: &Pal, cx: &mut Context<'_, ChromePane>) -> Div {
+    let state = pane.store.read(cx).chrome().install().clone();
+    let open_store = || {
+        Button::new("chrome-store-page")
+            .small()
+            .label("Open the Chrome Web Store page")
+            .on_click(|_, _, cx| cx.open_url(&store_page()))
+            .into_any_element()
+    };
+    let rows = match state {
+        InstallState::NotWritten => {
+            let store = pane.store.clone();
+            vec![
+                note(p, install_line(ChromeOs::this())).into_any_element(),
+                div()
+                    .flex()
+                    .gap(px(10.))
+                    .child(
+                        Button::new("chrome-install")
+                            .primary()
+                            .label("Add to Chrome")
+                            .on_click(move |_, _, cx| {
+                                store.update(cx, Store::install_chrome_extension);
+                            }),
+                    )
+                    .child(open_store())
+                    .into_any_element(),
+            ]
+        }
+        InstallState::Writing => vec![
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.))
+                .child(Spinner::new().small().color(p.muted))
+                .child(note(p, "Adding it to Chrome…"))
+                .into_any_element(),
+        ],
+        InstallState::Written(written) => vec![
+            icon_line(
+                IconName::CircleCheck,
+                p.success,
+                format!(
+                    "{} Chrome's list ({}). {}",
+                    if written.already {
+                        "Already in"
+                    } else {
+                        "Added to"
+                    },
+                    written.place,
+                    written.next
+                ),
+            ),
+            note(
+                p,
+                "Chrome open now? Add it from its Web Store page instead, at once.",
+            )
+            .into_any_element(),
+            open_store(),
+        ],
+        InstallState::Failed(why) => vec![problem_line(p, why).into_any_element(), open_store()],
+    };
+    group(p, "Add the extension to Chrome", rows)
+}
+
+/// What Add to Chrome does on `os`, said before the user agrees.
+#[must_use]
+pub(super) fn install_line(os: ChromeOs) -> String {
+    let then = match os {
+        ChromeOs::Linux => {
+            "Your computer asks for your password, and Chrome adds it by itself when it next \
+             starts."
+        }
+        _ => "Chrome then asks you to turn it on: click Enable.",
+    };
+    format!("{APP_NAME} adds its extension from the Chrome Web Store. {then}")
+}
+
+/// How to put the extension in a profile that lacks it.
 fn steps(p: &Pal) -> Vec<AnyElement> {
     let step = |n: &'static str, text: &'static str| {
         div()
@@ -286,14 +371,40 @@ fn steps(p: &Pal) -> Vec<AnyElement> {
     vec![
         step(
             "1",
-            "The page offers the extension as a download (or use the folder you already loaded \
-             in another profile).",
+            "Add Emberhut from the Chrome Web Store in that profile (or click Enable when \
+             Chrome says “New extension added”).",
         ),
-        step(
-            "2",
-            "In chrome://extensions turn on Developer mode, then Load unpacked and pick the \
-             extension's folder.",
-        ),
-        step("3", "Back on the page, it pairs by itself."),
+        step("2", "Open the link there again: it asks you to pair."),
+        step("3", "Press Pair: this page sees it at once."),
+        div()
+            .flex()
+            .gap(px(10.))
+            .child(
+                Button::new("chrome-pair-store-page")
+                    .small()
+                    .label("Open the Chrome Web Store page")
+                    .on_click(|_, _, cx| cx.open_url(&store_page())),
+            )
+            .into_any_element(),
+        note(
+            p,
+            "Working on the extension itself? Load its build unpacked at chrome://extensions \
+             (Developer mode).",
+        )
+        .into_any_element(),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_to_chrome_says_what_happens_before_the_user_agrees() {
+        let mac = install_line(ChromeOs::Mac);
+        assert!(mac.contains("Chrome Web Store") && mac.contains("click Enable"));
+        assert_eq!(install_line(ChromeOs::Windows), mac);
+        let linux = install_line(ChromeOs::Linux);
+        assert!(linux.contains("password") && linux.contains("by itself"));
+    }
 }
