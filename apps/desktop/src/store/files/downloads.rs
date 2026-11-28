@@ -1,8 +1,9 @@
-//! Saving a kept file where the user keeps theirs: into Downloads under its own name, or
-//! `name (1).pdf`, `name (2).pdf`… when that is taken, as the system's own downloads do.
+//! Saving a kept file (or bytes the server sent) where the user keeps theirs: into Downloads
+//! under its own name, or `name (1).pdf`, `name (2).pdf`… when that is taken, as the system's own
+//! downloads do.
 
 use std::fs::File;
-use std::io;
+use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 /// The user's Downloads folder, its links resolved; `None` when the system names none.
@@ -33,12 +34,32 @@ fn numbered(name: &str, n: u32) -> String {
 /// When `from` can't be read or nothing can be written in `dir`.
 pub(crate) fn save_copy(from: &Path, dir: &Path, name: &str) -> io::Result<PathBuf> {
     let mut source = File::open(from)?;
+    save_new(dir, name, |file| io::copy(&mut source, file).map(drop))
+}
+
+/// Writes `bytes` into `dir` as `name`, or the first numbered name free there, as
+/// [`save_copy`] does; gives where they went.
+///
+/// # Errors
+///
+/// When nothing can be written in `dir`.
+pub(crate) fn save_bytes(bytes: &[u8], dir: &Path, name: &str) -> io::Result<PathBuf> {
+    save_new(dir, name, |file| file.write_all(bytes))
+}
+
+/// Makes the first free numbered name for `name` in `dir` and fills it with `write`; a file
+/// half written is removed.
+fn save_new(
+    dir: &Path,
+    name: &str,
+    mut write: impl FnMut(&mut File) -> io::Result<()>,
+) -> io::Result<PathBuf> {
     for n in 0..10_000 {
         let to = dir.join(numbered(name, n));
         match File::options().write(true).create_new(true).open(&to) {
             Ok(mut file) => {
-                let copied = io::copy(&mut source, &mut file).and_then(|_| file.sync_all());
-                if let Err(error) = copied {
+                let written = write(&mut file).and_then(|()| file.sync_all());
+                if let Err(error) = written {
                     drop(file);
                     if let Err(removed) = std::fs::remove_file(&to) {
                         log::warn!("couldn't remove {}: {removed}", to.display());
@@ -98,6 +119,20 @@ mod tests {
         let second = save_copy(&from, &out, "a.pdf").unwrap();
         assert_eq!(second, out.join("a (2).pdf"));
         assert!(save_copy(&dir.path().join("gone"), &out, "a.pdf").is_err());
+    }
+
+    #[test]
+    fn bytes_are_saved_under_a_free_name() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("memory.zip"), b"older").unwrap();
+        let saved = save_bytes(b"PK", dir.path(), "memory.zip").unwrap();
+        assert_eq!(saved, dir.path().join("memory (1).zip"));
+        assert_eq!(std::fs::read(&saved).unwrap(), b"PK");
+        assert_eq!(
+            std::fs::read(dir.path().join("memory.zip")).unwrap(),
+            b"older"
+        );
+        assert!(save_bytes(b"PK", &dir.path().join("gone"), "memory.zip").is_err());
     }
 
     #[test]

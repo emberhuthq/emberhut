@@ -514,6 +514,10 @@ impl Backend for Failover {
         self.active().facts()
     }
 
+    fn memory_export(&self) -> Result<super::Attachment, Error> {
+        self.active().memory_export()
+    }
+
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error> {
         self.active().chrome(action)
     }

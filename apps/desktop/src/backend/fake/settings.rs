@@ -8,7 +8,7 @@ use emberhut_api::chrome::ChromeReply;
 use emberhut_api::facts::FactsPage;
 use emberhut_api::switches::SwitchPage;
 
-use crate::backend::Error;
+use crate::backend::{Attachment, Error};
 
 /// The queued answers.
 #[derive(Debug, Default)]
@@ -17,6 +17,7 @@ pub(crate) struct SettingsReplies {
     switches: Mutex<VecDeque<Result<SwitchPage, Error>>>,
     facts: Mutex<VecDeque<Result<FactsPage, Error>>>,
     chrome: Mutex<VecDeque<Result<ChromeReply, Error>>>,
+    exports: Mutex<VecDeque<Result<Attachment, Error>>>,
 }
 
 fn push<T>(queue: &Mutex<VecDeque<T>>, reply: T) {
@@ -55,6 +56,12 @@ impl SettingsReplies {
         push(&self.chrome, reply);
     }
 
+    /// Queues the answer to the next export of what is known (by default a small zip with the
+    /// server's name for it).
+    pub(crate) fn push_memory_export(&self, reply: Result<Attachment, Error>) {
+        push(&self.exports, reply);
+    }
+
     pub(super) fn settings(&self) -> Result<(), Error> {
         pop(&self.settings).unwrap_or(Ok(()))
     }
@@ -70,6 +77,15 @@ impl SettingsReplies {
 
     pub(super) fn facts(&self) -> Result<FactsPage, Error> {
         pop(&self.facts).unwrap_or_else(|| Ok(FactsPage::default()))
+    }
+
+    pub(super) fn memory_export(&self) -> Result<Attachment, Error> {
+        pop(&self.exports).unwrap_or_else(|| {
+            Ok(Attachment {
+                name: Some("memory-export.zip".to_owned()),
+                bytes: b"PK".to_vec(),
+            })
+        })
     }
 
     pub(super) fn chrome(&self) -> Result<ChromeReply, Error> {

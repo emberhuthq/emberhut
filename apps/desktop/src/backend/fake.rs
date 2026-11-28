@@ -134,6 +134,8 @@ pub(crate) enum Call {
     Switch(SwitchAction),
     /// The facts read.
     Facts,
+    /// Everything known, exported.
+    MemoryExport,
     /// A Chrome change.
     Chrome(ChromeAction),
     /// The agent's provider read.
@@ -872,6 +874,11 @@ impl Backend for FakeBackend {
     fn facts(&self) -> Result<FactsPage, Error> {
         self.record(Call::Facts);
         self.replies.facts()
+    }
+
+    fn memory_export(&self) -> Result<super::Attachment, Error> {
+        self.record(Call::MemoryExport);
+        self.replies.memory_export()
     }
 
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error> {

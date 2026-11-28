@@ -94,6 +94,7 @@ gpui_kit::assets::icon_assets!(
         Music,
         Paperclip,
         Pencil,
+        Pin,
         Pipette,
         Plug,
         Power,

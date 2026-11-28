@@ -1,13 +1,16 @@
-//! What your ember knows about you: a search, then "Learning from you" folded into one line
-//! (the lessons from the user's corrections, each to keep or drop before the weekly review
-//! decides), then the facts by category, with a chip per category to narrow the list. A fact's
-//! Edit opens "Fix a fact" (correct it, mark whether a person wakes the assistant, forget it);
-//! its Forget asks once.
+//! What your ember knows about you: a search, then "To confirm" (facts kept from something the
+//! user didn't start, each to confirm or forget), "Learning from you" folded into one line (the
+//! lessons from the user's corrections, each to keep or drop before the weekly review decides),
+//! then the facts by category, with a chip per category to narrow the list, and last the memory
+//! itself: the nightly review's switch and the export into Downloads. Under each fact a line says
+//! why the assistant knows it. A fact's pin menu pins it in what the assistant always knows or
+//! hides it from that; its Edit opens "Fix a fact" (correct it, mark whether a person wakes the
+//! assistant, forget it); its Forget asks once, saying it forgets everywhere.
 
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonRounded, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::menu::{ContextMenuExt as _, PopupMenuItem};
+use gpui_kit::component::menu::{ContextMenuExt as _, DropdownMenu as _, PopupMenu, PopupMenuItem};
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::{Disableable as _, Icon, Selectable as _, Sizable as _};
@@ -21,7 +24,8 @@ use jiff::tz::TimeZone;
 use super::parts::{note, page_body, problem_line, section, selectable, sheet};
 use crate::store::Store;
 use crate::store::settings::about::{
-    SEARCH, Shelf, chips, decide_by, grouped, lesson, listed_count, trials,
+    Export, ProfileSay, SEARCH, Shelf, chips, decide_by, grouped, lesson, listed_count, pending,
+    trials, why,
 };
 use crate::store::settings::words::day_month;
 use crate::ui::controls::tip;
@@ -55,6 +59,27 @@ pub(super) const FACT_EDIT: &str = "about-fact-edit";
 
 /// A fact's Forget button, for tests to find.
 pub(super) const FACT_FORGET: &str = "about-fact-forget";
+
+/// "To confirm", for tests to find.
+pub(super) const TO_CONFIRM: &str = "about-to-confirm";
+
+/// A fact's line saying why the assistant knows it, for tests to find.
+pub(super) const FACT_WHY: &str = "about-fact-why";
+
+/// A fact's pin menu, for tests to find.
+pub(super) const FACT_PROFILE: &str = "about-fact-profile";
+
+/// The export button, for tests to find.
+pub(super) const EXPORT: &str = "about-export";
+
+/// The nightly review's switch, for tests to find.
+pub(super) const NIGHTLY: &str = "about-nightly";
+
+/// What "To confirm" is, under it.
+const TO_CONFIRM_NOTE: &str = "Kept from someone else's message. Not used until you confirm it.";
+
+/// What Forget does, as its tooltip says it.
+const FORGET_TIP: &str = "Forget everywhere: removes it and what was said about it from my memory";
 
 /// What a person marked important does, as their bell's tooltip says it.
 const WAKES: &str = "Tells you right away when they write";
@@ -387,9 +412,10 @@ impl AboutPane {
             .children(chips)
     }
 
-    /// A fact's words: its title (and a bell for a person whose messages wake the assistant),
-    /// what is true, the assistant's note on a person, and where it came from and when. A
-    /// click opens "Fix a fact".
+    /// A fact's words: its title (with a bell for a person whose messages wake the assistant,
+    /// and whether it is pinned or hidden), what is true, the assistant's note on a person, why
+    /// the assistant knows it, and where it came from and when. A click opens "Fix a fact" (on
+    /// one confirmed).
     fn fact_words(fact: &Fact, p: &Pal, cx: &mut Context<'_, Self>) -> Stateful<Div> {
         let zone = TimeZone::system();
         let origin = [
@@ -409,7 +435,6 @@ impl AboutPane {
             .gap(px(3.))
             .flex_1()
             .min_w_0()
-            .cursor_pointer()
             .child(
                 div()
                     .flex()
@@ -430,6 +455,18 @@ impl AboutPane {
                                 .child(Icon::new(IconName::Bell).size(px(11.)).text_color(p.warn)),
                             WAKES,
                         ))
+                    })
+                    .when_some(ProfileSay::of(fact).badge(), |d, badge| {
+                        d.child(
+                            div()
+                                .flex_none()
+                                .px(px(5.))
+                                .rounded(px(4.))
+                                .bg(p.accent.opacity(0.12))
+                                .text_size(px(10.5))
+                                .text_color(p.muted)
+                                .child(badge),
+                        )
                     }),
             )
             .when(!fact.text.is_empty(), |d| {
@@ -443,20 +480,62 @@ impl AboutPane {
                         .child(format!("Now: {now}")),
                 )
             })
+            .when_some(why(fact), |d, why| {
+                d.child(
+                    div()
+                        .debug_selector(|| FACT_WHY.to_owned())
+                        .text_size(px(11.))
+                        .text_color(p.muted)
+                        .child(why),
+                )
+            })
             .when(!origin.is_empty(), |d| {
                 d.child(div().text_size(px(11.)).text_color(p.faint).child(origin))
             })
-            .on_click(cx.listener(move |this, _, window, cx| this.edit(&open, window, cx)))
+            // One waiting to be confirmed is confirmed or forgotten, not fixed.
+            .when(!fact.pending, |d| {
+                d.cursor_pointer()
+                    .on_click(cx.listener(move |this, _, window, cx| this.edit(&open, window, cx)))
+            })
     }
 
-    /// A fact's Edit and Forget, always shown.
-    fn fact_buttons(fact: &Fact, cx: &mut Context<'_, Self>) -> Div {
+    /// A fact's buttons, always shown: its pin menu, Edit and Forget; Confirm and Forget for
+    /// one that waits to be confirmed.
+    fn fact_buttons(&self, fact: &Fact, cx: &mut Context<'_, Self>) -> Div {
         let (id, title) = (&fact.id, &fact.title);
         let (edit, forget) = (fact.clone(), fact.id.clone());
-        div()
-            .flex()
-            .flex_none()
-            .gap(px(4.))
+        let forget_button = div().debug_selector(|| FACT_FORGET.to_owned()).child(
+            Button::new(ElementId::Name(format!("fact-{id}-forget").into()))
+                .small()
+                .outline()
+                .icon(IconName::Trash)
+                .accessibility_label(format!("Forget {title} everywhere"))
+                .tooltip(FORGET_TIP)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.ask_to_forget(forget.clone(), cx);
+                })),
+        );
+        let buttons = div().flex().flex_none().gap(px(4.));
+        if fact.pending {
+            let confirmed = fact.id.clone();
+            return buttons
+                .child(
+                    Button::new(ElementId::Name(format!("fact-{id}-confirm").into()))
+                        .small()
+                        .primary()
+                        .label("Confirm")
+                        .accessibility_label(format!("Confirm {title}"))
+                        .tooltip("Keep it: I use it from now on")
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            let id = confirmed.clone();
+                            this.store
+                                .update(cx, |store, cx| store.confirm_fact(id, cx));
+                        })),
+                )
+                .child(forget_button);
+        }
+        buttons
+            .child(self.profile_menu(fact))
             .child(
                 div().debug_selector(|| FACT_EDIT.to_owned()).child(
                     Button::new(ElementId::Name(format!("fact-{id}-edit").into()))
@@ -470,19 +549,25 @@ impl AboutPane {
                         ),
                 ),
             )
-            .child(
-                div().debug_selector(|| FACT_FORGET.to_owned()).child(
-                    Button::new(ElementId::Name(format!("fact-{id}-forget").into()))
-                        .small()
-                        .outline()
-                        .icon(IconName::Trash)
-                        .accessibility_label(format!("Forget {title}"))
-                        .tooltip("Forget")
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.ask_to_forget(forget.clone(), cx);
-                        })),
-                ),
-            )
+            .child(forget_button)
+    }
+
+    /// A fact's pin menu: always in what the assistant knows, never, or as it comes, the say
+    /// it has now checked.
+    fn profile_menu(&self, fact: &Fact) -> Div {
+        let (id, title) = (fact.id.clone(), fact.title.clone());
+        let now = ProfileSay::of(fact);
+        let store = self.store.clone();
+        div().debug_selector(|| FACT_PROFILE.to_owned()).child(
+            Button::new(ElementId::Name(format!("fact-{id}-profile").into()))
+                .small()
+                .outline()
+                .icon(IconName::Pin)
+                .selected(now != ProfileSay::Neither)
+                .accessibility_label(format!("{title} in what I always know: {}", now.label()))
+                .tooltip("Pin it in what I always know, or keep it out")
+                .dropdown_menu(move |menu, _, _| profile_items(menu, &store, &id, now)),
+        )
     }
 
     /// A fact's row: its words, Edit and Forget, Forget's question when asked, and the same
@@ -493,8 +578,9 @@ impl AboutPane {
         let title = fact.title.clone();
         let pane = cx.entity().downgrade();
         let words = Self::fact_words(fact, p, cx);
-        let buttons = Self::fact_buttons(fact, cx);
+        let buttons = self.fact_buttons(fact, cx);
         let menu_fact = fact.clone();
+        let store = self.store.clone();
         div()
             .id(ElementId::Name(format!("fact-{id}").into()))
             .debug_selector(|| FACT_ROW.to_owned())
@@ -513,10 +599,10 @@ impl AboutPane {
                 let gone = id.clone();
                 d.child(confirm(
                     p,
-                    format!("Forget \"{title}\"? Your ember stops using it."),
+                    forget_question(&title),
                     (
                         ElementId::Name(format!("fact-{id}-forget-confirm").into()),
-                        "Forget",
+                        "Forget everywhere",
                     ),
                     cx.listener(move |this, _, _, cx| {
                         this.forgetting_row = None;
@@ -530,13 +616,13 @@ impl AboutPane {
                     }),
                 ))
             })
-            .context_menu(move |menu, _, _| fact_menu(menu, &pane, &menu_fact))
+            .context_menu(move |menu, _, _| fact_menu(menu, &pane, &store, &menu_fact))
             .into_any_element()
     }
 
     /// The facts' part of the page: the chips, then each category's facts (only the chosen
     /// chip's), or a line saying nothing matches the search when nothing does (`lessons`: some
-    /// lesson matches it).
+    /// lesson or fact to confirm matches it).
     fn facts_parts(
         &self,
         page: &FactsPage,
@@ -588,6 +674,97 @@ impl AboutPane {
         parts
     }
 
+    /// "To confirm": the facts that wait for the user, each with Confirm and Forget, and what
+    /// waiting means.
+    fn to_confirm(&self, facts: &[&Fact], p: &Pal, cx: &mut Context<'_, Self>) -> Div {
+        let rows = facts
+            .iter()
+            .map(|fact| self.fact_row(fact, p, cx))
+            .collect();
+        let head = div()
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .child(
+                Icon::new(IconName::CircleQuestionMark)
+                    .size(px(13.))
+                    .text_color(p.muted),
+            )
+            .child("To confirm");
+        div()
+            .debug_selector(|| TO_CONFIRM.to_owned())
+            .child(section(
+                p,
+                head.into_any_element(),
+                Some(facts.len()),
+                rows,
+                Some(TO_CONFIRM_NOTE.to_owned()),
+            ))
+    }
+
+    /// The memory itself: the nightly review's switch, and the export into Downloads with how
+    /// the last one went.
+    fn memory_part(&self, nightly: bool, export: Option<&Export>, p: &Pal) -> Div {
+        let switch_store = self.store.clone();
+        let nightly_row = div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .child(
+                div().debug_selector(|| NIGHTLY.to_owned()).child(
+                    Switch::new(NIGHTLY)
+                        .checked(nightly)
+                        .label("Review my memory every night")
+                        .on_click(move |on, _, cx| {
+                            let on = *on;
+                            switch_store.update(cx, |store, cx| store.set_memory_nightly(on, cx));
+                        }),
+                ),
+            )
+            .child(note(
+                p,
+                "Each night I merge repeats, close what is out of date and tidy what I keep.",
+            ));
+        let saving = export == Some(&Export::Saving);
+        let line = match export {
+            Some(Export::Saved(name)) => format!("Saved to Downloads as {name}."),
+            _ => "A zip of every fact, note and lesson I keep, saved to your Downloads.".to_owned(),
+        };
+        let export_store = self.store.clone();
+        let export_row = div()
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .child(div().flex_1().min_w_0().child(note(p, line)))
+            .child(
+                div()
+                    .flex_none()
+                    .debug_selector(|| EXPORT.to_owned())
+                    .child(
+                        Button::new(EXPORT)
+                            .small()
+                            .outline()
+                            .icon(IconName::Download)
+                            .label("Export everything I know")
+                            .loading(saving)
+                            .disabled(saving)
+                            .on_click(move |_, _, cx| {
+                                export_store.update(cx, Store::export_memory);
+                            }),
+                    ),
+            );
+        section(
+            p,
+            "Your memory",
+            None,
+            vec![
+                nightly_row.into_any_element(),
+                export_row.into_any_element(),
+            ],
+            None,
+        )
+    }
+
     /// "Fix a fact": the text, where it came from, a person's note and their switch, Forget.
     fn editor(&self, fact: &Fact, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
         let from = if fact.source.is_empty() {
@@ -632,8 +809,8 @@ impl AboutPane {
             .child(if self.forgetting {
                 confirm(
                     p,
-                    format!("Forget \"{title}\"? Your ember stops using it."),
-                    ("fact-forget-confirm".into(), "Forget"),
+                    forget_question(&title),
+                    ("fact-forget-confirm".into(), "Forget everywhere"),
                     cx.listener(|this, _, _, cx| {
                         if let Some(id) = this.editing.clone() {
                             this.store.update(cx, |store, cx| store.forget_fact(id, cx));
@@ -650,7 +827,8 @@ impl AboutPane {
                     Button::new("fact-forget")
                         .ghost()
                         .danger()
-                        .label("Forget this")
+                        .label("Forget everywhere")
+                        .tooltip(FORGET_TIP)
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.forgetting = true;
                             cx.notify();
@@ -672,25 +850,68 @@ impl AboutPane {
     }
 }
 
-/// A fact's right-click menu: Edit, and Forget (which asks on the row, as its button does).
+/// A fact's right-click menu: Edit, where it stands in what the assistant always knows, and
+/// Forget everywhere (which asks on the row, as its button does); Confirm and Forget for one
+/// that waits to be confirmed.
 fn fact_menu(
-    menu: gpui_kit::component::menu::PopupMenu,
+    mut menu: PopupMenu,
     pane: &WeakEntity<AboutPane>,
+    store: &Entity<Store>,
     fact: &Fact,
-) -> gpui_kit::component::menu::PopupMenu {
+) -> PopupMenu {
     let (edit_pane, forget_pane) = (pane.clone(), pane.clone());
     let (edit, forget) = (fact.clone(), fact.id.clone());
-    menu.item(PopupMenuItem::new("Edit…").on_click(move |_, window, cx| {
-        if let Err(error) = edit_pane.update(cx, |pane, cx| pane.edit(&edit, window, cx)) {
-            log::debug!("the page closed with its menu: {error}");
-        }
-    }))
-    .item(PopupMenuItem::new("Forget…").on_click(move |_, _, cx| {
-        let forget = forget.clone();
-        if let Err(error) = forget_pane.update(cx, |pane, cx| pane.ask_to_forget(forget, cx)) {
-            log::debug!("the page closed with its menu: {error}");
-        }
-    }))
+    if fact.pending {
+        let (store, id) = (store.clone(), fact.id.clone());
+        menu = menu.item(PopupMenuItem::new("Confirm").on_click(move |_, _, cx| {
+            let id = id.clone();
+            store.update(cx, |store, cx| store.confirm_fact(id, cx));
+        }));
+    } else {
+        menu = menu.item(PopupMenuItem::new("Edit…").on_click(move |_, window, cx| {
+            if let Err(error) = edit_pane.update(cx, |pane, cx| pane.edit(&edit, window, cx)) {
+                log::debug!("the page closed with its menu: {error}");
+            }
+        }));
+        menu = profile_items(menu.separator(), store, &fact.id, ProfileSay::of(fact)).separator();
+    }
+    menu.item(
+        PopupMenuItem::new("Forget everywhere…").on_click(move |_, _, cx| {
+            let forget = forget.clone();
+            if let Err(error) = forget_pane.update(cx, |pane, cx| pane.ask_to_forget(forget, cx)) {
+                log::debug!("the page closed with its menu: {error}");
+            }
+        }),
+    )
+}
+
+/// The says on a fact in what the assistant always knows, as menu items, `now` checked.
+fn profile_items(
+    mut menu: PopupMenu,
+    store: &Entity<Store>,
+    id: &FactId,
+    now: ProfileSay,
+) -> PopupMenu {
+    for say in ProfileSay::ALL {
+        let (store, id) = (store.clone(), id.clone());
+        menu = menu.item(
+            PopupMenuItem::new(say.label())
+                .checked(say == now)
+                .on_click(move |_, _, cx| {
+                    let id = id.clone();
+                    store.update(cx, |store, cx| store.set_fact_profile(id, say, cx));
+                }),
+        );
+    }
+    menu
+}
+
+/// Forget's question for the fact called `title`.
+fn forget_question(title: &str) -> String {
+    format!(
+        "Forget \u{201c}{title}\u{201d} everywhere? This removes it and what was said about it \
+         from my memory."
+    )
 }
 
 /// A person's part of "Fix a fact": the assistant's note on what is going on with them, and
@@ -803,8 +1024,10 @@ impl Render for AboutPane {
                     .children(problem.into_iter().map(|problem| problem_line(&p, problem))),
             ));
         };
+        let (nightly, export) = (feed.nightly(), feed.export().cloned());
         let editor = self.edited(cx).map(|fact| self.editor(&fact, &p, cx));
         let lessons = trials(&page, &query);
+        let waiting = pending(&page, &query);
         let mut parts: Vec<AnyElement> =
             vec![div().child(Input::new(&self.search)).into_any_element()];
         if listed_count(&page) == 0 && page.trials.is_empty() {
@@ -824,13 +1047,21 @@ impl Render for AboutPane {
                     .into_any_element(),
             );
         }
+        if !waiting.is_empty() {
+            parts.push(self.to_confirm(&waiting, &p, cx).into_any_element());
+        }
         if !lessons.is_empty() {
             parts.push(
                 self.learning(&lessons, learning_open, &p, cx)
                     .into_any_element(),
             );
         }
-        parts.extend(self.facts_parts(&page, &query, !lessons.is_empty(), &p, cx));
+        let found_elsewhere = !lessons.is_empty() || !waiting.is_empty();
+        parts.extend(self.facts_parts(&page, &query, found_elsewhere, &p, cx));
+        parts.push(
+            self.memory_part(nightly, export.as_ref(), &p)
+                .into_any_element(),
+        );
         let content = div()
             .flex()
             .flex_col()

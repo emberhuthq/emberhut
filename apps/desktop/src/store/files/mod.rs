@@ -12,7 +12,7 @@ pub(crate) mod status;
 pub(crate) mod titles;
 mod uses;
 
-pub(crate) use self::downloads::downloads_dir;
+pub(crate) use self::downloads::{downloads_dir, save_bytes};
 pub(crate) use self::fetch::{KeptFiles, Opening};
 pub(crate) use self::kind::Kind;
 pub(crate) use self::uses::Use;

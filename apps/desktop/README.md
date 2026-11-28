@@ -578,7 +578,7 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/theme.rs` | the theme as held: cached, picked, previewed, fixed, one save at a time |
 | `store/status.rs` | the assistant's status line and how errors are worded |
 | `store/settings/switches.rs` | the MCP servers' and skills' switches: fetched every 10 s while Settings' front door or Connections is open in front, one switch at a time |
-| `store/settings/about.rs` | what the assistant knows about you, by category, searched; a fix shows at once and is fetched again if refused |
+| `store/settings/about.rs` | what the assistant knows about you, by category, searched, the facts to confirm apart; why it knows each, pin and hide, forget everywhere; a fix shows at once and is fetched again if refused; the nightly review's switch and the export into Downloads |
 | `store/settings/chrome.rs` | the Chrome profiles' changes and the sheet open over them; a change's answer replaces the state's profiles |
 | `store/settings/on_duty.rs` | pausing and resuming the assistant, shown at once until the state agrees |
 | `store/settings/appearance.rs` | the Appearance row's summary, a custom colour's contrast line, which typed colour is previewed |
