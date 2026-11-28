@@ -1,6 +1,6 @@
 //! The sessions on the runners: a session's transcript and live stream, the person's message,
-//! Stop and settings, a new session of their own with its folders and branches, and an external
-//! thread's latest steps. Each route is one method taking its request type from
+//! Stop and settings, a route the contract doesn't name yet, a new session of their own with its
+//! folders and branches, and an external thread's latest steps. Each route is one method taking its request type from
 //! [`emberhut_api::runner`].
 
 use std::io::BufReader;
@@ -130,6 +130,22 @@ impl Client {
     /// the transport's and decoding errors.
     pub fn move_session(&self, id: &SessionId, to: &MoveSession) -> Result<MovedSession, Error> {
         exchange::json(self.post(&paths::session(id, SessionRoute::Task), to)?)
+    }
+
+    /// Posts `body` to route `route` of session `id` (`POST .../{route}`) and reads the answer:
+    /// a session route the contract doesn't name yet, spelled by the app that calls it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Status`] with the server's reason when it refused; [`Error::SignInRequired`],
+    /// the transport's and decoding errors.
+    pub fn post_to_session<B: serde::Serialize, R: serde::de::DeserializeOwned>(
+        &self,
+        id: &SessionId,
+        route: &str,
+        body: &B,
+    ) -> Result<R, Error> {
+        exchange::json(self.post(&format!("{}/{id}/{route}", paths::RUNNER_SESSIONS), body)?)
     }
 
     /// Opens a session of the person's own with their first message
