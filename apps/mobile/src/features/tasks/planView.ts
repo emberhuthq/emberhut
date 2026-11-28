@@ -1,4 +1,5 @@
 import {
+  PLAN_HISTORY_OPENINGS,
   STEP_STATE,
   type EmberhutState,
   type Issue,
@@ -213,8 +214,11 @@ export type FeedItem =
   | { kind: "moment"; at: number; moment: TaskMoment; plan: boolean }
   | { kind: "file"; at: number; artifact: TaskArtifact };
 
-/** A history line about the plan: a step ticked, skipped or blocked, the plan written or changed. */
-export const isPlanMoment = (text: string): boolean => /\b(ticked|skipped|blocked|plan|step)\b/i.test(text);
+/**
+ * A history line about the plan: a step ticked, started, skipped or blocked, the plan written or changed. Read by how the
+ * server's plan lines start, so a message that only mentions a plan or a step isn't one.
+ */
+export const isPlanMoment = (text: string): boolean => PLAN_HISTORY_OPENINGS.some((opening) => text.startsWith(opening));
 
 /**
  * The task's activity, newest first: its turns of work (each in a line or two), its history and what it produced, in one
