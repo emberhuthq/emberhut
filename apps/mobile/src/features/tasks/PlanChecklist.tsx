@@ -8,6 +8,7 @@ import { Icon, SectionHeading, Text } from "@/ui";
 import { isEmptyPlan, planRows, stepLabel, stepLink, unplannedLine, type PlanRow } from "./plan";
 import { foldChecklist, soFar } from "./planView";
 import { BlockedMark, Ring } from "./PlanMarks";
+import { useMinute } from "./useMinute";
 
 /**
  * A task's plan as a checklist its agent ticks: big round ticks, done steps dimmed in place, the step being worked on
@@ -18,6 +19,7 @@ import { BlockedMark, Ring } from "./PlanMarks";
 export function PlanChecklist({ plan, onAnswer }: { plan: Plan; onAnswer?: () => void }) {
   const { colors, radius, spacing } = useTheme();
   const [open, setOpen] = useState(false);
+  const now = useMinute();
   const rows = planRows(plan);
   // Steps counted but not listed: the page hasn't answered yet.
   if (rows.length === 0) return isEmptyPlan(plan.summary) ? <NoPlan plan={plan} /> : null;
@@ -30,7 +32,7 @@ export function PlanChecklist({ plan, onAnswer }: { plan: Plan; onAnswer?: () =>
       <View accessibilityRole="list" style={{ backgroundColor: colors.surface, borderRadius: radius.lg, paddingVertical: spacing.sm }}>
         {entries.map((entry, i) =>
           entry.kind === "step" ? (
-            <StepRow key={entry.row.step.id} row={entry.row} onAnswer={onAnswer} />
+            <StepRow key={entry.row.step.id} row={entry.row} now={now} onAnswer={onAnswer} />
           ) : (
             <Pressable
               key={`fold-${i}`}
@@ -64,14 +66,14 @@ export function PlanChecklist({ plan, onAnswer }: { plan: Plan; onAnswer?: () =>
   );
 }
 
-function StepRow({ row, onAnswer }: { row: PlanRow; onAnswer?: () => void }) {
+function StepRow({ row, now, onAnswer }: { row: PlanRow; now: Date; onAnswer?: () => void }) {
   const { colors, spacing, radius } = useTheme();
   const navigation = useNavigation();
   const sub = row.depth === 1;
   const size = sub ? 18 : 22;
   const doing = row.state === STEP_STATE.doing && row.current;
   const link = stepLink(row.step.link);
-  const time = row.current ? soFar(row.step) : null;
+  const time = row.current ? soFar(row.step, now) : null;
   const open = () => {
     const target = row.step.link?.trim();
     if (!link || !target) return;
