@@ -48,8 +48,9 @@ pub struct TaskPage {
     /// watch.
     #[serde(default)]
     pub ultra_run: Option<UltraRun>,
-    /// Its plan, step by step, on a server that keeps plans.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Its plan, step by step, on a server that keeps plans. On the wire it is `fullPlan`: the
+    /// page's task is flattened into it, and the task's own `plan` is its plan at a glance.
+    #[serde(default, rename = "fullPlan", skip_serializing_if = "Option::is_none")]
     pub plan: Option<Plan>,
 }
 

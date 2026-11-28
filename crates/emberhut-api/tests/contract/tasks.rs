@@ -7,6 +7,7 @@ use emberhut_api::task_actions::{Edit, TaskAction, TaskChange};
 use emberhut_api::task_live::LiveState;
 use emberhut_api::task_message::{MessageTo, TaskMessageReply, TaskMessageRequest};
 use emberhut_api::task_page::{LinkKind, TaskPage};
+use emberhut_api::task_plan::StepState;
 use emberhut_api::task_search::{FoundTasks, ProjectScope, TaskQuery};
 use emberhut_api::tasks::{Landed, TaskSize, TaskStatus};
 use emberhut_api::time::{Day, Timestamp};
@@ -169,4 +170,47 @@ fn the_state_reads_todays_health() {
     assert_eq!(health.walk_target(TaskId::new(13)), Some(30.0));
     assert_eq!(health.walk_target(TaskId::new(12)), None);
     assert_eq!(health.project, Some(ProjectId::new(2)));
+}
+
+#[test]
+fn a_page_carries_its_task_s_plan_at_a_glance_and_in_full() {
+    let mut body = fixture("task_page.json");
+    let object = body.as_object_mut().unwrap();
+    object.insert(
+        "plan".to_owned(),
+        json!({ "done": 1, "total": 3, "current": { "id": 2, "title": "Run the tests", "state": "doing" },
+                "eta": "about 2 hours", "updated": "2026-11-28T06:50:17.291Z" }),
+    );
+    object.insert(
+        "fullPlan".to_owned(),
+        json!({
+            "steps": [
+                { "id": 1, "title": "Build the Mac app", "state": "done", "finished": "2026-11-28T06:40:00.000Z",
+                  "updated": "2026-11-28T06:40:00.000Z" },
+                { "id": 2, "title": "Run the tests", "state": "doing", "started": "2026-11-28T06:45:00.000Z",
+                  "updated": "2026-11-28T06:45:00.000Z" },
+                { "id": 3, "parent": 2, "title": "Unit tests", "state": "blocked", "note": "needs the key",
+                  "updated": "2026-11-28T06:50:17.291Z" },
+            ],
+            "summary": { "done": 1, "total": 3, "eta": "about 2 hours" },
+        }),
+    );
+    let page: TaskPage = from_value(body.clone());
+    let glance = page.task.plan.as_ref().unwrap();
+    assert_eq!((glance.done, glance.total), (1, 3));
+    assert_eq!(glance.current.as_ref().unwrap().state, StepState::Doing);
+    let plan = page.plan.as_ref().unwrap();
+    assert_eq!(plan.steps[2].parent, Some(2));
+    assert_eq!(plan.steps[2].state, StepState::Blocked);
+    assert_eq!(plan.summary.eta.as_deref(), Some("about 2 hours"));
+    let written = to_value(&page);
+    assert_eq!(written["plan"], body["plan"], "the task's own: at a glance");
+    assert_eq!(written["fullPlan"], body["fullPlan"]);
+
+    let older: TaskPage = read("task_page.json");
+    assert!(
+        older.plan.is_none() && older.task.plan.is_none(),
+        "no plans kept"
+    );
+    assert!(to_value(&older).get("fullPlan").is_none());
 }
