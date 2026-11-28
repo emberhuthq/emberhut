@@ -1,0 +1,34 @@
+# The categories of the release notes GitHub generates for each release (release.yml's publish
+# stage asks for them with `releases/generate-notes`). A pull request lands in the first category
+# whose labels it has; one without any label is under "Other changes".
+changelog:
+  exclude:
+    labels:
+      - duplicate
+      - invalid
+      - wontfix
+    # Automated dependency and workflow updates; their changes show in the lock files.
+    authors:
+      - dependabot
+      - dependabot[bot]
+      - renovate[bot]
+      - github-actions[bot]
+  categories:
+    - title: New
+      labels:
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Accessibility
+      labels:
+        - accessibility
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other changes
+      labels:
+        - "*"
