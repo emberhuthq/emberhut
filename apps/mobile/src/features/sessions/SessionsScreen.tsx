@@ -166,7 +166,7 @@ export function SessionsScreen({
             <EmptyState
               icon="terminal-outline"
               title="No sessions yet"
-              message="Open Claude Code on one of your machines and talk to it yourself. Emberhut's project work shows here too."
+              message="Open Claude Code on one of your huts and talk to it yourself. Emberhut's project work shows here too."
               action={<Button label="New session" onPress={() => navigation.navigate("NewSession")} />}
             />
           )

@@ -101,7 +101,7 @@ describe("suggestions", () => {
     expect(titles({ ...nothingKnown, dark: true, onDuty: true })).toEqual(expect.arrayContaining(["Switch to light", "Go off duty"]));
     expect(titles(nothingKnown)).toEqual(expect.arrayContaining(["Switch to dark", "Go on duty"]));
     expect(titles({ ...nothingKnown, signedIn: true })).toContain("Pair a computer");
-    expect(titles({ ...nothingKnown, signedIn: true, otherDevices: true })).toContain("Add a phone or computer");
+    expect(titles({ ...nothingKnown, signedIn: true, otherDevices: true })).toContain("Add a phone or a hut");
   });
 
   it("show the sun for Switch to light, the moon for Switch to dark", () => {

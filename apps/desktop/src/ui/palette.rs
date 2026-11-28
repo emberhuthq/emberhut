@@ -622,6 +622,43 @@ fn color(value: Rgb) -> Hsla {
     rgb(value).into()
 }
 
+/// A soft tint of `ink` over `ground` for a pill, and `ink` taken darker (lighter on a dark
+/// ground) until it reads on that tint at 4.5:1, as WCAG asks of text: the fill and the text.
+#[must_use]
+pub(crate) fn tinted(ink: Hsla, ground: Hsla) -> (Hsla, Hsla) {
+    use crate::color::{contrast_ratio, luminance, mix};
+    let (ink, ground) = (rgb_of(ink), rgb_of(ground));
+    let fill = mix(ink, ground, 0.15);
+    let toward = if luminance(fill) > 0.18 {
+        0x00_0000
+    } else {
+        0xFF_FFFF
+    };
+    let mut text = ink;
+    let mut share = 0.0;
+    while contrast_ratio(text, fill) < 4.5 && share < 1.0 {
+        share += 0.05;
+        text = mix(toward, ink, share);
+    }
+    (color(fill), color(text))
+}
+
+/// A bar's track and its outline on `ground`: the muted ink mixed in faintly for the track,
+/// and more for the outline, until it stands out at 3:1 (what WCAG asks of a control's edge).
+#[must_use]
+pub(crate) fn track(muted: Hsla, ground: Hsla) -> (Hsla, Hsla) {
+    use crate::color::{contrast_ratio, mix};
+    let (muted, ground) = (rgb_of(muted), rgb_of(ground));
+    let fill = mix(muted, ground, 0.12);
+    let mut share = 0.5;
+    let mut line = mix(muted, ground, share);
+    while contrast_ratio(line, ground) < 3.0 && share < 1.0 {
+        share += 0.05;
+        line = mix(muted, ground, share);
+    }
+    (color(fill), color(line))
+}
+
 /// The WCAG 2 contrast ratio of two colours, each drawn opaque: for the tests of what views
 /// draw.
 #[cfg(test)]

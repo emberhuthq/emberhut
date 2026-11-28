@@ -141,7 +141,7 @@ impl Group {
     #[must_use]
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::Machine => "Machine",
+            Self::Machine => "Hut",
             Self::Account => "Account",
         }
     }

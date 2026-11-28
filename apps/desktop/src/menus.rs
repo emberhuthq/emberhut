@@ -218,7 +218,7 @@ fn view_menu(shown: Shown) -> Menu {
         MenuItem::action("Your ember", Room0),
         MenuItem::action("Needs you", OpenNeeds),
         MenuItem::action("Tasks", OpenTasks),
-        MenuItem::action("Machines", OpenMachines),
+        MenuItem::action("Huts", OpenMachines),
         MenuItem::separator(),
         MenuItem::action("Back", GoBack),
         MenuItem::action("Search…", crate::ui::spotlight::OpenSpotlight),

@@ -47,7 +47,7 @@ pub(crate) fn name(page: Page) -> &'static str {
         Page::Room(_) => "Chat",
         Page::Needs => "Needs you",
         Page::Tasks => "Tasks",
-        Page::Machines => "Machines",
+        Page::Machines => "Huts",
         Page::Settings => "Settings",
         Page::Task(_) => "Task",
         Page::Project(_) => "Project",

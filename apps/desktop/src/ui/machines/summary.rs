@@ -1,4 +1,4 @@
-//! The machines in one line, for Settings' "Machines" row: `All fine` or `2 to look at`, their
+//! The huts in one line, for Settings' "Huts" row: `All fine` or `2 to look at`, their
 //! names, and a state for its dot.
 
 use emberhut_api::machines::{MachineState, MachinesPage};

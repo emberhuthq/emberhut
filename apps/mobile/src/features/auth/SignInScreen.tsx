@@ -220,7 +220,7 @@ function PairingScreen({ role, onPaired }: { role: PairRole; onPaired?: () => vo
           </Card>
           {signIn && accountConfig ? (
             <Button
-              label="Find your machines in your account"
+              label="Find your huts in your account"
               icon="person-circle-outline"
               variant="plain"
               onPress={() => navigation.navigate("Account")}
@@ -247,9 +247,9 @@ function Pinned({ name }: { name: string }) {
       </View>
       <Text variant="callout">
         Scan its QR code or type a code from it. Your account found it; the pairing still needs a code from {name}, and must prove it is
-        that machine.
+        that hut.
       </Text>
-      <Button label="Pair with any machine" variant="plain" onPress={() => sessionStore.getState().pinMachine(null)} />
+      <Button label="Pair with any hut" variant="plain" onPress={() => sessionStore.getState().pinMachine(null)} />
     </Card>
   );
 }

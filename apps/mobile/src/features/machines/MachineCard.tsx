@@ -1,46 +1,209 @@
 import { useNavigation } from "@react-navigation/native";
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { Machine, MachineThresholds } from "@/api";
+import type { ClaudeAccount, Machine, MachineThresholds } from "@/api";
 import { useTheme, type Palette } from "@/theme";
-import { Card, Chip, Icon, ProgressBar, Text, type TextTone } from "@/ui";
-import { meters, sessionRow, skipLine, stateTone, warningLevel, type Level, type Meter } from "./machines";
+import { FoldRow, Icon, ProgressBar, Section, Text, type TextTone } from "@/ui";
+import {
+  asleepNote,
+  asOf,
+  hutKind,
+  kindIcon,
+  kindWord,
+  pillLine,
+  presenceOf,
+  resourcesLine,
+  room,
+  sessionsLine,
+  tinted,
+  track,
+  type Presence,
+  type RoomTone,
+} from "./huts";
+import { meters, sessionRow, warningLevel, type Level, type Meter } from "./machines";
 
 const levelColor: Record<Level, keyof Palette> = { ok: "working", warn: "warning", low: "danger" };
 const levelTone: Record<Level, TextTone> = { ok: "secondary", warn: "warning", low: "danger" };
+const presenceInk: Record<Presence, keyof Palette> = { online: "done", quiet: "warning", asleep: "textSecondary", notYet: "textSecondary" };
+const roomColor: Record<RoomTone, keyof Palette> = { fine: "done", low: "warning", out: "danger", unknown: "textSecondary" };
 
-/** One machine: its name and state, why it takes no new work, its warnings, its bars and the sessions on it. */
-export function MachineCard({ machine, limits }: { machine: Machine; limits: MachineThresholds }) {
-  const { colors, spacing } = useTheme();
-  const skip = skipLine(machine);
-  const bars = meters(machine, limits);
+/**
+ * One hut as an iOS grouped section: its kind's icon, name and whether it is online or asleep (said once, in the pill);
+ * its sessions and resources (an asleep hut's dimmed, with their age); a refusal or warning only for a hut that should be
+ * there; its accounts with the room each has left; and folded under Details its bars and the sessions on it.
+ */
+export function MachineCard({ machine, limits, accounts }: { machine: Machine; limits: MachineThresholds; accounts: ClaudeAccount[] }) {
+  const { spacing } = useTheme();
+  const [open, setOpen] = useState(false);
+  const presence = presenceOf(machine);
+  const asleep = presence === "asleep";
+  const resources = resourcesLine(machine);
+  const age = asOf(machine);
+  const there = presence === "online" || presence === "quiet";
+  const skip = there && !machine.placeable ? `Not taking new sessions: ${machine.skipWhy ?? "it isn't reachable"}` : null;
   return (
-    <Card accent={machine.state === "low" ? colors.danger : machine.state === "warn" ? colors.warning : undefined}>
-      <View style={[styles.header, { gap: spacing.sm }]}>
+    <Section>
+      <Head key="head" machine={machine} />
+      <Fact key="sessions" label="Sessions" value={sessionsLine(machine)} />
+      {resources ? <Fact key="resources" label="Resources" value={age ? `${resources} · ${age}` : resources} dim={asleep} /> : null}
+      {skip || (there && machine.warnings.length > 0) ? (
+        <View key="warnings" style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.xs }}>
+          {skip ? (
+            <Text variant="footnote" tone="danger" weight="600">
+              {skip}
+            </Text>
+          ) : null}
+          {machine.warnings.map((w, i) => (
+            <Text key={i} variant="footnote" tone={levelTone[warningLevel(w)]} weight={w.level === "critical" ? "700" : "500"}>
+              {w.text}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {accounts.length === 0 ? (
+        <View key="no-accounts" style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}>
+          <Text variant="callout" tone="secondary">
+            No assistant accounts on this hut
+          </Text>
+        </View>
+      ) : (
+        accounts.map((a) => <AccountRow key={`account-${a.id}`} account={a} asleep={asleep} />)
+      )}
+      <FoldRow key="details" title="Details · bars and sessions" open={open} onToggle={() => setOpen(!open)} />
+      {open ? <Details key="more" machine={machine} limits={limits} /> : null}
+    </Section>
+  );
+}
+
+/** The hut's head: its kind's icon on a neutral tile, its name, kind and host (and that an asleep one waits), and the pill. */
+function Head({ machine }: { machine: Machine }) {
+  const { colors, spacing, radius } = useTheme();
+  const kind = hutKind(machine);
+  const presence = presenceOf(machine);
+  const pill = pillLine(machine);
+  const { fill, text } = tinted(colors[presenceInk[presence]], colors.surface);
+  const subtitle = machine.host && machine.host !== machine.name ? `${kindWord[kind]} · ${machine.host}` : kindWord[kind];
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${machine.name}, ${kindWord[kind]}, ${pill}`}
+      style={[styles.row, { gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}
+    >
+      <View style={[styles.tile, { borderRadius: radius.sm, backgroundColor: colors.surfaceRaised }]}>
+        <Icon name={kindIcon(kind, machine.battery !== null)} size={22} color={colors.textSecondary} />
+      </View>
+      <View style={styles.grow}>
+        <Text variant="headline" numberOfLines={1}>
+          {machine.name}
+        </Text>
+        <Text variant="footnote" tone="secondary" numberOfLines={1}>
+          {subtitle}
+        </Text>
+        {presence === "asleep" ? (
+          <Text variant="footnote" tone="secondary" numberOfLines={2}>
+            {asleepNote}
+          </Text>
+        ) : null}
+      </View>
+      <View
+        style={[
+          styles.row,
+          styles.pill,
+          { gap: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.pill, backgroundColor: fill },
+        ]}
+      >
+        <View style={[styles.dot, { backgroundColor: text }]} />
+        <Text variant="caption" weight="600" style={{ color: text }} numberOfLines={1}>
+          {pill}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** A label on the left and its value on the right, as Settings' rows; `dim` for figures that are old. */
+function Fact({ label, value, dim = false }: { label: string; value: string; dim?: boolean }) {
+  const { spacing } = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.row, { gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}
+    >
+      <Text tone="secondary">{label}</Text>
+      <Text style={[styles.grow, styles.right]} tone={dim ? "secondary" : "primary"} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/** An account: its name (and address, when it has one), the room it has left in its colour with an outlined bar, and its
+ * 5-hour and week room. */
+function AccountRow({ account, asleep }: { account: ClaudeAccount; asleep: boolean }) {
+  const { colors, spacing, radius } = useTheme();
+  const r = room(account, new Date(), asleep);
+  const color = colors[roomColor[r.tone]];
+  const words = tinted(color, colors.surface).text;
+  const bar = track(colors.textSecondary, colors.surface);
+  return (
+    <View
+      accessible
+      accessibilityLabel={[account.name, r.value, r.detail].filter(Boolean).join(", ")}
+      style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs }}
+    >
+      <View style={[styles.row, { gap: spacing.md }]}>
         <View style={styles.grow}>
-          <Text variant="headline">{machine.name}</Text>
-          {machine.host ? (
-            <Text variant="footnote" tone="secondary">
-              {machine.host}
+          <Text numberOfLines={1}>{account.name}</Text>
+          {account.email ? (
+            <Text variant="caption" tone="secondary" numberOfLines={1}>
+              {account.email}
             </Text>
           ) : null}
         </View>
-        <Chip label={machine.status} tone={stateTone(machine.state)} accessibilityLabel={`${machine.state}: ${machine.status}`} />
+        <Text weight="500" style={{ color: words }}>
+          {r.value}
+        </Text>
       </View>
-      {skip ? (
-        <Text variant="footnote" tone="danger" weight="600">
-          {skip}
+      {r.share !== null ? (
+        <View
+          style={{
+            height: 6,
+            borderRadius: radius.pill,
+            borderWidth: 1,
+            borderColor: bar.line,
+            backgroundColor: bar.fill,
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ width: `${r.share * 100}%`, height: "100%", backgroundColor: color }} />
+        </View>
+      ) : null}
+      {r.detail ? (
+        <Text variant="caption" tone="secondary">
+          {r.detail}
         </Text>
       ) : null}
-      {machine.warnings.map((w, i) => (
-        <Text key={i} variant="footnote" tone={levelTone[warningLevel(w)]} weight={w.level === "critical" ? "700" : "500"}>
-          {w.text}
-        </Text>
-      ))}
+    </View>
+  );
+}
+
+/** Its bars and the sessions on it, under Details. */
+function Details({ machine, limits }: { machine: Machine; limits: MachineThresholds }) {
+  const { spacing } = useTheme();
+  const bars = meters(machine, limits);
+  return (
+    <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.xs }}>
       {bars.map((m) => (
         <MeterView key={m.key} meter={m} />
       ))}
       {machine.sessions.length > 0 ? <Sessions machine={machine} /> : null}
-    </Card>
+      {bars.length === 0 && machine.sessions.length === 0 ? (
+        <Text variant="footnote" tone="secondary">
+          Nothing measured yet
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -106,5 +269,10 @@ function Sessions({ machine }: { machine: Machine }) {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center" },
+  row: { flexDirection: "row", alignItems: "center" },
   grow: { flex: 1 },
+  right: { textAlign: "right" },
+  tile: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  pill: { paddingVertical: 2 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
 });

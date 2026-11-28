@@ -307,7 +307,7 @@ fn answers_that_come_after_a_sign_out_are_dropped(cx: &mut TestAppContext) {
         assert_eq!(account.machines(), None);
         assert_eq!(
             account.note(),
-            Some("Signed out of your account. This device stays signed in to its machines.")
+            Some("Signed out of your account. This device stays signed in to its huts.")
         );
     });
 }

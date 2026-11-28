@@ -79,7 +79,7 @@ pub(crate) fn page(store: &Entity<Store>, scroll: &ScrollHandle, p: &Pal, cx: &A
                     })
                     .child(
                         feed.problem()
-                            .unwrap_or("Looking at what runs on your machines…")
+                            .unwrap_or("Looking at what runs on your huts…")
                             .to_owned(),
                     ),
             );
@@ -321,13 +321,13 @@ fn row(
     )
 }
 
-/// The row that opens the jobs over the page it is on (the Machines page): Back returns there.
+/// The row that opens the jobs over the page it is on (the Huts page): Back returns there.
 pub(crate) fn link_row(p: &Pal) -> impl IntoElement {
     tab_stop(
         div()
             .id("background-jobs-row")
             .button_named("Background jobs")
-            .hint("What runs on the machines now: workers, runs, services")
+            .hint("What runs on the huts now: workers, runs, services")
             .border_1()
             .rounded(px(10.))
             .flex()
@@ -353,7 +353,7 @@ pub(crate) fn link_row(p: &Pal) -> impl IntoElement {
                         div()
                             .text_size(px(12.))
                             .text_color(p.muted)
-                            .child("What runs on the machines now: workers, runs, services"),
+                            .child("What runs on the huts now: workers, runs, services"),
                     ),
             )
             .child(

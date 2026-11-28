@@ -233,7 +233,7 @@ export function createSessionStore({ auth, api, address, device, reach = async (
       if (get().pairing) return false;
       const pin = get().pin;
       if (pin !== null && pin.id !== link.id) {
-        set({ pairError: `That pairing link is for another machine, not ${pin.name}.` });
+        set({ pairError: `That pairing link is for another hut, not ${pin.name}.` });
         return false;
       }
       const routes = directRoutes(link.routes);
@@ -245,7 +245,7 @@ export function createSessionStore({ auth, api, address, device, reach = async (
       try {
         const url = await firstReachable(routes, link.id, reach);
         if (url === null) {
-          set({ pairError: "Can't reach the machine at any address in the link. Is this phone on its network?" });
+          set({ pairError: "Can't reach the hut at any address in the link. Is this phone on its network?" });
           return false;
         }
         const refused = refusal(role, url);

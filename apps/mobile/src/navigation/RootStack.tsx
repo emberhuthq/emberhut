@@ -142,7 +142,7 @@ export function RootStack() {
             options={({ route }) => ({ title: groupName[route.params.group] })}
           />
           <Stack.Screen name="Credentials" component={CredentialsScreen} options={{ title: "What your ember thinks with" }} />
-          <Stack.Screen name="Machines" component={MachinesScreen} options={{ title: "Machines" }} />
+          <Stack.Screen name="Machines" component={MachinesScreen} options={{ title: "Huts" }} />
           <Stack.Screen name="Parties" component={PartiesScreen} options={{ title: "Party" }} />
           <Stack.Screen name="Party" component={PartyScreen} options={({ route }) => ({ title: route.params.title ?? "Party" })} />
           <Stack.Screen name="NewParty" component={NewPartyScreen} options={{ title: "New party", presentation: "modal" }} />

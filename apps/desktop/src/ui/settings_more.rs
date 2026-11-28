@@ -110,12 +110,12 @@ pub(crate) fn devices(store: &Entity<Store>, p: &Pal, cx: &App) -> Div {
     group
 }
 
-/// "Add a phone or computer": a pairing code for another device, with its QR code; only for
+/// "Add a phone or a hut": a pairing code for another device, with its QR code; only for
 /// a device with a session of its own (none otherwise).
 pub(crate) fn pair_card(store: &Entity<Store>, qr: Option<Qr>, p: &Pal, cx: &App) -> Option<Div> {
     let read = store.read(cx);
     read.is_signed_in().then(|| {
-        group(p, "ADD A PHONE OR COMPUTER").child(pair_another(store, read.new_code(), qr, p))
+        group(p, "ADD A PHONE OR A HUT").child(pair_another(store, read.new_code(), qr, p))
     })
 }
 

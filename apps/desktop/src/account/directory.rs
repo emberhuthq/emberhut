@@ -114,17 +114,17 @@ fn refusal(response: &Response) -> Refusal {
 fn words(code: &DirectoryErrorCode) -> Option<&'static str> {
     Some(match code {
         DirectoryErrorCode::AccountFull => {
-            "This account has all the machines it can hold. Unlink one first."
+            "This account has all the huts it can hold. Unlink one first."
         }
         DirectoryErrorCode::LinkedElsewhere => {
-            "This machine is linked to another account. Unlink it there first."
+            "This hut is linked to another account. Unlink it there first."
         }
         DirectoryErrorCode::Stale => {
             "The link is too old: this computer's clock is more than 5 minutes off, or the \
-             machine was linked or unlinked after it was signed. Check the clock and try again."
+             hut was linked or unlinked after it was signed. Check the clock and try again."
         }
         DirectoryErrorCode::Replayed => "That link was already used. Try again.",
-        DirectoryErrorCode::NotFound => "That machine isn't in this account any more.",
+        DirectoryErrorCode::NotFound => "That hut isn't in this account any more.",
         _ => return None,
     })
 }
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(code, DirectoryErrorCode::AccountFull);
         assert_eq!(
             words,
-            "This account has all the machines it can hold. Unlink one first."
+            "This account has all the huts it can hold. Unlink one first."
         );
         let Err(Refusal::Refused { code, words }) = read_linked(&error(409, "linked-elsewhere"))
         else {
@@ -180,7 +180,7 @@ mod tests {
         assert_eq!(code, DirectoryErrorCode::LinkedElsewhere);
         assert_eq!(
             words,
-            "This machine is linked to another account. Unlink it there first."
+            "This hut is linked to another account. Unlink it there first."
         );
         let Err(Refusal::Refused { words, .. }) = read_linked(&error(403, "bad-signature")) else {
             panic!("a refusal")

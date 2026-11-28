@@ -58,7 +58,7 @@ export interface MachineKey {
 export type MachineCheck =
   /** It showed a key that has its id, and the id is the one expected (when one was). */
   | { ok: true; machine: MachineKey | null }
-  /** No key, or the wrong one: "This server didn't prove it is the machine you meant". */
+  /** No key, or the wrong one: "This server didn't prove it is the hut you meant". */
   | { ok: false; reason: "missing" | "wrongKey" | "otherMachine" };
 
 /**
@@ -82,4 +82,4 @@ export function checkMachine(machine: unknown, expected: string | null): Machine
 }
 
 /** What the phone says when a pairing answer fails checkMachine. */
-export const notTheMachine = "This server didn't prove it is the machine you meant.";
+export const notTheMachine = "This server didn't prove it is the hut you meant.";

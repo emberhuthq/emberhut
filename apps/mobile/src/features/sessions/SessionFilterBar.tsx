@@ -52,7 +52,7 @@ export function SessionFilterBar({
         visible={open === "environment"}
         title="Environment"
         groups={[
-          { title: "Machine", picks: picks.machines, picked: filter.machines, set: (machines) => onChange({ ...filter, machines }) },
+          { title: "Hut", picks: picks.machines, picked: filter.machines, set: (machines) => onChange({ ...filter, machines }) },
           { title: "Account", picks: picks.accounts, picked: filter.accounts, set: (accounts) => onChange({ ...filter, accounts }) },
         ]}
         onAll={() => onChange({ ...filter, machines: null, accounts: null })}

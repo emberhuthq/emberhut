@@ -814,7 +814,8 @@ name, icon, tint, state, status, detail, at, error, hint, facts, lists, actions,
 
 ### GET /api/machines
 
-Every runner machine's capacity, warnings, sessions and its last day (`MachinesPage`), from
+Every runner machine's capacity, warnings, sessions and its last day (`MachinesPage`; the apps call
+them huts and show them on their Huts page), from
 the samples of `POST /api/runner/machine`:
 `{ "at", "thresholds", "machines": [Machine] }`. A machine has `id`, `name`, `host`, `platform`,
 `state` (`ok`, `warn`, `low`, `stale`, `offline`, `unknown`), `status` (in words), `seen`, `age`

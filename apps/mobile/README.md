@@ -323,8 +323,8 @@ app is in front (every second while failing, and "Can't reach Emberhut" only aft
 state carries an ETag: the next poll sends it back as `If-None-Match`, and a 304 returns the same object, so nothing
 re-renders. The looking header (`LOOKING_HEADER` in `src/api/wire.ts`), set to the room, rides along while the app is in front, so the server holds that room's pushes.
 Smaller pages (`useTask`, `useTasks`, `useFacts`, `useSwitches`, `useEnvironments`, `useMachines`, `useParties`,
-`useApprovals`, `useApproval`, `useAgents`, all in `state/queries.ts`) have their own keys in `state/query.ts`. The Machines page (More, Machines) polls `GET /api/machines`
-every 10 s only while it's on screen; a 404 means the server is on older code and isn't asked again. Changes go through `useApplySettings()` (`POST /api/settings`), which refreshes the
+`useApprovals`, `useApproval`, `useAgents`, all in `state/queries.ts`) have their own keys in `state/query.ts`. The Huts page (More, Huts; `MachinesScreen`) polls `GET /api/machines`
+every 10 s only while it's on screen and takes each hut's accounts and their room from the state's `accounts` (by their `machine`); a 404 means the server is on older code and isn't asked again. Changes go through `useApplySettings()` (`POST /api/settings`), which refreshes the
 states after.
 
 App state lives in zustand stores, each made by a factory that takes its dependencies (so the tests build their own):

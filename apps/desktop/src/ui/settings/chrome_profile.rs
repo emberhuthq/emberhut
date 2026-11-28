@@ -221,7 +221,7 @@ fn details(
         ),
         detail(
             p,
-            "Machine",
+            "Hut",
             profile
                 .machine
                 .as_deref()

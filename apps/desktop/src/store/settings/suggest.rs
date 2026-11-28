@@ -78,7 +78,7 @@ pub(crate) fn suggestions(now: &Now) -> Vec<Suggestion> {
         if now.phone_paired {
             rows.push((
                 "pair",
-                "Add a phone or computer".to_owned(),
+                "Add a phone or a hut".to_owned(),
                 "One code, works once for 10 minutes".to_owned(),
             ));
         } else {
@@ -182,7 +182,7 @@ mod tests {
         };
         let shown = titles(&paired);
         assert!(!shown.contains(&"Pair your phone".to_owned()));
-        assert!(shown.contains(&"Add a phone or computer".to_owned()));
+        assert!(shown.contains(&"Add a phone or a hut".to_owned()));
     }
 
     #[test]

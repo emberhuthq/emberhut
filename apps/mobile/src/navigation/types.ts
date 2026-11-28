@@ -20,7 +20,7 @@ export type RootStackParamList = {
   SignIn: undefined;
   /** Pairing with another server: a new one, this one kept as the fallback ("switch"), or a fallback server. */
   AddServer: { role: "switch" | "fallback" };
-  /** The emberhut.com account: sign in, its machines (only in builds with the account on). */
+  /** The emberhut.com account: sign in, its huts (only in builds with the account on). */
   Account: undefined;
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   /** The room switcher. */
@@ -54,7 +54,7 @@ export type RootStackParamList = {
   SettingsGroup: { group: SettingsGroupId };
   /** What your ember thinks with: the model provider, its key and model, checked with the provider before it's saved. */
   Credentials: undefined;
-  /** Each runner machine's live capacity, as the server lists them. */
+  /** Huts: each computer the assistant works on, online or asleep, its accounts' room and live capacity. */
   Machines: undefined;
   /** Your parties: AI personas talking to each other. */
   Parties: undefined;
