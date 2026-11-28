@@ -685,8 +685,8 @@ A runner is a program on one of the person's machines that runs coding-agent ses
 0017). The server reaches each one's API at `--runner NAME=URL`; each runner has its own token
 (a `NAME=TOKEN` line of `--runner-tokens`), which the server sends it and it presents back.
 
-The routes below that act (opening a session, a reply, stop, interrupt and settings, a
-worker's reply and stop, stopping a job, pinning the assistant's account, a switch), and
+The routes below that act (opening a session, a reply, stop, interrupt and settings, a move
+to another task, a worker's reply and stop, stopping a job, pinning the assistant's account, a switch), and
 `POST /api/settings`'s `{ "stopTask": "<id>" }` (stop one of the assistant's own background
 tasks), need a signed-in device in either auth mode: without a session they are 401 `{ "error": "Sign in
 first.", "signIn": true }`, report mode included. Reading, and "Check now"
@@ -697,11 +697,16 @@ id into a runner's path, from a route or from the assistant's tools.
 ### POST /api/runner/events
 
 A runner's event about one of its sessions: `{ machine, kind, at, session: { id, title,
-project, status, account, cwd, branch, model, effort, meta: { direct?, task? } }, turn?: { id,
-by, prompt, started, outcome, last }, doing?, text?, to?, from?, why?, resumeAt? }`. `kind` is
-`turn_queued`, `turn_started`, `activity`, `turn_finished`, `question`, `note`, `account` or
-another the server takes as a plain update. The session's thread gets its new look; taking an
-event twice changes nothing. 200 `{ ok: true }`; 400 `{ error }` when it has no session id or
+project, status, account, cwd, branch, model, effort, created, meta: { direct?, task?, parent? }
+}, turn?: { id, n, by, prompt, started, outcome, last }, doing?, text?, to?, from?, why?,
+resumeAt? }`. `kind` is `session`, `turn_queued`, `turn_started`, `activity`, `turn_finished`,
+`question`, `note`, `account` or another the server takes as a plain update. The session's
+thread gets its new look; taking an event twice changes nothing. With `--task-plans` the
+session works for a task (ADR 0035, "Every session works for a task"): the tasks it is linked
+to; else its meta's `task`; else, for a session opened (`created`) at or after the server first
+ran the rule, its `parent`'s tasks (a session id), or for one with `direct` a task made for it
+at its first `turn_queued` or `turn_started`, titled from `turn.prompt`. The meta keys are
+`emberhut_api::wire::session_meta`'s. 200 `{ ok: true }`; 400 `{ error }` when it has no session id or
 names another runner (`not a runner event (<machine>)`); 401 `{ error: "runners use their
 token" }` without a runner's token (a device's session is not one).
 
@@ -725,7 +730,7 @@ without one (ADR 0035). 401 as above.
 
 ### GET /api/runner/sessions?task=&room=&direct
 
-`{ sessions: RunnerSession[] }`, newest first, 50 at most: a task's (none is linked yet), a
+`{ sessions: RunnerSession[] }`, newest first, 50 at most: a task's (with `--task-plans`; none without), a
 room's (Main: every room's), or the person's own (`direct`).
 
 ### POST /api/runner/sessions
@@ -734,7 +739,10 @@ One of the person's own sessions: `{ machine, cwd, text, files, account?, model?
 worktree?, title? }` (`machine` `runner` by default). 200 `{ ok: true, id, turn, session }`, the
 runner's session; 409 `{ ok: false, error }` for a machine that isn't a runner (`no runner
 called <machine>`), nothing to start with (`say something to start it with`), or the runner's
-refusal.
+refusal. With `--task-plans` the server first makes the session a task (the
+person's, working, titled from `text`), opens it with `meta: { direct: true, task }`, and adds
+the plan ask for that task to the first message after a blank line; a session the runner
+refuses leaves that task archived.
 
 ### GET /api/runner/folders?machine=&path= and GET /api/runner/branches?machine=&cwd=
 
@@ -760,6 +768,15 @@ The person's reply (`{ text, files }`, its files put in the session's inbox firs
 error: "nothing to send" }`), stopping the session and its queued turns, stopping its turn, or
 `{ model?, effort?, title? }`. 200 `{ ok: true, ...the runner's answer }` (`settings`: `{ ok,
 session }`); 502 `{ ok: false, error }`.
+
+### POST /api/runner/sessions/r-{id}/task
+
+With `--task-plans`, moves the session to another task: `{ task: <id> }`. Its link and its open
+run go to that task, both tasks' histories say so, and a task made for the session that is left
+with nothing of its own is archived (`Merged into T-n`). 200 `{ ok: true, task }`; 400 `{ ok:
+false, error }` for no task named or a task that is done or archived; 404 `{ ok: false, error }`
+for a session or task the server doesn't know, an id that isn't a session's, or a server
+without `--task-plans`.
 
 ### The sessions w-{task}
 

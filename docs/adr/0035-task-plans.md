@@ -141,6 +141,59 @@ it works, after twelve hours with no event from it (a working session reports ev
 and the record cannot be checked against anything fresher). A turn's end that comes late finds
 its run closed already, and leaves it as it is.
 
+### Every session works for a task
+
+With tasks shown as the work running, a session linked to no task sits in a fallback list the
+apps show apart ("Sessions with no task"), out of the task list, its plan nowhere. Every piece of
+work is a task, so the server gives every session one:
+
+- **The person's own sessions.** A session opened from the app (`POST /api/runner/sessions`)
+  gets a task made for it before it opens: the person's, working, titled from the first message
+  (its first line with words, markdown stripped, six words and 60 characters at most, cut
+  between words; with none, `Session on the <place>`; the rule is `emberhut-core`'s
+  `task::session`), with `Opened from a session on the <place>` in its history. It is in Main
+  with no project: every runner session is Main's, and projects don't carry runner folders yet.
+  The task goes in the session's meta, and the first message the server sends (the open call's
+  prompt, or with files the first turn after them) carries the same plan ask a `thread_start`
+  brief does, after a blank line; the ask the server keeps of a turn stops before it, as it stops
+  before the status-line ask. A session the runner refuses to open leaves its task archived,
+  saying why. A session a runner reports as the person's (`meta.direct`) that the server did not
+  open gets its task when its first message is queued or starts; that message went to the runner
+  directly, so the server can't add the plan ask, and the task shows no plan until the session's
+  agent writes one.
+- **Sessions started by sessions.** A session's meta may name the session that started it
+  (`parent`). One with a parent and no task of its own is linked to its parent's tasks when the
+  server first sees it (its turns are runs of the first of them). The server writes the parent
+  in the sessions it starts for a session: `thread_start` takes `parent`, by default the session
+  calling (its session header). A session that starts another through a runner's own API sets
+  `parent` to its own id in the new session's meta, which runners keep as given.
+- **The assistant's sessions with no task.** `thread_start` may leave `task_id` out (with the flag
+  off it stays required): the session works for its parent's task, else for a task made for it,
+  the assistant's, working, titled from the session's title, with `Made for a session started
+  without a task` in its history. No brief: an assistant's task with a brief would get a worker
+  of its own, and the session is its work. Ultra lanes already name their task.
+- **Made for a session.** A task the server makes for a session is marked so
+  (`issues.made_for_session`, the session's id; nullable, nothing for existing tasks), which is
+  how the server tells it from a task someone made.
+- **Links win.** A session's tasks are the tasks it is linked to; its meta's task only links it
+  the first time. So a session moved to another task stays there, though its meta still names
+  the first.
+- **Moving a session.** `POST /api/runner/sessions/r-{id}/task` (`{ task }`, and the assistant's
+  `session_move`) links the session to that task alone, moves its open run there, and writes
+  `Session r-… "<title>" moved here from T-n` and `… moved to T-m` on the two tasks. A task made
+  for that session that is left with nothing of its own (no other session, no plan steps, no
+  subtasks or files, nothing in its history but the server's own lines) is archived as
+  `Merged into T-m`: the move says the session was that task's work all along. A done or archived
+  task can't take a session (400); an unknown session or task is 404.
+- **Old sessions are left as they are.** A session gets a task made for it, or its parent's,
+  only when it was opened at or after the time the server first ran this rule with the flag on
+  (a setting written once, at its first tick, which runs at start-up), by the `created` time the
+  runner sends with every session; a session the runner sends no such time for counts as new
+  only when the event is the first the server hears of it. Making tasks for every session a
+  runner has ever reported would fill the task list with finished work nobody asked to track.
+- **Renaming.** The apps can't rename a task yet: `taskSet` changes its dates, size, project,
+  description and ultra mode, not its title; the assistant's `task_update` can.
+
 ### The flag
 
 Plans are behind a server flag (`--task-plans`, `EMBERHUT_TASK_PLANS`, off by default). With it
@@ -159,3 +212,7 @@ plans together.
   time show when it is not kept.
 - Matching steps by title means renaming a step through `plan_set` makes it a new step; renaming
   through `plan_step` keeps it.
+- A title made from a first message is only a first guess at what the work is; a move to
+  another task (or the assistant's rename) corrects it, and a task left empty by a move goes.
+- The person's first message in a session opened from the app carries the plan ask, so their
+  own transcript shows it after what they wrote.
