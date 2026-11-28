@@ -21150,7 +21150,7 @@
           },
           "emberTint": {
             "type": "string",
-            "description": "The tint the ember's face is drawn in (`ember`, `amber`, ...); a choice saved before tints\nreads as the default, `ember`."
+            "description": "The tint the ember's face is drawn in (`ember`, `amber`, `coral` or `blue`); a choice saved\nbefore tints, or naming one no longer offered, reads as the default, `ember`."
           },
           "at": {
             "oneOf": [

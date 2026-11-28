@@ -858,7 +858,7 @@ unknown thread); 401 `{ signIn: true }` without a session.
 
 - `choice`: `{ preset, appearance (system | light | dark), accent ("#RRGGBB" or null), emberTint, at (null: never set) }`.
   The default is `paper`, `system`, `ember`; a saved choice keeps the preset it names, and one
-  saved before tints reads as `ember`.
+  saved before tints, or naming one no longer offered (the early `rose` and `sage`), reads as `ember`.
 - `tokens`: the choice's 14 colours per appearance, `#RRGGBB`: `accent`, `accentSoft`,
   `onAccent`, `background`, `surface`, `surfaceRaised`, `border`, `text`, `muted`, `faint`,
   `success`, `warn`, `danger`, `info` (`names` lists them in this order).
@@ -866,14 +866,14 @@ unknown thread); 401 `{ signIn: true }` without a session.
   (WCAG ratios rounded down to 2 places; `adjusted`: the asked accent was darkened or lightened to
   reach 4.5:1), and `aa` when every ratio is 4.5 or more.
 - `tints`: the colours the ember's face can be drawn in, the default (`ember`, the brand's own)
-  first, then `amber`, `rose`, `sage`. The apps ship the face drawn in each tint they know and draw
+  first, then `amber`, `coral`, `blue` (Blue flame). The apps ship the face drawn in each tint they know and draw
   one they don't know as the default.
 - `version` is the presets' version: a client keeps its cache per version.
 
 ### POST /api/theme
 
 ```json
-{ "preset": "teal", "appearance": "dark", "accent": null, "emberTint": "sage", "preview": true }
+{ "preset": "teal", "appearance": "dark", "accent": null, "emberTint": "blue", "preview": true }
 ```
 
 `ThemeChange`: only the fields given change. `accent` left out keeps it, `null` goes back to the
@@ -881,7 +881,7 @@ preset's own, a colour (`#RGB` or `#RRGGBB`, `#` optional) sets it. `preview: tr
 out without saving. 200 `{ "ok": true, ...ThemePage }` (`ThemeSetReply`); 400
 `{ "ok": false, "error": "preset: one of paper, graphite, blue, ..." }`,
 `"appearance: system, light or dark"`, `"accent: a hex colour like #3366FF (or null for the preset's own)"`
-or `"emberTint: one of ember, amber, rose, sage"`.
+or `"emberTint: one of ember, amber, coral, blue"`.
 
 ## The ember's name
 

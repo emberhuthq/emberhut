@@ -75,28 +75,29 @@ pub const TINTS: [Tint; 4] = [
         id: "amber",
         name: "Amber",
         glow: ["#FFF2C2", "#FFD466", "#F7B32B", "#DE8C12", "#B86A08"],
-        seam: "#FFE08A",
-        embers: "#FFC94D",
+        seam: "#FFD07A",
+        embers: "#FFAE45",
         cracks: "#8A5506",
         cheeks: "#E2453A",
     },
     Tint {
-        id: "rose",
-        name: "Rose",
-        glow: ["#FFE3E8", "#FFB0C0", "#F57A98", "#DB4F76", "#B5345A"],
-        seam: "#FFC9D5",
-        embers: "#FF97B0",
-        cracks: "#8C2445",
-        cheeks: "#C42B55",
+        id: "coral",
+        name: "Coral",
+        glow: ["#FFE8E0", "#FFBDB2", "#F08A8A", "#D9656D", "#B54653"],
+        seam: "#FFD3CA",
+        embers: "#FFB0A3",
+        cracks: "#8A2A3A",
+        cheeks: "#C42B45",
     },
+    // A blue flame: still fire, burning hotter, with coral cheeks.
     Tint {
-        id: "sage",
-        name: "Sage",
-        glow: ["#EEF5D2", "#C6DE92", "#98BD62", "#729E44", "#527A33"],
-        seam: "#E0EEB0",
-        embers: "#B7D47E",
-        cracks: "#405E26",
-        cheeks: "#D9604A",
+        id: "blue",
+        name: "Blue flame",
+        glow: ["#E6F0FF", "#A9C6FF", "#5B8DEF", "#3F6FD8", "#2B50B0"],
+        seam: "#A9C6FF",
+        embers: "#8DB3FF",
+        cracks: "#1F3A80",
+        cheeks: "#FF6A50",
     },
 ];
 
@@ -240,6 +241,13 @@ pub fn tint_id(asked: &str) -> Result<&'static str, ThemeRefusal> {
         .find(|tint| tint.id == asked)
         .map(|tint| tint.id)
         .ok_or(ThemeRefusal::Tint)
+}
+
+/// The tint a saved choice names, or the default when it is one no longer offered (Rose and
+/// Sage, the first tints, read as Ember).
+#[must_use]
+pub fn saved_tint(saved: &str) -> &'static str {
+    tint_id(saved).unwrap_or(DEFAULT_TINT)
 }
 
 /// The preset `asked` names (trimmed, in any case).
@@ -790,11 +798,19 @@ mod tests {
             ThemeRefusal::NotAChange.to_string(),
             "theme: { preset?, appearance?, accent?, emberTint? }"
         );
-        assert_eq!(tint_id(" Rose "), Ok("rose"));
+        assert_eq!(tint_id(" Coral "), Ok("coral"));
         assert_eq!(
             tint_id("teal").unwrap_err().to_string(),
-            "emberTint: one of ember, amber, rose, sage"
+            "emberTint: one of ember, amber, coral, blue"
         );
+        assert_eq!(
+            tint_id("rose"),
+            Err(ThemeRefusal::Tint),
+            "an early tint, gone"
+        );
+        assert_eq!(saved_tint("rose"), DEFAULT_TINT);
+        assert_eq!(saved_tint("sage"), DEFAULT_TINT);
+        assert_eq!(saved_tint("blue"), "blue");
     }
 
     #[test]

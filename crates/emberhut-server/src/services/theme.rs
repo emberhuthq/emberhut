@@ -63,13 +63,16 @@ impl ThemeService {
 
     /// The choice: the one last saved, or the default (paper, as the system is, the ember in its
     /// own colours, never set). A saved choice names its preset, so changing the default leaves
-    /// it as it was; one saved before tints reads as the default tint.
+    /// it as it was; one saved before tints, or naming a tint no longer offered, reads as the
+    /// default tint.
     ///
     /// # Errors
     ///
     /// [`DbError`].
     pub async fn choice(&self) -> Result<ThemeChoice, DbError> {
-        Ok(self.settings.get(&self.key).await?.unwrap_or_default())
+        let mut choice: ThemeChoice = self.settings.get(&self.key).await?.unwrap_or_default();
+        theme::saved_tint(&choice.ember_tint).clone_into(&mut choice.ember_tint);
+        Ok(choice)
     }
 
     /// The choice's page: its colours and contrast, and every preset's colours.

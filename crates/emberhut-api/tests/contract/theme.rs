@@ -30,7 +30,7 @@ fn the_theme_page_tolerates_unknown_fields() {
 fn a_theme_change_round_trips() {
     let change: ThemeChange = assert_round_trip("theme_change.json");
     assert_eq!(change.accent, AccentChange::Reset);
-    assert_eq!(change.ember_tint.as_deref(), Some("sage"));
+    assert_eq!(change.ember_tint.as_deref(), Some("blue"));
     assert!(change.preview);
     let reply: ThemeSetReply = assert_round_trip("theme_set_reply.json");
     assert!(reply.ok);

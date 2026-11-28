@@ -44,8 +44,8 @@ pub struct ThemeChoice {
     pub appearance: Appearance,
     /// A custom accent (`#RRGGBB`) in place of the preset's; none: the preset's own.
     pub accent: Option<String>,
-    /// The tint the ember's face is drawn in (`ember`, `amber`, ...); a choice saved before tints
-    /// reads as the default, `ember`.
+    /// The tint the ember's face is drawn in (`ember`, `amber`, `coral` or `blue`); a choice saved
+    /// before tints, or naming one no longer offered, reads as the default, `ember`.
     #[serde(rename = "emberTint", default = "default_tint")]
     pub ember_tint: String,
     /// When it last changed; none: never set (the default).
@@ -342,8 +342,8 @@ mod tests {
         assert_eq!(old.ember_tint, DEFAULT_TINT);
         let json = serde_json::to_value(&old).unwrap();
         assert_eq!(json["emberTint"], "ember");
-        let change: ThemeChange = serde_json::from_str(r#"{"emberTint":"rose"}"#).unwrap();
-        assert_eq!(change.ember_tint.as_deref(), Some("rose"));
+        let change: ThemeChange = serde_json::from_str(r#"{"emberTint":"coral"}"#).unwrap();
+        assert_eq!(change.ember_tint.as_deref(), Some("coral"));
         assert_eq!(
             serde_json::to_string(&ThemeChange::default()).unwrap(),
             "{}",
