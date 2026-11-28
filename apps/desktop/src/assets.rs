@@ -118,6 +118,7 @@ gpui_kit::assets::icon_assets!(
         MessageCircle,
         MessageSquareText,
         MessagesSquare,
+        Monitor,
         MonitorSmartphone,
         MoonStar,
         Music,

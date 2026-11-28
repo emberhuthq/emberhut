@@ -1,6 +1,7 @@
-//! "Make it yours": the ember's name (a field with suggestions) and its look (the theme's
-//! presets, shared with Settings › Appearance), with a small preview of how it shows in the
-//! sidebar and the chat. The whole window takes a look as it is picked.
+//! "Make it yours": the ember's name (a field with suggestions) and its look, with a small
+//! preview of how it shows in the sidebar and the chat. The look is Your ember's own picker
+//! (`LookPicker`, its setup variant), the same choice as Settings; the whole window takes a
+//! look as it is picked.
 
 use gpui_kit::component::Sizable as _;
 use gpui_kit::component::button::{Button, ButtonVariants};
@@ -15,7 +16,6 @@ use crate::assets::FACE;
 use crate::store::Store;
 use crate::store::setup::SUGGESTIONS;
 use crate::ui::palette::Pal;
-use crate::ui::settings::appearance::theme_presets;
 use crate::ui::settings::parts::note;
 
 impl SetupView {
@@ -29,7 +29,6 @@ impl SetupView {
         let store = self.store.read(cx);
         let name = store.setup_name();
         let problem = store.setup_name_problem();
-        let page = store.theme().page().clone();
         let view = cx.entity().downgrade();
         let chips = SUGGESTIONS.iter().map(|suggestion| {
             let (view, store) = (view.clone(), self.store.clone());
@@ -76,7 +75,7 @@ impl SetupView {
             })
             .child(preview(&name, p))
             .child(section_title("Its look"))
-            .child(theme_presets(&self.store, &page, p))
+            .child(self.look.clone())
             .child(note(p, "Change either any time in Settings."))
             .child(
                 div().flex().pt(px(4.)).child(

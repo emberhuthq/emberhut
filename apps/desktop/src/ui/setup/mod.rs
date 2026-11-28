@@ -31,6 +31,7 @@ use gpui_kit::{
 use self::steps::FIND_HINT;
 
 use super::ember::credentials::CredentialsView;
+use super::ember::look::{LookPicker, LookVariant};
 use super::pairing::PairingForm;
 use super::palette::{Pal, pal};
 use super::qr::PairingQr;
@@ -76,6 +77,8 @@ pub(crate) struct SetupView {
     fold: Option<plans::Fold>,
     /// "Make it yours": the name's field.
     name: Entity<InputState>,
+    /// "Make it yours": Your ember's look picker, in its setup variant.
+    look: Entity<LookPicker>,
 }
 
 impl SetupView {
@@ -112,6 +115,7 @@ impl SetupView {
         })
         .detach();
         let chrome = cx.new(|cx| ChromePane::new(store.clone(), window, cx).sheets_only());
+        let look = cx.new(|cx| LookPicker::new(store.clone(), LookVariant::Setup, cx));
         Self {
             store,
             credentials,
@@ -122,6 +126,7 @@ impl SetupView {
             keep_focus: (cx.focus_handle(), false),
             fold: None,
             name,
+            look,
         }
     }
 
