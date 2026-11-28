@@ -109,6 +109,8 @@ pub(crate) struct TaskView {
     swipe: Swipe,
     /// What the activity shows (on a server that keeps plans).
     feed: crate::store::tasks::activity::Filter,
+    /// How far the running marks have turned: a quarter a second while the task runs.
+    turn: u8,
 }
 
 impl TaskView {
@@ -200,6 +202,7 @@ impl TaskView {
             scroll: ScrollHandle::new(),
             swipe: Swipe::default(),
             feed: crate::store::tasks::activity::Filter::default(),
+            turn: 0,
         }
     }
 
@@ -331,7 +334,16 @@ impl TaskView {
                     if this.shown != Some(task) {
                         return false;
                     }
-                    if this.store.read(cx).tasks().is_live(task) {
+                    let store = this.store.read(cx);
+                    let runs = store.keeps_plans()
+                        && store.task_of(task).is_some_and(|task| {
+                            crate::store::tasks::words::doing(task)
+                                == crate::store::tasks::words::Doing::Running
+                        });
+                    if runs && !crate::motion::reduced(cx) {
+                        this.turn = this.turn.wrapping_add(1);
+                        cx.notify();
+                    } else if store.tasks().is_live(task) {
                         cx.notify();
                     }
                     true
@@ -600,7 +612,7 @@ impl TaskView {
     /// notes) and Stop on a working task.
     fn planned_body(&self, part: &Part<'_>, cx: &Context<'_, Self>) -> AnyElement {
         let mut body = div().flex().flex_col();
-        body = plan::head(body, part, cx);
+        body = plan::head(body, part, self);
         body = plan::section_of(body, part, self, cx);
         body = plan::needs_you(body, part, self, cx);
         body = reply::section(body, part, self, cx);
