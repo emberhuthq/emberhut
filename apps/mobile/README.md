@@ -203,6 +203,12 @@ was.
   current step lit with its time so far, sub-steps indented, a step's result under it, folded around the current step past
   eight rows); the ask; your reply; Files and results, each step's first; one Activity feed of turns, history and files
   (All, Turns, Plan, Files) with each turn's session one tap away. An empty plan reads "No plan yet".
+- **Move to task…**: a session's screen has it under its tasks, and a long press on a session (the Sessions list, a session
+  with no task in Tasks, a task page's session line, its Activity and Sessions) offers it, also as an accessibility
+  action. It lists the open tasks, found by key or title, and moves the runner's or worker's session to the one picked
+  (`POST /api/runner/sessions/<id>/task`, `{ task }`; the route's word is in `src/api/wire.ts`), then opens that task; a
+  refusal (a done or archived task, an unknown session or task) shows the server's reason. Sessions with no task shows
+  only while one has none.
 - **Live**: the list follows the state's poll; an open page is fetched again when the state says its task, its plan or its
   run moved.
 
