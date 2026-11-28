@@ -1,46 +1,174 @@
 import { useNavigation } from "@react-navigation/native";
+import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { Machine, MachineThresholds } from "@/api";
+import type { ClaudeAccount, Machine, MachineThresholds } from "@/api";
 import { useTheme, type Palette } from "@/theme";
-import { Card, Chip, Icon, ProgressBar, Text, type TextTone } from "@/ui";
-import { meters, sessionRow, skipLine, stateTone, warningLevel, type Level, type Meter } from "./machines";
+import { Chip, FoldRow, Icon, ProgressBar, Section, Text, type ChipTone, type TextTone } from "@/ui";
+import {
+  hutKind,
+  kindIcon,
+  kindWord,
+  presenceLine,
+  presenceOf,
+  presenceWord,
+  resourcesLine,
+  room,
+  runningLine,
+  type Presence,
+  type RoomTone,
+} from "./huts";
+import { meters, sessionRow, skipLine, warningLevel, type Level, type Meter } from "./machines";
 
 const levelColor: Record<Level, keyof Palette> = { ok: "working", warn: "warning", low: "danger" };
 const levelTone: Record<Level, TextTone> = { ok: "secondary", warn: "warning", low: "danger" };
+const presenceTone: Record<Presence, ChipTone> = { online: "done", quiet: "warning", asleep: "muted", notYet: "muted" };
+const roomColor: Record<RoomTone, keyof Palette> = { fine: "done", low: "warning", out: "danger", unknown: "textTertiary" };
 
-/** One machine: its name and state, why it takes no new work, its warnings, its bars and the sessions on it. */
-export function MachineCard({ machine, limits }: { machine: Machine; limits: MachineThresholds }) {
-  const { colors, spacing } = useTheme();
+/**
+ * One hut as an iOS grouped section: its kind's icon, name and whether it is online or asleep; what runs there; why it
+ * takes no new work and its warnings; its accounts with the room each has left; and folded under Details its bars and
+ * the sessions on it.
+ */
+export function MachineCard({ machine, limits, accounts }: { machine: Machine; limits: MachineThresholds; accounts: ClaudeAccount[] }) {
+  const { spacing } = useTheme();
+  const [open, setOpen] = useState(false);
   const skip = skipLine(machine);
-  const bars = meters(machine, limits);
+  const resources = resourcesLine(machine);
   return (
-    <Card accent={machine.state === "low" ? colors.danger : machine.state === "warn" ? colors.warning : undefined}>
-      <View style={[styles.header, { gap: spacing.sm }]}>
+    <View style={{ gap: spacing.lg }}>
+      <Section>
+        <Head key="head" machine={machine} />
+        <Fact key="status" label="Status" value={presenceLine(machine)} />
+        <Fact key="running" label="Running now" value={runningLine(machine)} />
+        {resources ? <Fact key="resources" label="Resources" value={resources} /> : null}
+        {skip || machine.warnings.length > 0 ? (
+          <View key="warnings" style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.xs }}>
+            {skip ? (
+              <Text variant="footnote" tone="danger" weight="600">
+                {skip}
+              </Text>
+            ) : null}
+            {machine.warnings.map((w, i) => (
+              <Text key={i} variant="footnote" tone={levelTone[warningLevel(w)]} weight={w.level === "critical" ? "700" : "500"}>
+                {w.text}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        <FoldRow key="details" title="Details" open={open} onToggle={() => setOpen(!open)} />
+        {open ? <Details key="more" machine={machine} limits={limits} /> : null}
+      </Section>
+      <Section title={`Accounts on ${machine.name}`}>
+        {accounts.length === 0 ? (
+          <View key="none" style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}>
+            <Text variant="callout" tone="secondary">
+              No assistant accounts on this hut
+            </Text>
+          </View>
+        ) : (
+          accounts.map((a) => <AccountRow key={a.id} account={a} />)
+        )}
+      </Section>
+    </View>
+  );
+}
+
+/** The hut's head: its kind's icon on a tinted tile, its name, kind and host, and online or asleep. */
+function Head({ machine }: { machine: Machine }) {
+  const { colors, spacing, radius } = useTheme();
+  const kind = hutKind(machine);
+  const presence = presenceOf(machine);
+  const awake = presence === "online" || presence === "quiet";
+  const tint = awake ? colors.accent : colors.textTertiary;
+  const subtitle = machine.host && machine.host !== machine.name ? `${kindWord[kind]} · ${machine.host}` : kindWord[kind];
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${machine.name}, ${kindWord[kind]}, ${presenceLine(machine)}`}
+      style={[styles.row, { gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}
+    >
+      <View style={[styles.tile, { borderRadius: radius.sm, backgroundColor: awake ? colors.accentSoft : colors.surfaceRaised }]}>
+        <Icon name={kindIcon(kind, machine.battery !== null)} size={22} color={tint} />
+      </View>
+      <View style={styles.grow}>
+        <Text variant="headline" numberOfLines={1}>
+          {machine.name}
+        </Text>
+        <Text variant="footnote" tone="secondary" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      </View>
+      <Chip label={presenceWord[presence]} tone={presenceTone[presence]} />
+    </View>
+  );
+}
+
+/** A label on the left and its value on the right, as Settings' rows. */
+function Fact({ label, value }: { label: string; value: string }) {
+  const { spacing } = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.row, { gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}
+    >
+      <Text tone="secondary">{label}</Text>
+      <Text style={[styles.grow, styles.right]} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/** An account: its name, the room it has left with a thin bar, and its 5-hour and week use. */
+function AccountRow({ account }: { account: ClaudeAccount }) {
+  const { colors, spacing } = useTheme();
+  const r = room(account);
+  return (
+    <View
+      accessible
+      accessibilityLabel={[account.name, r.value, r.detail].filter(Boolean).join(", ")}
+      style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs }}
+    >
+      <View style={[styles.row, { gap: spacing.md }]}>
         <View style={styles.grow}>
-          <Text variant="headline">{machine.name}</Text>
-          {machine.host ? (
-            <Text variant="footnote" tone="secondary">
-              {machine.host}
+          <Text numberOfLines={1}>{account.name}</Text>
+          {account.email ? (
+            <Text variant="caption" tone="tertiary" numberOfLines={1}>
+              {account.email}
             </Text>
           ) : null}
         </View>
-        <Chip label={machine.status} tone={stateTone(machine.state)} accessibilityLabel={`${machine.state}: ${machine.status}`} />
+        <Text weight="500" tone={r.tone === "unknown" ? "secondary" : "primary"}>
+          {r.value}
+        </Text>
       </View>
-      {skip ? (
-        <Text variant="footnote" tone="danger" weight="600">
-          {skip}
+      {r.share !== null ? <ProgressBar value={r.share} color={colors[roomColor[r.tone]]} /> : null}
+      {r.detail ? (
+        <Text variant="caption" tone="secondary">
+          {r.detail}
         </Text>
       ) : null}
-      {machine.warnings.map((w, i) => (
-        <Text key={i} variant="footnote" tone={levelTone[warningLevel(w)]} weight={w.level === "critical" ? "700" : "500"}>
-          {w.text}
-        </Text>
-      ))}
+    </View>
+  );
+}
+
+/** Its bars and the sessions on it, under Details. */
+function Details({ machine, limits }: { machine: Machine; limits: MachineThresholds }) {
+  const { spacing } = useTheme();
+  const bars = meters(machine, limits);
+  return (
+    <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.xs }}>
       {bars.map((m) => (
         <MeterView key={m.key} meter={m} />
       ))}
       {machine.sessions.length > 0 ? <Sessions machine={machine} /> : null}
-    </Card>
+      {bars.length === 0 && machine.sessions.length === 0 ? (
+        <Text variant="footnote" tone="secondary">
+          Nothing measured yet
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -106,5 +234,8 @@ function Sessions({ machine }: { machine: Machine }) {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center" },
+  row: { flexDirection: "row", alignItems: "center" },
   grow: { flex: 1 },
+  right: { textAlign: "right" },
+  tile: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
 });
