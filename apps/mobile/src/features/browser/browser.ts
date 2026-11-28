@@ -50,6 +50,8 @@ export function liveViewFailure(url: string, why: string | number | undefined, o
   const host = m?.[2] ?? url;
   if (os === "ios" && m?.[1]?.toLowerCase() === "http" && !isLocalHost(host))
     return `The live view's address (${host}) can't be opened: it needs https, or a private IP over http.`;
+  if (why === 401)
+    return `The live view (${host}) refused the sign-in the server gave (HTTP 401): its user or password isn't the one the stream was set up with.`;
   const detail = typeof why === "number" ? `HTTP ${why}` : why?.trim();
   return `The live view (${host}) didn't load${detail ? `: ${detail}` : "."}`;
 }
@@ -58,4 +60,35 @@ export function liveViewFailure(url: string, why: string | number | undefined, o
 export function address(info: BrowserInfo): string {
   const url = activeTab(info)?.url ?? info.url;
   return url === "about:blank" ? "" : url;
+}
+
+/** What the app has seen of the live view's stream since this page was opened. */
+export interface StreamWatch {
+  /** When the page was opened. */
+  since: number;
+  /** A picture came. */
+  pictures: boolean;
+  /** When the page last said its connection was open. */
+  open: number;
+}
+
+/** A page's first picture may take this long: it signs in, opens its socket, and the far screen sends a whole frame. */
+export const firstPictureMs = 12_000;
+/** After a picture, a connection not seen open for this long is down (the page reports every 2 s). */
+export const openGapMs = 8_000;
+
+export const watchStream = (now: number): StreamWatch => ({ since: now, pictures: false, open: 0 });
+
+/** A report from the page (scripts.ts): its pictures so far and its connection. */
+export function noteStream(watch: StreamWatch, report: { chunks: number; open: boolean }, now: number): StreamWatch {
+  return { since: watch.since, pictures: watch.pictures || report.chunks > 0, open: report.open ? now : watch.open };
+}
+
+/**
+ * The stream can't be reached: no picture in its first 12 s (the page may not have loaded at all, or loaded and stayed
+ * black), or, after pictures, its connection not seen open for 8 s. A far screen with nothing changing sends no pictures
+ * but keeps its connection open, so it never counts.
+ */
+export function streamStalled(watch: StreamWatch, now: number): boolean {
+  return watch.pictures ? now - watch.open >= openGapMs : now - watch.since >= firstPictureMs;
 }

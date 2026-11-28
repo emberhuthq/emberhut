@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { taskKey, type BrowserInfo } from "@/api";
-import { address, handoffLine, isMine, isSecure, isUnclaimed, liveViewFailure, site, statusText } from "./browser";
+import {
+  address,
+  handoffLine,
+  isMine,
+  isSecure,
+  isUnclaimed,
+  liveViewFailure,
+  noteStream,
+  site,
+  statusText,
+  streamStalled,
+  watchStream,
+} from "./browser";
 
 // Private addresses are put together from their numbers: the repository's personal-data scan flags any written out.
 const ip = (...parts: number[]) => parts.join(".");
@@ -63,6 +75,12 @@ describe("the address bar", () => {
 });
 
 describe("liveViewFailure", () => {
+  it("says a 401 is the live view refusing the sign-in the server gave", () => {
+    expect(liveViewFailure("https://view.example.test:8447/", 401, "ios")).toBe(
+      "The live view (view.example.test) refused the sign-in the server gave (HTTP 401): its user or password isn't the one the stream was set up with.",
+    );
+  });
+
   it("says on iOS that an http address by name needs https or a private IP", () => {
     expect(liveViewFailure("http://stream.example.com:6080/view", "The resource could not be loaded", "ios")).toBe(
       "The live view's address (stream.example.com) can't be opened: it needs https, or a private IP over http.",
@@ -81,5 +99,30 @@ describe("liveViewFailure", () => {
     );
     expect(liveViewFailure("https://stream.example.com/", 502, "ios")).toBe("The live view (stream.example.com) didn't load: HTTP 502");
     expect(liveViewFailure("http://[fd00::1]:6080/", undefined, "android")).toBe("The live view ([fd00::1]) didn't load.");
+  });
+});
+
+describe("the live view's stream", () => {
+  const s = 1000;
+  it("is stalled when no picture came within its first 12 s, whether or not the page ever reported", () => {
+    const start = watchStream(0);
+    expect(streamStalled(start, 11 * s)).toBe(false);
+    expect(streamStalled(start, 12 * s)).toBe(true);
+    // Connected but nothing drawn yet: the black page.
+    const open = noteStream(start, { chunks: 0, open: true }, 10 * s);
+    expect(streamStalled(open, 12 * s)).toBe(true);
+  });
+
+  it("is never stalled while its connection stays open after a picture, even when nothing changes on the far screen", () => {
+    let w = noteStream(watchStream(0), { chunks: 3, open: true }, 2 * s);
+    for (let t = 4; t <= 120; t += 2) w = noteStream(w, { chunks: 3, open: true }, t * s);
+    expect(streamStalled(w, 121 * s)).toBe(false);
+  });
+
+  it("is stalled 8 s after its connection was last seen open, once it had pictures", () => {
+    let w = noteStream(watchStream(0), { chunks: 3, open: true }, 2 * s);
+    w = noteStream(w, { chunks: 3, open: false }, 4 * s);
+    expect(streamStalled(w, 9 * s)).toBe(false);
+    expect(streamStalled(w, 10 * s)).toBe(true);
   });
 });

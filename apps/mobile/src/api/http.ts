@@ -18,6 +18,8 @@ export interface RequestOptions {
   /** 15 s by default; 0 for none (a stream). */
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** The answer as the server gave it, past the dialect: it holds values that are no one's words (a sign-in). */
+  raw?: boolean;
 }
 
 /** What requests need of a session: an AuthSession, or one standing for whichever server is in use. */
@@ -123,7 +125,7 @@ export class EmberhutHttp {
   /** A JSON answer; throws ApiError on an error status or an `{ ok: false }` body. */
   async json<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const response = await this.send(path, options);
-    const body = await this.readBody(response);
+    const body = options.raw && response.ok ? await readJson(response) : await this.readBody(response);
     if (!response.ok) throw new ApiError(response.status, reasonOf(body) ?? `HTTP ${response.status}`, body);
     if (typeof body === "object" && body !== null && (body as { ok?: unknown }).ok === false) {
       throw new ApiError(response.status, reasonOf(body) ?? "Refused", body);

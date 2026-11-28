@@ -5,7 +5,8 @@ export function browserEndpoints(http: EmberhutHttp) {
   return {
     /** The live view's address and credentials: view-only, or control once this device took over. */
     session(device: string): Promise<BrowserSession> {
-      return http.get<BrowserSession>("/api/browser/session", { device });
+      // Its user and password are the stream's own: a word of the build's dialect among them would be rewritten.
+      return http.get<BrowserSession>("/api/browser/session", { device }, { raw: true });
     },
     /** Take over, hand back, and the toolbar (back, go, tabs). */
     input(input: BrowserInput): Promise<BrowserInfo> {
