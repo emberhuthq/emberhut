@@ -258,12 +258,13 @@ pub(crate) fn bar_of_plan(plan: &Plan) -> Option<Bar> {
 }
 
 /// The line over the checklist: `4 of 9 done · 1 blocked · 1 skipped`, counted as the server
-/// counts (a skipped step leaves the total, a step with sub-steps counts as them); "No plan
-/// yet" while it is empty.
+/// counts (a skipped step leaves the total, a step with sub-steps counts as them; every blocked
+/// step counts as blocked, a step with sub-steps too, as the server's blocker does); "No plan
+/// yet" while it has no step (a plan of skipped steps only has a total of 0 but isn't empty).
 #[must_use]
 pub(crate) fn summary_line(plan: &Plan) -> String {
     let summary = &plan.summary;
-    if summary.is_empty() {
+    if plan.steps.is_empty() {
         return NO_PLAN.to_owned();
     }
     let mut parts = vec![format!(
@@ -271,7 +272,9 @@ pub(crate) fn summary_line(plan: &Plan) -> String {
         summary.done.min(summary.total),
         summary.total
     )];
-    let blocked = counted(plan)
+    let blocked = plan
+        .steps
+        .iter()
         .filter(|step| step.state == StepState::Blocked)
         .count();
     if blocked > 0 {

@@ -1,7 +1,7 @@
 //! The task pages fetched for the column. A page is asked for when it opens and again whenever
 //! its task changes in the state (its `updated` moves, or its plan's), so its history and its
-//! plan keep up, and every few seconds while its agents run (they don't touch the task itself). A page in hand stays shown
-//! while it is asked for again, and when asking again fails.
+//! plan keep up, and every few seconds while its agents run (they don't touch the task itself).
+//! A page in hand stays shown while it is asked for again, and when asking again fails.
 
 use std::collections::HashMap;
 use std::time::Duration;

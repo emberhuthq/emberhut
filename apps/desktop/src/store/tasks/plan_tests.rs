@@ -159,23 +159,26 @@ fn a_running_task_goes_quiet_after_twenty_minutes_without_news() {
 
 #[test]
 fn the_summary_line_counts_as_the_server_does() {
-    let plan = plan(json!({
+    let written = plan(json!({
         "steps": [step(1, None, "done"), step(2, None, "doing"), step(3, Some(2), "done"),
             step(4, Some(2), "skipped"), step(5, None, "blocked"), step(6, None, "skipped")],
         "summary": {"done": 2, "total": 3, "eta": "about 2 hours", "updated": "2026-11-28T08:57:00Z",
             "current": {"id": 2, "title": "Step 2", "state": "doing"}}
     }));
-    assert_eq!(summary_line(&plan), "2 of 3 done · 1 blocked · 2 skipped");
     assert_eq!(
-        eta_line(&plan.summary, now()).as_deref(),
+        summary_line(&written),
+        "2 of 3 done · 1 blocked · 2 skipped"
+    );
+    assert_eq!(
+        eta_line(&written.summary, now()).as_deref(),
         Some("about 2 hours · updated 3 minutes ago")
     );
     assert_eq!(
-        segments(bar_of_plan(&plan)),
+        segments(bar_of_plan(&written)),
         [F, F, B],
         "the sub-steps in place of their step, skipped ones out"
     );
-    assert_eq!(now_line(&plan).as_deref(), Some("Step 2"));
+    assert_eq!(now_line(&written).as_deref(), Some("Step 2"));
     let empty: PlanSummary = serde_json::from_value(
         json!({"done": 0, "total": 0, "unplannedTurn": "2026-11-28T08:40:00Z"}),
     )
@@ -185,6 +188,24 @@ fn the_summary_line_counts_as_the_server_does() {
         Some("A turn ended 20 minutes ago without a plan")
     );
     assert!(fraction(&empty).abs() < f64::EPSILON);
+    let skipped = plan(
+        json!({"steps": [step(1, None, "skipped"), step(2, None, "skipped")],
+        "summary": {"done": 0, "total": 0}}),
+    );
+    assert_eq!(
+        summary_line(&skipped),
+        "0 of 0 done · 2 skipped",
+        "every step skipped is a plan, not none"
+    );
+    let parent = plan(
+        json!({"steps": [step(1, None, "blocked"), step(2, Some(1), "todo")],
+        "summary": {"done": 0, "total": 1}}),
+    );
+    assert_eq!(
+        summary_line(&parent),
+        "0 of 1 done · 1 blocked",
+        "a blocked step with sub-steps counts"
+    );
 }
 
 fn shape(items: &[Item<'_>]) -> Vec<String> {

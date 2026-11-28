@@ -128,7 +128,7 @@ pub(super) fn section(
         ));
     }
     for (link, step) in steps {
-        body = body.child(step_result(p, part.store, link, &step.title));
+        body = body.child(step_result(p, part.store, link, step));
     }
     let tiles: Vec<&Artifact> = results
         .iter()
@@ -150,12 +150,18 @@ pub(super) fn section(
 
 /// A step's result: its link in short words and the step that made it; a click opens it as any
 /// link on the page.
-fn step_result(p: &Pal, store: &Entity<Store>, link: &str, step: &str) -> impl IntoElement {
+fn step_result(
+    p: &Pal,
+    store: &Entity<Store>,
+    link: &str,
+    step: &emberhut_api::task_plan::PlanStep,
+) -> impl IntoElement {
     let label = crate::store::tasks::plan::link_label(link);
     let (store, url) = (store.clone(), link.to_owned());
     crate::ui::controls::tab_stop(
         div()
-            .id(ElementId::Name(format!("step-result-{link}").into()))
+            // By the step: two steps may make the same link.
+            .id(ElementId::Name(format!("step-result-{}", step.id).into()))
             .role(gpui_kit::Role::Button)
             .hint("Opens it")
             .border_1()
@@ -196,7 +202,7 @@ fn step_result(p: &Pal, store: &Entity<Store>, link: &str, step: &str) -> impl I
                             .truncate()
                             .text_size(px(11.5))
                             .text_color(p.muted)
-                            .child(format!("from {step}")),
+                            .child(format!("from {}", step.title)),
                     ),
             )
             .child(glyph(IconName::ChevronRight, p.faint, 13.))
