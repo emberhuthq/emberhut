@@ -169,6 +169,8 @@ struct Inner {
     accounts: AccountService,
     transfer: TransferService,
     runner_mcp: Option<PathBuf>,
+    /// Tasks carry plans.
+    task_plans: bool,
     worker_sessions: Arc<dyn WorkerSessions>,
     assistant_tasks: Arc<dyn AssistantTasks>,
     jobs: JobService,
@@ -222,6 +224,9 @@ pub struct Dependencies {
     pub home: Option<PathBuf>,
     /// What makes the thumbnails of a task's pictures and videos.
     pub thumbnailer: Arc<dyn Thumbnailer>,
+    /// Tasks carry plans: shown in the state and on task pages, written with the plan tools,
+    /// asked for in the agents' briefs (off by default).
+    pub task_plans: bool,
     /// The key a program on this machine hands the assistant a job with (`POST /api/tasks`);
     /// none: no program can.
     pub program_key: Option<String>,
@@ -353,6 +358,7 @@ impl Default for Dependencies {
             zone: jiff::tz::TimeZone::try_system().unwrap_or(jiff::tz::TimeZone::UTC),
             home: std::env::var_os("HOME").map(PathBuf::from),
             thumbnailer: Arc::new(Ffmpeg::new(PathBuf::from("ffmpeg"))),
+            task_plans: false,
             program_key: None,
             schedule: Vec::new(),
             embedder: Arc::new(NoEmbedder),
@@ -408,6 +414,7 @@ impl AppState {
             zone,
             home,
             thumbnailer,
+            task_plans,
             program_key,
             schedule,
             embedder,
@@ -480,6 +487,7 @@ impl AppState {
             activity: activity.clone(),
             files: ArtifactFiles::new(home.clone(), &secrets_dir, thumbs, thumbnailer),
             workers,
+            task_plans,
         });
         let personal =
             PersonalServices::new(db, &tasks, &activity, &clock, &random, &mac, personal);
@@ -523,7 +531,8 @@ impl AppState {
         let history =
             HistoryService::new(db.snapshots(), Arc::clone(&clock)).with_refs(db.message_refs());
         let live = LiveHub::default();
-        let display = DisplayService::new(db.settings(), db.log(), Arc::clone(&clock));
+        let display = DisplayService::new(db.settings(), db.log(), Arc::clone(&clock))
+            .with_task_plans(task_plans);
         let theme = ThemeService::new(db.settings(), db.log(), Arc::clone(&clock));
         let browser_secrets = secrets_dir.clone();
         let browser_url = chrome_url.unwrap_or_else(|| public_url.clone());
@@ -668,6 +677,7 @@ impl AppState {
             private,
             runners,
             assistant_tasks: &assistant_tasks,
+            tasks: &tasks,
         });
         let guard = Guard::new(GuardParts {
             db: db.clone(),
@@ -851,6 +861,7 @@ impl AppState {
                 accounts,
                 transfer,
                 runner_mcp,
+                task_plans,
                 worker_sessions,
                 assistant_tasks,
                 jobs,
@@ -1212,6 +1223,13 @@ impl AppState {
         self.inner.assistant_tasks.as_ref()
     }
 
+    /// Whether tasks carry plans (`--task-plans`): their fields, the plan tools and the
+    /// briefs' words about them are there only then.
+    #[must_use]
+    pub fn task_plans(&self) -> bool {
+        self.inner.task_plans
+    }
+
     /// The file of MCP servers the runners' sessions get too, when one is set.
     #[must_use]
     pub fn runner_mcp(&self) -> Option<&Path> {
@@ -1310,6 +1328,7 @@ struct RunnerInputs<'a> {
     private: crate::services::private::PrivatePaths,
     runners: Arc<dyn RunnerApi>,
     assistant_tasks: &'a Arc<dyn AssistantTasks>,
+    tasks: &'a TaskService,
 }
 
 /// The runners' services, wired together.
@@ -1337,6 +1356,7 @@ fn runner_area(inputs: RunnerInputs<'_>) -> RunnerArea {
         private,
         runners,
         assistant_tasks,
+        tasks,
     } = inputs;
     let transfer = TransferService::new(TransferParts {
         api: Arc::clone(&runners),
@@ -1358,6 +1378,7 @@ fn runner_area(inputs: RunnerInputs<'_>) -> RunnerArea {
         activity: activity.clone(),
         transfer: transfer.clone(),
         clock: Arc::clone(clock),
+        tasks: tasks.clone(),
     });
     let machines = MachineService::new(
         db.machines(),

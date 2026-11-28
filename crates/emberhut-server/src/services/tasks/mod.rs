@@ -38,13 +38,16 @@ mod asks;
 mod changes;
 pub mod files;
 mod outline;
+mod plan;
 pub mod rooms;
+mod sessions;
 mod shape;
 
 pub use asks::{AskInput, MessageFile};
 pub use changes::{FindingsItem, ProgressItem, reply_posts};
 pub use files::{ArtifactFiles, Ffmpeg, Thumbnailer};
 pub use rooms::RoomTask;
+pub use sessions::SessionTurn;
 
 /// `GET /api/tasks`'s query, read leniently: every value is
 /// text, and one that isn't what it should be narrows nothing.
@@ -216,6 +219,8 @@ pub struct TaskParts {
     pub files: ArtifactFiles,
     /// The workers' area.
     pub workers: Arc<dyn TaskWorkers>,
+    /// Tasks carry plans: each listed task and task page shows its own.
+    pub task_plans: bool,
 }
 
 /// The tasks.
@@ -237,6 +242,8 @@ pub struct TaskService {
     zone: TimeZone,
     files: ArtifactFiles,
     workers: Arc<dyn TaskWorkers>,
+    /// Tasks carry plans.
+    task_plans: bool,
     /// The areas that may take the person's answers first, in the order they were handed
     /// them (they are built after the tasks, over them).
     answers: Arc<std::sync::RwLock<Vec<Arc<dyn AnswerTaker>>>>,
@@ -257,6 +264,7 @@ impl TaskService {
             activity,
             files,
             workers,
+            task_plans,
         } = parts;
         Self {
             tasks: db.tasks(),
@@ -275,6 +283,7 @@ impl TaskService {
             zone,
             files,
             workers,
+            task_plans,
             answers: Arc::default(),
         }
     }
@@ -487,6 +496,7 @@ impl TaskService {
             .collect();
         let asked = self.asked_for(tasks, family).await?;
         let sends = self.send_results().await?;
+        let mut plans = self.plan_summaries(&ids).await?;
         let now = self.now();
         Ok(tasks
             .iter()
@@ -520,6 +530,7 @@ impl TaskService {
                         requested,
                         requested_by,
                         send: sends.get(&t.id.get().to_string()).map(send_to_api),
+                        plan: plans.remove(&t.id),
                     },
                 )
             })
@@ -932,7 +943,7 @@ impl TaskService {
             runs: Some(runs),
             sessions: Vec::new(),
             ultra_run: None,
-            plan: None,
+            plan: self.plan_of(id).await?,
         }))
     }
 

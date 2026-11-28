@@ -372,6 +372,7 @@ async fn dependencies(
         push,
         program_key,
         thumbnailer: Arc::new(services::tasks::Ffmpeg::new(config.tasks.ffmpeg.clone())),
+        task_plans: config.tasks.task_plans,
         schedule: vec![Arc::new(services::scheduled::SystemdTimers)],
         secrets_dir: config.secrets_dir.clone(),
         public_url: config.link_base(),

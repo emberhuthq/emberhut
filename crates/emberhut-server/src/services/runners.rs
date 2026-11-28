@@ -30,6 +30,7 @@ use tokio_util::sync::CancellationToken;
 use crate::convert::{room_to_api, timestamp_to_api};
 use crate::services::activity::ActivityLog;
 use crate::services::runner_api::{ByteStream, RunnerApi, RunnerError, Verb, by};
+use crate::services::tasks::{SessionTurn, TaskError, TaskService};
 use crate::services::threads::ThreadService;
 use crate::services::transfer::{TransferError, TransferService};
 
@@ -64,6 +65,9 @@ pub enum SessionError {
     /// A file couldn't be sent with the turn.
     #[error(transparent)]
     Transfer(#[from] TransferError),
+    /// The session's task couldn't be read or written.
+    #[error(transparent)]
+    Task(#[from] TaskError),
     /// The request can't be done as asked (nothing to send, nothing to start with).
     #[error("{0}")]
     Refused(String),
@@ -218,6 +222,8 @@ pub struct RunnerParts {
     pub transfer: TransferService,
     /// What time it is.
     pub clock: Arc<dyn Clock>,
+    /// The tasks the sessions work on: their links and runs.
+    pub tasks: TaskService,
 }
 
 /// The runners' sessions, as the server sees and drives them.
@@ -368,10 +374,15 @@ impl RunnerService {
     ///
     /// [`DbError`].
     pub async fn sessions(&self, filter: Filter) -> Result<Vec<api::work::RunnerSession>, DbError> {
-        // Task links are not kept yet: a task has no linked sessions.
-        if filter.task.is_some_and(|task| task != 0) {
-            return Ok(Vec::new());
-        }
+        let linked: Option<Vec<String>> = match filter.task.filter(|task| *task != 0) {
+            Some(task) => Some(
+                self.parts
+                    .tasks
+                    .linked_sessions(emberhut_core::task::TaskId::new(task))
+                    .await?,
+            ),
+            None => None,
+        };
         let mut threads: Vec<CodingThread> = self
             .runner_threads()
             .await?
@@ -381,14 +392,17 @@ impl RunnerService {
                     .room
                     .is_none_or(|room| room == RoomId::MAIN || room_of(thread) == room)
                     && (!filter.direct || thread.direct)
+                    && linked.as_ref().is_none_or(|ids| ids.contains(&thread.id))
             })
             .collect();
         threads.sort_by_key(|thread| std::cmp::Reverse(thread.updated_at));
         threads.truncate(LIST_LENGTH);
         let accounts = self.parts.usage.all().await?;
+        let ids: Vec<String> = threads.iter().map(|thread| thread.id.clone()).collect();
+        let tasks = self.parts.tasks.sessions_tasks(&ids).await?;
         Ok(threads
             .iter()
-            .map(|thread| self.row(thread, &accounts))
+            .map(|thread| self.row(thread, &accounts, tasks.get(&thread.id)))
             .collect())
     }
 
@@ -427,7 +441,12 @@ impl RunnerService {
         Ok(mine)
     }
 
-    fn row(&self, thread: &CodingThread, accounts: &[AccountUse]) -> api::work::RunnerSession {
+    fn row(
+        &self,
+        thread: &CodingThread,
+        accounts: &[AccountUse],
+        tasks: Option<&Vec<emberhut_core::task::TaskId>>,
+    ) -> api::work::RunnerSession {
         let running = thread.status == ThreadStatus::Running;
         api::work::RunnerSession {
             id: thread.id.clone().into(),
@@ -454,8 +473,11 @@ impl RunnerService {
             since: thread.since.filter(|_| running).map(timestamp_to_api),
             effort: thread.effort.clone(),
             question: thread.question.clone(),
-            // Task links are not kept yet.
-            tasks: Vec::new(),
+            tasks: tasks
+                .into_iter()
+                .flatten()
+                .map(|task| api::ids::TaskId::new(task.get()))
+                .collect(),
             room: room_to_api(room_of(thread)),
         }
     }
@@ -569,6 +591,31 @@ impl RunnerService {
                 "a followed session came to an end"
             );
         }
+        if let Some(task) = task_in(session) {
+            let turn = match (kind.as_str(), &thread.status) {
+                ("turn_finished", _) => SessionTurn::Finished {
+                    outcome: &turn
+                        .and_then(|turn| text(turn, "outcome"))
+                        .unwrap_or_else(|| "completed".to_owned()),
+                    last: thread.last.as_deref(),
+                },
+                (_, ThreadStatus::Running) => SessionTurn::Running {
+                    asked: thread.last_ask.as_deref(),
+                },
+                (_, ThreadStatus::Queued) => SessionTurn::Queued {
+                    asked: thread.last_ask.as_deref(),
+                },
+                (_, ThreadStatus::Other(_)) => SessionTurn::Unknown,
+                (_, status) => SessionTurn::Stopped {
+                    status: status.as_str(),
+                    last: thread.last.as_deref(),
+                },
+            };
+            self.parts
+                .tasks
+                .session_turn(task, machine, &id, turn)
+                .await?;
+        }
         match kind.as_str() {
             "note" => {
                 if let Some(note) = text(event, "text").filter(|note| !note.is_empty()) {
@@ -666,7 +713,8 @@ impl RunnerService {
         );
         if let Some(mine) = self.parts.store.get(&machine, id.as_str()).await? {
             let accounts = self.parts.usage.all().await?;
-            let row = self.row(&mine, &accounts);
+            let tasks = self.parts.tasks.session_tasks(id.as_str()).await?;
+            let row = self.row(&mine, &accounts, Some(&tasks));
             head.insert("accountName".to_owned(), json!(row.account_name));
             head.insert("tasks".to_owned(), json!(row.tasks));
             head.insert("doing".to_owned(), json!(row.doing));
@@ -1250,6 +1298,24 @@ pub(crate) fn text(value: &Value, key: &str) -> Option<String> {
         Value::String(text) => Some(text.clone()),
         other => Some(other.to_string()),
     }
+}
+
+/// The task a session's meta names (`meta.task`: its number, as a number or as text, or its
+/// key), if any.
+fn task_in(session: &Value) -> Option<emberhut_core::task::TaskId> {
+    let named = session.pointer("/meta/task")?;
+    let number = match named {
+        Value::Number(n) => n.as_i64(),
+        Value::String(text) => {
+            let text = text.trim();
+            text.strip_prefix(emberhut_core::task::wire::KEY_PREFIX)
+                .unwrap_or(text)
+                .parse()
+                .ok()
+        }
+        _ => None,
+    }?;
+    (number > 0).then(|| emberhut_core::task::TaskId::new(number))
 }
 
 /// Whether a JSON value is truthy, as JavaScript reads it.

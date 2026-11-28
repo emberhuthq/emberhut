@@ -607,7 +607,8 @@ impl TaskService {
     }
 
     /// A worker's session ended: its run closes (stopped while its task is still marked
-    /// working, completed otherwise) with the task's last line.
+    /// working, completed otherwise) with the task's last line, and a task whose plan is still
+    /// empty is marked ([`Self::turn_ended`]).
     ///
     /// # Errors
     ///
@@ -635,6 +636,7 @@ impl TaskService {
             .await?;
         if let Some(task) = task {
             self.tasks.set_worker(task.id, None, None).await?;
+            self.turn_ended(task.id).await?;
         }
         Ok(())
     }

@@ -349,6 +349,16 @@ pub struct TaskConfig {
         default_value = "ffmpeg"
     )]
     pub ffmpeg: PathBuf,
+    /// Tasks carry plans: the steps their agents tick as they go, written with the plan tools
+    /// (`plan_set`, `plan_step`, `plan_read`) and shown on every task the state lists and on
+    /// its page; the apps then show tasks as the work running. Off (the default), no plan is
+    /// shown or asked for and the tools are absent; plans already written are kept.
+    #[arg(
+        long = "task-plans",
+        env = "EMBERHUT_TASK_PLANS",
+        value_parser = clap::builder::BoolishValueParser::new()
+    )]
+    pub task_plans: bool,
 }
 
 /// The agent CLI the assistant runs, a session per room. Without a command the server answers
@@ -1104,6 +1114,18 @@ mod tests {
         );
         assert_eq!(config.voice.call_transcribe_minutes, 120);
         assert!(parse(&["--call-transcribe-minutes", "0"]).is_err());
+        assert!(
+            !config.tasks.task_plans,
+            "tasks carry no plans until turned on"
+        );
+    }
+
+    #[test]
+    fn task_plans_are_turned_on_by_their_flag() {
+        let Command::Serve(config) = parse(&["--task-plans"]).unwrap().into_command() else {
+            panic!("serving is the default");
+        };
+        assert!(config.tasks.task_plans);
     }
 
     #[test]
