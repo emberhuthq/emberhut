@@ -594,6 +594,9 @@ fn connect_options(url: &DatabaseUrl, create: bool, timing: Timing) -> ConnectOp
                 .foreign_keys(true)
                 .journal_mode(SqliteJournalMode::Wal)
                 .synchronous(SqliteSynchronous::Normal)
+                // A deleted row's bytes are overwritten, not left in free pages: what the
+                // owner forgets is gone from the file (ADR 0034).
+                .pragma("secure_delete", "on")
                 .busy_timeout(timing.busy)
         });
     options
@@ -894,6 +897,7 @@ mod tests {
             ("synchronous", "1"),
             ("foreign_keys", "1"),
             ("busy_timeout", "5000"),
+            ("secure_delete", "1"),
         ] {
             let row = db
                 .conn

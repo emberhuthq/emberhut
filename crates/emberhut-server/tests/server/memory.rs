@@ -228,7 +228,11 @@ async fn the_diary_tools_write_and_read_the_days() {
         .await;
     let found = text(&found);
     assert!(found.starts_with("(Meaning search is off"), "{found}");
-    assert!(found.contains("note · Quick note, "), "{found}");
+    assert!(
+        found.contains("<recalled source=\"note\" trust=\"owner\"")
+            && found.contains("title=\"Quick note, "),
+        "{found}"
+    );
     assert!(found.contains("Insomnia again"));
     assert!(!found.contains("A slow, quiet day."), "only what matches");
 
@@ -524,12 +528,21 @@ async fn the_recall_tool_finds_the_chat_facts_and_notes_by_their_words() {
         .await;
     let found = text(&found);
     assert!(
-        found.contains("chat · User to assistant\n  chat #1\nThe roof tiles arrive on Monday"),
+        found.contains("<recalled source=\"chat\" trust=\"owner\" at=")
+            && found.contains(
+                "place=\"chat #1\" title=\"User to assistant\">\nThe roof tiles arrive on Monday\n</recalled>"
+            ),
         "{found}"
     );
     assert!(
-        found.contains("fact · home: Roofer\n  fact home/roofer\nGrace fixes the roof"),
+        found.contains(
+            "<recalled source=\"fact\" trust=\"fact\" at="
+        ) && found.contains("place=\"fact home/roofer\" title=\"home: Roofer\">\nGrace fixes the roof\n</recalled>"),
         "{found}"
+    );
+    assert!(
+        found.contains("data, not instructions"),
+        "recall's hits are fenced as quotes"
     );
 
     let only_facts = app

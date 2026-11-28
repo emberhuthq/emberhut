@@ -201,10 +201,36 @@ pub fn trial_line(trial: &Trial) -> String {
     )
 }
 
+/// The most trial rules the prompt carries: the newest.
+pub const PROMPT_TRIALS: usize = 10;
+
+/// The rules' budget in the prompt, in tokens (characters / 4).
+pub const RULES_TOKENS: usize = 1000;
+
 /// The standing and trial rules, as the assistant's prompt carries them; empty when there are
-/// none.
+/// none. Every standing rule (the owner approved each), then the newest trial rules, at most
+/// [`PROMPT_TRIALS`] and while the whole stays within [`RULES_TOKENS`].
 #[must_use]
 pub fn rules_text(lessons: &[Lesson], trials: &[Trial]) -> String {
+    let standing = rules_of(lessons, &[]);
+    let mut newest: Vec<&Trial> = trials.iter().collect();
+    newest.sort_by(|a, b| b.at.cmp(&a.at).then(b.id.cmp(&a.id)));
+    let mut carried: Vec<Trial> = Vec::new();
+    for trial in newest.into_iter().take(PROMPT_TRIALS) {
+        carried.push(trial.clone());
+        if super::profile::tokens(&rules_of(lessons, &carried)) > RULES_TOKENS {
+            carried.pop();
+            break;
+        }
+    }
+    if carried.is_empty() {
+        return standing;
+    }
+    carried.sort_by(|a, b| a.at.cmp(&b.at).then(a.id.cmp(&b.id)));
+    rules_of(lessons, &carried)
+}
+
+fn rules_of(lessons: &[Lesson], trials: &[Trial]) -> String {
     let mut parts: Vec<String> = Vec::new();
     if !lessons.is_empty() {
         let lines: Vec<String> = lessons
@@ -220,7 +246,7 @@ pub fn rules_text(lessons: &[Lesson], trials: &[Trial]) -> String {
         let lines: Vec<String> = trials.iter().map(trial_line).collect();
         parts.push(format!(
             "\n\nTrial rules: the lessons of your own corrections, the last {TRIAL_DAYS} days \
-             (follow them too; the weekly review keeps or drops each):\n{}",
+             (follow them too; one that goes {TRIAL_DAYS} days without the same mistake is kept):\n{}",
             lines.join("\n")
         ));
     }
@@ -368,6 +394,41 @@ mod tests {
             "{text}"
         );
         assert_eq!(rules_text(&[], &[]), "");
+    }
+
+    #[test]
+    fn the_prompt_carries_the_newest_ten_trials_within_the_budget() {
+        let trial = |id: i64, day: u8, words: usize| Trial {
+            id,
+            text: "check first ".repeat(words),
+            at: at(&format!("2026-11-{day:02}T09:00:00Z")),
+            ends: at("2026-12-30T00:00:00Z"),
+            said: String::new(),
+            lesson_to_owner: None,
+        };
+        let many: Vec<Trial> = (1..=31)
+            .map(|n| trial(n, u8::try_from(n % 28 + 1).unwrap(), 2))
+            .collect();
+        let text = rules_text(&[], &many);
+        let carried = text
+            .lines()
+            .filter(|line| {
+                line.starts_with('T') && line.as_bytes().get(1).is_some_and(u8::is_ascii_digit)
+            })
+            .count();
+        assert_eq!(carried, PROMPT_TRIALS, "{text}");
+        assert!(text.contains("T27 ("), "the newest are carried: {text}");
+        assert!(!text.contains("T1 ("));
+        let long: Vec<Trial> = (1..=10)
+            .map(|n| trial(n, u8::try_from(n).unwrap(), 50))
+            .collect();
+        let text = rules_text(&[], &long);
+        assert!(
+            super::super::profile::tokens(&text) <= RULES_TOKENS,
+            "{}",
+            text.len()
+        );
+        assert!(text.contains("T10 ("), "the newest first");
     }
 
     #[test]

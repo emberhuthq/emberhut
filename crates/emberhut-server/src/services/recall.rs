@@ -21,10 +21,12 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
 use emberhut_core::RoomId;
+use emberhut_core::memory::facts::Fact;
+use emberhut_core::memory::forget::{Rarity, Tombstone, distinctive};
 use emberhut_core::memory::notes::{NoteAuthor, hour_minute};
 use emberhut_core::memory::recall::{
-    EACH, Filter, Found, NewDoc, Vectors, embed_query, embed_text, fuse, match_query, normalised,
-    query_words, sameness, source,
+    Doc, EACH, Filter, Found, NewDoc, UNCONFIRMED, Vectors, embed_query, embed_text, fuse,
+    match_query, normalised, query_words, sameness, source,
 };
 use emberhut_db::{
     ConversationStore, DbError, IndexBatch, NoteStore, RecallStore, TranscriptOffset,
@@ -282,6 +284,8 @@ struct Inner {
     vectors: RwLock<Option<Arc<Vectors>>>,
     /// A piece changed since the vectors were last brought up to date.
     changed: AtomicBool,
+    /// What the owner forgot: a new piece that says it again is not indexed.
+    tombstones: Mutex<Arc<Vec<Tombstone>>>,
     /// The embedding model was checked against the one that made the vectors kept.
     model_checked: AtomicBool,
     /// The facts' and notes' stamps when they were last indexed: unchanged, they are not
@@ -299,6 +303,7 @@ impl RecallService {
                 syncing: tokio::sync::Mutex::new(()),
                 vectors: RwLock::new(None),
                 changed: AtomicBool::new(true),
+                tombstones: Mutex::new(Arc::new(Vec::new())),
                 model_checked: AtomicBool::new(false),
                 indexed_stamp: Mutex::new(None),
             }),
@@ -316,6 +321,7 @@ impl RecallService {
     /// [`RecallError`].
     pub async fn sync(&self) -> Result<(), RecallError> {
         let _one = self.inner.syncing.lock().await;
+        self.read_tombstones().await?;
         self.sync_chat().await?;
         self.sync_tasks().await?;
         self.sync_task_lines().await?;
@@ -360,6 +366,7 @@ impl RecallService {
                 text: note.text,
             });
         }
+        let mut docs = self.admit(docs);
         let facts = parts.facts.facts(None).await?;
         let mut fact_ids = HashSet::new();
         for fact in facts {
@@ -373,7 +380,12 @@ impl RecallService {
             docs.push(NewDoc {
                 source: source::FACT.to_owned(),
                 at: fact.updated.parse().ok(),
-                title: format!("{}: {}", fact.category, fact.title),
+                title: format!(
+                    "{}{}: {}",
+                    if fact.pending { UNCONFIRMED } else { "" },
+                    fact.category,
+                    fact.title
+                ),
                 place: format!("fact {}", fact.id),
                 reference: fact.id,
                 text,
@@ -407,10 +419,39 @@ impl RecallService {
             .and_then(|mark| mark.parse::<jiff::Timestamp>().ok()))
     }
 
+    /// Reads what the owner forgot, for the pass about to run.
+    async fn read_tombstones(&self) -> Result<(), RecallError> {
+        let read = self.inner.parts.facts.tombstones().await?;
+        *self
+            .inner
+            .tombstones
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Arc::new(read);
+        Ok(())
+    }
+
+    /// `docs` without those that say again what the owner forgot.
+    fn admit(&self, mut docs: Vec<NewDoc>) -> Vec<NewDoc> {
+        let tombstones = Arc::clone(
+            &self
+                .inner
+                .tombstones
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        if !tombstones.is_empty() {
+            docs.retain(|doc| {
+                let said = format!("{}\n{}", doc.title, doc.text);
+                !tombstones.iter().any(|tomb| tomb.matches(&said))
+            });
+        }
+        docs
+    }
+
     /// Indexes `docs`, and moves mark `key` to `mark`.
     async fn put(&self, docs: Vec<NewDoc>, key: &str, mark: String) -> Result<(), RecallError> {
         let batch = IndexBatch {
-            docs,
+            docs: self.admit(docs),
             only: Vec::new(),
             marks: vec![(key.to_owned(), mark)],
         };
@@ -546,7 +587,7 @@ impl RecallService {
                 })
                 .collect();
             let batch = IndexBatch {
-                docs,
+                docs: self.admit(docs),
                 only: Vec::new(),
                 marks: vec![(CHAT_MARK.to_owned(), last.get().to_string())],
             };
@@ -574,6 +615,7 @@ impl RecallService {
         .await
         .unwrap_or_default();
         let read = self.store().transcript_offsets().await?;
+        self.read_tombstones().await?;
         for (path, folder, size) in files {
             let key = path.to_string_lossy().into_owned();
             if read.get(&key).is_some_and(|known| known.offset == size) {
@@ -670,6 +712,7 @@ impl RecallService {
                 offset: at.offset + end as u64 + 1,
                 line,
             };
+            let docs = self.admit(docs);
             if store.read_transcript(key, at, &docs).await? {
                 self.inner.changed.store(true, Ordering::Release);
             }
@@ -953,6 +996,123 @@ impl RecallService {
             indexed: self.store().count().await?,
             embedded: vectors.len(),
         })
+    }
+}
+
+/// A fact the owner forgot, and how many pieces of the record went with it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Forgotten {
+    /// The fact, as it was.
+    pub fact: Fact,
+    /// The pieces of the record taken out of recall with it (its own not counted).
+    pub pieces: u64,
+}
+
+impl RecallService {
+    /// The words of `fact` to forget it by, and the keys among them: those rare in the record
+    /// (in at most one piece in a hundred, or 20), keys in hardly any (one in a thousand, or
+    /// 5); all of its words when none is rare.
+    async fn words_of(&self, fact: &Fact) -> Result<(Vec<String>, Vec<String>), RecallError> {
+        let said = [
+            Some(fact.title.as_str()),
+            Some(fact.text.as_str()),
+            fact.now.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("\n");
+        let pieces = self.store().count().await?;
+        let (rare_below, key_below) = ((pieces / 100).max(20), (pieces / 1000).max(5));
+        let mut rarity = std::collections::HashMap::new();
+        for word in emberhut_core::memory::forget::words(&said) {
+            let count = self.store().word_count(&word).await?;
+            let rare = if count <= key_below {
+                Rarity::Key
+            } else if count <= rare_below {
+                Rarity::Rare
+            } else {
+                Rarity::Common
+            };
+            rarity.insert(word, rare);
+        }
+        Ok(distinctive(&said, |word| {
+            rarity.get(word).copied().unwrap_or(Rarity::Common)
+        }))
+    }
+
+    /// The pieces of the record (no fact) that say what the fact `id` says: those holding two
+    /// of its distinctive words, or all of them when it has fewer. The ones "Forget everywhere"
+    /// offers to take out with it, best first.
+    ///
+    /// # Errors
+    ///
+    /// [`RecallError::Facts`] when there is no such fact; [`RecallError::Database`].
+    pub async fn saying(&self, id: &str) -> Result<Vec<Doc>, RecallError> {
+        let fact = self.fact(id).await?;
+        let (words, keys) = self.words_of(&fact).await?;
+        self.pieces_saying(&words, &keys).await
+    }
+
+    async fn fact(&self, id: &str) -> Result<Fact, RecallError> {
+        self.inner
+            .parts
+            .facts
+            .facts(None)
+            .await?
+            .into_iter()
+            .find(|fact| fact.id == id)
+            .ok_or_else(|| RecallError::Facts(FactError::Refused(format!("no fact {id}"))))
+    }
+
+    async fn pieces_saying(
+        &self,
+        words: &[String],
+        keys: &[String],
+    ) -> Result<Vec<Doc>, RecallError> {
+        if words.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tomb = Tombstone::new("", words, keys);
+        Ok(self
+            .store()
+            .search_words(&match_query(words), WORD_CANDIDATES)
+            .await?
+            .into_iter()
+            .filter(|doc| doc.source != source::FACT)
+            .filter(|doc| tomb.matches(&format!("{}\n{}", doc.title, doc.text)))
+            .collect())
+    }
+
+    /// Forgets the fact `id` everywhere, as the owner asked: the fact (its file, its pieces and
+    /// their vectors), the pieces of the record `pieces` names (none: every one [`Self::saying`]
+    /// finds), and a tombstone, so it is not kept or indexed again.
+    ///
+    /// # Errors
+    ///
+    /// [`RecallError::Facts`] when there is no such fact; [`RecallError::Database`].
+    pub async fn forget_everywhere(
+        &self,
+        id: &str,
+        pieces: Option<Vec<i64>>,
+    ) -> Result<Forgotten, RecallError> {
+        let fact = self.fact(id).await?;
+        let (words, keys) = self.words_of(&fact).await?;
+        let pieces = match pieces {
+            Some(pieces) => pieces,
+            None => self
+                .pieces_saying(&words, &keys)
+                .await?
+                .into_iter()
+                .map(|doc| doc.id)
+                .collect(),
+        };
+        let fact = self.inner.parts.facts.forget(id, &words, &keys).await?;
+        let gone = self.store().delete_pieces(&pieces).await?;
+        // The fact's own pieces go as the facts are indexed again (its file is gone).
+        self.sync().await?;
+        self.prune_vectors().await?;
+        Ok(Forgotten { fact, pieces: gone })
     }
 }
 

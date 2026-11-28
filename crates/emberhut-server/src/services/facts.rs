@@ -13,8 +13,9 @@ use std::sync::Arc;
 
 use emberhut_core::event::NewEvent;
 use emberhut_core::memory::facts::{
-    CATEGORIES, Fact, PEOPLE, free_id, is_id, parse, person_name, plain, render, slug,
+    CATEGORIES, Fact, PEOPLE, free_id, is_id, origin, parse, person_name, plain, render, slug,
 };
+use emberhut_core::memory::forget::{self, Tombstone};
 use emberhut_core::memory::iso;
 use emberhut_core::{Clock, RoomId};
 use emberhut_db::{DbError, EventStore};
@@ -77,7 +78,19 @@ pub struct SetFact {
     pub source: Option<String>,
     /// The project it belongs to.
     pub project: ProjectChange,
+    /// Who puts it there ([`origin`]), as the server decides; none: what it had (a new fact:
+    /// the assistant).
+    pub origin: Option<String>,
+    /// Where in the record it was said; none: what it had.
+    pub from: Option<String>,
+    /// It waits for the owner to confirm it. A pending change to a fact the owner has
+    /// confirmed is kept apart, as a new fact, so the confirmed one stays as it is.
+    pub pending: bool,
 }
+
+/// What the assistant is told when it tries to keep what the owner forgot.
+pub const FORGOTTEN: &str = "The owner asked to forget this, so it is not kept. Don't save it \
+again unless the owner tells you to.";
 
 /// A person's card to keep: found by id, by a chat that is theirs, or by name; made if new.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -176,6 +189,118 @@ impl FactService {
         blocking(move || set_person(&root, change, &now)).await
     }
 
+    /// Forgets the fact `id` for good, as the owner asked: its file goes, and a tombstone of
+    /// `words` and `keys` (its distinctive words, as hashes) is kept, so the same thing isn't
+    /// kept again.
+    /// The fact as it was.
+    ///
+    /// # Errors
+    ///
+    /// [`FactError::Refused`] when there is no such fact; [`FactError::Folder`].
+    pub async fn forget(
+        &self,
+        id: &str,
+        words: &[String],
+        keys: &[String],
+    ) -> Result<Fact, FactError> {
+        let _writing = self.writing.lock().await;
+        let root = self.root.clone();
+        let id = id.to_owned();
+        let tombstone = Tombstone::new(&iso(self.clock.now()), words, keys);
+        blocking(move || {
+            let fact = read_one(&root, &id)?;
+            let mut kept = fs::read_to_string(root.join(forget::FILE)).unwrap_or_default();
+            if !kept.is_empty() && !kept.ends_with('\n') {
+                kept.push('\n');
+            }
+            kept.push_str(&tombstone.line());
+            kept.push('\n');
+            write_whole(&root.join(forget::FILE), kept.as_bytes()).map_err(FactError::Folder)?;
+            fs::remove_file(file_of(&root, &id)).map_err(FactError::Folder)?;
+            Ok(fact)
+        })
+        .await
+    }
+
+    /// The tombstones of what the owner forgot.
+    ///
+    /// # Errors
+    ///
+    /// [`FactError::Folder`].
+    pub async fn tombstones(&self) -> Result<Vec<Tombstone>, FactError> {
+        let root = self.root.clone();
+        blocking(move || Ok(tombstones(&root))).await
+    }
+
+    /// The owner confirms fact `id`: it no longer waits, and goes into the profile.
+    ///
+    /// # Errors
+    ///
+    /// [`FactError::Refused`] when there is no such fact; [`FactError::Folder`].
+    pub async fn confirm(&self, id: &str) -> Result<(), FactError> {
+        self.change(id, |fact| fact.pending = false).await
+    }
+
+    /// The owner's say on fact `id` in the profile: `pin`, `hide`, or none (as it comes).
+    ///
+    /// # Errors
+    ///
+    /// [`FactError::Refused`] for another say or no such fact; [`FactError::Folder`].
+    pub async fn set_profile(&self, id: &str, say: Option<&str>) -> Result<(), FactError> {
+        let say = match say.filter(|say| !say.is_empty()) {
+            None => None,
+            Some(say @ ("pin" | "hide")) => Some(say.to_owned()),
+            Some(other) => {
+                return Err(FactError::Refused(format!(
+                    "profile must be pin, hide or empty, not {other}"
+                )));
+            }
+        };
+        self.change(id, move |fact| fact.profile = say).await
+    }
+
+    /// Changes fact `id` with `edit` and writes it.
+    async fn change(
+        &self,
+        id: &str,
+        edit: impl FnOnce(&mut Fact) + Send + 'static,
+    ) -> Result<(), FactError> {
+        let _writing = self.writing.lock().await;
+        let root = self.root.clone();
+        let id = id.to_owned();
+        let now = iso(self.clock.now());
+        blocking(move || {
+            let mut fact = read_one(&root, &id)?;
+            edit(&mut fact);
+            write(&root, &fact, &now)
+        })
+        .await
+    }
+
+    /// Writes `profile` to the context folder's profile file (`_profile.md`).
+    ///
+    /// # Errors
+    ///
+    /// [`FactError::Folder`].
+    pub async fn write_profile(&self, profile: String) -> Result<(), FactError> {
+        let root = self.root.clone();
+        blocking(move || {
+            fs::create_dir_all(&root).map_err(FactError::Folder)?;
+            let path = root.join(emberhut_core::memory::profile::FILE);
+            if fs::read_to_string(&path).ok().as_deref() == Some(profile.as_str()) {
+                return Ok(());
+            }
+            write_whole(&path, profile.as_bytes()).map_err(FactError::Folder)
+        })
+        .await
+    }
+
+    /// The context folder.
+    #[must_use]
+    pub fn folder(&self) -> &Path {
+        &self.root
+    }
+
     /// Forgets the fact `id`.
     ///
     /// # Errors
@@ -243,6 +368,10 @@ pub fn fact_to_api(fact: Fact) -> emberhut_api::facts::Fact {
         chats: fact.chats,
         important: fact.important,
         project: fact.project,
+        origin: fact.origin,
+        from: fact.from,
+        pending: fact.pending,
+        profile: fact.profile,
     }
 }
 
@@ -292,6 +421,24 @@ fn read_all(root: &Path, category: Option<&str>) -> Result<Vec<Fact>, FactError>
     }
     facts.sort_by(|a, b| b.updated.cmp(&a.updated));
     Ok(facts)
+}
+
+/// The fact `id`, refused when there is none.
+fn read_one(root: &Path, id: &str) -> Result<Fact, FactError> {
+    let category = id.split_once('/').map(|(category, _)| category);
+    if !is_id(id) || !file_of(root, id).is_file() {
+        return Err(FactError::Refused(format!("no fact {id}")));
+    }
+    let only = category.filter(|category| is_agent_category(category));
+    read_all(root, only.or(category))?
+        .into_iter()
+        .find(|fact| fact.id == id)
+        .ok_or_else(|| FactError::Refused(format!("no fact {id}")))
+}
+
+/// The tombstones in `root` (none when it has no file of them).
+fn tombstones(root: &Path) -> Vec<Tombstone> {
+    fs::read_to_string(root.join(forget::FILE)).map_or_default(|text| forget::read_all(&text))
 }
 
 /// Writes `fact` to its file at `now`.
@@ -374,6 +521,13 @@ fn set_fact(root: &Path, change: &SetFact, now: &str) -> Result<String, FactErro
             CATEGORIES.join(", ")
         )));
     }
+    // What the owner forgot stays forgotten, unless the owner keeps it again themselves.
+    let said = format!("{}\n{}", change.title, change.text);
+    if change.origin.as_deref() != Some(origin::OWNER)
+        && tombstones(root).iter().any(|tomb| tomb.matches(&said))
+    {
+        return Err(FactError::Refused(FORGOTTEN.to_owned()));
+    }
     let old = match change.id.as_deref().filter(|id| !id.is_empty()) {
         Some(id) => Some(
             read_all(
@@ -391,6 +545,8 @@ fn set_fact(root: &Path, change: &SetFact, now: &str) -> Result<String, FactErro
             .into_iter()
             .find(|fact| plain(&fact.title) == plain(&change.title)),
     };
+    // A pending change to a confirmed fact is a fact of its own, waiting beside it.
+    let old = old.filter(|old| !change.pending || old.pending);
     // A title that slugs the same keeps its id (slug-2 stays slug-2); another is a new file.
     let id = match &old {
         Some(old) if old.category == change.category && slug(&old.title) == slug(&change.title) => {
@@ -414,6 +570,13 @@ fn set_fact(root: &Path, change: &SetFact, now: &str) -> Result<String, FactErro
         text: change.text.clone(),
         source: change.source.clone().unwrap_or_else(|| was.source.clone()),
         project: project(change.project.clone(), was.project.clone()),
+        origin: change
+            .origin
+            .clone()
+            .or_else(|| was.origin.clone())
+            .or_else(|| Some(origin::ASSISTANT.to_owned())),
+        from: change.from.clone().or_else(|| was.from.clone()),
+        pending: change.pending,
         ..was
     };
     write(root, &fact, now)?;

@@ -463,7 +463,11 @@ a time (`emberhut_api::settings::SettingsAction`, written as the wire's `Setting
 | `{ "projectSet": { "id": 2, ... } }` | change a project: `priority` (0 to 4), `deadline`, `hard`, `status`, `pausedUntil` |
 | `{ "factSet": { "id", "category", "title", "text" } }` | correct a fact; its source becomes `you corrected it, <day>` and the assistant hears of it |
 | `{ "personSet": { "id": "people/…", "important": true } }` | whether that person's messages wake the assistant at once |
-| `{ "factDrop": "work/…" }`, `{ "trialDrop": 252 }`, `{ "trialKeep": 252 }` | forget a fact, drop a rule on trial, keep one now as a standing rule (before the weekly review) |
+| `{ "factDrop": "work/…" }`, `{ "trialDrop": 252 }`, `{ "trialKeep": 252 }` | forget a fact everywhere (the fact, every piece of the record that says it and their vectors, with a tombstone so it isn't kept again), drop a rule on trial, keep one now as a standing rule |
+| `{ "factForget": { "id": "health/…", "pieces": [12, 40] } }` | forget a fact everywhere, with the pieces of the record `GET /api/facts/forget` listed that the user picked (`pieces` left out: all of them) |
+| `{ "factConfirm": "preferences/…" }` | confirm a fact that waits for the user (`pending`) |
+| `{ "factProfile": { "id": "people/…", "profile": "pin" } }` | pin a fact in what the assistant always knows (`pin`), hide it from it (`hide`), or neither (`null`) |
+| `{ "memoryNightly": false }` | turn the nightly memory review off (or on) |
 | `{ "xPosted": 40, "option": 0 }` | one of a post's drafted replies was posted (its task is done) |
 | `{ "authRevoke": 3 }` | sign a device out |
 | `{ "ui": { "hideGoals": false } }`, `{ "build": { "platform": "ios", "number": 12 } }` | what the app hides, a build a store has ready (below) |
@@ -552,11 +556,28 @@ without these routes answers 404.
 
 What the assistant knows about the user (`FactsPage`): `facts` (each `{ id, category, title,
 text, source, updated }`, a person's with `now`, `nowAt`, `chats`, `important`, some with
-`project`), the standing rules `lessons` (`{ id, text, at }`), and the rules on trial `trials`
-(`{ id, text, at, ends, said, lesson? }`: a correction's lesson, followed for 14 days until a
-weekly review keeps or drops it; `lesson` is the same lesson as one short line to the user, in
-the second person, when the assistant gave one). Categories: `people`, `work`, `money`, `preferences`, `health`,
-`home`, `projects`, `proof`. Fixes go through `POST /api/settings`.
+`project`; and where it came from, ADR 0034: `origin` (`owner`, `assistant`, `message`, `web`,
+`import`), `from` (where in the record it was said, `chat #22`), `pending: true` while it waits
+for the user to confirm it, `profile` (`pin` or `hide`)), the standing rules `lessons`
+(`{ id, text, at }`), and the rules on trial `trials` (`{ id, text, at, ends, said, lesson? }`: a
+correction's lesson, followed for 14 days; the nightly review keeps one that goes its 14 days
+without the same mistake and asks the user about one that doesn't; `lesson` is the same lesson as
+one short line to the user, in the second person, when the assistant gave one). Categories:
+`people`, `work`, `money`, `preferences`, `health`, `home`, `projects`, `proof`. Fixes go through
+`POST /api/settings`.
+
+### GET /api/facts/forget?id=…
+
+What "Forget everywhere" would take out with a fact (`ForgetPreview`): `fact`, and `pieces`
+(each `{ id, source, title, text, place, at? }`), the pieces of the record (chat, sessions, voice
+notes, notes, tasks) that say it, best first. Nothing changes; `factForget` forgets. 400 for no
+such fact.
+
+### GET /api/memory/export
+
+Everything the assistant keeps about the user, as one zip (`application/zip`, a signed-in device
+only): `context/` as it is (one markdown file per fact, `_profile.md`, the tombstones in
+`.forgotten`) and `memory.json` (`notes`, `corrections`, `lessons`, `trials`).
 
 ### POST /api/chrome
 

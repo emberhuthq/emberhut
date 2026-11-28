@@ -1,9 +1,12 @@
 //! What the owner changes on the app's "About you" page: `factSet` (a corrected fact),
-//! `personSet` (whether a person's messages wake the assistant), `factDrop` (forget a fact),
+//! `personSet` (whether a person's messages wake the assistant), `factDrop` and `factForget`
+//! (forget a fact everywhere), `factConfirm` (confirm one that waits), `factProfile` (pin or
+//! hide one in the profile), `memoryNightly` (the nightly memory review on or off),
 //! `trialDrop` (drop a rule on trial) and `trialKeep` (keep one now). The assistant hears of
 //! each fact change as a `fact` event in Main; a dropped trial rule is gone from its rules, and
 //! a kept one is among its standing rules, the next time it reads them.
 
+use emberhut_core::memory::facts::origin;
 use emberhut_core::memory::learning::TrialJudge;
 use serde_json::Value;
 
@@ -58,6 +61,9 @@ impl Action for FactSet {
                 .map_or(ProjectChange::Keep, |project| {
                     ProjectChange::given(project.as_str())
                 }),
+            origin: Some(origin::OWNER.to_owned()),
+            from: None,
+            pending: false,
         };
         let shown = set.text.clone();
         let id = facts.set_fact(set).await.map_err(fact_error)?;
@@ -107,8 +113,9 @@ impl Action for PersonSet {
     }
 }
 
-/// `{ factDrop: "<id>" }`: the owner told the assistant to forget a fact. A value that is not
-/// text asks for nothing.
+/// `{ factDrop: "<id>" }`: the owner told the assistant to forget a fact: it is forgotten
+/// everywhere, with every piece of the record that says it. A value that is not text asks for
+/// nothing.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct FactDrop;
 
@@ -121,10 +128,125 @@ impl Action for FactDrop {
         let Some(Value::String(id)) = body.get("factDrop") else {
             return Ok(());
         };
+        forget_everywhere(ctx, id, None).await
+    }
+}
+
+/// `{ factForget: { id, pieces? } }`: the owner forgets a fact everywhere, with the pieces of
+/// the record they picked (none: every one that says it). A `factForget` that is not an object
+/// with an id asks for nothing.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FactForget;
+
+impl Action for FactForget {
+    fn key(&self) -> &'static str {
+        "factForget"
+    }
+
+    async fn apply(&self, ctx: &ActionContext, body: &Body) -> Result<(), ActionError> {
+        let Some(Value::Object(forget)) = body.get("factForget") else {
+            return Ok(());
+        };
+        let Some(id) = forget.get("id").and_then(Value::as_str) else {
+            return Ok(());
+        };
+        let pieces = forget
+            .get("pieces")
+            .and_then(Value::as_array)
+            .map(|pieces| pieces.iter().filter_map(Value::as_i64).collect());
+        forget_everywhere(ctx, id, pieces).await
+    }
+}
+
+/// Forgets fact `id` everywhere and tells the assistant, without repeating what it said.
+async fn forget_everywhere(
+    ctx: &ActionContext,
+    id: &str,
+    pieces: Option<Vec<i64>>,
+) -> Result<(), ActionError> {
+    let forgotten = match ctx.app.recall().forget_everywhere(id, pieces).await {
+        Ok(forgotten) => forgotten,
+        Err(crate::services::recall::RecallError::Facts(error)) => return Err(fact_error(error)),
+        Err(error) => return Err(ActionError::failed(error)),
+    };
+    ctx.app
+        .facts()
+        .tell(format!(
+            "The user told you to forget {id} everywhere: it and {} pieces of what was said are \
+             gone from your memory. Don't keep it again, and don't bring it up.",
+            forgotten.pieces
+        ))
+        .await
+        .map_err(ActionError::failed)
+}
+
+/// `{ factConfirm: "<id>" }`: the owner confirms a fact that waited for them. A value that is
+/// not text asks for nothing.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FactConfirm;
+
+impl Action for FactConfirm {
+    fn key(&self) -> &'static str {
+        "factConfirm"
+    }
+
+    async fn apply(&self, ctx: &ActionContext, body: &Body) -> Result<(), ActionError> {
+        let Some(Value::String(id)) = body.get("factConfirm") else {
+            return Ok(());
+        };
         let facts = ctx.app.facts();
-        facts.drop_fact(id).await.map_err(fact_error)?;
+        facts.confirm(id).await.map_err(fact_error)?;
         facts
-            .tell(format!("The user told you to forget {id}."))
+            .tell(format!("The user confirmed {id}."))
+            .await
+            .map_err(ActionError::failed)
+    }
+}
+
+/// `{ factProfile: { id, profile } }`: the owner pins a fact in the profile (`pin`), hides it
+/// from it (`hide`), or leaves it to come as it comes (none). A `factProfile` that is not an
+/// object with an id asks for nothing.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FactProfile;
+
+impl Action for FactProfile {
+    fn key(&self) -> &'static str {
+        "factProfile"
+    }
+
+    async fn apply(&self, ctx: &ActionContext, body: &Body) -> Result<(), ActionError> {
+        let Some(Value::Object(say)) = body.get("factProfile") else {
+            return Ok(());
+        };
+        let Some(id) = say.get("id").and_then(Value::as_str) else {
+            return Ok(());
+        };
+        let profile = say.get("profile").and_then(Value::as_str);
+        ctx.app
+            .facts()
+            .set_profile(id, profile)
+            .await
+            .map_err(fact_error)
+    }
+}
+
+/// `{ memoryNightly: true | false }`: the nightly memory review on or off. A value that is not
+/// a boolean asks for nothing.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct MemoryNightly;
+
+impl Action for MemoryNightly {
+    fn key(&self) -> &'static str {
+        "memoryNightly"
+    }
+
+    async fn apply(&self, ctx: &ActionContext, body: &Body) -> Result<(), ActionError> {
+        let Some(on) = body.get("memoryNightly").and_then(Value::as_bool) else {
+            return Ok(());
+        };
+        ctx.app
+            .nightly()
+            .set_on(on)
             .await
             .map_err(ActionError::failed)
     }

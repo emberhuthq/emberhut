@@ -20,6 +20,15 @@
 //! A fact's id is its path without `.md` (`people/ada-lovelace`). A person's card is a `people`
 //! fact with the assistant's running note on them (`now`), the chats that are theirs and whether
 //! a message from them wakes the assistant at once (`important`).
+//!
+//! Every fact may also say where it came from and how far it can be trusted (ADR 0034), each
+//! key optional (a file without them reads as before):
+//! - `origin`: who put it there ([`origin`]), decided by the server, not the assistant;
+//! - `from`: where in the record it was said (`chat #22`, a transcript's `path:line`);
+//! - `pending: yes`: written from what someone else sent; it waits for the owner to confirm,
+//!   and stays out of the profile until then;
+//! - `confidence`, `valid` (`since..until`), `superseded_by`, `sensitive`, `last_used`;
+//! - `profile`: `pin` (always in the profile) or `hide` (never).
 
 use std::sync::LazyLock;
 
@@ -41,6 +50,24 @@ pub const CATEGORIES: [&str; 7] = [
 
 /// The category of people's cards.
 pub const PEOPLE: &str = "people";
+
+/// The categories whose facts are in the profile only when the owner pins them.
+pub const SENSITIVE: [&str; 2] = ["health", "money"];
+
+/// Who put a fact there: how far its content can be trusted.
+pub mod origin {
+    /// The owner, in the app.
+    pub const OWNER: &str = "owner";
+    /// The assistant, in a turn the owner's own message started.
+    pub const ASSISTANT: &str = "assistant";
+    /// The assistant, in a turn something else started: someone else's message, mail, a
+    /// voice note, a scheduled wake. Written pending.
+    pub const MESSAGE: &str = "message";
+    /// A web page.
+    pub const WEB: &str = "web";
+    /// Brought in from another assistant's memory.
+    pub const IMPORT: &str = "import";
+}
 
 /// One fact, as its file holds it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -67,6 +94,45 @@ pub struct Fact {
     pub important: Option<bool>,
     /// The project it belongs to (its name); none: every room has it.
     pub project: Option<String>,
+    /// Who put it there ([`origin`]); none: from before this was kept.
+    pub origin: Option<String>,
+    /// Where in the record it was said.
+    pub from: Option<String>,
+    /// How sure it is (`high`, `medium`, `low`).
+    pub confidence: Option<String>,
+    /// When it is true (`2026-11-25..`, `..2026-12-01`, `2026-11-25..2026-12-01`).
+    pub valid: Option<String>,
+    /// The fact that took its place.
+    pub superseded_by: Option<String>,
+    /// It waits for the owner to confirm it.
+    pub pending: bool,
+    /// `health` or `money`: in the profile only when pinned.
+    pub sensitive: Option<String>,
+    /// When the assistant last used it (an ISO date or instant).
+    pub last_used: Option<String>,
+    /// `pin` or `hide`: the owner's say on the profile.
+    pub profile: Option<String>,
+}
+
+impl Fact {
+    /// Whether it was still true on `day` (`2026-11-28`): no `valid` end before then, and
+    /// nothing took its place.
+    #[must_use]
+    pub fn current(&self, day: &str) -> bool {
+        let ended = self
+            .valid
+            .as_deref()
+            .and_then(|valid| valid.split_once(".."))
+            .map(|(_, until)| until.trim())
+            .is_some_and(|until| !until.is_empty() && until < day);
+        !ended && self.superseded_by.is_none()
+    }
+
+    /// Whether it is health or money, by its category or its `sensitive` key.
+    #[must_use]
+    pub fn is_sensitive(&self) -> bool {
+        self.sensitive.is_some() || SENSITIVE.contains(&self.category.as_str())
+    }
 }
 
 /// `raw`, the file `file` (`ada-lovelace.md`) in `category`'s folder, as a fact.
@@ -96,6 +162,7 @@ pub fn parse(category: &str, file: &str, raw: &str) -> Fact {
             .map(|(_, value)| value.clone())
     };
     let now = meta("now").filter(|now| !now.is_empty());
+    let given = |key: &str| meta(key).filter(|value| !value.is_empty());
     Fact {
         id: format!("{category}/{}", file.strip_suffix(".md").unwrap_or(file)),
         category: category.to_owned(),
@@ -110,6 +177,15 @@ pub fn parse(category: &str, file: &str, raw: &str) -> Fact {
             .map(|chats| split_chats(&chats)),
         important: (meta("important").as_deref() == Some("yes")).then_some(true),
         project: meta("project").filter(|project| !project.is_empty()),
+        origin: given("origin"),
+        from: given("from"),
+        confidence: given("confidence"),
+        valid: given("valid"),
+        superseded_by: given("superseded_by"),
+        pending: meta("pending").as_deref() == Some("yes"),
+        sensitive: given("sensitive"),
+        last_used: given("last_used"),
+        profile: given("profile").filter(|say| matches!(say.as_str(), "pin" | "hide")),
     }
 }
 
@@ -169,6 +245,23 @@ pub fn render(fact: &Fact, now: &str) -> String {
         .filter(|project| !project.is_empty())
     {
         extra.push(format!("project: {}\n", line(project)));
+    }
+    for (key, value) in [
+        ("origin", &fact.origin),
+        ("from", &fact.from),
+        ("confidence", &fact.confidence),
+        ("valid", &fact.valid),
+        ("superseded_by", &fact.superseded_by),
+        ("sensitive", &fact.sensitive),
+        ("last_used", &fact.last_used),
+        ("profile", &fact.profile),
+    ] {
+        if let Some(value) = value.as_deref().filter(|value| !value.trim().is_empty()) {
+            extra.push(format!("{key}: {}\n", line(value)));
+        }
+    }
+    if fact.pending {
+        extra.push("pending: yes\n".to_owned());
     }
     format!(
         "---\ntitle: {}\nsource: {}\nupdated: {now}\n{}---\n{}\n",
@@ -347,6 +440,27 @@ mod tests {
         assert_eq!(fact.important, Some(true));
         assert_eq!(fact.project.as_deref(), Some("Garden"));
         assert_eq!(render(&fact, "2026-10-14T09:00:00.000Z"), FILE);
+    }
+
+    #[test]
+    fn provenance_reads_and_writes_back_and_old_files_read_as_before() {
+        const KEPT: &str = "---\ntitle: Iron\nsource: said in chat\nupdated: 2026-10-14T09:00:00.000Z\norigin: message\nfrom: chat #22\nvalid: 2026-10-01..2026-10-30\nsensitive: health\nprofile: pin\npending: yes\n---\nTakes iron tablets.\n";
+        let fact = parse("health", "iron.md", KEPT);
+        assert_eq!(fact.origin.as_deref(), Some(origin::MESSAGE));
+        assert_eq!(fact.from.as_deref(), Some("chat #22"));
+        assert!(fact.pending && fact.is_sensitive());
+        assert_eq!(fact.profile.as_deref(), Some("pin"));
+        assert!(fact.current("2026-10-30") && !fact.current("2026-10-31"));
+        assert_eq!(render(&fact, "2026-10-14T09:00:00.000Z"), KEPT);
+
+        let old = parse("people", "ada-lovelace.md", FILE);
+        assert_eq!(
+            (&old.origin, old.pending, &old.profile),
+            (&None, false, &None)
+        );
+        assert!(old.current("2030-01-01") && !old.is_sensitive());
+        let odd = parse("home", "x.md", "---\ntitle: X\nprofile: always\n---\nY\n");
+        assert_eq!(odd.profile, None, "only pin or hide");
     }
 
     #[test]

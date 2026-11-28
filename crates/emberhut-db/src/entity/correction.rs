@@ -35,6 +35,7 @@ pub(crate) struct Model {
     pub(crate) rule: Option<i64>,
     /// The lesson as one short line to the owner, in the second person, for the app.
     pub(crate) lesson_to_owner: Option<String>,
+    pub(crate) triaged: Option<String>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

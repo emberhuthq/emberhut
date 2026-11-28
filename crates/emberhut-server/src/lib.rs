@@ -227,6 +227,12 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
             .clone()
             .keep_indexing(RECALL_EVERY, state.stopping().clone()),
     );
+    let reviewing = tokio::spawn(
+        state
+            .nightly()
+            .clone()
+            .keep_running(state.stopping().clone()),
+    );
     let looking = tokio::spawn(
         state
             .runners()
@@ -287,6 +293,7 @@ pub async fn serve(config: &ServeConfig, stop: impl Future<Output = ()>) -> Resu
     waking.abort();
     prepping.abort();
     indexing.abort();
+    reviewing.abort();
     looking.abort();
     calls_work.abort();
     live_ticks.abort();
@@ -661,6 +668,10 @@ type Runtime = (
 
 /// The assistant `config` names, with its background tasks: the agent CLI's sessions, or the
 /// silent one (no tasks) without a command.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the assistant and each part it is given, built in one place"
+)]
 fn assistant(
     config: &ServeConfig,
     db: &Database,
@@ -749,6 +760,16 @@ fn assistant(
             db.settings(),
             db.conversation(),
             Arc::clone(clock),
+        ))
+        .with_profile(services::profile::ProfileService::new(
+            services::facts::FactService::new(
+                services::facts::FactService::folder_beside(db.path()),
+                Arc::clone(clock),
+                db.events(),
+            ),
+            db.projects(),
+            Arc::clone(clock),
+            time_zone(config.time_zone.as_deref()),
         ))
         .with_accounts(db.prefs())
         .with_provider(agent_provider(config, db, bridge))

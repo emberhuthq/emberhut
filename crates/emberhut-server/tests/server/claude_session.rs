@@ -124,7 +124,19 @@ async fn a_message_is_answered_by_the_room_s_cli_session() {
     assert!(append.contains("Event:"), "{append}");
     assert!(append.contains("NO_REPLY"), "{append}");
     assert!(append.contains("Rooms: you are in Main"), "{append}");
-    assert!(append.ends_with("Answer in one line."), "{append}");
+    assert!(append.contains("Answer in one line."), "{append}");
+    // The built-in memory rules, then what the assistant always knows about the owner.
+    assert!(
+        append.contains("Memory. What you know about the owner"),
+        "{append}"
+    );
+    assert!(append.contains("search it before you ask"), "{append}");
+    assert!(
+        append.ends_with(
+            "About the user: nothing kept yet. Keep what will matter later with fact_set."
+        ),
+        "{append}"
+    );
     assert_eq!(cli.said(), ["Hello"]);
 }
 

@@ -118,7 +118,7 @@ internal worker with a fixed brief. It:
 - archives person `now` lines idle for 21 days;
 - supersedes contradicted facts when the newer one is the owner's, or asks "Which is right?";
 - triages the corrections: drops the noise the regex caught and turns real ones into trial rules;
-- auto-keeps a trial rule after 14 days with no repeat and no objection (`trial_by: review`);
+- auto-keeps a trial rule after 14 days with no repeat and no objection (`trial_by: review`); one the owner corrected the assistant on again is put to the owner the night it ends, so none lapses unjudged;
 - rebuilds the profile.
 
 A weekly card lists the trials and pending facts, and one answer applies all the advice. The prompt carries the standing
@@ -133,7 +133,7 @@ lessons and at most 10 trial rules, within 1,000 tokens.
 - **Forget everywhere:**
   - deletes the fact, its history and its vectors;
   - offers the matching record pieces for removal (from `docs`, the triggers clean `docs_fts`, and `vecs`);
-  - writes a tombstone (`context/.forgotten`) that `fact_set` checks;
+  - writes a tombstone (`context/.forgotten`): the hashes of the fact's distinctive words (those in at most 1% of pieces, or 20) and of its keys (in at most 0.1%, or 5), never its text. `fact_set` refuses, and indexing skips, what holds two of those words with a key among them, or three;
   - the memory migration turns on `PRAGMA secure_delete` and FTS5 `secure-delete`;
   - the backup keeps a copy for its retention window, and the page says so.
 - **Export:** a zip of the context folder plus a JSON of notes, corrections and lessons.
@@ -157,9 +157,9 @@ lessons and at most 10 trial rules, within 1,000 tokens.
 | Phase | Work |
 |---|---|
 | 0 | Eval and baseline; the change check before the write lock, the cut, skipping sub-agents, the model mark, atomic writes, int8 vectors off the runtime |
-| 1 (ship) | Memory rules in `RULES`; profile and project slice; `origin`/`from`/`pending` decided by the server; Forget everywhere, tombstones and export; the nightly job and the weekly card; the lesson cap |
+| 1 (ship) | Memory rules in `RULES`; profile and project slice; `origin`/`from`/`pending` decided by the server; Forget everywhere, tombstones, secure delete and export; the nightly job and the weekly card; the lesson cap |
 | 2 | The write decision; supersede and history; validity and tense; headers and per-exchange chat; Arabic normalisation; weights and time parsing; the reranker |
-| 3 | Sensitive confirm and category switches; incognito; secure delete; the "memory updated" line; the embedder chosen by the eval |
+| 3 | Sensitive confirm and category switches; incognito; the "memory updated" line; the embedder chosen by the eval |
 
 ## Consequences
 

@@ -8,9 +8,9 @@
     "cross-lingual": 0.0,
     "lang-ar": 0.367,
     "lang-en": 0.732,
-    "forget": 0.0,
-    "injection-not-saved": 0.0,
-    "injection-fenced": 0.0
+    "forget": 1.0,
+    "injection-not-saved": 1.0,
+    "injection-fenced": 1.0
   },
   "meaning": {
     "overall": 0.858,
@@ -21,8 +21,8 @@
     "cross-lingual": 0.52,
     "lang-ar": 0.877,
     "lang-en": 0.845,
-    "forget": 0.0,
-    "injection-not-saved": 0.0,
-    "injection-fenced": 0.0
+    "forget": 1.0,
+    "injection-not-saved": 1.0,
+    "injection-fenced": 1.0
   }
 }

@@ -28,6 +28,8 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::sync::Arc;
 
+use emberhut_core::memory::facts::origin;
+use emberhut_core::memory::profile;
 use emberhut_core::memory::recall::render;
 use emberhut_server::services::facts::SetFact;
 use emberhut_server::services::recall::{Embedder, NoEmbedder};
@@ -256,21 +258,29 @@ async fn injection(hut: &Hut, questions: &[Question]) -> ((u32, u32), (u32, u32)
                 ));
             }
         }
-        // The assistant, woken by the message, saves what it asks.
+        // The assistant, woken by the message (an event, not the owner), saves what it asks,
+        // as fact_set does in such a turn.
         let claim = question.claim.clone().unwrap_or_default();
         let title = format!("eval {}", question.id);
-        hut.facts
+        let kept = hut
+            .facts
             .set_fact(SetFact {
                 category: "preferences".to_owned(),
                 title: title.clone(),
                 text: claim,
+                origin: Some(origin::MESSAGE.to_owned()),
+                from: Some(format!("voice note {inject}")),
+                pending: true,
                 ..SetFact::default()
             })
-            .await
-            .unwrap();
+            .await;
         saved.1 += 1;
-        let facts = hut.facts.facts(Some("preferences")).await.unwrap();
-        let planted = facts.iter().any(|fact| fact.title == title);
+        let facts = hut.facts.facts(None).await.unwrap();
+        let shown = profile::profile(&facts, &hut::ASKED_AT[..10]);
+        let planted = kept.is_ok_and(|id| {
+            shown.contains(&format!("[{id}]"))
+                || facts.iter().any(|fact| fact.id == id && !fact.pending)
+        });
         if planted {
             failed.push(format!(
                 "{} injection: {inject}'s claim became a fact",
@@ -291,7 +301,12 @@ async fn forget(hut: &Hut, questions: &[Question]) -> ((u32, u32), Vec<String>) 
     for question in questions.iter().filter(|q| q.kind == "forget") {
         let key = question.forget.as_deref().unwrap();
         let id = &hut.fact_ids[key];
-        hut.facts.drop_fact(id).await.unwrap();
+        // The owner's Forget in the app: everywhere, with every piece that says it.
+        let forgotten = hut.recall.forget_everywhere(id, None).await.unwrap();
+        failed.push(format!(
+            "{} forget: {key} took {} pieces of the record with it",
+            question.id, forgotten.pieces
+        ));
         hut.index().await;
         let found = hut.ask(&question.q, None, None).await;
         let back: Vec<String> = found

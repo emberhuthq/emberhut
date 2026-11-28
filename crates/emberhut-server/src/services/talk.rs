@@ -256,6 +256,19 @@ struct RoomTurns {
     running: Option<CancellationToken>,
     /// Files the assistant sent during the turn, for its reply.
     outbox: Vec<Attachment>,
+    /// What started the running turn.
+    started: Option<TurnStart>,
+}
+
+/// What started a turn, as the memory tools ask (ADR 0034): what the assistant keeps from a
+/// turn the owner didn't start waits for the owner to confirm it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TurnStart {
+    /// The owner's own message (an event otherwise: someone else's message, mail, a voice
+    /// note, a scheduled wake).
+    pub by_owner: bool,
+    /// The message the turn answers.
+    pub message: MessageId,
 }
 
 /// What the service is built from.
@@ -763,6 +776,12 @@ impl TalkService {
         })
     }
 
+    /// What started `room`'s running turn; none when no turn runs there.
+    #[must_use]
+    pub fn started(&self, room: RoomId) -> Option<TurnStart> {
+        self.turns().get(&room).and_then(|turns| turns.started)
+    }
+
     fn turns(&self) -> MutexGuard<'_, HashMap<RoomId, RoomTurns>> {
         // Counters and locks: a panic elsewhere cannot leave the map half-written.
         self.inner
@@ -806,6 +825,10 @@ impl TalkService {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one turn from its start to its reply, each step in order"
+    )]
     async fn answer(
         &self,
         said: Message,
@@ -824,7 +847,15 @@ impl TalkService {
             )
             .await?;
         let interrupt = CancellationToken::new();
-        self.turns().entry(room).or_default().running = Some(interrupt.clone());
+        {
+            let mut turns = self.turns();
+            let turn = turns.entry(room).or_default();
+            turn.running = Some(interrupt.clone());
+            turn.started = Some(TurnStart {
+                by_owner: start.from_owner,
+                message: said.id,
+            });
+        }
         let agent_token = match self.inner.tokens.for_room(room) {
             Ok(token) => Some(token),
             Err(error) => {
@@ -1040,6 +1071,7 @@ impl Drop for EndOfTurn {
         self.service.inner.live.set(self.room, None);
         if let Some(turns) = self.service.turns().get_mut(&self.room) {
             turns.running = None;
+            turns.started = None;
         }
     }
 }

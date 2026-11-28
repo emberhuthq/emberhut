@@ -27,6 +27,9 @@ const WORD_SEARCH: &str = "SELECT d.id, d.source, d.reference, d.at, d.title, d.
      FROM docs_fts f JOIN docs d ON d.id = f.rowid WHERE docs_fts MATCH ? \
      ORDER BY bm25(docs_fts, 2.0, 1.0) LIMIT ?";
 
+/// How many pieces match one word: the full-text index's own count.
+const WORD_COUNT: &str = "SELECT count(*) FROM docs_fts WHERE docs_fts MATCH ?";
+
 /// What one indexing pass writes, in one transaction.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IndexBatch {
@@ -214,6 +217,48 @@ impl RecallStore {
             .into_iter()
             .map(from_row)
             .collect()
+    }
+
+    /// How many pieces hold `word` (a word of letters and digits only, searched as a quoted
+    /// string, so nothing in it is read as syntax).
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn word_count(&self, word: &str) -> Result<u64, DbError> {
+        let quoted = format!("\"{}\"", word.replace('"', ""));
+        let row = self
+            .conn
+            .query_one_raw(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                WORD_COUNT,
+                [quoted.into()],
+            ))
+            .await?;
+        Ok(row
+            .and_then(|row| row.try_get_by_index::<i64>(0).ok())
+            .and_then(|n| u64::try_from(n).ok())
+            .unwrap_or(0))
+    }
+
+    /// Deletes the pieces `ids` (their full-text entries and vectors go with them); how many
+    /// there were.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn delete_pieces(&self, ids: &[i64]) -> Result<u64, DbError> {
+        let txn = begin_write(&self.conn).await?;
+        let mut gone = 0;
+        for chunk in ids.chunks(500) {
+            gone += doc::Entity::delete_many()
+                .filter(doc::Column::Id.is_in(chunk.iter().copied()))
+                .exec(&txn)
+                .await?
+                .rows_affected;
+        }
+        txn.commit().await?;
+        Ok(gone)
     }
 
     /// The pieces with these ids that are still there, by id.

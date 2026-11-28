@@ -1,6 +1,6 @@
 //! What the assistant was corrected on, and the trials of the lessons it drew.
 
-use emberhut_core::memory::learning::{Correction, NewCorrection, TrialJudge};
+use emberhut_core::memory::learning::{Correction, CorrectionSource, NewCorrection, TrialJudge};
 use jiff::Timestamp;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
@@ -12,6 +12,11 @@ use crate::time::{instant, millis};
 use crate::{DbError, begin_write};
 
 /// How a trial ended, as stored.
+/// What the nightly review made of a noticed candidate.
+const NOISE: &str = "noise";
+/// A noticed candidate the nightly review found was a real correction (it has a lesson now).
+const CORRECTION: &str = "correction";
+
 const KEPT: &str = "kept";
 /// How a trial ended, as stored.
 const DROPPED: &str = "dropped";
@@ -178,6 +183,66 @@ impl CorrectionStore {
                 Some(DROPPED) => TrialEnd::Dropped(row.trial_by),
                 _ => TrialEnd::Open,
             }))
+    }
+}
+
+impl CorrectionStore {
+    /// The candidates the server noticed after `after` that no review has looked at yet, oldest
+    /// first.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`], or [`DbError::InstantOutOfRange`] for a corrupt row.
+    pub async fn untriaged(&self, after: Timestamp) -> Result<Vec<Correction>, DbError> {
+        correction::Entity::find()
+            .filter(correction::Column::At.gt(millis(after)))
+            .filter(correction::Column::Source.eq(CorrectionSource::Auto.as_str()))
+            .filter(correction::Column::Lesson.is_null())
+            .filter(correction::Column::Triaged.is_null())
+            .order_by_asc(correction::Column::At)
+            .order_by_asc(correction::Column::Id)
+            .all(&self.conn)
+            .await?
+            .into_iter()
+            .map(from_row)
+            .collect()
+    }
+
+    /// Records the review of candidate `id`: noise (no `lesson`), or a real correction whose
+    /// lesson (and its line to the owner) puts it on trial. `false` when there is no such
+    /// candidate left to review.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError::Query`].
+    pub async fn triage(
+        &self,
+        id: i64,
+        lesson: Option<&str>,
+        lesson_to_owner: Option<&str>,
+    ) -> Result<bool, DbError> {
+        let txn = begin_write(&self.conn).await?;
+        let Some(row) = correction::Entity::find_by_id(id).one(&txn).await? else {
+            return Ok(false);
+        };
+        if row.triaged.is_some() || row.lesson.is_some() {
+            return Ok(false);
+        }
+        let lesson = lesson.map(str::trim).filter(|lesson| !lesson.is_empty());
+        let mut change: correction::ActiveModel = row.into();
+        change.triaged = Set(Some(
+            if lesson.is_some() { CORRECTION } else { NOISE }.to_owned(),
+        ));
+        if let Some(lesson) = lesson {
+            change.lesson = Set(Some(lesson.to_owned()));
+            change.lesson_to_owner = Set(lesson_to_owner
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(str::to_owned));
+        }
+        change.update(&txn).await?;
+        txn.commit().await?;
+        Ok(true)
     }
 }
 

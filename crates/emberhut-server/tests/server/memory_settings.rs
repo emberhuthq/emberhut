@@ -152,7 +152,7 @@ async fn the_owner_corrects_marks_and_forgets_facts() {
             "The user corrected what you know: home/keys: On the hook",
             "The user marked people/ada-lovelace as important: their messages wake you at once.",
             "The user unmarked people/ada-lovelace as important.",
-            "The user told you to forget home/keys.",
+            "The user told you to forget home/keys everywhere: it and 0 pieces of what was said are gone from your memory. Don't keep it again, and don't bring it up.",
         ]
     );
 }

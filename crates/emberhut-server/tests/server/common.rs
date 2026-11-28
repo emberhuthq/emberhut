@@ -537,8 +537,10 @@ pub(crate) struct Answer {
     pub(crate) status: StatusCode,
     /// Its headers.
     pub(crate) headers: axum::http::HeaderMap,
-    /// Its body, as text.
+    /// Its body, as text (lossy for a body that isn't).
     pub(crate) text: String,
+    /// Its body, as bytes.
+    pub(crate) bytes: Vec<u8>,
 }
 
 impl Answer {
@@ -550,7 +552,8 @@ impl Answer {
         Self {
             status,
             headers,
-            text: String::from_utf8(bytes.to_vec()).unwrap(),
+            text: String::from_utf8_lossy(&bytes).into_owned(),
+            bytes: bytes.to_vec(),
         }
     }
 
