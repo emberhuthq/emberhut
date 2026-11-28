@@ -13,6 +13,7 @@ use emberhut_api::auth::{
 use emberhut_api::calls::{RecordCallReply, RecordCallRequest};
 use emberhut_api::chat::{ChatFile, ChatPage, HistoryQuery};
 use emberhut_api::connect::{LINK_STATEMENT, LinkStatementRequest, MachineIdentity, SignedLink};
+use emberhut_api::ember_name::{EmberName, EmberNameChange, EmberNameReply};
 use emberhut_api::error::OkReply;
 use emberhut_api::headers::{self, ETag};
 use emberhut_api::health::Health;
@@ -770,6 +771,18 @@ impl Client {
     pub fn set_theme(&self, change: &ThemeChange) -> Result<ThemePage, Error> {
         let reply: ThemeSetReply = exchange::json(self.post(paths::THEME, change)?)?;
         Ok(reply.page)
+    }
+
+    /// Renames the ember (`POST /api/ember/name`; `null` or blank: back to "Your ember"); the
+    /// name as the server keeps it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Status`] 400 with the server's reason for a name it doesn't take;
+    /// [`Error::SignInRequired`], the transport's and decoding errors.
+    pub fn set_ember_name(&self, change: &EmberNameChange) -> Result<EmberName, Error> {
+        let reply: EmberNameReply = exchange::json(self.post(paths::EMBER_NAME, change)?)?;
+        Ok(reply.ember)
     }
 
     /// Sets a project's status (`POST /api/settings` with `projectSet`): pauses it until a
