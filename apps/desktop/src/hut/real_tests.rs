@@ -1,8 +1,9 @@
 //! The hut for real: a built `emberhut-server` started through [`LocalHut::system`], a code
 //! from its `pair --json`, the app's `POST /api/auth/pair` with it, and the hut stopped.
 //!
-//! Ignored by default: it runs a real server. It refuses a `HOME` outside the temporary
-//! folder, so it never writes the user's own files; run it with an empty environment:
+//! Ignored by default: it runs a real server. It refuses a home folder (`HOME`, on Windows
+//! `USERPROFILE`) outside the temporary folder, so it never writes the user's own files; run it
+//! with an empty environment:
 //!
 //! ```text
 //! cargo build -p emberhut-server
@@ -13,6 +14,9 @@
 //!   <the emberhut-desktop test binary> --ignored --exact \
 //!   hut::real_tests::a_real_hut_starts_pairs_this_app_and_stops
 //! ```
+//!
+//! On Windows, `USERPROFILE` names the temporary home and `LOCALAPPDATA` its `local` folder
+//! (CI's Windows job runs it so, with the release build's `emberhut-server.exe`).
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -25,11 +29,13 @@ const NEVER: [u16; 2] = [super::DEFAULT_PORT, 8791];
 #[test]
 #[ignore = "runs a real emberhut-server: see the module for how"]
 fn a_real_hut_starts_pairs_this_app_and_stops() {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap();
+    let home = std::env::var_os(super::paths::HOME_VAR)
+        .map(PathBuf::from)
+        .unwrap();
     let temporary = std::env::temp_dir();
     assert!(
         home.starts_with(&temporary) && home != temporary,
-        "HOME must be a folder in {}, not {}",
+        "the home folder must be a folder in {}, not {}",
         temporary.display(),
         home.display()
     );
@@ -50,10 +56,16 @@ fn a_real_hut_starts_pairs_this_app_and_stops() {
 
     let url = hut.start_now().unwrap();
     assert_eq!(url.as_str(), format!("http://127.0.0.1:{port}"));
-    let data = home.join("data/emberhut/hut");
+    let data = if cfg!(windows) {
+        home.join("local").join("Emberhut").join("Hut")
+    } else {
+        home.join("data/emberhut/hut")
+    };
+    #[cfg(unix)]
     assert_eq!(crate::private_files::mode(&data), 0o700);
     for file in ["emberhut.db", "machine.key", "hut.json"] {
         assert!(data.join(file).is_file(), "{file} in {}", data.display());
+        #[cfg(unix)]
         assert_eq!(
             crate::private_files::mode(&data.join(file)),
             0o600,

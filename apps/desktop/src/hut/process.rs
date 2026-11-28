@@ -141,7 +141,10 @@ pub(crate) trait Spawner: Send + Sync {
     /// The program couldn't be started or its output read.
     fn run(&self, run: &Run) -> io::Result<Ran>;
 
-    /// Asks process `pid` to stop (`SIGTERM`: the server shuts down cleanly on it).
+    /// Asks process `pid` to stop: `SIGTERM` on Unix, which the server shuts down cleanly on.
+    /// Windows has no such signal for a program without a console of its own to receive it, so
+    /// there the process and the ones it started (the agent CLIs) are ended (`taskkill /T
+    /// /F`); the database's transactions keep it whole.
     ///
     /// # Errors
     ///
@@ -163,6 +166,15 @@ impl SystemSpawner {
         }
         if let Some(dir) = &run.dir {
             command.current_dir(dir);
+        }
+        // The server and the system's tools are console programs: started from the app (a
+        // windowed program), each would open a console window of its own without this.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            /// `CREATE_NO_WINDOW`, from the process creation flags.
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
         }
         command
     }
@@ -211,11 +223,26 @@ impl Spawner for SystemSpawner {
         rustix::process::kill_process(pid, rustix::process::Signal::TERM).map_err(io::Error::from)
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    fn terminate(&self, pid: u32) -> io::Result<()> {
+        // The system's own copy, not whichever `taskkill` the PATH finds first.
+        let taskkill = std::env::var_os("SystemRoot").map_or_else(
+            || PathBuf::from("taskkill.exe"),
+            |root| PathBuf::from(root).join("System32").join("taskkill.exe"),
+        );
+        let ran = self.run(&Run::new(taskkill).args(["/PID", &pid.to_string(), "/T", "/F"]))?;
+        if ran.ok {
+            Ok(())
+        } else {
+            Err(io::Error::other(ran.said()))
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
     fn terminate(&self, _pid: u32) -> io::Result<()> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
-            "stopping a process by its id needs Unix",
+            "stopping a process by its id needs Unix or Windows",
         ))
     }
 }
