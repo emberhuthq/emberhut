@@ -46,6 +46,7 @@ mod shape;
 pub use asks::{AskInput, MessageFile};
 pub use changes::{FindingsItem, ProgressItem, reply_posts};
 pub use files::{ArtifactFiles, Ffmpeg, Thumbnailer};
+pub use plan::{ASSISTANT_RULE, WORKER_RULE, lane_rule, session_rule};
 pub use rooms::RoomTask;
 pub use sessions::SessionTurn;
 

@@ -7,6 +7,10 @@
     clippy::too_many_lines,
     reason = "each test walks one story through the endpoints from start to end"
 )]
+#![expect(
+    clippy::unwrap_used,
+    reason = "test helpers: a failure here fails the test that called them"
+)]
 
 use emberhut_api::mcp::{CallToolResult, RpcResponse};
 use emberhut_api::runners::SessionsPage;
@@ -610,5 +614,100 @@ pub(crate) async fn the_shared_mcp_list_names_each_session_to_this_server() {
         }
         assert_eq!(servers["emberhut"]["headers"]["Authorization"], "Bearer x");
         assert!(servers["docs"].get("headers").is_none(), "{servers}");
+    }
+}
+
+#[tokio::test]
+pub(crate) async fn every_brief_asks_for_the_plan_only_when_plans_are_kept() {
+    // The assistant's own rules.
+    for on in [true, false] {
+        let cli = crate::fake_cli::FakeCli::new(|_, line| {
+            if crate::fake_cli::is_user(line) {
+                vec![crate::fake_cli::init("s-1"), crate::fake_cli::result("Hi.")]
+            } else {
+                Vec::new()
+            }
+        });
+        let config = emberhut_server::services::claude::ClaudeConfig {
+            task_plans: on,
+            ..crate::fake_cli::config(&[])
+        };
+        let app = TestApp::with_agent(crate::fake_cli::agent(&cli, config)).await;
+        app.state
+            .talk()
+            .post(RoomId::MAIN, "Hello".to_owned())
+            .await
+            .unwrap();
+        app.settle().await;
+        let lines = cli.lines();
+        let append = lines[0].1["request"]["appendSystemPrompt"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(
+            append.contains(emberhut_server::services::tasks::ASSISTANT_RULE),
+            on,
+            "{append}"
+        );
+    }
+
+    // A session the assistant starts for a task.
+    for on in [true, false] {
+        let app = app(on).await;
+        app.runners.answer(
+            "build",
+            "/sessions",
+            json!({ "id": "r-77", "turn": "r-77:1" }),
+        );
+        app.call_tool(
+            "thread_start",
+            json!({ "task_id": 12, "title": "Fix the build", "message": "The build fails on main.",
+                    "cwd": "/work/app" }),
+        )
+        .await;
+        let opened = app.runners.requests_to("/sessions")[0]
+            .body
+            .clone()
+            .unwrap();
+        let prompt = opened["prompt"].as_str().unwrap();
+        if on {
+            assert_eq!(
+                prompt,
+                format!(
+                    "The build fails on main.\n\n{}",
+                    emberhut_server::services::tasks::session_rule("T-12")
+                )
+            );
+            assert!(prompt.contains("STATUS line as before"), "{prompt}");
+        } else {
+            assert_eq!(prompt, "The build fails on main.");
+        }
+    }
+
+    // A worker's brief.
+    for on in [true, false] {
+        let cli = crate::workers::answering_cli("Done.");
+        let spawner = std::sync::Arc::clone(&cli);
+        let app = TestApp::with_dependencies(AuthMode::Enforce, move |deps, _| Dependencies {
+            task_plans: on,
+            worker_setup: emberhut_server::app::WorkerSetup {
+                runtime: Some(emberhut_server::services::workers::WorkerRuntime {
+                    spawner,
+                    config: crate::workers::worker_config(),
+                }),
+                ..emberhut_server::app::WorkerSetup::default()
+            },
+            ..deps
+        })
+        .await;
+        let id = crate::workers::assistant_task(&app, "the parser review", false).await;
+        app.state.tasks().start_worker(id).await.unwrap();
+        crate::workers::until_ended(&app, id).await;
+        let brief = &cli.said()[0];
+        assert_eq!(
+            brief.contains(emberhut_server::services::tasks::WORKER_RULE),
+            on,
+            "{brief}"
+        );
     }
 }

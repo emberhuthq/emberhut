@@ -142,6 +142,8 @@ pub struct ClaudeConfig {
     pub prompt: Option<String>,
     /// Sessions open at once, Main's included.
     pub max_sessions: usize,
+    /// Tasks carry plans: the rules ask for them.
+    pub task_plans: bool,
 }
 
 /// Why a turn could not be answered.
@@ -796,8 +798,13 @@ impl ClaudeAssistant {
             .filter(|known| known.id != room)
             .map(|known| known.name.clone())
             .collect();
+        let plans = if self.config.task_plans {
+            format!(" {}", crate::services::tasks::ASSISTANT_RULE)
+        } else {
+            String::new()
+        };
         let mut prompt = format!(
-            "{RULES}\n\nRooms: you are in {}{}.",
+            "{RULES}{plans}\n\nRooms: you are in {}{}.",
             name(room),
             if room == RoomId::MAIN {
                 " (Main, the room the owner opens first)"

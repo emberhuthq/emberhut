@@ -728,6 +728,7 @@ fn assistant(
         mcp_url,
         prompt,
         max_sessions: agent.max_sessions,
+        task_plans: config.tasks.task_plans,
     };
     tracing::info!(command = %command.display(), "the assistant runs the agent CLI");
     let runtime = Arc::new(

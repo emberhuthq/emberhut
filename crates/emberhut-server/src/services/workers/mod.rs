@@ -334,14 +334,20 @@ impl WorkerService {
         resume: bool,
     ) -> Result<String, WorkerError> {
         let key = t.key();
+        let plans = self.tasks().keeps_plans();
         if resume && let Some(with) = resume_with {
             let lead = if t.ultra {
                 " You're still the lead of its ultra run (the plan, the gate and the caps as before)."
             } else {
                 ""
             };
+            let plan = if plans {
+                " Keep its plan true with plan_step."
+            } else {
+                ""
+            };
             return Ok(format!(
-                "{with}\n\nCarry on with {key}. Report with task_note, finish with task_done or task_ask.{lead}"
+                "{with}\n\nCarry on with {key}. Report with task_note, finish with task_done or task_ask.{plan}{lead}"
             ));
         }
         let folder = self.folder(t.id);
@@ -355,6 +361,11 @@ impl WorkerService {
             .as_deref()
             .map_or(String::new(), |p| format!("Project: {p}\n"));
         let history = self.history(t.id).await?;
+        let plan = if plans {
+            format!("\n{}", crate::services::tasks::WORKER_RULE)
+        } else {
+            String::new()
+        };
         let ultra = if t.ultra {
             let (parallel, budget) = self.caps(t.id).await?;
             emberhut_core::ultra::lead_brief(&self.inner.parts.limits, parallel, budget)
@@ -371,7 +382,7 @@ History so far:
 
 How you work:
 - Do the work now: research, reading the repositories and docs, analysis, drafts, code on a new branch (a git worktree under {folder} if you change code). Your scratch folder is {folder}.
-- After each meaningful step, call task_note with one plain line the owner can read.
+- After each meaningful step, call task_note with one plain line the owner can read.{plan}
 - The owner's request is their go: do the task end to end, never stop to ask \"should I go ahead?\". Payments, passwords, codes and account security ask on the step, by themselves. Only these are never yours to do without them: messages as the owner (Slack, WhatsApp, email, PR comments), public posts, pushing to main or merging, and deleting their data outside the job. When the task needs one, prepare it completely (the branch, the exact text) and call task_ask with the exact question and short options, then stop.
 - A message the owner will send to a person is plain text in their voice, no markdown. Put it in task_ask's draft, with the chat it goes to and a \"Send it\" option: their tap then sends that exact draft there as them.
 - Anything you start that keeps running after you (a long render, a server): run it detached and call task_runner with its unit right away, so the owner sees it running and the assistant hears when it ends.

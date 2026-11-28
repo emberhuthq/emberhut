@@ -1478,8 +1478,13 @@ impl WorkerService {
             project: t.project.clone(),
             title: format!("{} lane {part}: {name}", t.key()),
             message: format!(
-                "{brief}\n\nYou are one part (part {part}) of an ultra run on {}, as your own session. No push, merge, PR, release, deploy, message, post, payment or deleting anything; prepare it and say so in your answer instead.",
-                t.key()
+                "{brief}\n\nYou are one part (part {part}) of an ultra run on {}, as your own session. No push, merge, PR, release, deploy, message, post, payment or deleting anything; prepare it and say so in your answer instead.{}",
+                t.key(),
+                if self.tasks().keeps_plans() {
+                    format!(" {}", crate::services::tasks::lane_rule(&t.key()))
+                } else {
+                    String::new()
+                }
             ),
             account: account.or_else(|| {
                 run.account.as_ref().and_then(|mine| {
