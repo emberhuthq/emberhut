@@ -42,6 +42,8 @@ export function Activity({
   const items = activityFeed(runs, sessions, history, artifacts, filter);
   const shown = all ? items : items.slice(0, 8);
   const turns = runs.length;
+  // Nothing has happened yet: no feed to filter, only the sessions (if any).
+  if (activityFeed(runs, sessions, history, artifacts).length === 0) return <TaskSessions sessions={sessions} />;
   return (
     <>
       <View style={{ gap: spacing.sm }}>

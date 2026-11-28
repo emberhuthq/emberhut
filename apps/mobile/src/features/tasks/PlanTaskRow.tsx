@@ -3,7 +3,7 @@ import { StyleSheet, View, Pressable } from "react-native";
 import type { Issue } from "@/api";
 import { minTap, useTheme } from "@/theme";
 import { Icon, Text, type TextTone } from "@/ui";
-import { currentLine, isEmptyPlan, planFraction, planTicks } from "./plan";
+import { currentLine, isEmptyPlan, isRunningTask, planFraction, planTicks } from "./plan";
 import { isBlocked, quietText, summarySegments } from "./planView";
 import { SegmentBar, TaskLead } from "./PlanMarks";
 
@@ -37,6 +37,8 @@ export function PlanTaskRow({ task, project, quiet = null }: { task: Issue; proj
   const summary = task.plan;
   const detail = detailOf(task);
   const planned = summary && !isEmptyPlan(summary) ? summary : null;
+  // The bar once something is done or a run is going; before that the ticks sit on the line above, quietly.
+  const bar = planned != null && (planned.done > 0 || isRunningTask(task));
   const state =
     task.status === "waiting"
       ? "waiting on you"
@@ -78,6 +80,11 @@ export function PlanTaskRow({ task, project, quiet = null }: { task: Issue; proj
           <Text variant="footnote" tone={detail.tone} weight={detail.weight} numberOfLines={1} style={styles.fill}>
             {detail.text}
           </Text>
+          {planned && !bar ? (
+            <Text variant="footnote" tone="secondary" style={styles.ticks}>
+              {planTicks(planned)}
+            </Text>
+          ) : null}
           {quiet != null ? (
             <View style={[styles.line, { gap: 3 }]}>
               <Icon name="time-outline" size={13} color={colors.textSecondary} />
@@ -90,7 +97,7 @@ export function PlanTaskRow({ task, project, quiet = null }: { task: Issue; proj
             {project}
           </Text>
         ) : null}
-        {planned ? (
+        {planned && bar ? (
           <View style={[styles.line, { gap: spacing.sm, marginTop: spacing.xs }]}>
             <SegmentBar
               segments={summarySegments(planned)}
