@@ -20,6 +20,7 @@ pub mod ask;
 pub mod board;
 pub mod finding;
 pub mod live;
+pub mod plan;
 pub mod rollup;
 pub mod search;
 pub mod wire;
