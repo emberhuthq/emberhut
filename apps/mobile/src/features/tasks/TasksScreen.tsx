@@ -1,8 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Pressable, View } from "react-native";
-import { taskKey, type Issue, type EmberhutState, type Project, type RunnerSession } from "@/api";
-import { allSessions, isRunning } from "@/features/sessions/sessionList";
+import { taskKey, type Issue, type EmberhutState, type Project } from "@/api";
 import { inBackground } from "@/log";
 import type { TabScreenProps } from "@/navigation/types";
 import { useActions, useConnection } from "@/state/hooks";
@@ -12,13 +11,9 @@ import { useTheme } from "@/theme";
 import { Button, ErrorState, FoldRow, Icon, ListRow, Loading, Screen, Section, Text, TextField, usePullRefresh } from "@/ui";
 import { AreaRow } from "./AreaRow";
 import { flatTasks, subtasksOf, taskOverview } from "./model";
-import { tasklessSessions } from "./plan";
-import { planLists, quietMinutes } from "./planView";
-import { PlanTaskRow } from "./PlanTaskRow";
-import { SessionItemRow } from "./SessionItemRow";
+import { PlanTaskList } from "./PlanTaskList";
 import { HealthChip, PriorityMark } from "./ProjectMarks";
 import { TaskRow } from "./TaskRow";
-import { useMinute } from "./useMinute";
 import { useTaskPlans } from "./useTaskPlans";
 
 /**
@@ -26,7 +21,7 @@ import { useTaskPlans } from "./useTaskPlans";
  * tasks, the projects with nothing open, tasks in no project, paused and archived projects, and your archived tasks
  * folded. What needs you has its own tab. A search runs over every task, done and archived ones too.
  *
- * While the server keeps task plans, Tasks is the work by where it stands, each task with its plan (Lists).
+ * While the server keeps task plans, Tasks is the work by where it stands, each task with its plan (PlanTaskList).
  */
 export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
   const { colors, spacing } = useTheme();
@@ -66,8 +61,8 @@ export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
       </Screen>
     );
   }
-  return (
-    <Screen scroll {...pull}>
+  const top = (
+    <>
       {adding && <NewTask hidden={state.data.ui?.hideProjects === true} onDone={() => setAdding(false)} />}
       <TextField
         value={query}
@@ -77,73 +72,33 @@ export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
         returnKeyType="search"
         autoCorrect={false}
       />
-      {search ? <Found query={search} /> : <Lists state={state.data} plans={plans} gone={gone} />}
+    </>
+  );
+  if (plans)
+    return (
+      <Screen padded={false} underBars>
+        <PlanTaskList
+          state={state.data}
+          gone={gone}
+          header={top}
+          found={search ? <Found query={search} plans /> : null}
+          footer={<ArchivedTasks plans />}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
+        />
+      </Screen>
+    );
+  return (
+    <Screen scroll {...pull}>
+      {top}
+      {search ? <Found query={search} /> : <Lists state={state.data} gone={gone} />}
     </Screen>
   );
 }
 
-/**
- * The lists; with plans, the work by where it stands: a line to what needs you (its own tab lists it), what runs (a
- * blocked task that runs among them, the sessions running with no task after), what is blocked, the rest open, then the
- * other sessions with no task, so nothing that ran leaves the list.
- */
-function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; gone: ReadonlySet<number> }) {
-  if (!plans) return state.ui?.hideProjects ? <FlatList state={state} gone={gone} /> : <ByProject state={state} gone={gone} />;
-  return <PlanLists state={state} gone={gone} />;
-}
-
-function PlanLists({ state, gone }: { state: EmberhutState; gone: ReadonlySet<number> }) {
-  const navigation = useNavigation();
-  // Moved on each minute: an unchanged state draws nothing again, and a quiet task is one whose state doesn't change.
-  const now = useMinute();
-  const lists = planLists(state, gone);
-  const sessions = tasklessSessions(state, now);
-  const running = sessions.filter((s) => isRunning(s.status));
-  const every = allSessions(state);
-  const name = (pid: number | null | undefined) => (state.ui?.hideProjects ? null : state.projects?.find((p) => p.id === pid)?.name);
-  const row = (t: Issue) => <PlanTaskRow key={`t${t.id}`} task={t} project={name(t.pid)} quiet={quietMinutes(t, every, now)} />;
-  return (
-    <>
-      {lists.needs > 0 ? (
-        <Section>
-          <ListRow
-            key="needs"
-            icon="hand-left-outline"
-            title={`${lists.needs} ${lists.needs === 1 ? "needs" : "need"} you`}
-            onPress={() => navigation.navigate("Tabs", { screen: "NeedsYou" })}
-          />
-        </Section>
-      ) : null}
-      <Section title="Running" count={lists.running.length + running.length}>
-        {lists.running.map(row)}
-        {running.map((s) => (
-          <SessionItemRow key={`s${s.id}`} session={s} />
-        ))}
-      </Section>
-      <Section title="Blocked" count={lists.blocked.length} tone="danger">
-        {lists.blocked.map(row)}
-      </Section>
-      <Section title="Open" count={lists.open.length}>
-        {lists.open.map(row)}
-      </Section>
-      {lists.running.length + running.length + lists.blocked.length + lists.open.length === 0 ? (
-        <Text tone="secondary">Nothing open.</Text>
-      ) : null}
-      <OtherSessions sessions={sessions.filter((s) => !isRunning(s.status))} />
-      <ArchivedTasks />
-    </>
-  );
-}
-
-/** Sessions with no task that aren't running: waiting on you, or finished in the last day. Each opens its session. */
-function OtherSessions({ sessions }: { sessions: RunnerSession[] }) {
-  return (
-    <Section title="Sessions with no task" footer="Every session, with filters: More › Sessions.">
-      {sessions.map((s) => (
-        <SessionItemRow key={s.id} session={s} />
-      ))}
-    </Section>
-  );
+/** The lists without plans: by project, or one list while projects are hidden. */
+function Lists({ state, gone }: { state: EmberhutState; gone: ReadonlySet<number> }) {
+  return state.ui?.hideProjects ? <FlatList state={state} gone={gone} /> : <ByProject state={state} gone={gone} />;
 }
 
 function ByProject({ state, gone }: { state: EmberhutState; gone: ReadonlySet<number> }) {
@@ -237,7 +192,7 @@ function ProjectList({ title, projects }: { title: string; projects: Project[] }
 }
 
 /** What you archived (put away for good), folded, from the server's whole list; each opens its page. */
-function ArchivedTasks() {
+export function ArchivedTasks({ plans = false }: { plans?: boolean }) {
   const [open, setOpen] = useState(false);
   const archived = useTasks({ archived: true, limit: 200 }, open);
   const gone = useActions((s) => s.gone);
@@ -246,13 +201,13 @@ function ArchivedTasks() {
       <FoldRow key="fold" title="Archived tasks" open={open} onToggle={() => setOpen(!open)} />
       {open && !archived.data ? <ListRow key="loading" title="Looking…" /> : null}
       {open && archived.data?.length === 0 ? <ListRow key="none" title="Nothing archived." /> : null}
-      {open ? archived.data?.filter((t) => !gone.has(t.id)).map((t) => <TaskRow key={t.id} task={t} />) : null}
+      {open ? archived.data?.filter((t) => !gone.has(t.id)).map((t) => <TaskRow key={t.id} task={t} plans={plans} />) : null}
     </Section>
   );
 }
 
 /** A search over every task, filtered by the server. */
-function Found({ query }: { query: string }) {
+export function Found({ query, plans = false }: { query: string; plans?: boolean }) {
   const found = useTasks({ q: query, limit: 50 });
   const gone = useActions((s) => s.gone);
   const projects = useEmberhutState().data?.projects;
@@ -264,7 +219,7 @@ function Found({ query }: { query: string }) {
   return (
     <Section title="Tasks">
       {tasks.map((t) => (
-        <TaskRow key={t.id} task={t} project={projects?.find((p) => p.id === t.pid)?.name} />
+        <TaskRow key={t.id} task={t} project={projects?.find((p) => p.id === t.pid)?.name} plans={plans} />
       ))}
     </Section>
   );

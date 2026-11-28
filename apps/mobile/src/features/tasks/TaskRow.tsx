@@ -8,7 +8,6 @@ import { ActionSheet, Icon, ProgressBar, Text, type SheetAction } from "@/ui";
 import { DeadlineChip } from "./DeadlineChip";
 import { fraction, isMine, isOpen, taskLine } from "./model";
 import { TaskStateMark } from "./StateMark";
-import { useTaskPlans } from "./useTaskPlans";
 
 export interface TaskRowProps {
   task: Issue;
@@ -17,20 +16,22 @@ export interface TaskRowProps {
   /** Its open subtasks, shown under it on a tap of their count. */
   subtasks?: Issue[];
   indent?: boolean;
+  /** The server keeps task plans: the gray line shows the plan's ticks. Read once by the list, not by each row. */
+  plans?: boolean;
 }
 
 /**
  * One task in a list: where it stands, its title, a gray line when it says something, the deadline on the right. Your own
  * task with nothing under it ticks done from the list; a long press offers Not now and Archive.
  */
-export function TaskRow({ task, project, subtasks = [], indent = false }: TaskRowProps) {
+export function TaskRow({ task, project, subtasks = [], indent = false, plans = false }: TaskRowProps) {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation();
   const actions = actionsStore.getState();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const tickable = isMine(task) && task.status === "todo" && !task.sub;
-  const line = taskLine(task, project, useTaskPlans());
+  const line = taskLine(task, project, plans);
   const progress = fraction(task);
   const sheet: SheetAction[] = [
     ...(tickable ? [{ label: "Mark done", icon: "checkmark-circle-outline" as const, onPress: () => actions.markDone(task.id) }] : []),
@@ -104,7 +105,7 @@ export function TaskRow({ task, project, subtasks = [], indent = false }: TaskRo
           </Pressable>
         ) : null}
       </Pressable>
-      {open && subtasks.map((kid) => <TaskRow key={kid.id} task={kid} indent />)}
+      {open && subtasks.map((kid) => <TaskRow key={kid.id} task={kid} indent plans={plans} />)}
       {menu && <ActionSheet visible title={task.title} actions={sheet} onClose={() => setMenu(false)} />}
     </View>
   );
