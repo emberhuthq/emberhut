@@ -3,3 +3,4 @@
 
 pub(crate) mod credentials;
 pub(crate) mod look;
+mod picture;

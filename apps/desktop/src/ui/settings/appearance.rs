@@ -25,7 +25,7 @@ use crate::store::settings::appearance::{NOT_A_HEX, contrast_line, preset_name, 
 use crate::store::settings::chrome::Health;
 use crate::store::{AgentsPlace, Store};
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::controls::{segment, tab_stop};
+use crate::ui::controls::{segment, segments, tab_stop};
 use crate::ui::palette::Pal;
 use crate::ui::spotlight::SEARCH_KEYS;
 use crate::ui::widgets::dot;
@@ -181,12 +181,7 @@ impl AppearancePane {
 
     /// System, Light or Dark.
     fn modes(&self, chosen: &Appearance, p: &Pal) -> Div {
-        let mut modes = div()
-            .flex()
-            .gap(px(2.))
-            .p(px(2.))
-            .rounded(px(9.))
-            .bg(p.surface_raised);
+        let mut modes = segments(p);
         for (id, appearance, label) in [
             ("mode-system", Appearance::System, "System"),
             ("mode-light", Appearance::Light, "Light"),
@@ -499,14 +494,7 @@ impl AppearancePane {
                     switch_store.update(cx, |store, cx| store.show_agents(*on, cx));
                 }),
         );
-        let mut places = div()
-            .flex()
-            .flex_none()
-            .gap(px(2.))
-            .p(px(2.))
-            .rounded(px(9.))
-            .bg(p.surface_raised)
-            .when(!shown, |d| d.opacity(0.5));
+        let mut places = segments(p).when(!shown, |d| d.opacity(0.5));
         for (id, chosen, label) in [
             (AGENTS_BELOW, AgentsPlace::Below, "Below rooms"),
             (AGENTS_ABOVE, AgentsPlace::Above, "Above rooms"),

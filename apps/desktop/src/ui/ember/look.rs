@@ -1,71 +1,64 @@
-//! Your ember's look: the theme, picked by how it looks. Each preset the server lists is a small
-//! card drawn in its own colours (its paper, ink and accent in light, and a swatch of it in
-//! dark), the one in use ticked; Light, Dark or System sit beside them; and when the server
-//! lists the ember's tints, its face in each. It is Appearance's choice, not one of its own:
-//! one theme, kept on the server, so every device follows. A view of its own over the store, so
-//! Settings and the first-run setup show it as it is; the page around it gives the title.
+//! Your ember's look: the theme, picked by how it looks. Light, Dark or System; each preset the
+//! server lists as a small page in its own colours, in the appearance chosen (both, split on a
+//! diagonal, for System), the one in use ticked; and when the server lists the ember's tints,
+//! its face in each. It is Appearance's choice, not one of its own: one theme, kept on the
+//! server, so every device follows. A view of its own over the store, so Settings and the
+//! first-run setup show it as it is; the page around it gives the title.
 
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
 use gpui_kit::prelude::*;
-use gpui_kit::{Div, ElementId, Entity, FontWeight, Window, div, img, px, relative};
+use gpui_kit::{Div, ElementId, Entity, FontWeight, Window, div, img, px, transparent_black};
 
+use super::picture::{self, Shown};
 use crate::assets::face;
 use crate::store::Store;
 use crate::ui::a11y::{self, Accessible as _};
-use crate::ui::controls::{segment, tab_stop};
+use crate::ui::controls::{icon_segment, segment, segments, tab_stop};
 use crate::ui::palette::{Pal, pal};
 use crate::ui::settings::parts::note;
-use crate::ui::widgets::dot;
 use emberhut_api::theme::{Appearance, DEFAULT_PRESET, DEFAULT_TINT, EmberTint, Preset, ThemePage};
 
-/// A preset's card, before the preset's id (`look-preset-paper`), for tests to find.
+/// A preset's card (a swatch in the setup), before the preset's id (`look-preset-paper`), for
+/// tests to find.
 pub(crate) const PRESET_CARD: &str = "look-preset";
-/// A tint's button, before the tint's id (`look-tint-rose`), for tests to find.
+/// A tint's button, before the tint's id (`look-tint-coral`), for tests to find.
 pub(crate) const TINT_BUTTON: &str = "look-tint";
 
-/// The System, Light and Dark segments: their ids, appearances and labels.
-const MODES: [(&str, Appearance, &str); 3] = [
-    ("look-mode-system", Appearance::System, "System"),
-    ("look-mode-light", Appearance::Light, "Light"),
-    ("look-mode-dark", Appearance::Dark, "Dark"),
+/// The System, Light and Dark segments: their ids, appearances, labels and icons (the setup's).
+const MODES: [(&str, Appearance, &str, IconName); 3] = [
+    (
+        "look-mode-system",
+        Appearance::System,
+        "System",
+        IconName::Monitor,
+    ),
+    ("look-mode-light", Appearance::Light, "Light", IconName::Sun),
+    ("look-mode-dark", Appearance::Dark, "Dark", IconName::Moon),
 ];
 
 /// What the picker says while a custom colour is in use, which no card shows.
 const CUSTOM: &str = "A custom colour is in use (Appearance). Picking a look uses its own colour.";
 
-/// Where the picker shows, which sets how much it says around the cards.
+/// The group a face's or swatch's button and its ring share, so the ring tints when the button
+/// is hovered.
+const RING_HOVER: &str = "look-ring-hover";
+
+/// A setup swatch's circle, across.
+const SWATCH: f32 = 28.;
+
+/// Where the picker shows, which sets how much it says around the choices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum LookVariant {
-    /// On Your ember's settings page: its parts headed, the cards roomy, and a line when a
-    /// custom colour from Appearance is in use.
+    /// On Your ember's settings page: Mode, Colours (each preset a card with its page and name)
+    /// and Your ember (each face named), and a line when a custom colour from Appearance is in
+    /// use.
     Settings,
-    /// In the first-run setup's step: no headings or notes (the step has its own words), the
-    /// cards smaller in a tight grid.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the first-run setup's look step shows it next")
-    )]
+    /// In the first-run setup's step, which has its own words: no headings or notes; the modes
+    /// as three icons, the presets as one row of split circles (the chosen one named), the faces
+    /// smaller and unnamed.
     Setup,
-}
-
-impl LookVariant {
-    /// A card's width and the height of the page drawn on it.
-    fn card_size(self) -> (f32, f32) {
-        match self {
-            Self::Settings => (118., 60.),
-            Self::Setup => (96., 48.),
-        }
-    }
-
-    /// The gap between cards, and between the picker's parts.
-    fn gaps(self) -> (f32, f32) {
-        match self {
-            Self::Settings => (10., 12.),
-            Self::Setup => (6., 10.),
-        }
-    }
 }
 
 /// The picker.
@@ -86,19 +79,23 @@ impl LookPicker {
         Self { store, variant }
     }
 
-    /// System, Light or Dark, the chosen one raised.
+    /// Whether it is the setup's.
+    fn setup(&self) -> bool {
+        self.variant == LookVariant::Setup
+    }
+
+    /// System, Light or Dark, the chosen one raised: words on Settings, icons in the setup.
     fn modes(&self, chosen: &Appearance, p: &Pal) -> Div {
-        let mut modes = div()
-            .flex()
-            .flex_none()
-            .gap(px(2.))
-            .p(px(2.))
-            .rounded(px(9.))
-            .bg(p.surface_raised);
-        for (id, appearance, label) in MODES {
+        let mut modes = segments(p);
+        for (id, appearance, label, icon) in MODES {
             let store = self.store.clone();
             let on = *chosen == appearance;
-            let segment = segment(id, label, on, p).on_click(move |_, _, cx| {
+            let segment = if self.setup() {
+                icon_segment(id, Icon::new(icon), label, on, p)
+            } else {
+                segment(id, label, on, p)
+            };
+            let segment = segment.on_click(move |_, _, cx| {
                 store.update(cx, |store, cx| {
                     store.pick_theme(None, Some(appearance.clone()), cx);
                 });
@@ -109,56 +106,32 @@ impl LookPicker {
         modes
     }
 
-    /// A preset's card: a page in its light colours (paper, a card of ink lines and an accent
-    /// button) with its dark ground and accent in the corner, then its name, ticked when `on`.
-    fn card(&self, preset: &Preset, on: bool, p: &Pal) -> impl IntoElement + use<> {
-        let (light, dark) = (&preset.light, &preset.dark);
-        let (width, height) = self.variant.card_size();
+    /// A preset's button: picking it picks the preset, in its own colour.
+    fn preset_button(&self, preset: &Preset, on: bool) -> gpui_kit::Stateful<Div> {
+        let (store, id) = (self.store.clone(), preset.id.clone());
+        div()
+            .id(ElementId::Name(
+                format!("{PRESET_CARD}-{}", preset.id).into(),
+            ))
+            // The chosen one is read as selected, and Paper as the default.
+            .button_named(a11y::preset(&preset.name, preset.id == DEFAULT_PRESET))
+            .aria_selected(on)
+            .cursor_pointer()
+            .on_click(move |_, _, cx| {
+                store.update(cx, |store, cx| store.pick_theme(Some(id.clone()), None, cx));
+            })
+    }
+
+    /// A preset's card: its page in the appearance `shown`, then its name. The chosen one is
+    /// the loud one: accent edge, soft fill and a tick; hovering another tints its edge.
+    fn card(&self, preset: &Preset, on: bool, shown: Shown, p: &Pal) -> impl IntoElement + use<> {
         let page = div()
-            .relative()
-            .h(px(height))
             .w_full()
-            .p(px(7.))
             .rounded(px(7.))
-            .overflow_hidden()
-            .bg(Pal::token(&light.background))
             .border_1()
-            .border_color(Pal::token(&light.border))
-            .child(
-                div()
-                    .w(relative(0.7))
-                    .flex()
-                    .flex_col()
-                    .gap(px(4.))
-                    .p(px(6.))
-                    .rounded(px(5.))
-                    .bg(Pal::token(&light.surface))
-                    .child(line(&light.text, 0.85))
-                    .child(line(&light.muted, 0.55))
-                    .child(
-                        div()
-                            .mt(px(2.))
-                            .h(px(9.))
-                            .w(px(28.))
-                            .rounded_full()
-                            .bg(Pal::token(&light.accent)),
-                    ),
-            )
-            .child(
-                div()
-                    .absolute()
-                    .top(px(6.))
-                    .right(px(6.))
-                    .size(px(20.))
-                    .rounded(px(5.))
-                    .bg(Pal::token(&dark.background))
-                    .border_1()
-                    .border_color(Pal::token(&dark.border))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(dot(Pal::token(&dark.accent), 8.)),
-            );
+            .border_color(p.outline)
+            .overflow_hidden()
+            .child(picture::page(preset, shown));
         let name = div()
             .flex()
             .items_center()
@@ -172,95 +145,126 @@ impl LookPicker {
                 )
             })
             .child(preset.name.clone());
-        let (store, id) = (self.store.clone(), preset.id.clone());
-        let card = div()
-            .id(ElementId::Name(
-                format!("{PRESET_CARD}-{}", preset.id).into(),
-            ))
-            // The chosen one is read as selected, and Paper as the default.
-            .button_named(a11y::preset(&preset.name, preset.id == DEFAULT_PRESET))
-            .aria_selected(on)
-            .w(px(width))
+        let hover = p.accent.opacity(0.5);
+        let card = self
+            .preset_button(preset, on)
+            .w(px(118.))
             .flex()
             .flex_col()
             .gap(px(6.))
             .p(px(6.))
             .rounded(px(10.))
             .border_1()
-            .cursor_pointer()
-            .hover(|d| d.bg(p.hover))
             .child(page)
-            .child(name)
-            .on_click(move |_, _, cx| {
-                store.update(cx, |store, cx| store.pick_theme(Some(id.clone()), None, cx));
-            });
+            .child(name);
         tab_stop(card, p)
-            .border_color(if on { p.accent } else { p.border })
+            .border_color(if on { p.accent } else { p.outline })
             .when(on, |d| d.bg(p.accent_soft))
+            .when(!on, |d| d.hover(move |s| s.border_color(hover)))
             .test_support()
     }
 
-    /// A tint: the ember's face in it and its name, ringed when `on`.
+    /// A preset's swatch in the setup: a circle of its paper and accent (in the appearance in
+    /// use), ringed and named when `on`.
+    fn swatch(&self, preset: &Preset, on: bool, p: &Pal) -> impl IntoElement + use<> {
+        let hover = p.accent.opacity(0.5);
+        let ring = div()
+            .rounded_full()
+            .p(px(2.))
+            .border_2()
+            .border_color(if on { p.accent } else { transparent_black() })
+            .when(!on, |d| {
+                d.group_hover(RING_HOVER, move |s| s.border_color(hover))
+            })
+            .child(picture::swatch(preset, p.dark, p.outline, SWATCH));
+        let swatch = self
+            .preset_button(preset, on)
+            .group(RING_HOVER)
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(px(3.))
+            .rounded(px(10.))
+            .border_1()
+            .child(ring)
+            .when(on, |d| {
+                d.child(
+                    div()
+                        .text_size(px(11.5))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .whitespace_nowrap()
+                        .child(preset.name.clone()),
+                )
+            });
+        tab_stop(swatch, p).test_support()
+    }
+
+    /// A tint: the ember's face in it, ringed in the accent when `on`, named on Settings (in
+    /// bold when `on`). No fill: the cards above are the loud choice.
     fn tint(&self, tint: &EmberTint, on: bool, p: &Pal) -> impl IntoElement + use<> {
         let (store, id) = (self.store.clone(), tint.id.clone());
+        let size = if self.setup() { 32. } else { 36. };
+        let hover = p.accent.opacity(0.5);
+        let ring = div()
+            .rounded_full()
+            .p(px(2.))
+            .border_2()
+            .border_color(if on { p.accent } else { transparent_black() })
+            .when(!on, |d| {
+                d.group_hover(RING_HOVER, move |s| s.border_color(hover))
+            })
+            .child(img(face(&tint.id)).size(px(size)));
         let button = div()
             .id(ElementId::Name(format!("{TINT_BUTTON}-{}", tint.id).into()))
+            .group(RING_HOVER)
             .button_named(a11y::preset(
                 &format!("{} ember", tint.name),
                 tint.id == DEFAULT_TINT,
             ))
             .aria_selected(on)
-            .w(px(64.))
             .flex()
             .flex_col()
             .items_center()
             .gap(px(4.))
-            .py(px(6.))
+            .p(px(2.))
             .rounded(px(10.))
             .border_1()
             .cursor_pointer()
-            .hover(|d| d.bg(p.hover))
-            .child(img(face(&tint.id)).size(px(34.)))
-            .child(
-                div()
-                    .text_size(px(11.5))
-                    .when(on, |d| d.font_weight(FontWeight::SEMIBOLD))
-                    .when(!on, |d| d.text_color(p.muted))
-                    .child(tint.name.clone()),
-            )
+            .child(ring)
+            .when(!self.setup(), |d| {
+                d.child(
+                    div()
+                        .text_size(px(11.5))
+                        .when(on, |d| d.font_weight(FontWeight::BOLD))
+                        .when(!on, |d| d.text_color(p.muted))
+                        .child(tint.name.clone()),
+                )
+            })
             .on_click(move |_, _, cx| {
                 store.update(cx, |store, cx| store.pick_ember_tint(id.clone(), cx));
             });
-        tab_stop(button, p)
-            .border_color(if on { p.accent } else { p.border })
-            .when(on, |d| d.bg(p.accent_soft))
-            .test_support()
+        tab_stop(button, p).test_support()
     }
-}
 
-impl Render for LookPicker {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
-        let p = pal(cx);
-        let page: ThemePage = self.store.read(cx).theme().page().clone();
+    /// Settings' picker: Mode, Colours, a hairline, Your ember.
+    fn settings(&self, page: &ThemePage, p: &Pal) -> Div {
         let choice = &page.choice;
         let custom = choice.accent.is_some();
+        let shown = Shown::of(&choice.appearance);
         let cards = page
             .presets
             .iter()
-            .map(|preset| self.card(preset, !custom && choice.preset == preset.id, &p));
+            .map(|preset| self.card(preset, !custom && choice.preset == preset.id, shown, p));
         let tints: Vec<_> = page
             .tints
             .iter()
-            .map(|tint| self.tint(tint, choice.ember_tint == tint.id, &p))
+            .map(|tint| self.tint(tint, worn(page) == tint.id, p))
             .collect();
-        let settings = self.variant == LookVariant::Settings;
-        let (between_cards, between_parts) = self.variant.gaps();
         div()
-            .id("ember-look")
             .flex()
             .flex_col()
-            .gap(px(between_parts))
-            .when(settings, |d| d.py(px(4.)))
+            .gap(px(14.))
+            .py(px(4.))
             .child(
                 div()
                     .flex()
@@ -268,38 +272,77 @@ impl Render for LookPicker {
                     .items_center()
                     .justify_between()
                     .gap(px(8.))
-                    .when(settings, |d| d.child(label(&p, "Theme")))
-                    .child(self.modes(&choice.appearance, &p)),
+                    .child(label(p, "Mode"))
+                    .child(self.modes(&choice.appearance, p)),
             )
             .child(
                 div()
                     .flex()
-                    .flex_wrap()
-                    .gap(px(between_cards))
-                    .children(cards),
+                    .flex_col()
+                    .gap(px(8.))
+                    .child(label(p, "Colours"))
+                    .child(div().flex().flex_wrap().gap(px(10.)).children(cards))
+                    .when(custom, |d| d.child(note(p, CUSTOM))),
             )
-            .when(settings && custom, |d| d.child(note(&p, CUSTOM)))
             .when(!tints.is_empty(), |d| {
-                d.when(settings, |d| d.child(label(&p, "Your ember's colour")))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(between_cards))
-                            .children(tints),
-                    )
+                d.child(div().h(px(1.)).bg(p.outline)).child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(label(p, "Your ember"))
+                        .child(div().flex().flex_wrap().gap(px(10.)).children(tints)),
+                )
             })
-            .test_support()
+    }
+
+    /// The setup's picker: the mode icons, a row of swatches, the faces.
+    fn compact(&self, page: &ThemePage, p: &Pal) -> Div {
+        let choice = &page.choice;
+        let custom = choice.accent.is_some();
+        let swatches = page
+            .presets
+            .iter()
+            .map(|preset| self.swatch(preset, !custom && choice.preset == preset.id, p));
+        let tints: Vec<_> = page
+            .tints
+            .iter()
+            .map(|tint| self.tint(tint, worn(page) == tint.id, p))
+            .collect();
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .child(div().flex().child(self.modes(&choice.appearance, p)))
+            .child(div().flex().items_start().gap(px(4.)).children(swatches))
+            .when(!tints.is_empty(), |d| {
+                d.child(div().flex().gap(px(6.)).children(tints))
+            })
     }
 }
 
-/// A line of ink on a card's page: `share` of its width, in `colour`.
-fn line(colour: &str, share: f32) -> Div {
-    div()
-        .h(px(3.))
-        .w(relative(share))
-        .rounded_full()
-        .bg(Pal::token(colour))
+impl Render for LookPicker {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
+        let p = pal(cx);
+        let page: ThemePage = self.store.read(cx).theme().page().clone();
+        let body = if self.setup() {
+            self.compact(&page, &p)
+        } else {
+            self.settings(&page, &p)
+        };
+        div().id("ember-look").child(body).test_support()
+    }
+}
+
+/// The tint the face is drawn in: the one chosen, or the default when the page doesn't list it
+/// (an early tint, held from before it was dropped), as the face itself draws.
+fn worn(page: &ThemePage) -> &str {
+    let chosen = page.choice.ember_tint.as_str();
+    if page.tints.iter().any(|tint| tint.id == chosen) {
+        chosen
+    } else {
+        DEFAULT_TINT
+    }
 }
 
 /// A part's small heading.
@@ -482,12 +525,12 @@ mod tests {
         let (backend, store, mut cx) = open(page.clone(), cx);
         cx.update(|window, cx| {
             window.render_frame(cx);
-            window.click("look-tint-sage", cx);
+            window.click("look-tint-blue", cx);
         });
         cx.run_until_parked();
         let changes = sent(&backend);
         assert_eq!(changes.len(), 1);
-        assert_eq!(changes[0].ember_tint.as_deref(), Some("sage"));
+        assert_eq!(changes[0].ember_tint.as_deref(), Some("blue"));
         assert_eq!(
             changes[0].preset.as_deref(),
             Some("paper"),
@@ -496,7 +539,7 @@ mod tests {
         let tint = store.read_with(&cx, |store, _| {
             store.theme().page().choice.ember_tint.clone()
         });
-        assert_eq!(tint, "sage");
+        assert_eq!(tint, "blue");
         let (_, tints) = drawn(&page, &mut cx);
         assert_eq!(tints, [false, false, false, true]);
     }
@@ -517,9 +560,13 @@ mod tests {
         let mut cx = VisualTestContext::from_window(window.into(), cx);
         cx.update(|window, cx| {
             window.render_frame(cx);
-            let card = window.find("look-preset-paper").bounds();
-            assert_eq!(card.size.width, px(96.), "the tight grid's card");
-            assert!(window.try_find("look-tint-rose").is_some());
+            let swatch = window.find("look-preset-paper").bounds();
+            assert!(
+                swatch.size.width < px(SWATCH + 16.),
+                "a swatch, not a card: {swatch:?}"
+            );
+            assert!(window.try_find("look-tint-coral").is_some());
+            assert!(window.try_find("look-mode-dark").is_some());
             window.click("look-preset-green", cx);
         });
         cx.run_until_parked();
@@ -531,6 +578,15 @@ mod tests {
             Some("green"),
             "the same theme change as on Settings"
         );
+    }
+
+    #[gpui_kit::test]
+    fn a_tint_no_longer_listed_rings_the_default(cx: &mut TestAppContext) {
+        let mut page = every_preset();
+        page.choice.ember_tint = "rose".into();
+        let (_, _, mut cx) = open(page.clone(), cx);
+        let (_, tints) = drawn(&page, &mut cx);
+        assert_eq!(tints, [true, false, false, false]);
     }
 
     #[gpui_kit::test]

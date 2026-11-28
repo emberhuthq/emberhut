@@ -33,9 +33,8 @@ const DATA_FLOW: &str = "Your messages, and what your ember reads to answer them
     you, mail, pages), go to the model you picked. Gmail and Slack are read from their own \
     servers. Phone alerts pass through Apple's push service.";
 
-/// What the Look block says under the picker.
-const LOOK: &str = "The same theme as Appearance, kept on the server, so your other devices \
-    follow it.";
+/// What the Look block says under its title.
+const LOOK: &str = "Also in Appearance. Syncs to your other devices.";
 
 /// Sharing's one honest line.
 const SHARING: &str = "Today sharing is set up through your server's API, for developers. \
@@ -111,10 +110,15 @@ impl SettingsView {
             &["ember-look"],
             section(
                 p,
-                "Look",
+                div().flex().flex_col().gap(px(2.)).child("Look").child(
+                    div()
+                        .font_weight(FontWeight::NORMAL)
+                        .text_color(p.faint)
+                        .child(LOOK),
+                ),
                 None,
                 vec![self.look.clone().into_any_element()],
-                Some(LOOK.to_owned()),
+                None,
             ),
         ));
         let models = now
