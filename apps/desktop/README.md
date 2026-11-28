@@ -487,7 +487,7 @@ and Esc leaves it.
 ## The column
 
 Each main window has one column beside the chat (`ui/column/`), and every page shows in it:
-Needs you, Tasks, a task's page, Machines, Settings and the pages its rows open (Appearance,
+Needs you, Tasks, a task's page, Huts (`Page::Machines`), Settings and the pages its rows open (Appearance,
 the Chrome profiles, About you, an environment's, pushed over it), a project's, a goal's and a
 person's pages, the weekly report, the pending approvals and a request's page. It holds a path of pages, the shown one
 last; Back takes it off (from the first, or a task opened alone, the chat is alone again),
