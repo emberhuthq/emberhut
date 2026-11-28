@@ -193,6 +193,8 @@ struct Session {
     provider: Option<ProviderEnv>,
     /// The fingerprint of the configured agent it runs as (none: the default agent).
     agent: Option<String>,
+    /// The name the owner gave their ember when its prompt was written (none: no name).
+    name: Option<String>,
     used_at: Timestamp,
     requests: u64,
     /// Lines read from its output so far.
@@ -485,14 +487,11 @@ impl ClaudeAssistant {
             room,
         };
         self.close_idle_but(Some(room));
-        let mut kept = self
-            .settings
-            .get(&kept_key(room))
-            .await?
-            .unwrap_or_default();
+        let mut kept = self.kept(room).await?;
         let pinned = self.pinned().await;
         let provider = self.session_provider().await?;
         let taken = self.state().open.remove(&room);
+        let name = self.ember_name(agent).await?;
         let taken = reusable(
             room,
             agent,
@@ -500,6 +499,7 @@ impl ClaudeAssistant {
             taken,
             pinned.as_deref(),
             provider.as_ref(),
+            name.as_deref(),
         );
         // A session kept from an earlier turn may have died since (the CLI crashed or was
         // updated): if it ends before writing a line for this turn, and the turn was not
@@ -656,10 +656,12 @@ impl ClaudeAssistant {
             provider.as_ref(),
             kept.id.as_deref(),
         );
+        let name = self.ember_name(agent).await?;
         let pipes = self.spawner.spawn(&launch)?;
         let mut session = Session {
             pipes,
             agent: agent.fingerprint().map(str::to_owned),
+            name: name.clone(),
             account: account.clone(),
             provider,
             used_at: self.clock.now(),
@@ -669,7 +671,7 @@ impl ClaudeAssistant {
         let id = session.request_id("init");
         if !session.pipes.send(stream::initialize(
             &id,
-            &self.system_prompt(room, setup).await?,
+            &self.system_prompt(room, setup, name.as_deref()).await?,
         )) {
             return Err(ClaudeError::SessionEnded);
         }
@@ -776,18 +778,40 @@ impl ClaudeAssistant {
         launch
     }
 
-    /// The system prompt after the CLI's own: the server's rules, the room, the configured
-    /// prompt; for a configured agent's room, its own prompt (`agent`) alone.
+    /// How `room`'s session was last kept.
+    async fn kept(&self, room: RoomId) -> Result<Kept, DbError> {
+        Ok(self
+            .settings
+            .get(&kept_key(room))
+            .await?
+            .unwrap_or_default())
+    }
+
+    /// The name the owner gave their ember, for a session of the default agent (a configured
+    /// agent has its own); none when they gave none.
+    async fn ember_name(&self, agent: &agent_room::RoomAgent) -> Result<Option<String>, DbError> {
+        match agent {
+            agent_room::RoomAgent::Default => {
+                crate::services::ember_name::custom_name(&self.settings).await
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// The system prompt after the CLI's own: the server's rules, the ember's `name` when the
+    /// owner gave one, the room, the configured prompt; for a configured agent's room, its own
+    /// prompt (`agent`) alone.
     async fn system_prompt(
         &self,
         room: RoomId,
         agent: Option<&agent_room::AgentSetup>,
+        name: Option<&str>,
     ) -> Result<String, DbError> {
         if let Some(setup) = agent {
             return Ok(setup.prompt.clone());
         }
         let rooms = self.rooms.list().await?;
-        let name = |id: RoomId| {
+        let room_name = |id: RoomId| {
             rooms
                 .iter()
                 .find(|known| known.id == id)
@@ -803,9 +827,12 @@ impl ClaudeAssistant {
         } else {
             String::new()
         };
+        let named = name.map_or_else(String::new, crate::services::ember_name::told);
         let mut prompt = format!(
-            "{RULES}{plans}\n\nRooms: you are in {}{}.",
-            name(room),
+            "{RULES}{plans}{named}
+
+Rooms: you are in {}{}.",
+            room_name(room),
             if room == RoomId::MAIN {
                 " (Main, the room the owner opens first)"
             } else {
@@ -1103,8 +1130,9 @@ impl crate::services::workers_view::AssistantTasks for ClaudeAssistant {
 /// The session `taken` from `room`'s open ones, when the turn may go on in it: not when the
 /// owner pinned another account (the conversation moves there), nor when it runs as another
 /// agent than `agent` now (another agent, or the same one changed), nor when it was started
-/// on another model provider than `provider` (the conversation resumes on it). A kept
-/// conversation made as another agent is not resumed either: `kept` forgets it.
+/// on another model provider than `provider`, nor when its prompt has another ember's `name`
+/// (the conversation resumes on the new one either way). A kept conversation made as another
+/// agent is not resumed either: `kept` forgets it.
 fn reusable(
     room: RoomId,
     agent: &agent_room::RoomAgent,
@@ -1112,6 +1140,7 @@ fn reusable(
     taken: Option<Session>,
     pinned: Option<&str>,
     provider: Option<&ProviderEnv>,
+    name: Option<&str>,
 ) -> Option<Session> {
     let now = agent.fingerprint();
     if kept.agent.as_deref() != now && kept.id.is_some() {
@@ -1134,6 +1163,11 @@ fn reusable(
     if open.provider.as_ref() != provider {
         // A provider saved, changed or removed since: the conversation goes on with it.
         tracing::info!(%room, "the model provider changed: restarting the session on it");
+        return None;
+    }
+    if open.name.as_deref() != name {
+        // Renamed since: the conversation goes on with a prompt that has the new name.
+        tracing::info!(%room, "the ember was renamed: restarting the session");
         return None;
     }
     Some(open)

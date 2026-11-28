@@ -474,13 +474,15 @@ impl VoiceService {
         self.inner.settings.get(&LAST_CALL).await
     }
 
-    /// What the voice model is told before the person says a word.
-    fn instructions(&self) -> String {
+    /// What the voice model is told before the person says a word; `name`: the one the owner
+    /// gave their ember, when they gave one.
+    fn instructions(&self, name: Option<&str>) -> String {
         let now = self.inner.zone.to_datetime(self.inner.clock.now());
         let local = now.strftime("%A %H:%M");
+        let named = name.map_or_else(String::new, crate::services::ember_name::told);
         format!(
             "You are the user's personal assistant, on a voice call with them (they may be \
-             driving: keep it short, clear, hands-free). Speak like a warm, trusted assistant: \
+             driving: keep it short, clear, hands-free).{named} Speak like a warm, trusted assistant: \
              natural, brief sentences, no lists or markdown read out, no machine details. Answer \
              in the language they speak. Local time: {local}.\n\n\
              You are the assistant's voice. The real assistant (the one with their messages, \
@@ -500,7 +502,12 @@ impl VoiceService {
     /// [`VoiceFailure::Provider`] when the provider isn't set up or refuses.
     pub async fn session(&self) -> Result<VoiceSession, VoiceFailure> {
         tracing::info!("a voice call is starting");
-        let key = self.inner.realtime.session(self.instructions()).await?;
+        let name = crate::services::ember_name::custom_name(&self.inner.settings).await?;
+        let key = self
+            .inner
+            .realtime
+            .session(self.instructions(name.as_deref()))
+            .await?;
         Ok(VoiceSession {
             ok: true,
             key: key.key,

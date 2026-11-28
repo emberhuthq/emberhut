@@ -29,6 +29,7 @@ mod calls;
 mod connect;
 mod dark;
 mod document;
+mod ember_name;
 mod events;
 mod family;
 mod gmail;
@@ -80,6 +81,7 @@ const BEARER: &str = "bearer";
         (name = "talk", description = "Saying something, and marking a room read"),
         (name = "settings", description = "The app's small changes, answered with the state"),
         (name = "theme", description = "The colour theme, the same on every device"),
+        (name = "ember", description = "What the person calls their ember, the same on every device"),
         (name = "mcp", description = "The tools a room's agent session calls (MCP)"),
         (name = "files", description = "Files attached in the chat"),
         (name = "push", description = "Where the server pushes a phone's alerts"),
@@ -138,6 +140,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(document::openapi_json))
         .routes(routes!(settings::settings))
         .routes(routes!(theme::theme, theme::set_theme))
+        .routes(routes!(ember_name::name, ember_name::set_name))
         .routes({
             let (schemas, paths, method) = routes!(mcp::mcp_room);
             (schemas, paths, method.fallback(mcp::post_only))

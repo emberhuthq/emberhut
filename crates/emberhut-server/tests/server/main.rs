@@ -29,6 +29,7 @@ mod coding_app;
 mod common;
 mod contract;
 mod dark;
+mod ember_name_route;
 mod end_to_end;
 mod events_route;
 mod failover;
