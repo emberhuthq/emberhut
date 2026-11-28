@@ -283,12 +283,11 @@ export function MessageList(props: MessageListProps) {
         // Held in place only while you read further up; at the newest, what arrives pushes the rest up, above the keyboard.
         maintainVisibleContentPosition={away ? { minIndexForVisible: 1 } : undefined}
         ListEmptyComponent={
-          opening ? (
-            // One View: the inverted list flips it back upright through its style; a bare element or a Fragment would show upside down.
-            <View style={styles.fill}>{props.waiting ?? <Loading label="Opening the chat" />}</View>
-          ) : (
-            <Welcome onStarter={props.onStarter} />
-          )
+          // One View: the inverted list flips it back upright through its style; a bare element, a Fragment or a component
+          // that takes no style (Welcome) would show upside down.
+          <View style={styles.fill}>
+            {opening ? (props.waiting ?? <Loading label="Opening the chat" />) : <Welcome onStarter={props.onStarter} />}
+          </View>
         }
         ListFooterComponent={
           !opening && hasEarlier && rows.length > 0 ? (
