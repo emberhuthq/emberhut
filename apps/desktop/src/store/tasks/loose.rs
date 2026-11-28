@@ -1,7 +1,7 @@
 //! The sessions with no task, on a server that keeps plans: the Tasks list shows them as items
-//! of their own, so no work disappears when the sessions leave the main navigation. One that
-//! waits on the user goes with Needs you, one that runs with what runs, and the rest that moved
-//! in the last day after them; older finished ones stay in Sessions.
+//! of their own at its foot, so no work disappears when the sessions leave the main navigation:
+//! those waiting on the user first, then those running, then the rest that moved in the last
+//! day; older finished ones stay in Sessions.
 
 use emberhut_api::state::State;
 use emberhut_api::work::RunnerSession;
