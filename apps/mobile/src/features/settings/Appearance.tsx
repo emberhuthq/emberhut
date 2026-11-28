@@ -1,4 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useState } from "react";
@@ -7,6 +8,8 @@ import type { Appearance as AppearanceChoice, ThemePage } from "@/api";
 import { agentLine } from "@/features/approvals/model";
 import { splitAgentRooms } from "@/features/chat/rooms";
 import { inBackground } from "@/log";
+import { openChat } from "@/navigation/openChat";
+import type { RootStackParamList } from "@/navigation/types";
 import { prefsStore, themeStore } from "@/services";
 import { offlineReason } from "@/state/connection";
 import { useConnection, usePrefs, useThemeStore } from "@/state/hooks";
@@ -75,7 +78,7 @@ export function RoomsList() {
   const showAgents = usePrefs((s) => s.showAgents);
   const agentsPlace = usePrefs((s) => s.agentsPlace);
   const state = useEmberhutState();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const agents = useMemo(
     () => splitAgentRooms(state.data?.rooms ?? [], state.data?.agents).agents,
     [state.data?.rooms, state.data?.agents],
@@ -85,7 +88,7 @@ export function RoomsList() {
   const open = (id: number) => {
     inBackground(Haptics.selectionAsync(), "RoomsList: selectionAsync");
     prefsStore.getState().setRoom(id);
-    navigation.navigate("Tabs", { screen: "Chat", params: { room: id } });
+    openChat(navigation, { room: id });
   };
   const listed = !showAgents && agents.length > 0;
   return (
