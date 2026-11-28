@@ -32,6 +32,11 @@ export type RootStackParamList = {
   /** A session's transcript ("r-…" runner, "w-<task>" worker); `agent` is a sub-agent's call id: only its own steps. */
   Session: { id: string; agent?: string; title?: string };
   NewSession: undefined;
+  /**
+   * Move to task…: the open task a session's next turns work on (a server that keeps plans). `tasks`: the ones it works
+   * on now, left out of the list; `title` shows while the state hasn't the session.
+   */
+  MoveToTask: { session: string; title?: string; tasks?: number[] };
   /** The Sessions list on a page of its own, from More, while the server keeps task plans and Tasks are the main surface. */
   SessionList: undefined;
   /** Emberhut's browser, live, and taking it over. */

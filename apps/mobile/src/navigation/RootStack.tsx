@@ -18,6 +18,7 @@ import { NewPartyScreen } from "@/features/party/NewPartyScreen";
 import { PartiesScreen } from "@/features/party/PartiesScreen";
 import { PartyScreen } from "@/features/party/PartyScreen";
 import { NewSessionScreen } from "@/features/sessions/NewSessionScreen";
+import { MoveToTaskScreen } from "@/features/sessions/MoveToTaskScreen";
 import { SessionScreen } from "@/features/sessions/SessionScreen";
 import { SessionsScreen } from "@/features/sessions/SessionsScreen";
 import { groupName } from "@/features/settings/entries";
@@ -117,6 +118,7 @@ export function RootStack() {
           <Stack.Screen name="Session" component={SessionScreen} options={({ route }) => ({ title: route.params.title ?? "Session" })} />
           <Stack.Screen name="SessionList" component={SessionsScreen} options={{ title: "Sessions" }} />
           <Stack.Screen name="NewSession" component={NewSessionScreen} options={{ title: "New session", presentation: "modal" }} />
+          <Stack.Screen name="MoveToTask" component={MoveToTaskScreen} options={{ title: "Move to task", presentation: "modal" }} />
           <Stack.Screen
             name="Browser"
             component={BrowserScreen}

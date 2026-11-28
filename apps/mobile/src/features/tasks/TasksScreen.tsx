@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { taskKey, type Issue, type EmberhutState, type Project } from "@/api";
 import { inBackground } from "@/log";
@@ -14,6 +14,7 @@ import { flatTasks, subtasksOf, taskOverview } from "./model";
 import { PlanTaskList } from "./PlanTaskList";
 import { HealthChip, PriorityMark } from "./ProjectMarks";
 import { TaskRow } from "./TaskRow";
+import { useDebounced } from "./useDebounced";
 import { useTaskPlans } from "./useTaskPlans";
 
 /**
@@ -268,13 +269,4 @@ function NewTask({ hidden, onDone }: { hidden: boolean; onDone: () => void }) {
       </View>
     </View>
   );
-}
-
-function useDebounced(value: string, ms: number): string {
-  const [shown, setShown] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setShown(value), value === "" ? 0 : ms);
-    return () => clearTimeout(timer);
-  }, [value, ms]);
-  return shown;
 }
