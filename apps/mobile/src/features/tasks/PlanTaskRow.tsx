@@ -1,10 +1,11 @@
 import { useNavigation } from "@react-navigation/native";
+import { memo } from "react";
 import { StyleSheet, View, Pressable } from "react-native";
 import type { Issue } from "@/api";
 import { minTap, useTheme } from "@/theme";
 import { Icon, Text, type TextTone } from "@/ui";
 import { currentLine, isEmptyPlan, isRunningTask, planFraction, planTicks } from "./plan";
-import { isBlocked, quietText, summarySegments } from "./planView";
+import { isBlocked, quietText, summarySegments, taskRowKey } from "./planView";
 import { SegmentBar, TaskLead } from "./PlanMarks";
 
 /** A task's one line under its title while the server keeps plans, and how it reads. */
@@ -26,12 +27,19 @@ function detailOf(task: Issue): { text: string; tone: TextTone; weight?: "600" }
   return { text: line.kind === "none" ? "Not started" : line.text, tone: "secondary" };
 }
 
+interface PlanTaskRowProps {
+  task: Issue;
+  project?: string | null;
+  /** Minutes with neither its plan nor its session moving, once it's quiet. */
+  quiet?: number | null;
+}
+
 /**
  * A task in the Tasks list while the server keeps plans: its mark (the spinner while a run goes, the red mark when
  * blocked, the ember dot when it waits on you), the title whole, the step it is on or what blocks it with how long it has
  * been quiet, then the plan's bar with its ticks. `quiet`: minutes with neither its plan nor its session moving.
  */
-export function PlanTaskRow({ task, project, quiet = null }: { task: Issue; project?: string | null; quiet?: number | null }) {
+function PlanTaskRowView({ task, project, quiet = null }: PlanTaskRowProps) {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation();
   const summary = task.plan;
@@ -114,6 +122,12 @@ export function PlanTaskRow({ task, project, quiet = null }: { task: Issue; proj
     </Pressable>
   );
 }
+
+/** Drawn again only when what it shows changed: with a couple of hundred tasks, a new state redraws only the ones that moved. */
+export const PlanTaskRow = memo(
+  PlanTaskRowView,
+  (a, b) => a.project === b.project && a.quiet === b.quiet && (a.task === b.task || taskRowKey(a.task) === taskRowKey(b.task)),
+);
 
 const styles = StyleSheet.create({
   row: { minHeight: minTap, flexDirection: "row", alignItems: "flex-start" },

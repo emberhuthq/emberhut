@@ -14,6 +14,7 @@ import {
   soFar,
   stepResults,
   summarySegments,
+  taskRowKey,
 } from "./planView";
 
 const now = new Date("2026-11-28T12:00:00Z");
@@ -269,5 +270,27 @@ describe("the activity feed", () => {
 
   it("keeps the turn lines from an older server's history when it sends no runs", () => {
     expect(activityFeed([], [], history, []).filter((f) => f.kind === "moment")).toHaveLength(3);
+  });
+});
+
+describe("a row's key", () => {
+  const task = issue(1, {
+    status: "working",
+    live: running,
+    plan: { done: 1, total: 3, current: { id: 2, title: "Build", state: "doing" } },
+  });
+
+  it("is the same while what the row shows is the same", () => {
+    expect(taskRowKey({ ...task, updated: "later", body: "changed" })).toBe(taskRowKey(task));
+  });
+
+  it("changes with the title, the state, the ticks, the step or the blocker", () => {
+    const key = taskRowKey(task);
+    expect(taskRowKey({ ...task, title: "Other" })).not.toBe(key);
+    expect(taskRowKey({ ...task, live: { state: "queued", alarm: false } })).not.toBe(key);
+    expect(taskRowKey({ ...task, plan: { ...task.plan!, done: 2 } })).not.toBe(key);
+    expect(taskRowKey({ ...task, plan: { ...task.plan!, current: { id: 3, title: "Sign", state: "doing" } } })).not.toBe(key);
+    expect(taskRowKey({ ...task, plan: { ...task.plan!, blocker: "No key" } })).not.toBe(key);
+    expect(taskRowKey({ ...task, status: "waiting", action: "Pick one" })).not.toBe(key);
   });
 });
