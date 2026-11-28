@@ -191,8 +191,11 @@ work is a task, so the server gives every session one:
   runner sends with every session; a session the runner sends no such time for counts as new
   only when the event is the first the server hears of it. Making tasks for every session a
   runner has ever reported would fill the task list with finished work nobody asked to track.
-- **Renaming.** The apps can't rename a task yet: `taskSet` changes its dates, size, project,
-  description and ultra mode, not its title; the assistant's `task_update` can.
+- **Renaming.** A title made from a first message is often only a first guess, and `taskSet`
+  changes a task's dates, size, project, description and ultra mode, not its title. The person
+  renames a task with `PATCH /api/tasks/{id}` (`{ title }`, answered with the task), through the
+  same change as the assistant's `task_update`, its history saying `Renamed: <old> → <new>`; it
+  is not behind the flag, as renaming any task is useful either way.
 
 ### The flag
 
@@ -212,7 +215,7 @@ plans together.
   time show when it is not kept.
 - Matching steps by title means renaming a step through `plan_set` makes it a new step; renaming
   through `plan_step` keeps it.
-- A title made from a first message is only a first guess at what the work is; a move to
-  another task (or the assistant's rename) corrects it, and a task left empty by a move goes.
+- A title made from a first message is only a first guess at what the work is; a rename or a
+  move to another task corrects it, and a task left empty by a move goes.
 - The person's first message in a session opened from the app carries the plan ask, so their
   own transcript shows it after what they wrote.

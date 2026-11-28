@@ -1506,6 +1506,14 @@ One task (`TaskDetail`): its fields, `history` (oldest first, `{ at, who, text }
 `findings`, `links` (`{ kind, ref, machine, title, status, at, line }`), `runs` (newest first),
 `sessions` and `ultraRun`. 404 `{ "error": "no such task" }`.
 
+### PATCH /api/tasks/{id}
+
+The person renames a task: `{ title }`, 1 to 200 characters once trimmed. Needs a signed-in
+device in either auth mode (401 without). The title changes as the assistant's `task_update`
+changes it, and the history says `Renamed: <old> → <new>` (nothing for the same title). 200: the
+task as the lists show it (`Issue`); 400 `{ error }` for no title, a blank one or one over 200
+characters; 404 `{ "error": "no such task" }`.
+
 ### POST /api/tasks/{id}/message
 
 The person's reply on a task's page, `{ text, files }`: it goes to the task, never Main. To its
