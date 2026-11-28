@@ -5,6 +5,7 @@ import { Pressable, SectionList, StyleSheet, View } from "react-native";
 import type { AgentRow, RoomRow } from "@/api";
 import { agentLine } from "@/features/approvals/model";
 import { inBackground } from "@/log";
+import { openChat } from "@/navigation/openChat";
 import type { RootScreenProps } from "@/navigation/types";
 import { api, prefsStore } from "@/services";
 import { needsRows } from "@/features/needsYou/model";
@@ -83,7 +84,7 @@ export function RoomsScreen({ navigation }: RootScreenProps<"Rooms">) {
   const open = (id: number) => {
     inBackground(Haptics.selectionAsync(), "RoomsScreen: selectionAsync");
     prefsStore.getState().setRoom(id);
-    navigation.navigate("Tabs", { screen: "Chat", params: { room: id } });
+    openChat(navigation, { room: id });
   };
 
   return (

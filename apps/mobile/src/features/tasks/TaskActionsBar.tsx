@@ -1,10 +1,13 @@
 import { useNavigation, type NavigationProp, type ParamListBase } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useState, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Decision, Issue } from "@/api";
 import { answerLabel } from "@/features/needsYou/model";
 import { useLiftToast } from "@/features/needsYou/UndoToast";
+import { openChat } from "@/navigation/openChat";
+import type { RootStackParamList } from "@/navigation/types";
 import { actionsStore } from "@/services";
 import { useActions } from "@/state/hooks";
 import { useTheme } from "@/theme";
@@ -39,7 +42,7 @@ export function TaskActionsBar({
 }) {
   const { colors, spacing } = useTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const plan = taskActions(task, issues, answersInPage);
   const sending = useActions((s) => s.sending.has(task.id) || s.sending.has(plan.target));
   // Held for its undo window or on its way: an Undo or a refusal gives the buttons back, as in the reference client.
@@ -72,7 +75,7 @@ export function TaskActionsBar({
   })();
   // As in the reference client: the box starts with what it's about, your words to follow.
   const draft = `About ${task.key} "${task.title}": `;
-  const talk = () => navigation.navigate("Tabs", { screen: "Chat", params: room === null ? { draft } : { room, draft } });
+  const talk = () => openChat(navigation, room === null ? { draft } : { room, draft });
   return (
     <View
       onLayout={(e) => lift(e.nativeEvent.layout.height)}
