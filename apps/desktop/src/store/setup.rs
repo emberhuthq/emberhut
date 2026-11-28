@@ -39,7 +39,7 @@ pub(crate) use self::home::{
 };
 pub(crate) use self::plans::Plans;
 pub(crate) use self::relight::Relighting;
-pub(crate) use self::yours::{DEFAULT_NAME, SUGGESTIONS};
+pub(crate) use self::yours::{SUGGESTED_NAME, SUGGESTIONS};
 
 use super::{Store, update_or_log};
 use crate::backend::Error;
@@ -390,6 +390,8 @@ pub(crate) struct Setup {
     relighting: Relighting,
     /// The plans' accounts ("Light it").
     plans: Plans,
+    /// Why the name typed in "Make it yours" can't be the ember's.
+    name_problem: Option<String>,
 }
 
 /// How Emberhut here is kept lit, and the sheet that changes it.
@@ -431,6 +433,7 @@ impl Setup {
             keep: Keeping::default(),
             relighting: Relighting::default(),
             plans: Plans::default(),
+            name_problem: None,
         }
     }
 
@@ -649,7 +652,7 @@ impl Store {
             let line = match earlier {
                 SetupStep::Home => self.home_line(),
                 SetupStep::Light => self.light_line(),
-                SetupStep::Yours => format!("Called {}.", self.ember_name()),
+                SetupStep::Yours => format!("Called {}.", self.setup_name()),
                 SetupStep::Reach | SetupStep::World | SetupStep::Share => {
                     self.setup.steps[earlier.index()] = StepState::Skipped;
                     continue;

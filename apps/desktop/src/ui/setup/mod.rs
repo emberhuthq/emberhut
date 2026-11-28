@@ -39,7 +39,7 @@ use super::settings::ChromePane;
 use crate::motion;
 use crate::store::Store;
 use crate::store::settings::SettingsPane;
-use crate::store::setup::{BRIGHTEST, DEFAULT_NAME, SetupStep, StepState};
+use crate::store::setup::{BRIGHTEST, SUGGESTED_NAME, SetupStep, StepState};
 use gpui_kit::component::input::{InputEvent, InputState};
 
 /// The welcome's eyebrow, and every other step's.
@@ -97,10 +97,10 @@ impl SetupView {
             .in_setup()
         });
         let find = cx.new(|cx| PairingForm::new(store.clone(), window, cx).hint(FIND_HINT));
-        let named = store.read(cx).ember_name();
+        let named = store.read(cx).setup_name();
         let name = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder(DEFAULT_NAME)
+                .placeholder(SUGGESTED_NAME)
                 .default_value(named)
         });
         cx.subscribe(&name, |this, field, event: &InputEvent, cx| {
@@ -210,7 +210,7 @@ impl SetupView {
             .px(px(48.))
             .child(ember::picture(BRIGHTEST, EMBER_LIT, p, reduced))
             .child(headline(
-                &format!("{} is", self.store.read(cx).ember_name()),
+                &format!("{} is", self.store.read(cx).setup_name()),
                 "lit.",
                 44.,
                 p,
@@ -395,7 +395,7 @@ impl SetupView {
                     .text_size(px(12.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(p.accent)
-                    .child(format!("Set up {}", self.store.read(cx).ember_name()).to_uppercase()),
+                    .child(format!("Set up {}", self.store.read(cx).setup_name()).to_uppercase()),
             )
             .children(rows)
             .child(div().flex_1())

@@ -27,7 +27,8 @@ impl SetupView {
         cx: &Context<'_, Self>,
     ) -> impl IntoElement {
         let store = self.store.read(cx);
-        let name = store.ember_name();
+        let name = store.setup_name();
+        let problem = store.setup_name_problem();
         let page = store.theme().page().clone();
         let view = cx.entity().downgrade();
         let chips = SUGGESTIONS.iter().map(|suggestion| {
@@ -63,6 +64,16 @@ impl SetupView {
                     .child(div().w(px(240.)).child(Input::new(&self.name)))
                     .children(chips),
             )
+            .when_some(problem, |d, why| {
+                d.child(
+                    div()
+                        .id("setup-name-problem")
+                        .role(Role::Status)
+                        .text_size(px(12.5))
+                        .text_color(p.warn)
+                        .child(why),
+                )
+            })
             .child(preview(&name, p))
             .child(section_title("Its look"))
             .child(theme_presets(&self.store, &page, p))

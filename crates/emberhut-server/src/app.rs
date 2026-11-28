@@ -1089,6 +1089,8 @@ impl AppState {
     #[must_use]
     pub fn ember_name(&self) -> &EmberNameService {
         &self.inner.ember_name
+    }
+
     /// The waitlists kept on this server.
     #[must_use]
     pub fn waitlist(&self) -> &crate::services::waitlist::WaitlistService {

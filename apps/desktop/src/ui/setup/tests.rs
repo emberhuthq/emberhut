@@ -324,5 +324,16 @@ fn make_it_yours_names_the_ember_live_and_keeps_the_name(cx: &mut TestAppContext
         store.read_with(cx, |store, _| store.setup().open()),
         Some(SetupStep::Reach)
     );
-    assert_eq!(store.read_with(cx, |store, _| store.ember_name()), "Ash");
+    assert_eq!(store.read_with(cx, |store, _| store.setup_name()), "Ash");
+    assert_eq!(
+        store.read_with(cx, |store, _| store.ember_name().to_owned()),
+        "Ash",
+        "saved as the ember's name, shown at once"
+    );
+    assert!(
+        backend
+            .calls()
+            .contains(&Call::RenameEmber(Some("Ash".to_owned()))),
+        "sent to the server"
+    );
 }
