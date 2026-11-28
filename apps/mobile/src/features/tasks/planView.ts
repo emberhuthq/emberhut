@@ -261,3 +261,22 @@ export function activityFeed(
       return all;
   }
 }
+
+/**
+ * What a task's row in the Tasks list draws, as one string: two rows with the same key look the same, so a new state
+ * that left a task as it was draws nothing again. Its title, state, ask and its plan at a glance.
+ */
+export function taskRowKey(task: Issue): string {
+  const plan = task.plan;
+  const current = plan?.current;
+  return [
+    task.id,
+    task.title,
+    task.status,
+    task.action ?? task.decision?.question ?? "",
+    task.live?.state ?? "",
+    plan ? `${plan.done}/${plan.total}` : "-",
+    current ? `${current.id}:${current.state}:${current.title}` : "",
+    plan?.blocker ?? "",
+  ].join("\u0000");
+}
