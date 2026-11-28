@@ -10,7 +10,9 @@ two; the types are `emberhut_api::mac::{helper, ExtensionFolder}`, the server's 
 
 ## The folder
 
-Every Chrome profile on the Mac loads the extension unpacked from one folder:
+People add the extension from the Chrome Web Store ([ADR 0031](adr/0031-extension-on-the-chrome-web-store.md));
+this folder is for builds loaded unpacked, the developers' way. Such a profile loads the extension unpacked from one
+folder:
 `~/Library/Application Support/Emberhut/Extension`. The extension's id is fixed by the `key` in its
 `manifest.json` (`emberhut_api::chrome::extension::ID`), so it is the same in every profile and from
 every copy of the folder.

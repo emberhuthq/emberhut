@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Emberhut",
   "version": "0.1.0",
-  "description": "Lets Emberhut work in this Chrome profile, only in its own tabs; Pause lets it go for 10 minutes, then it comes back by itself.",
+  "description": "Lets your own Emberhut assistant work in Chrome, only in its own tab group, paired with the Emberhut hut you run yourself.",
   "minimum_chrome_version": "125",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlnkkmIg4Ea6LywckTIQsEnAOA5QPPZ3s8k/CTmzi55BSS7lP9C+gwH3OKqK0PW4L3f11ehIXHOVxtxIAmmWY/53E1FPwTVLy6OFnWWOk94cfkDJ2p3drOjJMWOwxDeqnDBVEgjyDM7rd6dw/Xo9sud3Bz3QY+XCa01n3Zz6nui+rjs2HxVm7OEeonSp/hHqXYh2CwsQeZrqoZY1tESLIEMEwrMFwywTpwzuOzFkxkOAMAY6IoCOPHKpkMNM/WUwLCMt5/d3mUPH1rU6BcvJH1Fd2gSrgH7O+06/gZsC+b6gg41meXniZp+WN4UnuipT6Edtr/IrfGDtyQ5JqJ6JewwIDAQAB",
   "background": {
@@ -21,5 +21,10 @@
     "48": "icons/emberhut-48.png",
     "128": "icons/emberhut-128.png"
   },
-  "permissions": ["debugger", "tabs", "tabGroups", "webNavigation", "storage", "alarms", "notifications", "identity", "identity.email"]
+  "permissions": ["debugger", "tabs", "tabGroups", "webNavigation", "storage", "alarms"],
+  "homepage_url": "https://emberhut.com",
+  "optional_permissions": ["notifications"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  }
 }

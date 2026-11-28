@@ -549,10 +549,16 @@ pub(crate) async fn the_pairing_page_the_socket_without_an_upgrade_and_the_exten
         page.text
             .contains("<h1>Pair this Chrome profile with Emberhut</h1>")
     );
+    // The Chrome Web Store first; the zip only for loading a build unpacked.
+    assert!(page.text.contains(&format!(
+        "href=\"{}\"",
+        emberhut_api::chrome::extension::STORE_PAGE
+    )));
     assert!(
         page.text
             .contains(&format!("href=\"{}\"", paths::CHROME_EXTENSION_ZIP))
     );
+    assert!(!page.text.contains("{STORE}") && !page.text.contains("{ZIP}"));
     let socket = app.call(Call::get(paths::CHROME_WS)).await;
     assert_eq!(socket.status, 400);
     let none = app.call(Call::get(paths::CHROME_EXTENSION_ZIP)).await;
@@ -627,6 +633,8 @@ fn the_extension_s_manifest_key_gives_its_fixed_id() {
         emberhut_core::chrome::extension_id(key).as_deref(),
         Some(native::ID)
     );
+    // The store's copy keeps the same id (its first upload carried the private key).
+    assert!(emberhut_api::chrome::extension::STORE_PAGE.ends_with(&format!("/{}", native::ID)));
 }
 
 #[tokio::test]

@@ -19,8 +19,13 @@ keywords = ["10.", "192.168.", "172.", "100."]
 # that tells a LAN address from a public one needs private addresses to test with. Any other
 # private address, or one of these in any other file, is still flagged.
 condition = "AND"
-regexes = ['''^(?:10\.0\.0\.5|172\.16\.0\.5|192\.168\.1\.1[01])$''']
+regexes = ['''^(?:10\.0\.0\.5|172\.16\.0\.5|192\.168\.1\.1[01]|100\.64\.0\.5)$''']
 paths = ['''\.test\.tsx?$''', '''\.rs$''']
+[[rules.allowlists]]
+# The CGNAT range Tailscale hands out, written as a range (`100.64.0.0/10`): the browser
+# extension pairs over plain http only with a hut on this computer or in that range. Its base
+# is no host's address.
+regexes = ['''^100\.64\.0\.0$''']
 
 [[rules]]
 id = "email-address"
@@ -51,6 +56,10 @@ id = "tailnet-ipv6"
 description = "A tailnet IPv6 address"
 regex = '''(?i)\bfd7a:115c:a1e0:[0-9a-f:]*'''
 keywords = ["fd7a:115c:a1e0"]
+[[rules.allowlists]]
+# Tailscale's IPv6 prefix itself (`fd7a:115c:a1e0::/48`, as the browser extension's transport rule
+# names it) and the extension's test address on it; any other address in it is still flagged.
+regexes = ['''(?i)^fd7a:115c:a1e0::?1?$''']
 
 [[allowlists]]
 description = "Lock files carry crate versions, not addresses"

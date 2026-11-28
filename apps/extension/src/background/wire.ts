@@ -25,6 +25,8 @@ export interface Link {
   answers: boolean;
   /** The server said hello: the profile is known. */
   ready: boolean;
+  /** The server said this socket's pairing worked. */
+  paired?: boolean;
 }
 
 let current: Link | null = null;

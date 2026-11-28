@@ -1,12 +1,9 @@
 // Pairing offers: a pairing link seen in a tab, for a server other than the one this profile is paired with, is
 // offered for the owner to confirm, at most once per origin per browser session (a site can't raise one offer per
-// path); the offer's notification names its
-// code, so a click answers that offer and no later one.
+// path). Before the profile is paired the offer opens the consent page (what pairing sends, and Pair or Not now);
+// once paired, it waits in the popup alone, so a page can't raise a prompt to switch servers.
 
 import type { PairWith } from "./pairing";
-
-/** The offer's notification id prefix; the code follows it. */
-export const OFFER_PREFIX = "pair-offer:";
 
 /** A server's origin: the scheme, host and port the limit on offers counts by. */
 export function originOf(server: string): string {
@@ -18,25 +15,14 @@ export function originOf(server: string): string {
 }
 
 /** What to do with a pairing link seen in a tab. */
-export type LinkAction = "pair" | "offer-popup" | "offer-notification" | "ignore";
+export type LinkAction = "pair" | "offer-popup" | "offer-page" | "ignore";
 
 /**
- * A link on the paired server pairs by itself; one on another server is offered: in the popup alone while this profile
- * is paired (a page can't raise a notification to switch servers), with a notification too before it's paired. A
- * server already offered in this session is ignored.
+ * A link on the server this profile is paired with pairs by itself; one on another server (or after an unpair) is offered: in the popup alone while this profile
+ * is paired, on the consent page before it's paired. A server already offered in this session is ignored.
  */
 export function linkAction(link: PairWith, saved: { server: string | null; token: string | null }, offered: readonly string[]): LinkAction {
-  if (saved.server === link.server) return "pair";
+  if (saved.token && saved.server === link.server) return "pair"; // after an unpair, it asks again
   if (offered.includes(originOf(link.server))) return "ignore";
-  return saved.token ? "offer-popup" : "offer-notification";
-}
-
-/** The notification id for an offer. */
-export function offerId(link: PairWith): string {
-  return `${OFFER_PREFIX}${link.code}`;
-}
-
-/** The code a notification id answers for, or null when it isn't an offer's. */
-export function codeOfOffer(id: string): string | null {
-  return id.startsWith(OFFER_PREFIX) ? id.slice(OFFER_PREFIX.length) : null;
+  return saved.token ? "offer-popup" : "offer-page";
 }

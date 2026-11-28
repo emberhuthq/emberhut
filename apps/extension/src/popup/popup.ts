@@ -1,9 +1,10 @@
 // The popup: pair, pause Emberhut (it comes back by itself), share a tab, hand back, and see what Emberhut did. Everything
 // goes through the service worker.
 
-import { messageOf } from "../log";
+import { SHORT } from "../disclosure";
+import { inBackground, messageOf } from "../log";
 import { blockedList } from "../scope";
-import type { PopupAsk, Status } from "../status";
+import { refusal, type Answer, type PopupAsk, type Status } from "../status";
 import { clock } from "../pause";
 import { builtIn, driving, headline, pauseEnds } from "./view";
 
@@ -15,10 +16,10 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 const show = (id: string, on: boolean): void => void $(id).classList.toggle("hide", !on);
 
 /** The worker's answer, or why none came: Chrome can lose an extension's worker. Pairing waits up to 15 s. */
-function ask(message: PopupAsk): Promise<Status | { error: string }> {
-  const wait = message.kind === "pair" || message.kind === "accept" ? 15_000 : 5_000;
+function ask(message: PopupAsk): Promise<Answer> {
+  const wait = message.kind === "accept" ? 15_000 : 5_000;
   return Promise.race([
-    chrome.runtime.sendMessage<PopupAsk, Status | { error: string }>(message),
+    chrome.runtime.sendMessage<PopupAsk, Answer>(message),
     new Promise<never>((_, no) => setTimeout(() => no(new Error("no answer")), wait)),
   ]);
 }
@@ -40,12 +41,13 @@ async function send(message: PopupAsk): Promise<void> {
   $("err").textContent = "";
   try {
     const answer = await ask(message);
-    if ("error" in answer) {
-      $("err").textContent = answer.error;
-      await send({ kind: "status" });
+    const refused = refusal(answer);
+    if (refused !== null) {
+      $("err").textContent = refused;
+      if (message.kind !== "status") await send({ kind: "status" });
       return;
     }
-    render(answer);
+    render(answer as Status);
   } catch (cause) {
     dead(cause);
   }
@@ -54,6 +56,8 @@ async function send(message: PopupAsk): Promise<void> {
 function render(s: Status): void {
   show("offer", s.offer !== null);
   $("offerServer").textContent = s.offer?.server ?? "";
+  $("offerWhat").textContent = SHORT;
+  $("pairWhat").textContent = SHORT;
   show("pair", !s.paired && s.offer === null);
   show("main", s.paired);
   $("status").textContent = headline(s);
@@ -82,6 +86,7 @@ function render(s: Status): void {
   const box = $<HTMLTextAreaElement>("blocked");
   if (document.activeElement !== box) box.value = s.blocked.join("\n");
   $("builtin").textContent = builtIn(s);
+  $<HTMLInputElement>("notify").checked = s.notifications;
 }
 
 const on = (id: string, message: () => PopupAsk | null): void => {
@@ -92,7 +97,7 @@ const on = (id: string, message: () => PopupAsk | null): void => {
 };
 
 on("doPair", () => ({ kind: "pair", code: $<HTMLInputElement>("code").value, server: $<HTMLInputElement>("server").value }));
-on("accept", () => ({ kind: "accept" }));
+on("review", () => ({ kind: "review" }));
 on("dismiss", () => ({ kind: "dismiss" }));
 on("pause", () => ({ kind: "pause" }));
 on("share", () => ({ kind: "share" }));
@@ -100,7 +105,18 @@ on("handback", () => ({ kind: "handback" }));
 on("save", () => ({ kind: "settings", blocked: blockedList($<HTMLTextAreaElement>("blocked").value) }));
 on("unpair", () => (confirm("Unpair this Chrome profile from Emberhut?") ? { kind: "unpair" } : null));
 
+// Notifications are optional: Chrome asks for them here, on the owner's click, and they can be turned off again.
+$<HTMLInputElement>("notify").addEventListener("change", (event) => {
+  const box = event.target as HTMLInputElement;
+  const wanted: chrome.permissions.Permissions = { permissions: ["notifications"] };
+  const change = box.checked ? chrome.permissions.request(wanted) : chrome.permissions.remove(wanted).then((gone) => !gone);
+  inBackground(
+    change.then((on) => void (box.checked = on)),
+    "notifications",
+  );
+});
+
 send({ kind: "status" }).catch(dead);
 setInterval(() => {
-  ask({ kind: "status" }).then((answer) => ("error" in answer ? undefined : render(answer)), dead);
+  ask({ kind: "status" }).then((answer) => (refusal(answer) === null ? render(answer as Status) : undefined), dead);
 }, 2_000);

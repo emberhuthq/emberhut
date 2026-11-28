@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pair with your Emberhut hut</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --paper: #f6f0e6;
+      --card: #fffaf2;
+      --ink: #2a211b;
+      --soft: #6d5f52;
+      --line: #e3d6c3;
+      --ember: #b83d0c;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1d1814;
+        --card: #262019;
+        --ink: #f1e8dc;
+        --soft: #b5a796;
+        --line: #3b3229;
+        --ember: #f08a4b;
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font:
+        16px/1.55 -apple-system,
+        "Segoe UI",
+        system-ui,
+        sans-serif;
+    }
+    main {
+      max-width: 620px;
+      margin: 28px auto;
+      padding: 28px 32px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    h1 img {
+      width: 40px;
+      height: 40px;
+    }
+    .server {
+      font:
+        14px ui-monospace,
+        Menlo,
+        monospace;
+      color: var(--soft);
+      word-break: break-all;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    li {
+      margin: 8px 0;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    button {
+      font: inherit;
+      padding: 9px 18px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      cursor: pointer;
+    }
+    button.main {
+      background: var(--ember);
+      border-color: var(--ember);
+      color: #fff;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .note {
+      color: var(--soft);
+      font-size: 14px;
+    }
+    .err {
+      color: #b3261e;
+      margin-top: 12px;
+    }
+    .hide {
+      display: none;
+    }
+  </style>
+  <main>
+    <h1><img src="icons/emberhut-128.png" alt="" />Pair with your hut?</h1>
+    <div class="server" id="server"></div>
+    <section id="ask" class="hide">
+      <ul id="lines"></ul>
+      <p class="note">Pair only if this is your own Emberhut hut. You can pause Emberhut or unpair this profile any time from its icon.</p>
+      <div class="buttons"><button class="main" id="pair">Pair</button><button id="later">Not now</button></div>
+    </section>
+    <p id="done" class="hide"></p>
+    <p id="none" class="hide">There's no pairing waiting. Open the pairing link from the Emberhut app again.</p>
+    <div class="err" id="err"></div>
+  </main>
+  <script src="consent.js"></script>
+</html>

@@ -9,6 +9,7 @@ import { readMessage, type Message } from "../messages";
 import type { About } from "../first-message";
 import type { PairWith } from "../pairing";
 import { pausedNow } from "../pause";
+import { transportProblem } from "../transport";
 import { Msg } from "../protocol";
 import { badge } from "./badge";
 import { adopted, framing } from "./held";
@@ -36,19 +37,15 @@ export function linkError(): string {
 }
 
 /**
- * What the app shows about this profile: the extension's version, the Google account Chrome is signed in to (Chrome's
- * own answer; empty when it isn't), the OS and Chrome's version. Never anything from its pages, cookies or passwords.
+ * What the app shows about this profile: the extension's version, the OS and Chrome's version. Never anything from
+ * its pages, cookies or passwords, and not the profile's Google account (the owner names the profile in the app).
  */
 async function about(): Promise<About> {
-  const email = await chrome.identity.getProfileUserInfo({ accountStatus: chrome.identity.AccountStatus.ANY }).then(
-    (user) => user.email,
-    () => undefined,
-  );
   const os = await chrome.runtime.getPlatformInfo().then(
     (platform) => platform.os,
     () => undefined,
   );
-  return { version: VERSION, email, os, agent: /Chrome\/[\d.]+/.exec(navigator.userAgent)?.[0] };
+  return { version: VERSION, os, agent: /Chrome\/[\d.]+/.exec(navigator.userAgent)?.[0] };
 }
 
 /** Connects when it should: paired (or pairing), no socket up, not backing off. A socket that's dead is let go. */
@@ -83,13 +80,15 @@ export async function connect(): Promise<void> {
       made.answers = true;
       return;
     }
-    inBackground(onMessage(made, server, event.data), "server message");
+    inBackground(onMessage(made, server, asked, event.data), "server message");
   };
   ws.onerror = () => {
     lastError = `Can't reach the server at ${server}`;
   };
   ws.onclose = (event: CloseEvent) => {
-    if (asked && pairing === asked) pairing = null; // refused: pairWith ends with the server's words
+    // Refused: pairWith ends with the server's words. A socket that got `paired` first is not a refusal: the server
+    // closes it right after, before onMessage has kept the token.
+    if (asked && pairing === asked && !made.paired) pairing = null;
     inBackground(gone(made, event.reason), "socket closed");
   };
 }
@@ -113,8 +112,11 @@ async function gone(made: Link, reason: string): Promise<void> {
   if (!fails) setTimeout(() => inBackground(connect(), "connect"), 300); // a tool may be waiting for it
 }
 
-/** A message on the socket `made`, opened for `server`; one from a socket that is no longer the current one is dropped. */
-async function onMessage(made: Link, server: string, data: string): Promise<void> {
+/**
+ * A message on the socket `made`, opened for `server` (to pair with `asked`, when it was); one from a socket that is no
+ * longer the current one is dropped.
+ */
+async function onMessage(made: Link, server: string, asked: PairWith | null, data: string): Promise<void> {
   if (link() !== made) return;
   let m: Message;
   try {
@@ -126,13 +128,15 @@ async function onMessage(made: Link, server: string, data: string): Promise<void
   }
   const params = (typeof m.params === "object" && m.params !== null ? m.params : {}) as Record<string, unknown>;
   if (m.method === Msg.paired) {
-    // A pairing code worked: this profile's own token from now on, with the server it came from.
+    // A pairing code worked: this profile's own token from now on, with the server it came from. Marked before the
+    // first await, as the server closes this socket at once (onclose).
+    made.paired = true;
     const token = typeof params.token === "string" ? params.token : null;
     const name = typeof params.name === "string" ? params.name : null;
     const label = typeof params.label === "string" ? params.label : name;
     await setSettings({ token, name, label, server });
-    paired = pairing;
-    pairing = null;
+    paired = asked;
+    if (pairing === asked) pairing = null;
     lastError = "";
     fails = retryAt = 0;
     setLink(null);
@@ -163,6 +167,8 @@ async function onMessage(made: Link, server: string, data: string): Promise<void
 
 /** Pairs with `pair`: this profile gets its own token on that server, replacing any earlier pairing. */
 export async function pairWith(pair: PairWith): Promise<void> {
+  const problem = transportProblem(pair.server);
+  if (problem) throw new Error(problem);
   pairing = pair;
   paired = null;
   lastError = "";
