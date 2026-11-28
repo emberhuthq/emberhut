@@ -13,6 +13,10 @@ pub const QUESTION_LENGTH: usize = 600;
 /// The start of the line the server appends to a turn it asks for a status line.
 pub const STATUS_ASK_START: &str = "End every reply with one last line";
 
+/// The start of what the server appends to a session's first turn about its task's plan, on a
+/// server that keeps plans; it comes after a blank line.
+pub const PLAN_ASK_START: &str = "This work is task ";
+
 /// `text` on one line (every run of white space one space), trimmed, cut to `n` characters.
 #[must_use]
 pub fn clip(text: &str, n: usize) -> String {
@@ -25,9 +29,13 @@ pub fn clip(text: &str, n: usize) -> String {
 }
 
 /// What a turn's prompt asked, without what the server added: its status-line ask and
-/// everything after it, and a leading `(From ...)` label, cut to [`ASK_LENGTH`].
+/// everything after it, its plan ask ([`PLAN_ASK_START`] after a blank line) and everything
+/// after it, and a leading `(From ...)` label, cut to [`ASK_LENGTH`].
 #[must_use]
 pub fn asked(prompt: &str) -> String {
+    let prompt = prompt
+        .find(&format!("\n\n{PLAN_ASK_START}"))
+        .map_or(prompt, |at| &prompt[..at]);
     let lower = prompt.to_lowercase();
     let mut text = match lower.find(&STATUS_ASK_START.to_lowercase()) {
         // Lowercasing can move byte offsets for some scripts: cut only where it is a boundary.
@@ -108,6 +116,14 @@ mod tests {
             "Fix the build"
         );
         assert_eq!(asked("  plain\n ask "), "plain ask");
+        assert_eq!(
+            asked(&format!("Tidy up\n\n{PLAN_ASK_START}T-4. Keep its plan")),
+            "Tidy up"
+        );
+        assert_eq!(
+            asked(&format!("Say {PLAN_ASK_START}T-4 here")),
+            format!("Say {PLAN_ASK_START}T-4 here")
+        );
         assert_eq!(clip("a  b\nc", 3), "a b");
     }
 
