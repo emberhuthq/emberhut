@@ -36,6 +36,12 @@ The Rust server is the single source of truth for the API. The OpenAPI document 
 TypeScript client will be generated from it, with tests and CI holding both to it. See
 [docs/architecture.md](docs/architecture.md).
 
+## Install
+
+Download the Mac or Windows app, or the server on its own, from the
+[releases](https://github.com/emberhuthq/emberhut/releases) or [emberhut.com/download](https://emberhut.com/download/).
+Install: [docs/install.md](docs/install.md).
+
 ## Build
 
 ```sh

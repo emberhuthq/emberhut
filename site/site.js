@@ -1,8 +1,9 @@
-import "./shared/reveal.js?v=3f14f3d5e9";
-import "./shared/copy.js?v=3f14f3d5e9";
-import { mountAll, hop, rest } from "./shared/ember.js?v=3f14f3d5e9";
-import { demo } from "./shared/demo.js?v=3f14f3d5e9";
-import { comic } from "./shared/comic.js?v=3f14f3d5e9";
+import "./shared/reveal.js?v=ef5a40d8dd";
+import "./shared/copy.js?v=ef5a40d8dd";
+import "./shared/download.js?v=ef5a40d8dd";
+import { mountAll, hop, rest } from "./shared/ember.js?v=ef5a40d8dd";
+import { demo } from "./shared/demo.js?v=ef5a40d8dd";
+import { comic } from "./shared/comic.js?v=ef5a40d8dd";
 mountAll();
 
 // the ember perched on the app window reacts to what happens inside it (no speech: the page says it)
