@@ -3,6 +3,8 @@
 //! is linked to its task (a `thread` link, which the task's page lists and the plan tools scope
 //! a session's calls by), and each of its turns is a run of the task, open while it is queued
 //! or running and closed when it ends, so the task shows running while its session works.
+//! All of it is on a server that keeps plans (`--task-plans`) only: without, the runners'
+//! events leave tasks alone.
 
 use std::collections::BTreeMap;
 
