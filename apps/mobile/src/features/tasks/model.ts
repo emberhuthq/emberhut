@@ -1,4 +1,4 @@
-import { OWNER, taskKey, type AreaTree, type Issue, type EmberhutState, type Project, type TaskRollup } from "@/api";
+import { OWNER, taskKey, type AreaTree, type Issue, type EmberhutState, type PlanSummary, type Project, type TaskRollup } from "@/api";
 import { parseInstant, relative, shortDate } from "@/format/time";
 import { needsRows, rowWhen } from "@/features/needsYou/model";
 
@@ -156,13 +156,20 @@ export function fraction(task: Issue): number | null {
 
 const sizes: Record<string, string> = { S: "1 h", M: "3 h", L: "1 day", XL: "days" };
 
-/** The gray line under a task in a list. */
-export function taskLine(task: Issue, project?: string | null): string {
+/** A plan in a task row's gray line: "4/9 steps", "No plan yet" (the rest of the plan's reading is plan.ts). */
+export function planLine(summary: PlanSummary | null | undefined): string | null {
+  if (!summary) return null;
+  return summary.total <= 0 ? "No plan yet" : `${summary.done}/${summary.total} steps`;
+}
+
+/** The gray line under a task in a list; with `plans` (the server keeps them), its plan's ticks too. */
+export function taskLine(task: Issue, project?: string | null, plans = false): string {
   return [
     task.status === "canceled" ? "Archived" : null,
     project,
     isMine(task) || task.parent != null ? null : "Emberhut",
     task.status === "waiting" ? (task.action ?? task.decision?.question) : null,
+    plans && isOpen(task) ? planLine(task.plan) : null,
     countText(task),
     task.sub ? rollupSummary(task.sub) : null,
     task.sub && task.sub.waiting.length > 0 ? `${task.sub.waiting.length} needs you` : null,

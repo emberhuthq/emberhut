@@ -10,6 +10,7 @@ import {
   type RunnerSession,
   type TaskPage,
 } from "@/api";
+import { planLine, taskLine } from "./model";
 import {
   activity,
   currentLine,
@@ -19,7 +20,6 @@ import {
   pageStamp,
   pageTask,
   planFraction,
-  planLine,
   planRows,
   plansOn,
   runningTasks,
@@ -109,6 +109,14 @@ describe("a plan at a glance", () => {
     expect(planFraction({ done: 3, total: 4 })).toBe(0.75);
     expect(planFraction({ done: 5, total: 4 })).toBe(1);
     expect(planLine(undefined)).toBeNull();
+  });
+
+  it("shows an open task's ticks in its row only with plans on", () => {
+    const task = issue(1, { plan: { done: 4, total: 9 } });
+    expect(taskLine(task, null, true)).toBe("Emberhut · 4/9 steps");
+    expect(taskLine(task, null, false)).toBe("Emberhut");
+    expect(taskLine(issue(2, { plan: { done: 0, total: 0 } }), null, true)).toBe("Emberhut · No plan yet");
+    expect(taskLine(issue(3, { status: "done", plan: { done: 9, total: 9 } }), null, true)).toBe("Emberhut");
   });
 
   it("names the step it is on, what blocks it first", () => {

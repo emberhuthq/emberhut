@@ -38,12 +38,6 @@ export function planFraction(summary: PlanSummary): number | null {
 /** "4/9", the ticks at a glance. */
 export const planTicks = (summary: PlanSummary): string => `${summary.done}/${summary.total}`;
 
-/** The plan in a task row's gray line: "4/9 steps", "No plan yet". */
-export function planLine(summary: PlanSummary | null | undefined): string | null {
-  if (!summary) return null;
-  return isEmptyPlan(summary) ? "No plan yet" : `${planTicks(summary)} steps`;
-}
-
 export type CurrentKind = "doing" | "next" | "blocked" | "finished" | "none";
 
 /** What a running task is on, in one line: the step it works on, what blocks it, or what's next. */

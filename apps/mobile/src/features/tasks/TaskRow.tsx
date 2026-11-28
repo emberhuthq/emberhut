@@ -8,6 +8,7 @@ import { ActionSheet, Icon, ProgressBar, Text, type SheetAction } from "@/ui";
 import { DeadlineChip } from "./DeadlineChip";
 import { fraction, isMine, isOpen, taskLine } from "./model";
 import { TaskStateMark } from "./StateMark";
+import { useTaskPlans } from "./useTaskPlans";
 
 export interface TaskRowProps {
   task: Issue;
@@ -29,7 +30,7 @@ export function TaskRow({ task, project, subtasks = [], indent = false }: TaskRo
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const tickable = isMine(task) && task.status === "todo" && !task.sub;
-  const line = taskLine(task, project);
+  const line = taskLine(task, project, useTaskPlans());
   const progress = fraction(task);
   const sheet: SheetAction[] = [
     ...(tickable ? [{ label: "Mark done", icon: "checkmark-circle-outline" as const, onPress: () => actions.markDone(task.id) }] : []),
