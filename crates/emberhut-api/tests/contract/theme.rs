@@ -12,6 +12,8 @@ fn the_theme_page_round_trips() {
     assert_eq!(page.tokens.light.accent_soft, "#E5ECFD");
     assert!(page.contrast.aa);
     assert_eq!(page.names.len(), 14);
+    assert_eq!(page.choice.ember_tint, "amber");
+    assert_eq!(page.tints[0].id, "ember", "the default first");
 }
 
 #[test]
@@ -28,6 +30,7 @@ fn the_theme_page_tolerates_unknown_fields() {
 fn a_theme_change_round_trips() {
     let change: ThemeChange = assert_round_trip("theme_change.json");
     assert_eq!(change.accent, AccentChange::Reset);
+    assert_eq!(change.ember_tint.as_deref(), Some("sage"));
     assert!(change.preview);
     let reply: ThemeSetReply = assert_round_trip("theme_set_reply.json");
     assert!(reply.ok);

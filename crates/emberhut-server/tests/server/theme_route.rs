@@ -43,6 +43,7 @@ pub(crate) async fn the_theme_page_matches_its_fixture() {
         contrast,
         presets,
         names,
+        tints,
     } = reply.page;
     assert_eq!(version, expected.version);
     assert_eq!(tokens, expected.tokens);
@@ -56,6 +57,7 @@ pub(crate) async fn the_theme_page_matches_its_fixture() {
         );
     }
     assert_eq!(names, expected.names);
+    assert_eq!(tints, expected.tints, "every tint, the default first");
     assert_eq!(
         (choice.preset, choice.appearance, choice.accent),
         (
@@ -139,6 +141,66 @@ pub(crate) async fn a_change_is_kept_and_the_state_carries_it() {
 }
 
 #[tokio::test]
+pub(crate) async fn the_embers_tint_is_kept_with_the_theme() {
+    let app = TestApp::new().await;
+    let session = app.sign_in().await;
+    let page: ThemePage = app
+        .call(Call::get(paths::THEME).token(&session))
+        .await
+        .read_as();
+    assert_eq!(page.choice.ember_tint, "ember", "the brand's own colours");
+    let ids: Vec<&str> = page.tints.iter().map(|tint| tint.id.as_str()).collect();
+    assert_eq!(ids, ["ember", "amber", "rose", "sage"]);
+
+    let reply: ThemeSetReply = app
+        .call(
+            Call::post(paths::THEME)
+                .token(&session)
+                .json(&json!({ "preset": "green" })),
+        )
+        .await
+        .read_as();
+    assert_eq!(reply.page.choice.ember_tint, "ember", "kept by a preset");
+    let reply: ThemeSetReply = app
+        .call(
+            Call::post(paths::THEME)
+                .token(&session)
+                .json(&json!({ "emberTint": " Rose " })),
+        )
+        .await
+        .read_as();
+    let choice = reply.page.choice;
+    assert_eq!(
+        (choice.preset.as_str(), choice.ember_tint.as_str()),
+        ("green", "rose"),
+        "the tint changes, the preset stays"
+    );
+    let state: State = app
+        .call(Call::get(paths::STATE).token(&session))
+        .await
+        .read_as();
+    assert_eq!(
+        state.theme.map(|theme| theme.ember_tint).as_deref(),
+        Some("rose")
+    );
+
+    let db = Database::connect(&app.url).await.unwrap();
+    let log: Vec<String> = db
+        .log()
+        .recent(10)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|line| line.text)
+        .collect();
+    assert!(
+        log.iter()
+            .any(|line| line == "The theme is now green, system, the ember in rose"),
+        "{log:?}"
+    );
+}
+
+#[tokio::test]
 pub(crate) async fn a_preview_saves_nothing() {
     let app = TestApp::new().await;
     let session = app.sign_in().await;
@@ -189,7 +251,18 @@ pub(crate) async fn a_value_the_theme_does_not_take_is_400_and_changes_nothing()
             json!({ "accent": 12 }),
             "accent: a hex colour like #3366FF (or null for the preset's own)",
         ),
-        (json!([]), "theme: { preset?, appearance?, accent? }"),
+        (
+            json!({ "emberTint": "teal" }),
+            "emberTint: one of ember, amber, rose, sage",
+        ),
+        (
+            json!({ "emberTint": null }),
+            "emberTint: one of ember, amber, rose, sage",
+        ),
+        (
+            json!([]),
+            "theme: { preset?, appearance?, accent?, emberTint? }",
+        ),
     ] {
         let answer = app
             .call(Call::post(paths::THEME).token(&session).json(&body))

@@ -3,7 +3,8 @@
 //! neutrals; paper, the default, has its own: warm kraft grounds and brown-black ink with an
 //! ember accent. An accent is held to WCAG AA (4.5:1) as text on the background and the surface
 //! and under its own text: one too light for light mode is darkened, one too dark for dark mode
-//! lightened, a step at a time, only as far as it needs.
+//! lightened, a step at a time, only as far as it needs. The choice also names a tint for the
+//! ember's face: the colours its glowing coal is drawn in.
 
 use std::fmt;
 
@@ -29,6 +30,74 @@ pub const NAMES: [&str; 14] = [
     "warn",
     "danger",
     "info",
+];
+
+/// The ember's tint a choice starts from: the brand's own colours.
+pub const DEFAULT_TINT: &str = "ember";
+
+/// The face's ink: its outline, eyes and smile, the same in every tint.
+pub const FACE_INK: &str = "#2A2220";
+
+/// A tint of the ember's face: the colours its glowing coal is drawn in and the lines over it.
+/// The apps ship the face drawn in each (the brand's mark, `assets/brand/`, with these colours
+/// in place of the default's); the face's ink stays [`FACE_INK`] and reads AA on the inner glow,
+/// where the eyes and the smile sit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tint {
+    /// Its id.
+    pub id: &'static str,
+    /// Its name, as shown.
+    pub name: &'static str,
+    /// The glow, centre to edge (at 0, 30, 62, 88 and 100% of the radius).
+    pub glow: [&'static str; 5],
+    /// The seam where the glow meets the charcoal.
+    pub seam: &'static str,
+    /// The embers in the charcoal.
+    pub embers: &'static str,
+    /// The cracks over the glow.
+    pub cracks: &'static str,
+    /// The cheeks (drawn at a quarter's opacity).
+    pub cheeks: &'static str,
+}
+
+/// Every tint, the default first, in the order the API lists them.
+pub const TINTS: [Tint; 4] = [
+    Tint {
+        id: "ember",
+        name: "Ember",
+        glow: ["#FFE4A0", "#FFB24E", "#FB7E2E", "#E0501E", "#C23C16"],
+        seam: "#FFC870",
+        embers: "#FF9A48",
+        cracks: "#9A3414",
+        cheeks: "#E2453A",
+    },
+    Tint {
+        id: "amber",
+        name: "Amber",
+        glow: ["#FFF2C2", "#FFD466", "#F7B32B", "#DE8C12", "#B86A08"],
+        seam: "#FFE08A",
+        embers: "#FFC94D",
+        cracks: "#8A5506",
+        cheeks: "#E2453A",
+    },
+    Tint {
+        id: "rose",
+        name: "Rose",
+        glow: ["#FFE3E8", "#FFB0C0", "#F57A98", "#DB4F76", "#B5345A"],
+        seam: "#FFC9D5",
+        embers: "#FF97B0",
+        cracks: "#8C2445",
+        cheeks: "#C42B55",
+    },
+    Tint {
+        id: "sage",
+        name: "Sage",
+        glow: ["#EEF5D2", "#C6DE92", "#98BD62", "#729E44", "#527A33"],
+        seam: "#E0EEB0",
+        embers: "#B7D47E",
+        cracks: "#405E26",
+        cheeks: "#D9604A",
+    },
 ];
 
 /// The contrast every accent is held to.
@@ -113,7 +182,7 @@ impl Appearance {
 #[non_exhaustive]
 pub enum ThemeRefusal {
     /// The change is not an object.
-    #[error("theme: {{ preset?, appearance?, accent? }}")]
+    #[error("theme: {{ preset?, appearance?, accent?, emberTint? }}")]
     NotAChange,
     /// Not one of the presets.
     #[error("preset: one of {}", PresetIds)]
@@ -124,6 +193,9 @@ pub enum ThemeRefusal {
     /// Not a colour.
     #[error("accent: a hex colour like #3366FF (or null for the preset's own)")]
     Accent,
+    /// Not one of the ember's tints.
+    #[error("emberTint: one of {}", TintIds)]
+    Tint,
 }
 
 /// The presets' ids, comma separated.
@@ -139,6 +211,35 @@ impl fmt::Display for PresetIds {
         }
         Ok(())
     }
+}
+
+/// The tints' ids, comma separated.
+struct TintIds;
+
+impl fmt::Display for TintIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (n, tint) in TINTS.iter().enumerate() {
+            if n > 0 {
+                f.write_str(", ")?;
+            }
+            f.write_str(tint.id)?;
+        }
+        Ok(())
+    }
+}
+
+/// The tint `asked` names (trimmed, in any case).
+///
+/// # Errors
+///
+/// [`ThemeRefusal::Tint`].
+pub fn tint_id(asked: &str) -> Result<&'static str, ThemeRefusal> {
+    let asked = asked.trim().to_lowercase();
+    TINTS
+        .iter()
+        .find(|tint| tint.id == asked)
+        .map(|tint| tint.id)
+        .ok_or(ThemeRefusal::Tint)
 }
 
 /// The preset `asked` names (trimmed, in any case).
@@ -687,7 +788,40 @@ mod tests {
         assert_eq!(accent(Some("red")), Err(ThemeRefusal::Accent));
         assert_eq!(
             ThemeRefusal::NotAChange.to_string(),
-            "theme: { preset?, appearance?, accent? }"
+            "theme: { preset?, appearance?, accent?, emberTint? }"
         );
+        assert_eq!(tint_id(" Rose "), Ok("rose"));
+        assert_eq!(
+            tint_id("teal").unwrap_err().to_string(),
+            "emberTint: one of ember, amber, rose, sage"
+        );
+    }
+
+    #[test]
+    fn the_default_tint_is_the_brands_own_colours() {
+        assert_eq!(TINTS[0].id, DEFAULT_TINT);
+        assert_eq!(
+            TINTS[0].glow,
+            ["#FFE4A0", "#FFB24E", "#FB7E2E", "#E0501E", "#C23C16"]
+        );
+        let mut ids: Vec<&str> = TINTS.iter().map(|tint| tint.id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), TINTS.len());
+    }
+
+    #[test]
+    fn every_tint_keeps_the_face_readable() {
+        // The eyes and the smile sit within the inner third of the glow: its first three stops
+        // (to 62%) are all they are drawn on.
+        for tint in TINTS {
+            for stop in &tint.glow[..3] {
+                let r = ratio(FACE_INK, stop);
+                assert!(r >= AA, "{}: the ink on {stop}: {r:.2}", tint.id);
+            }
+            for colour in [tint.seam, tint.embers, tint.cracks, tint.cheeks] {
+                assert!(hex(colour).is_some(), "{}: {colour}", tint.id);
+            }
+        }
     }
 }

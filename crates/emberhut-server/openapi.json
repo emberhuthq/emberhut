@@ -13153,6 +13153,24 @@
         ],
         "description": "`POST /api/ember/name`'s answer: `{ ok: true }` and the name as it is now. A name the server\ndoesn't take is refused with 400 and an `ErrorBody` (`{ ok: false, error }`)."
       },
+      "EmberTint": {
+        "type": "object",
+        "description": "A tint the ember's face can be drawn in. The apps hold the face drawn in each tint they know;\none they don't know draws as the default.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name, as shown."
+          }
+        }
+      },
       "EnvAction": {
         "type": "object",
         "description": "An action a row offers.",
@@ -21094,6 +21112,13 @@
             ],
             "description": "The custom accent: left out to keep it, `null` for the preset's own, or a colour."
           },
+          "emberTint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ember's tint's id. Lower-case ASCII, 1 to 32 characters (the server trims and\nlower-cases)."
+          },
           "preview": {
             "type": "boolean",
             "description": "Work the page out without saving it."
@@ -21102,7 +21127,7 @@
       },
       "ThemeChoice": {
         "type": "object",
-        "description": "A theme choice: a preset (its accent family on its neutrals), an appearance, and an optional\ncustom accent.",
+        "description": "A theme choice: a preset (its accent family on its neutrals), an appearance, an optional\ncustom accent, and the ember's tint.",
         "required": [
           "preset",
           "appearance"
@@ -21122,6 +21147,10 @@
               "null"
             ],
             "description": "A custom accent (`#RRGGBB`) in place of the preset's; none: the preset's own."
+          },
+          "emberTint": {
+            "type": "string",
+            "description": "The tint the ember's face is drawn in (`ember`, `amber`, ...); a choice saved before tints\nreads as the default, `ember`."
           },
           "at": {
             "oneOf": [
@@ -21179,6 +21208,13 @@
               "type": "string"
             },
             "description": "The token names, in order."
+          },
+          "tints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmberTint"
+            },
+            "description": "The ember's tints, the default first; a server before tints lists none."
           }
         }
       },
