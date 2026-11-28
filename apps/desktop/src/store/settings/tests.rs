@@ -1,6 +1,7 @@
 //! Settings' data in the store, on GPUI's headless test platform with a scripted backend:
-//! when the switches are asked for, what a switch does, a fix to a fact and its refusal, a
-//! Chrome change's answer, and pausing.
+//! when the switches are asked for, what a switch does, a fix to a fact and its refusal, a fact
+//! confirmed, pinned or hidden, the nightly review's switch, the memory's export, a Chrome
+//! change's answer, and pausing.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,15 +9,16 @@ use std::time::Duration;
 use emberhut_api::chrome::{ChromeAction, ChromeReply};
 use emberhut_api::facts::FactsPage;
 use emberhut_api::ids::{ChromeProfileId, FactId, RoomId, TrialId};
-use emberhut_api::settings::SettingsAction;
+use emberhut_api::settings::{FactProfile, SettingsAction};
 use emberhut_api::switches::{SwitchAction, SwitchPage};
 use gpui_kit::{AppContext as _, Entity, TestAppContext};
 use serde_json::json;
 
 use super::SettingsPane;
+use super::about::{Export, ProfileSay};
 use super::chrome::ChromeSheet;
-use crate::backend::Error;
 use crate::backend::fake::{Call, FakeBackend};
+use crate::backend::{Attachment, Error};
 use crate::store::{Page, Store, ThemeState};
 
 fn store(cx: &mut TestAppContext, backend: &Arc<FakeBackend>) -> Entity<Store> {
@@ -160,6 +162,204 @@ fn a_forgotten_fact_goes_at_once_and_comes_back_if_refused(cx: &mut TestAppConte
             Call::Facts
         ]
     );
+}
+
+/// A page with a fact waiting to be confirmed and one confirmed.
+fn waiting_page() -> FactsPage {
+    serde_json::from_value(json!({"facts": [
+        {"id": "work/launch", "category": "work", "title": "Launch", "text": "Ships in May.",
+         "source": "", "updated": "2026-11-21T10:00:00Z", "origin": "message",
+         "from": "chat #40", "pending": true},
+        {"id": "work/desk", "category": "work", "title": "Desk", "text": "Works from home.",
+         "source": "", "updated": "2026-11-20T10:00:00Z", "origin": "assistant"}]}))
+    .unwrap()
+}
+
+/// A store showing What your ember knows about you, its first page fetched.
+fn store_on_about(cx: &mut TestAppContext, backend: &Arc<FakeBackend>) -> Entity<Store> {
+    let store = store(cx, backend);
+    store.update(cx, |store, cx| {
+        store.show_in_test_column(Some(Page::SettingsPane(SettingsPane::AboutYou)), cx);
+    });
+    cx.run_until_parked();
+    store
+}
+
+#[gpui_kit::test]
+fn a_confirmed_fact_joins_the_others_at_once(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]));
+    backend.replies.push_facts(Ok(waiting_page()));
+    let mut confirmed = waiting_page();
+    confirmed.facts[0].pending = false;
+    backend.replies.push_facts(Ok(confirmed));
+    let store = store_on_about(cx, &backend);
+    let launch = FactId::new("work/launch");
+    store.update(cx, |store, cx| {
+        let page = store.facts().page().unwrap();
+        assert_eq!(super::about::pending(page, "").len(), 1, "waits apart");
+        store.confirm_fact(launch.clone(), cx);
+        let page = store.facts().page().unwrap();
+        assert!(super::about::pending(page, "").is_empty(), "at once");
+        assert_eq!(super::about::grouped(page, "")[0].1.len(), 2);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls(),
+        [
+            Call::Facts,
+            Call::Settings(SettingsAction::FactConfirm(launch)),
+            Call::Facts
+        ]
+    );
+    assert_eq!(
+        store.read_with(cx, |store, _| store.action_problem().map(str::to_owned)),
+        None
+    );
+}
+
+#[gpui_kit::test]
+fn pin_and_hide_show_at_once_and_go_as_their_words(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]));
+    for _ in 0..4 {
+        backend.replies.push_facts(Ok(waiting_page()));
+    }
+    let store = store_on_about(cx, &backend);
+    let desk = FactId::new("work/desk");
+    store.update(cx, |store, cx| {
+        store.set_fact_profile(desk.clone(), ProfileSay::Pin, cx);
+        let fact = store.facts().fact(&desk).unwrap();
+        assert_eq!(ProfileSay::of(fact), ProfileSay::Pin, "at once");
+    });
+    cx.run_until_parked();
+    store.update(cx, |store, cx| {
+        store.set_fact_profile(desk.clone(), ProfileSay::Hide, cx);
+    });
+    cx.run_until_parked();
+    store.update(cx, |store, cx| {
+        store.set_fact_profile(desk.clone(), ProfileSay::Neither, cx);
+        assert_eq!(store.facts().fact(&desk).unwrap().profile, None, "neither");
+    });
+    cx.run_until_parked();
+    let says: Vec<_> = backend
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::Settings(SettingsAction::FactProfile(say)) => Some(say),
+            _ => None,
+        })
+        .collect();
+    let say = |profile: Option<&str>| FactProfile {
+        id: desk.clone(),
+        profile: profile.map(str::to_owned),
+    };
+    assert_eq!(says, [say(Some("pin")), say(Some("hide")), say(None)]);
+}
+
+#[gpui_kit::test]
+fn the_nightly_review_switch_keeps_what_was_sent_and_goes_back_if_refused(cx: &mut TestAppContext) {
+    let backend = Arc::new(FakeBackend::new([]));
+    let store = store_on_about(cx, &backend);
+    store.update(cx, |store, cx| {
+        assert!(store.facts().nightly(), "on to begin with");
+        store.set_memory_nightly(false, cx);
+        assert!(!store.facts().nightly(), "at once");
+    });
+    cx.run_until_parked();
+    assert!(
+        !store.read_with(cx, |store, _| store.facts().nightly()),
+        "kept"
+    );
+    backend
+        .replies
+        .push_settings(Err(Error::Unreachable("down".into())));
+    store.update(cx, |store, cx| store.set_memory_nightly(true, cx));
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        assert!(!store.facts().nightly(), "back as it was");
+        assert_eq!(
+            store.action_problem(),
+            Some("Not changed: can't reach the server")
+        );
+    });
+    let sent: Vec<_> = backend
+        .calls()
+        .into_iter()
+        .filter(|call| matches!(call, Call::Settings(_)))
+        .collect();
+    assert_eq!(
+        sent,
+        [
+            Call::Settings(SettingsAction::MemoryNightly(false)),
+            Call::Settings(SettingsAction::MemoryNightly(true))
+        ]
+    );
+}
+
+#[gpui_kit::test]
+fn the_export_is_saved_under_the_servers_name_and_shown(cx: &mut TestAppContext) {
+    let (downloads, kept) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let backend = Arc::new(FakeBackend::new([]));
+    for _ in 0..2 {
+        backend.replies.push_memory_export(Ok(Attachment {
+            name: Some("memory-2026-11-28.zip".into()),
+            bytes: b"PK zip".to_vec(),
+        }));
+    }
+    let store = store(cx, &backend);
+    let shown = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    store.update(cx, |store, cx| {
+        store.keep_files_in(kept.path(), &shown);
+        store.export_memory_to(downloads.path().to_path_buf());
+        store.export_memory(cx);
+        assert_eq!(store.facts().export(), Some(&Export::Saving));
+        store.export_memory(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(backend.calls(), [Call::MemoryExport], "one at a time");
+    let first = downloads.path().join("memory-2026-11-28.zip");
+    assert_eq!(std::fs::read(&first).unwrap(), b"PK zip");
+    assert_eq!(
+        store.read_with(cx, |store, _| store.facts().export().cloned()),
+        Some(Export::Saved("memory-2026-11-28.zip".into()))
+    );
+    assert_eq!(
+        *shown.borrow(),
+        [std::path::PathBuf::from(format!(
+            "shown in folder: {}",
+            first.display()
+        ))]
+    );
+    store.update(cx, Store::export_memory);
+    cx.run_until_parked();
+    assert_eq!(
+        store.read_with(cx, |store, _| store.facts().export().cloned()),
+        Some(Export::Saved("memory-2026-11-28 (1).zip".into())),
+        "the name taken: numbered, nothing overwritten"
+    );
+}
+
+#[gpui_kit::test]
+fn a_refused_export_says_why_and_saves_nothing(cx: &mut TestAppContext) {
+    let downloads = tempfile::tempdir().unwrap();
+    let backend = Arc::new(FakeBackend::new([]));
+    backend.replies.push_memory_export(Err(Error::Refused {
+        status: Some(401),
+        message: Some("This device isn't signed in".into()),
+    }));
+    let store = store(cx, &backend);
+    store.update(cx, |store, cx| {
+        store.export_memory_to(downloads.path().to_path_buf());
+        store.export_memory(cx);
+    });
+    cx.run_until_parked();
+    store.read_with(cx, |store, _| {
+        assert_eq!(
+            store.action_problem(),
+            Some("Not exported: This device isn't signed in")
+        );
+        assert_eq!(store.facts().export(), None);
+    });
+    assert_eq!(std::fs::read_dir(downloads.path()).unwrap().count(), 0);
 }
 
 /// A page with one lesson on trial, number 4, and none.

@@ -353,6 +353,16 @@ impl Backend for EmberhutBackend {
         self.client.facts().map_err(error)
     }
 
+    fn memory_export(&self) -> Result<super::Attachment, Error> {
+        self.client
+            .memory_export()
+            .map(|file| super::Attachment {
+                name: file.name,
+                bytes: file.bytes,
+            })
+            .map_err(error)
+    }
+
     fn chrome(&self, action: &ChromeAction) -> Result<ChromeReply, Error> {
         self.client.chrome(action).map_err(error)
     }

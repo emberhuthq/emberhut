@@ -2373,6 +2373,112 @@
         ]
       }
     },
+    "/api/facts/forget": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "What \"Forget everywhere\" would take out with a fact: the fact, and the pieces of the record\n(chat, sessions, voice notes, notes, tasks) that say it. Nothing is changed; `factForget` (or\n`factDrop`, for every piece listed) forgets.",
+        "operationId": "forget_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The fact's id (`health/blood-test`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The fact and the pieces that say it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgetPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "There is no such fact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/export": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Everything the assistant keeps about the person, as one zip: `context/` (one markdown file per\nfact, the profile, the tombstones of what was forgotten) and `memory.json` (the quick notes and\ndiary, the corrections, the standing rules and the rules on trial). Only a signed-in device\ngets it, in either auth mode.",
+        "operationId": "export",
+        "responses": {
+          "200": {
+            "description": "The zip",
+            "headers": {
+              "content-disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment, with the file's name: emberhut-memory-<UTC day>.zip"
+              }
+            },
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/notes": {
       "get": {
         "tags": [
@@ -13390,6 +13496,31 @@
               "null"
             ],
             "description": "The project it belongs to (its name); none: every room has it."
+          },
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who put it there: `owner`, `assistant` (in a turn the person started), `message`\n(in a turn something else started: someone else's message, mail, a scheduled wake),\n`web` or `import`; none from before this was kept."
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where in the record it was said (`chat #22`)."
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "It waits for the person to confirm it (\"To confirm\"), and is not in what the assistant\nalways knows until they do."
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The person's say on the profile: `pin` (always in it) or `hide` (never)."
           }
         }
       },
@@ -13435,9 +13566,53 @@
           }
         }
       },
+      "FactForget": {
+        "type": "object",
+        "description": "`factForget`: a fact to forget everywhere, and the pieces of the record to take out with it.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/FactId",
+            "description": "The fact."
+          },
+          "pieces": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The pieces' ids, as `GET /api/facts/forget` lists them; none: every one it lists."
+          }
+        }
+      },
       "FactId": {
         "type": "string",
         "description": "A fact the assistant keeps about the person: its category and its name, such as\n`people/example-person`."
+      },
+      "FactProfile": {
+        "type": "object",
+        "description": "`factProfile`: the person's say on a fact in the profile.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/FactId",
+            "description": "The fact."
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`pin`, `hide`, or none (as it comes)."
+          }
+        }
       },
       "FactsPage": {
         "type": "object",
@@ -13791,6 +13966,27 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "ForgetPreview": {
+        "type": "object",
+        "description": "`GET /api/facts/forget`'s answer: the fact, and the pieces of the record that say it.",
+        "required": [
+          "fact",
+          "pieces"
+        ],
+        "properties": {
+          "fact": {
+            "$ref": "#/components/schemas/Fact",
+            "description": "The fact."
+          },
+          "pieces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordPiece"
+            },
+            "description": "The pieces, best first."
           }
         }
       },
@@ -17862,6 +18058,51 @@
           }
         }
       },
+      "RecordPiece": {
+        "type": "object",
+        "description": "One piece of the record recall holds, as \"Forget everywhere\" lists it.",
+        "required": [
+          "id",
+          "source",
+          "title",
+          "text",
+          "place"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its id in recall's index."
+          },
+          "source": {
+            "type": "string",
+            "description": "Its kind: `chat`, `session`, `summary`, `task`, `voice` or `note`."
+          },
+          "title": {
+            "type": "string",
+            "description": "What it is, in a few words."
+          },
+          "text": {
+            "type": "string",
+            "description": "What it says (at most 600 characters of it)."
+          },
+          "place": {
+            "type": "string",
+            "description": "Where it is (`chat #12`)."
+          },
+          "at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When it was said, if known."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "RefKind": {
         "type": "string",
         "description": "One of: task, pr, report, card, ticket, file. A newer server may send another word; clients keep it as it is.",
@@ -19192,12 +19433,52 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/FactId",
-                "description": "The fact to forget."
+                "description": "The fact to forget everywhere."
               },
               {
                 "type": "null"
               }
             ]
+          },
+          "factForget": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FactForget",
+                "description": "The fact to forget everywhere, with the pieces of the record to take out with it."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "factConfirm": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FactId",
+                "description": "The fact the person confirms."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "factProfile": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FactProfile",
+                "description": "The person's say on a fact in the profile."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memoryNightly": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The nightly memory review on or off."
           },
           "trialDrop": {
             "oneOf": [

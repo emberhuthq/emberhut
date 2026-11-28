@@ -167,10 +167,21 @@ pub(crate) fn agent_kept(
             db.conversation(),
             Arc::clone(&clock) as _,
         );
+        let profile = emberhut_server::services::profile::ProfileService::new(
+            emberhut_server::services::facts::FactService::new(
+                emberhut_server::services::facts::FactService::folder_beside(db.path()),
+                Arc::clone(&clock) as _,
+                db.events(),
+            ),
+            db.projects(),
+            Arc::clone(&clock) as _,
+            jiff::tz::TimeZone::UTC,
+        );
         let runtime = Arc::new(
             ClaudeAssistant::new(config, cli, db.settings(), db.rooms(), clock)
                 .with_jobs(plan)
                 .with_rules(rules)
+                .with_profile(profile)
                 .with_accounts(db.prefs()),
         );
         *kept.lock().unwrap() = Some(Arc::clone(&runtime));

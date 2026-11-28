@@ -86,6 +86,7 @@ pub mod transport;
 mod upload;
 mod working;
 
+pub use actions::Attachment;
 pub use client::{Client, StatePoll, StateReply, is_server_path};
 pub use config::ClientConfig;
 pub use config::InvalidBaseUrl;

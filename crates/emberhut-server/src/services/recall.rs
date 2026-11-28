@@ -13,18 +13,20 @@
 //! slices, whole lines only), and the vectors of the pieces that changed. A search first
 //! indexes the chat, notes and facts up to that moment.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
 use emberhut_core::RoomId;
+use emberhut_core::memory::facts::Fact;
+use emberhut_core::memory::forget::{Rarity, Tombstone, distinctive};
 use emberhut_core::memory::notes::{NoteAuthor, hour_minute};
 use emberhut_core::memory::recall::{
-    EACH, Filter, Found, NewDoc, closeness, embed_query, embed_text, fuse, match_query, normalised,
-    query_words, sameness, source,
+    Doc, EACH, Filter, Found, NewDoc, UNCONFIRMED, Vectors, embed_query, embed_text, fuse,
+    match_query, normalised, query_words, sameness, source,
 };
 use emberhut_db::{
     ConversationStore, DbError, IndexBatch, NoteStore, RecallStore, TranscriptOffset,
@@ -50,6 +52,19 @@ const TASKS_MARK: &str = "issues";
 const LINES_MARK: &str = "events";
 /// How far the voice notes are indexed: the last one transcribed.
 const VOICE_MARK: &str = "voice";
+/// Which model made the vectors, and their length (`<model> <dimension>`): vectors of another
+/// model are not comparable, so a change embeds every piece again.
+pub const EMBED_MARK: &str = "embed_model";
+
+/// The folder an agent session keeps its sub-agents' transcripts in: workers' chatter, not
+/// what the owner said, so it is not indexed.
+const SUBAGENTS: &str = "subagents";
+
+/// How many of the meaning search's nearest are read before the filters.
+const NEAR_CANDIDATES: usize = 200;
+
+/// Embedding batches between two new vector snapshots while a lot is embedded.
+const SNAPSHOT_EVERY: usize = 64;
 
 /// Messages indexed per transaction.
 const CHAT_BATCH: u64 = 500;
@@ -74,6 +89,11 @@ pub trait Embedder: fmt::Debug + Send + Sync {
     /// The texts' vectors, in order (not yet normalised).
     fn embed<'a>(&'a self, texts: &'a [String])
     -> BoxFuture<'a, Result<Vec<Vec<f32>>, EmbedError>>;
+
+    /// Which model it is, as kept with the vectors it made ([`EMBED_MARK`]).
+    fn name(&self) -> String {
+        "unnamed".to_owned()
+    }
 }
 
 /// Why the model gave no vectors.
@@ -136,6 +156,10 @@ impl HttpEmbedder {
 }
 
 impl Embedder for HttpEmbedder {
+    fn name(&self) -> String {
+        self.model.clone().unwrap_or_else(|| self.url.clone())
+    }
+
     fn embed<'a>(
         &'a self,
         texts: &'a [String],
@@ -256,10 +280,17 @@ struct Inner {
     parts: RecallParts,
     /// One indexing pass at a time.
     syncing: tokio::sync::Mutex<()>,
-    /// Every vector, by piece id, once loaded.
-    vectors: Mutex<Option<BTreeMap<i64, Vec<f32>>>>,
+    /// Every vector, once loaded: a snapshot a search scores while a new one is made.
+    vectors: RwLock<Option<Arc<Vectors>>>,
     /// A piece changed since the vectors were last brought up to date.
     changed: AtomicBool,
+    /// What the owner forgot: a new piece that says it again is not indexed.
+    tombstones: Mutex<Arc<Vec<Tombstone>>>,
+    /// The embedding model was checked against the one that made the vectors kept.
+    model_checked: AtomicBool,
+    /// The facts' and notes' stamps when they were last indexed: unchanged, they are not
+    /// read again and the index is not written.
+    indexed_stamp: Mutex<Option<String>>,
 }
 
 impl RecallService {
@@ -270,8 +301,11 @@ impl RecallService {
             inner: Arc::new(Inner {
                 parts,
                 syncing: tokio::sync::Mutex::new(()),
-                vectors: Mutex::new(None),
+                vectors: RwLock::new(None),
                 changed: AtomicBool::new(true),
+                tombstones: Mutex::new(Arc::new(Vec::new())),
+                model_checked: AtomicBool::new(false),
+                indexed_stamp: Mutex::new(None),
             }),
         }
     }
@@ -287,11 +321,28 @@ impl RecallService {
     /// [`RecallError`].
     pub async fn sync(&self) -> Result<(), RecallError> {
         let _one = self.inner.syncing.lock().await;
+        self.read_tombstones().await?;
         self.sync_chat().await?;
         self.sync_tasks().await?;
         self.sync_task_lines().await?;
         self.sync_voice().await?;
         let parts = &self.inner.parts;
+        // Read before what it stamps, so a change made while they are read shows next pass.
+        let stamp = format!(
+            "{} | {}",
+            parts.facts.stamp().await?,
+            parts.notes.stamp().await?
+        );
+        if self
+            .inner
+            .indexed_stamp
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_deref()
+            == Some(stamp.as_str())
+        {
+            return Ok(());
+        }
         let notes = parts.notes.list(None, None).await?;
         let mut docs = Vec::with_capacity(notes.len());
         let mut kept = HashSet::new();
@@ -315,6 +366,7 @@ impl RecallService {
                 text: note.text,
             });
         }
+        let mut docs = self.admit(docs);
         let facts = parts.facts.facts(None).await?;
         let mut fact_ids = HashSet::new();
         for fact in facts {
@@ -328,7 +380,12 @@ impl RecallService {
             docs.push(NewDoc {
                 source: source::FACT.to_owned(),
                 at: fact.updated.parse().ok(),
-                title: format!("{}: {}", fact.category, fact.title),
+                title: format!(
+                    "{}{}: {}",
+                    if fact.pending { UNCONFIRMED } else { "" },
+                    fact.category,
+                    fact.title
+                ),
                 place: format!("fact {}", fact.id),
                 reference: fact.id,
                 text,
@@ -345,6 +402,11 @@ impl RecallService {
         if self.store().index(&batch).await? {
             self.inner.changed.store(true, Ordering::Release);
         }
+        *self
+            .inner
+            .indexed_stamp
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(stamp);
         Ok(())
     }
 
@@ -357,10 +419,39 @@ impl RecallService {
             .and_then(|mark| mark.parse::<jiff::Timestamp>().ok()))
     }
 
+    /// Reads what the owner forgot, for the pass about to run.
+    async fn read_tombstones(&self) -> Result<(), RecallError> {
+        let read = self.inner.parts.facts.tombstones().await?;
+        *self
+            .inner
+            .tombstones
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Arc::new(read);
+        Ok(())
+    }
+
+    /// `docs` without those that say again what the owner forgot.
+    fn admit(&self, mut docs: Vec<NewDoc>) -> Vec<NewDoc> {
+        let tombstones = Arc::clone(
+            &self
+                .inner
+                .tombstones
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        if !tombstones.is_empty() {
+            docs.retain(|doc| {
+                let said = format!("{}\n{}", doc.title, doc.text);
+                !tombstones.iter().any(|tomb| tomb.matches(&said))
+            });
+        }
+        docs
+    }
+
     /// Indexes `docs`, and moves mark `key` to `mark`.
     async fn put(&self, docs: Vec<NewDoc>, key: &str, mark: String) -> Result<(), RecallError> {
         let batch = IndexBatch {
-            docs,
+            docs: self.admit(docs),
             only: Vec::new(),
             marks: vec![(key.to_owned(), mark)],
         };
@@ -496,7 +587,7 @@ impl RecallService {
                 })
                 .collect();
             let batch = IndexBatch {
-                docs,
+                docs: self.admit(docs),
                 only: Vec::new(),
                 marks: vec![(CHAT_MARK.to_owned(), last.get().to_string())],
             };
@@ -524,6 +615,7 @@ impl RecallService {
         .await
         .unwrap_or_default();
         let read = self.store().transcript_offsets().await?;
+        self.read_tombstones().await?;
         for (path, folder, size) in files {
             let key = path.to_string_lossy().into_owned();
             if read.get(&key).is_some_and(|known| known.offset == size) {
@@ -620,6 +712,7 @@ impl RecallService {
                 offset: at.offset + end as u64 + 1,
                 line,
             };
+            let docs = self.admit(docs);
             if store.read_transcript(key, at, &docs).await? {
                 self.inner.changed.store(true, Ordering::Release);
             }
@@ -628,81 +721,136 @@ impl RecallService {
     }
 
     /// Embeds the pieces with no vector yet; `true` when every piece has one now (`false`: the
-    /// model didn't answer, or there is none).
+    /// model didn't answer, or there is none). The first time, when the model is not the one
+    /// that made the vectors kept ([`EMBED_MARK`]), those are dropped and every piece is
+    /// embedded again.
     ///
     /// # Errors
     ///
     /// [`RecallError::Database`].
     pub async fn embed_new(&self) -> Result<bool, RecallError> {
         self.load_vectors().await?;
-        loop {
+        if !self.inner.model_checked.load(Ordering::Acquire) {
+            // Once a start: which model answers now, by the length of a vector it makes.
+            let probe = vec![embed_query("recall")];
+            let Ok(vectors) = self.inner.parts.embedder.embed(&probe).await else {
+                return Ok(false);
+            };
+            if let Some(vector) = vectors.first().filter(|vector| !vector.is_empty()) {
+                self.model_changed(vector.len()).await?;
+                self.inner.model_checked.store(true, Ordering::Release);
+            }
+        }
+        let mut fresh: Vec<(i64, Vec<f32>)> = Vec::new();
+        let mut batches = 0;
+        let done = loop {
             let batch = self.store().unembedded(EMBED_BATCH).await?;
             if batch.is_empty() {
-                return Ok(true);
+                break true;
             }
             let texts: Vec<String> = batch
                 .iter()
                 .map(|doc| embed_text(&doc.title, &doc.text))
                 .collect();
             let Ok(vectors) = self.inner.parts.embedder.embed(&texts).await else {
-                return Ok(false);
+                break false;
             };
             let vectors: Vec<(i64, Vec<f32>)> = batch
                 .iter()
                 .zip(vectors)
                 .map(|(doc, vector)| (doc.id, normalised(vector)))
+                .filter(|(_, vector)| !vector.is_empty())
                 .collect();
             self.store().store_vectors(&vectors).await?;
-            let mut cache = self
+            fresh.extend(vectors);
+            batches += 1;
+            if batches % SNAPSHOT_EVERY == 0 {
+                self.add_vectors(&std::mem::take(&mut fresh));
+            }
+        };
+        self.add_vectors(&fresh);
+        Ok(done)
+    }
+
+    /// Whether the model now embedding (making vectors `dimension` long) is another than the one
+    /// that made the vectors kept; if so, those are dropped, and the mark names the new one. An
+    /// index from before the mark keeps its vectors when they are as long.
+    async fn model_changed(&self, dimension: usize) -> Result<bool, RecallError> {
+        let now = format!("{} {dimension}", self.inner.parts.embedder.name());
+        let kept = self.store().mark(EMBED_MARK).await?;
+        if kept.as_deref() == Some(now.as_str()) {
+            return Ok(false);
+        }
+        let held = self.snapshot().map_or(0, |vectors| vectors.dimension());
+        let changed = kept.is_some() || (held != 0 && held != dimension);
+        if changed {
+            tracing::info!(was = ?kept, now = %now, "recall: the embedding model changed; every piece is embedded again");
+            self.store().drop_vectors().await?;
+            *self
                 .inner
                 .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            if let Some(cache) = cache.as_mut() {
-                cache.extend(vectors);
-            }
+                .write()
+                .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(Vectors::default()));
+        }
+        self.store().set_mark(EMBED_MARK, &now).await?;
+        Ok(changed)
+    }
+
+    /// The vectors as loaded, if they are.
+    fn snapshot(&self) -> Option<Arc<Vectors>> {
+        self.inner
+            .vectors
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Makes the snapshot with `added` in it the one searched.
+    fn add_vectors(&self, added: &[(i64, Vec<f32>)]) {
+        if added.is_empty() {
+            return;
+        }
+        let mut held = self
+            .inner
+            .vectors
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(vectors) = held.as_ref() {
+            *held = Some(Arc::new(vectors.with(added)));
         }
     }
 
     /// Loads every vector, once.
     async fn load_vectors(&self) -> Result<(), RecallError> {
-        let loaded = self
-            .inner
-            .vectors
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some();
-        if !loaded {
-            let all: BTreeMap<i64, Vec<f32>> = self.store().vectors().await?.into_iter().collect();
+        if self.snapshot().is_none() {
+            let all = self.store().vectors().await?;
+            let vectors = tokio::task::spawn_blocking(move || Vectors::from_pairs(all))
+                .await
+                .unwrap_or_default();
             *self
                 .inner
                 .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = Some(all);
+                .write()
+                .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(vectors));
         }
         Ok(())
     }
 
     /// Forgets the vectors whose pieces changed or went (their rows are gone with them).
     async fn prune_vectors(&self) -> Result<(), RecallError> {
-        let loaded = self
+        let Some(vectors) = self.snapshot() else {
+            return Ok(());
+        };
+        let live = self.store().vector_ids().await?;
+        let pruned =
+            tokio::task::spawn_blocking(move || vectors.retaining(|id| live.contains(&id)))
+                .await
+                .unwrap_or_default();
+        *self
             .inner
             .vectors
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some();
-        if loaded {
-            let live = self.store().vector_ids().await?;
-            if let Some(cache) = self
-                .inner
-                .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .as_mut()
-            {
-                cache.retain(|id, _| live.contains(id));
-            }
-        }
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(pruned));
         Ok(())
     }
 
@@ -748,7 +896,8 @@ impl RecallService {
     }
 
     /// Searches for `query`: at most `limit` hits that pass `filter`, best first, the same
-    /// words said twice shown once. The chat, notes and facts are indexed up to now first.
+    /// words said twice shown once. The chat, notes and facts are indexed up to now first, which
+    /// writes only when something was said or saved since the last pass.
     ///
     /// # Errors
     ///
@@ -788,21 +937,28 @@ impl RecallService {
             .ok()
             .and_then(|vectors| vectors.into_iter().next())
             .map(normalised);
-        let meaning = query_vector.is_some();
-        if let Some(query_vector) = query_vector {
+        if query_vector.is_some() {
             self.load_vectors().await?;
-            let mut near: Vec<(i64, f64)> = self
-                .inner
-                .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .iter()
-                .flatten()
-                .map(|(id, vector)| (*id, closeness(vector, &query_vector)))
-                .collect();
-            near.sort_by(|a, b| b.1.total_cmp(&a.1));
+        }
+        let vectors = self.snapshot().unwrap_or_default();
+        let meaning = query_vector
+            .as_ref()
+            .is_some_and(|query| vectors.is_empty() || query.len() == vectors.dimension());
+        if let Some(query_vector) = query_vector.filter(|_| meaning) {
+            let narrow =
+                filter.source.is_some() || filter.since.is_some() || filter.until.is_some();
+            let scored = Arc::clone(&vectors);
+            let near = tokio::task::spawn_blocking(move || {
+                if narrow {
+                    scored.nearest(&query_vector, scored.len())
+                } else {
+                    scored.nearest(&query_vector, NEAR_CANDIDATES)
+                }
+            })
+            .await
+            .unwrap_or_default();
             let mut ids = Vec::new();
-            for chunk in near.chunks(200) {
+            for chunk in near.chunks(NEAR_CANDIDATES) {
                 if ids.len() >= EACH {
                     break;
                 }
@@ -834,24 +990,135 @@ impl RecallService {
                 hits.push(doc.clone());
             }
         }
-        let embedded = self
-            .inner
-            .vectors
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .as_ref()
-            .map_or(0, BTreeMap::len);
         Ok(Found {
             hits,
             meaning,
             indexed: self.store().count().await?,
-            embedded,
+            embedded: vectors.len(),
         })
     }
 }
 
+/// A fact the owner forgot, and how many pieces of the record went with it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Forgotten {
+    /// The fact, as it was.
+    pub fact: Fact,
+    /// The pieces of the record taken out of recall with it (its own not counted).
+    pub pieces: u64,
+}
+
+impl RecallService {
+    /// The words of `fact` to forget it by, and the keys among them: those rare in the record
+    /// (in at most one piece in a hundred, or 20), keys in hardly any (one in a thousand, or
+    /// 5); all of its words when none is rare.
+    async fn words_of(&self, fact: &Fact) -> Result<(Vec<String>, Vec<String>), RecallError> {
+        let said = [
+            Some(fact.title.as_str()),
+            Some(fact.text.as_str()),
+            fact.now.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("\n");
+        let pieces = self.store().count().await?;
+        let (rare_below, key_below) = ((pieces / 100).max(20), (pieces / 1000).max(5));
+        let mut rarity = std::collections::HashMap::new();
+        for word in emberhut_core::memory::forget::words(&said) {
+            let count = self.store().word_count(&word).await?;
+            let rare = if count <= key_below {
+                Rarity::Key
+            } else if count <= rare_below {
+                Rarity::Rare
+            } else {
+                Rarity::Common
+            };
+            rarity.insert(word, rare);
+        }
+        Ok(distinctive(&said, |word| {
+            rarity.get(word).copied().unwrap_or(Rarity::Common)
+        }))
+    }
+
+    /// The pieces of the record (no fact) that say what the fact `id` says: those holding two
+    /// of its distinctive words, or all of them when it has fewer. The ones "Forget everywhere"
+    /// offers to take out with it, best first.
+    ///
+    /// # Errors
+    ///
+    /// [`RecallError::Facts`] when there is no such fact; [`RecallError::Database`].
+    pub async fn saying(&self, id: &str) -> Result<Vec<Doc>, RecallError> {
+        let fact = self.fact(id).await?;
+        let (words, keys) = self.words_of(&fact).await?;
+        self.pieces_saying(&words, &keys).await
+    }
+
+    async fn fact(&self, id: &str) -> Result<Fact, RecallError> {
+        self.inner
+            .parts
+            .facts
+            .facts(None)
+            .await?
+            .into_iter()
+            .find(|fact| fact.id == id)
+            .ok_or_else(|| RecallError::Facts(FactError::Refused(format!("no fact {id}"))))
+    }
+
+    async fn pieces_saying(
+        &self,
+        words: &[String],
+        keys: &[String],
+    ) -> Result<Vec<Doc>, RecallError> {
+        if words.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tomb = Tombstone::new("", words, keys);
+        Ok(self
+            .store()
+            .search_words(&match_query(words), WORD_CANDIDATES)
+            .await?
+            .into_iter()
+            .filter(|doc| doc.source != source::FACT)
+            .filter(|doc| tomb.matches(&format!("{}\n{}", doc.title, doc.text)))
+            .collect())
+    }
+
+    /// Forgets the fact `id` everywhere, as the owner asked: the fact (its file, its pieces and
+    /// their vectors), the pieces of the record `pieces` names (none: every one [`Self::saying`]
+    /// finds), and a tombstone, so it is not kept or indexed again.
+    ///
+    /// # Errors
+    ///
+    /// [`RecallError::Facts`] when there is no such fact; [`RecallError::Database`].
+    pub async fn forget_everywhere(
+        &self,
+        id: &str,
+        pieces: Option<Vec<i64>>,
+    ) -> Result<Forgotten, RecallError> {
+        let fact = self.fact(id).await?;
+        let (words, keys) = self.words_of(&fact).await?;
+        let pieces = match pieces {
+            Some(pieces) => pieces,
+            None => self
+                .pieces_saying(&words, &keys)
+                .await?
+                .into_iter()
+                .map(|doc| doc.id)
+                .collect(),
+        };
+        let fact = self.inner.parts.facts.forget(id, &words, &keys).await?;
+        let gone = self.store().delete_pieces(&pieces).await?;
+        // The fact's own pieces go as the facts are indexed again (its file is gone).
+        self.sync().await?;
+        self.prune_vectors().await?;
+        Ok(Forgotten { fact, pieces: gone })
+    }
+}
+
 /// Every `.jsonl` file under `dir` (`root`'s), with the first folder under `root` it is in and
-/// its size, folders before what is in them, each folder in name order.
+/// its size, folders before what is in them, each folder in name order. Sub-agents' folders
+/// are left out.
 fn walk(root: &Path, dir: &Path, found: &mut Vec<(PathBuf, String, u64)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -865,7 +1132,9 @@ fn walk(root: &Path, dir: &Path, found: &mut Vec<(PathBuf, String, u64)>) {
             continue;
         };
         if kind.is_dir() {
-            folders.push(path);
+            if entry.file_name() != SUBAGENTS {
+                folders.push(path);
+            }
         } else if kind.is_file() && path.extension().is_some_and(|ext| ext == "jsonl") {
             let folder = path
                 .strip_prefix(root)

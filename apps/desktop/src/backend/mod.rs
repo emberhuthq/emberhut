@@ -257,6 +257,14 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`].
     fn facts(&self) -> Result<FactsPage, Error>;
 
+    /// Everything the assistant keeps about the user, as one zip, with the name the server
+    /// gives the file.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`].
+    fn memory_export(&self) -> Result<Attachment, Error>;
+
     /// Pairs, renames, unpairs or pauses a Chrome profile, or cancels a link; the profiles as
     /// they are after, with the new link when one was asked for.
     ///
@@ -878,6 +886,16 @@ pub(crate) struct TooLarge {
     pub(crate) size: u64,
     /// The limit.
     pub(crate) limit: u64,
+}
+
+/// A file the server sent to be saved: its bytes, and the name it gives it (none when it gave
+/// none a file can be saved as).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Attachment {
+    /// Its name.
+    pub(crate) name: Option<String>,
+    /// Its bytes.
+    pub(crate) bytes: Vec<u8>,
 }
 
 /// A release payload as it reached the disk: its size and SHA-256.

@@ -192,12 +192,24 @@ impl Tool for LessonSet {
 
     fn description(&self) -> &'static str {
         "Keep a standing rule you will always follow, only one the user OKed (from the weekly \
-         learning review or when they say so). New: no id. trial: the trial rule it keeps \
+         card or when they say so, in their own message). New: no id. trial: the trial rule it keeps \
          (T252: 252), as worded or reworded. It is put in front of you at every start and \
          after every compaction."
     }
 
     async fn call(&self, ctx: &ToolContext, args: LessonSetArgs) -> Result<ToolOutput, ToolError> {
+        // A standing rule is the user's to give: never from a turn something else started.
+        if ctx
+            .app
+            .talk()
+            .started(ctx.room)
+            .is_some_and(|start| !start.by_owner)
+        {
+            return Err(ToolError::refused(
+                "Only the user OKs a standing rule, in a message of their own; this turn \
+                 started from an event.",
+            ));
+        }
         let id = ctx
             .app
             .learning()
@@ -205,6 +217,63 @@ impl Tool for LessonSet {
             .await
             .map_err(ToolError::failed)?;
         Ok(ToolOutput::text(format!("Lesson #{id} kept.")))
+    }
+}
+
+/// Reviews a candidate correction the server noticed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CorrectionTriage;
+
+/// `correction_triage`'s arguments.
+#[derive(Clone, Debug, Deserialize, utoipa::ToSchema, garde::Validate)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CorrectionTriageArgs {
+    /// The candidate's id.
+    #[garde(range(min = 1))]
+    id: i64,
+    /// A real correction: the rule that would have avoided it (it goes on trial). Left out:
+    /// not a correction (a bug report, a question, anything else).
+    #[garde(length(max = 2000))]
+    lesson: Option<String>,
+    /// With a lesson: the same lesson as one short line to the user, in the second person.
+    #[garde(length(max = 500))]
+    lesson_to_owner: Option<String>,
+}
+
+impl Tool for CorrectionTriage {
+    type Args = CorrectionTriageArgs;
+
+    fn name(&self) -> &'static str {
+        "correction_triage"
+    }
+
+    fn description(&self) -> &'static str {
+        "Review a message of the user's that the server noticed might be a correction (the \
+         nightly memory review lists them). A real correction of something you did: give the \
+         lesson that would have avoided it and lessonToOwner, and it goes on trial. A bug \
+         report, a question or anything else: the id alone, and it is set aside."
+    }
+
+    async fn call(
+        &self,
+        ctx: &ToolContext,
+        args: CorrectionTriageArgs,
+    ) -> Result<ToolOutput, ToolError> {
+        let reviewed = ctx
+            .app
+            .learning()
+            .triage(
+                args.id,
+                args.lesson.as_deref(),
+                args.lesson_to_owner.as_deref(),
+            )
+            .await
+            .map_err(ToolError::failed)?;
+        Ok(ToolOutput::text(match (reviewed, args.lesson.is_some()) {
+            (false, _) => format!("No candidate {} is waiting for review.", args.id),
+            (true, true) => format!("Its lesson is on trial as T{}.", args.id),
+            (true, false) => "Set aside: not a correction.".to_owned(),
+        }))
     }
 }
 
@@ -253,7 +322,8 @@ impl Tool for TrialDropTool {
     }
 
     fn description(&self) -> &'static str {
-        "Drop a trial rule (T252: id 252) the weekly learning review or the user drops."
+        "Drop a trial rule (T252: id 252) the user drops, or that the weekly card advised \
+         dropping and the user agreed."
     }
 
     async fn call(&self, ctx: &ToolContext, args: RuleId) -> Result<ToolOutput, ToolError> {

@@ -8,7 +8,7 @@ use emberhut_api::agent_provider::{
 use emberhut_api::chrome::ChromeAction;
 use emberhut_api::facts::{FactCategory, FactsPage};
 use emberhut_api::ids::{ChromeProfileId, FactId, TrialId};
-use emberhut_api::settings::{FactChange, SettingsAction};
+use emberhut_api::settings::{FactChange, FactProfile, SettingsAction};
 use emberhut_api::switches::SwitchAction;
 use gpui_kit::component::input::InputState;
 use gpui_kit::test::TestWindowExt as _;
@@ -358,6 +358,141 @@ fn a_facts_edit_and_forget_buttons_act(cx: &mut TestAppContext) {
         backend.calls()[1],
         Call::Settings(SettingsAction::FactDrop(FactId::new("work/desk")))
     );
+}
+
+/// A fact kept from someone else's message, waiting to be confirmed, and one the user told,
+/// pinned.
+fn waiting() -> serde_json::Value {
+    json!({"facts": [
+        {"id": "work/launch", "category": "work", "title": "Launch", "text": "Ships in May.",
+         "source": "", "updated": "2026-11-21T10:00:00Z", "origin": "message",
+         "from": "chat #40", "pending": true},
+        {"id": "work/desk", "category": "work", "title": "Desk", "text": "Works from home.",
+         "source": "", "updated": "2026-11-20T10:00:00Z", "origin": "assistant",
+         "from": "chat #22", "profile": "pin"}]})
+}
+
+#[gpui_kit::test]
+fn facts_to_confirm_come_first_apart_and_confirm_sends(cx: &mut TestAppContext) {
+    let (backend, _store, _, mut cx) = open_about(cx, waiting());
+    let to_confirm = cx
+        .debug_bounds(about::TO_CONFIRM)
+        .expect("To confirm is drawn");
+    let chips = cx.debug_bounds(about::CHIPS).expect("the chips are drawn");
+    assert!(
+        to_confirm.bottom() <= chips.top(),
+        "To confirm first: {to_confirm:?} {chips:?}"
+    );
+    cx.update(|window, _| {
+        assert!(window.try_find("fact-work/launch-confirm").is_some());
+        assert!(
+            window.try_find("fact-work/launch-edit").is_none(),
+            "not listed again with the others"
+        );
+        assert!(window.try_find("fact-work/desk-edit").is_some());
+        assert!(window.try_find("fact-work/desk-confirm").is_none());
+    });
+    cx.update(|window, cx| window.click("fact-work/launch-confirm", cx));
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls()[1],
+        Call::Settings(SettingsAction::FactConfirm(FactId::new("work/launch")))
+    );
+}
+
+#[gpui_kit::test]
+fn a_fact_to_confirm_is_forgotten_once_asked(cx: &mut TestAppContext) {
+    let (backend, _store, _, mut cx) = open_about(cx, waiting());
+    cx.update(|window, cx| window.click("fact-work/launch-forget", cx));
+    cx.run_until_parked();
+    assert_eq!(backend.calls(), [Call::Facts], "asked, not sent");
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click("fact-work/launch-forget-confirm", cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls()[1],
+        Call::Settings(SettingsAction::FactDrop(FactId::new("work/launch")))
+    );
+}
+
+#[gpui_kit::test]
+fn why_i_know_it_shows_under_a_fact_that_says(cx: &mut TestAppContext) {
+    let (_backend, _store, _, mut cx) = open_about(cx, waiting());
+    let why = cx.debug_bounds(about::FACT_WHY).expect("the line is drawn");
+    assert!(why.size.height > px(0.));
+}
+
+#[gpui_kit::test]
+fn no_why_line_shows_when_the_server_keeps_neither(cx: &mut TestAppContext) {
+    let (_backend, _store, _, mut cx) = open_about(cx, known());
+    assert!(cx.debug_bounds(about::FACT_WHY).is_none());
+}
+
+#[gpui_kit::test]
+fn the_pin_menu_says_how_a_fact_stands_and_changes_it(cx: &mut TestAppContext) {
+    let (backend, _store, _, mut cx) = open_about(cx, waiting());
+    assert!(cx.debug_bounds(about::FACT_PROFILE).is_some(), "drawn");
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click("fact-work/desk-profile", cx);
+    });
+    let items = cx.update(|window, cx| {
+        window.render_frame(cx);
+        let menu = window.within("popup-menu");
+        (0_usize..6)
+            .filter_map(|ix| menu.try_find(gpui_kit::ElementId::from(ix)))
+            .filter_map(|item| item.label().map(str::to_owned))
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        items,
+        ["Always keep in mind", "Keep out of mind", "As it comes"]
+    );
+    // Keep out of mind.
+    cx.update(|window, cx| window.within("popup-menu").click(1_usize, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls()[1],
+        Call::Settings(SettingsAction::FactProfile(FactProfile {
+            id: FactId::new("work/desk"),
+            profile: Some("hide".into()),
+        }))
+    );
+}
+
+#[gpui_kit::test]
+fn the_nightly_review_and_the_export_act_from_the_page(cx: &mut TestAppContext) {
+    let (downloads, kept) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (backend, store, _, mut cx) = open_about(cx, known());
+    let shown = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    store.update(&mut cx, |store, _| {
+        store.keep_files_in(kept.path(), &shown);
+        store.export_memory_to(downloads.path().to_path_buf());
+    });
+    assert!(
+        cx.debug_bounds(about::NIGHTLY).is_some(),
+        "the switch is drawn"
+    );
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(about::NIGHTLY, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls()[1],
+        Call::Settings(SettingsAction::MemoryNightly(false)),
+        "on to begin with: switched off"
+    );
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(about::EXPORT, cx);
+    });
+    cx.run_until_parked();
+    assert!(backend.calls().contains(&Call::MemoryExport));
+    assert_eq!(shown.borrow().len(), 1, "shown in Downloads");
+    assert_eq!(std::fs::read_dir(downloads.path()).unwrap().count(), 1);
 }
 
 #[gpui_kit::test]

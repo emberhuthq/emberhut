@@ -118,3 +118,38 @@ fn a_chrome_change_answers_with_the_profiles() {
         json!({ "kind": "add", "label": "Side project" })
     );
 }
+
+#[test]
+fn the_memory_export_comes_with_the_servers_file_name() {
+    let server = TestServer::start(|request| match request.path.as_str() {
+        "/api/memory/export" => Reply::BytesWith(
+            200,
+            b"PK zip".to_vec(),
+            vec![
+                ("Content-Type", "application/zip".to_owned()),
+                (
+                    "Content-Disposition",
+                    "attachment; filename=\"memory-2026-11-28.zip\"".to_owned(),
+                ),
+            ],
+        ),
+        _ => Reply::Json(404, json!({ "error": "No such route" })),
+    });
+    let client = server.client(fresh("r1"));
+    let export = client.memory_export().unwrap();
+    assert_eq!(export.name.as_deref(), Some("memory-2026-11-28.zip"));
+    assert_eq!(export.bytes, b"PK zip");
+    let sent = &server.requests_to("/api/memory/export")[0];
+    assert_eq!(sent.method, "GET");
+    assert!(sent.header("authorization").is_some(), "behind the sign-in");
+}
+
+#[test]
+fn a_refused_memory_export_says_why() {
+    let server = TestServer::start(|_| Reply::Json(403, json!({ "error": "Not from here" })));
+    let error = server.client(fresh("r1")).memory_export().unwrap_err();
+    assert!(
+        matches!(&error, Error::Status { status: 403, message: Some(m) } if m == "Not from here"),
+        "{error:?}"
+    );
+}

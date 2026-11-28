@@ -32,6 +32,12 @@ pub(crate) enum Use {
 }
 
 impl Store {
+    /// Shows a file saved on this device in its folder, in the system's file manager.
+    pub(crate) fn reveal_saved(&self, path: &std::path::Path, cx: &mut Context<'_, Self>) {
+        let reveal = Rc::clone(&self.kept.reveal);
+        reveal(path, cx);
+    }
+
     /// Does `with` with `file` once it is here (a failed download said so already).
     pub(crate) fn use_file(&mut self, file: RemoteFile, with: Use, cx: &mut Context<'_, Self>) {
         let fetching = self.fetch_file(&file, cx);

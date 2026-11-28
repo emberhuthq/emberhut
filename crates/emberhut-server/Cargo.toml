@@ -33,6 +33,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 subtle = { workspace = true }
 tar = { workspace = true }
+# The memory export's zip (GET /api/memory/export), deflated with the pure-Rust backend.
+zip = { workspace = true, features = ["deflate-flate2"] }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [

@@ -121,6 +121,33 @@ impl LearningService {
             .await
     }
 
+    /// The candidates the server noticed in the last `days` days that no review has looked at
+    /// yet, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn untriaged(&self, days: i64) -> Result<Vec<Correction>, DbError> {
+        self.corrections
+            .untriaged(self.clock.now() - SignedDuration::from_hours(24 * days))
+            .await
+    }
+
+    /// The review of noticed candidate `id`: noise (no `lesson`), or a real correction, whose
+    /// lesson goes on trial. `false` when there is no such candidate left to review.
+    ///
+    /// # Errors
+    ///
+    /// [`DbError`].
+    pub async fn triage(
+        &self,
+        id: i64,
+        lesson: Option<&str>,
+        lesson_to_owner: Option<&str>,
+    ) -> Result<bool, DbError> {
+        self.corrections.triage(id, lesson, lesson_to_owner).await
+    }
+
     /// The standing rules, by number.
     ///
     /// # Errors

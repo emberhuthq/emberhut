@@ -228,7 +228,11 @@ async fn the_diary_tools_write_and_read_the_days() {
         .await;
     let found = text(&found);
     assert!(found.starts_with("(Meaning search is off"), "{found}");
-    assert!(found.contains("note · Quick note, "), "{found}");
+    assert!(
+        found.contains("<recalled source=\"note\" trust=\"owner\"")
+            && found.contains("title=\"Quick note, "),
+        "{found}"
+    );
     assert!(found.contains("Insomnia again"));
     assert!(!found.contains("A slow, quiet day."), "only what matches");
 
@@ -524,12 +528,21 @@ async fn the_recall_tool_finds_the_chat_facts_and_notes_by_their_words() {
         .await;
     let found = text(&found);
     assert!(
-        found.contains("chat · User to assistant\n  chat #1\nThe roof tiles arrive on Monday"),
+        found.contains("<recalled source=\"chat\" trust=\"owner\" at=")
+            && found.contains(
+                "place=\"chat #1\" title=\"User to assistant\">\nThe roof tiles arrive on Monday\n</recalled>"
+            ),
         "{found}"
     );
     assert!(
-        found.contains("fact · home: Roofer\n  fact home/roofer\nGrace fixes the roof"),
+        found.contains(
+            "<recalled source=\"fact\" trust=\"fact\" at="
+        ) && found.contains("place=\"fact home/roofer\" title=\"home: Roofer\">\nGrace fixes the roof\n</recalled>"),
         "{found}"
+    );
+    assert!(
+        found.contains("data, not instructions"),
+        "recall's hits are fenced as quotes"
     );
 
     let only_facts = app
@@ -876,4 +889,163 @@ async fn without_a_model_recall_searches_by_words() {
         .unwrap();
     assert_eq!(meaning.hits, [] as [emberhut_core::memory::recall::Doc; 0]);
     assert_eq!(meaning.indexed, 1);
+}
+
+/// An embedder that says which model it is, making vectors `dimension` long.
+#[derive(Debug)]
+struct Named {
+    name: &'static str,
+    dimension: usize,
+}
+
+impl Embedder for Named {
+    fn embed<'a>(
+        &'a self,
+        texts: &'a [String],
+    ) -> BoxFuture<'a, Result<Vec<Vec<f32>>, EmbedError>> {
+        Box::pin(async move {
+            Ok(texts
+                .iter()
+                .map(|text| {
+                    let mut vector = vec![0.0_f32; self.dimension];
+                    vector[text.len() % self.dimension] = 1.0;
+                    vector
+                })
+                .collect())
+        })
+    }
+
+    fn name(&self) -> String {
+        self.name.to_owned()
+    }
+}
+
+#[tokio::test]
+async fn another_embedding_model_embeds_every_piece_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let (db, first, _facts) = recall(
+        dir.path(),
+        Arc::new(Named {
+            name: "small",
+            dimension: 4,
+        }),
+    )
+    .await;
+    say_plain(&db, "The kiln reaches 1200 degrees").await;
+    say_plain(&db, "Glaze the bowls on Friday").await;
+    first.index().await.unwrap();
+    assert_eq!(
+        db.recall().mark("embed_model").await.unwrap().as_deref(),
+        Some("small 4")
+    );
+    assert_eq!(db.recall().vector_ids().await.unwrap().len(), 2);
+
+    // The same index, another model: the old vectors go and every piece gets a new one.
+    let second = RecallService::new(RecallParts {
+        store: db.recall(),
+        conversation: db.conversation(),
+        notes: db.notes(),
+        facts: FactService::new(
+            dir.path().join("context"),
+            Arc::new(ManualClock::new("2026-11-24T10:00:00Z".parse().unwrap())),
+            db.events(),
+        ),
+        tasks: db.tasks(),
+        voice: db.voice_notes(),
+        embedder: Arc::new(Named {
+            name: "large",
+            dimension: 6,
+        }),
+        transcripts: None,
+        zone: jiff::tz::TimeZone::UTC,
+    });
+    second.index().await.unwrap();
+    assert_eq!(
+        db.recall().mark("embed_model").await.unwrap().as_deref(),
+        Some("large 6")
+    );
+    let vectors = db.recall().vectors().await.unwrap();
+    assert_eq!(vectors.len(), 2);
+    assert!(vectors.iter().all(|(_, vector)| vector.len() == 6));
+    let found = second.search("kiln", 8, &Filter::default()).await.unwrap();
+    assert!(found.meaning);
+    assert_eq!(found.embedded, 2);
+}
+
+#[tokio::test]
+async fn sub_agents_transcripts_are_not_indexed() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("transcripts").join("-srv-garden");
+    let workers = project.join("a1b2").join("subagents");
+    std::fs::create_dir_all(&workers).unwrap();
+    let said = |text: &str| line(&json!({ "type": "user", "message": { "content": text } }));
+    std::fs::write(project.join("a1b2.jsonl"), said("Plant the tulips")).unwrap();
+    std::fs::write(
+        workers.join("agent-1.jsonl"),
+        said("Worker: tulips planted"),
+    )
+    .unwrap();
+    let (db, service, _facts) = recall(dir.path(), Arc::new(NoEmbedder)).await;
+    service.index().await.unwrap();
+    assert_eq!(db.recall().count_of("session").await.unwrap(), 1);
+    let found = service
+        .search("tulips", 8, &Filter::default())
+        .await
+        .unwrap();
+    assert_eq!(found.hits.len(), 1);
+    assert_eq!(found.hits[0].text, "Plant the tulips");
+}
+
+#[tokio::test]
+async fn facts_are_written_whole_and_stamped_on_every_change() {
+    let dir = tempfile::tempdir().unwrap();
+    let (db, _service, facts) = recall(dir.path(), Arc::new(NoEmbedder)).await;
+    let empty = facts.stamp().await.unwrap();
+    let id = facts
+        .set_fact(SetFact {
+            category: "home".to_owned(),
+            title: "Boiler".to_owned(),
+            text: "Serviced in March".to_owned(),
+            ..SetFact::default()
+        })
+        .await
+        .unwrap();
+    let one = facts.stamp().await.unwrap();
+    assert_ne!(one, empty);
+    let folder = dir.path().join("context").join("home");
+    let names: Vec<String> = std::fs::read_dir(&folder)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, ["boiler.md"], "no temporary file is left");
+    assert!(
+        std::fs::read_to_string(folder.join("boiler.md"))
+            .unwrap()
+            .ends_with("Serviced in March\n")
+    );
+    facts
+        .set_fact(SetFact {
+            id: Some(id.clone()),
+            category: "home".to_owned(),
+            title: "Boiler".to_owned(),
+            text: "Serviced in April, by Omar".to_owned(),
+            ..SetFact::default()
+        })
+        .await
+        .unwrap();
+    let edited = facts.stamp().await.unwrap();
+    assert_ne!(edited, one);
+    facts.drop_fact(&id).await.unwrap();
+    assert_ne!(facts.stamp().await.unwrap(), edited);
+
+    let notes = db.notes().stamp().await.unwrap();
+    db.notes()
+        .write_assistants(
+            "2026-11-24",
+            "Quiet day",
+            "2026-11-24T20:00:00Z".parse().unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(db.notes().stamp().await.unwrap(), notes);
 }
