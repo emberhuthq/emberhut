@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { minTap, useTheme } from "@/theme";
@@ -22,12 +22,15 @@ export interface ActionSheetProps {
 
 /**
  * What a long press offers, from the bottom of the screen; a tap outside closes it. A tapped action runs once the sheet
- * is gone (sheetChoice.ts), so keep the sheet mounted and close it with `visible`: unmounted, it never says it's gone.
+ * is gone (sheetChoice.ts). Close it with `visible` where the action presents something (a picker): a sheet unmounted on
+ * close runs its action as it unmounts, while its modal may still be going away.
  */
 export function ActionSheet({ visible, title, actions, onClose }: ActionSheetProps) {
   const { colors, radius, spacing } = useTheme();
   const insets = useSafeAreaInsets();
   const [choice] = useState(() => sheetChoice(Platform.OS === "ios"));
+  // A caller that unmounts the sheet on close never gets its onDismiss: the choice runs as it goes.
+  useEffect(() => () => choice.unmounted(), [choice]);
   return (
     <Modal
       visible={visible}
