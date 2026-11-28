@@ -181,9 +181,32 @@ impl Alert {
     /// ```
     #[must_use]
     pub fn reply(room: RoomId, room_name: Option<&str>, text: &str) -> Self {
+        Self::reply_from(None, room, room_name, text)
+    }
+
+    /// [`Self::reply`], titled with the name the owner gave their ember (`from`) in place of
+    /// "Emberhut"; none: "Emberhut", as [`Self::reply`].
+    ///
+    /// ```
+    /// use emberhut_core::RoomId;
+    /// use emberhut_core::push::Alert;
+    ///
+    /// let main = Alert::reply_from(Some("Pip"), RoomId::MAIN, Some("Main"), "Done");
+    /// assert_eq!(main.title(), "Pip");
+    /// let garden = Alert::reply_from(Some("Pip"), RoomId::new(2), Some("Garden"), "Done");
+    /// assert_eq!(garden.title(), "Pip · Garden");
+    /// ```
+    #[must_use]
+    pub fn reply_from(
+        from: Option<&str>,
+        room: RoomId,
+        room_name: Option<&str>,
+        text: &str,
+    ) -> Self {
+        let from = from.unwrap_or("Emberhut");
         let title = match room_name {
-            Some(name) if room != RoomId::MAIN => format!("Emberhut · {name}"),
-            _ => "Emberhut".to_owned(),
+            Some(name) if room != RoomId::MAIN => format!("{from} · {name}"),
+            _ => from.to_owned(),
         };
         Self::new(title, &plain(text), Some(room))
     }
@@ -359,6 +382,12 @@ mod tests {
         assert_eq!(main.thread(), "emberhut-1");
         let other = Alert::reply(RoomId::new(3), None, "hi");
         assert_eq!(other.title(), "Emberhut");
+        let named = Alert::reply_from(Some("Juniper"), RoomId::new(3), Some("Atlas"), "hi");
+        assert_eq!(named.title(), "Juniper · Atlas");
+        assert_eq!(
+            Alert::reply_from(None, RoomId::MAIN, None, "hi").title(),
+            "Emberhut"
+        );
         let plain = Alert::new("Title", "x", None);
         assert_eq!(plain.link(), "emberhut://chat");
         assert_eq!(plain.thread(), "emberhut");
