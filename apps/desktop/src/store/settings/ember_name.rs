@@ -13,14 +13,29 @@ use crate::backend::Error;
 use crate::store::{Store, update_or_log};
 use emberhut_api::ember_name::{DEFAULT_NAME, clean_name};
 
+/// The default name inside a sentence.
+pub(crate) const CALLED: &str = "your ember";
+
+/// The most characters a name shows with where room is short (the composer's prompt), and
+/// past which it is said in full on hover where it is cut.
+pub(crate) const SHORT: usize = 16;
+
+/// Whether `name` is long enough to be cut where room is short: its full self shows on hover.
+#[must_use]
+pub(crate) fn is_long(name: &str) -> bool {
+    emberhut_api::ember_name::name_length(name) > SHORT
+}
+
 /// How long a name asked for counts over the state's word.
 const HOLD: Duration = Duration::from_secs(10);
 
-/// The rename on its way, and why the last one failed.
+/// The rename on its way, when the last one was kept, and why the last one failed.
 #[derive(Debug, Default)]
 pub(crate) struct EmberNaming {
     /// The name asked for (none: the default), and when.
     asked: Option<(Option<String>, Instant)>,
+    /// When the server last kept a rename.
+    saved: Option<Instant>,
     problem: Option<String>,
 }
 
@@ -55,6 +70,13 @@ impl Store {
         self.ember_custom_name().unwrap_or(DEFAULT_NAME)
     }
 
+    /// What the ember is called inside a sentence: the user's name for it, or "your ember"
+    /// ("Message your ember", "What Juniper knows").
+    #[must_use]
+    pub(crate) fn ember_called(&self) -> &str {
+        self.ember_custom_name().unwrap_or(CALLED)
+    }
+
     /// The user's own name for the ember; none while it is "Your ember".
     #[must_use]
     pub(crate) fn ember_custom_name(&self) -> Option<&str> {
@@ -64,6 +86,12 @@ impl Store {
             .and_then(|state| state.ember_name.as_ref())
             .and_then(|ember| ember.custom());
         self.settings.naming.custom(state, Instant::now())
+    }
+
+    /// When the server last kept a rename asked here.
+    #[must_use]
+    pub(crate) fn ember_name_saved_at(&self) -> Option<Instant> {
+        self.settings.naming.saved
     }
 
     /// Why the last rename failed.
@@ -99,7 +127,10 @@ impl Store {
                 // Only the newest rename's answer counts.
                 if naming.asked.as_ref().is_some_and(|(_, at)| *at == asked) {
                     match done {
-                        Ok(kept) => naming.asked = Some((kept.custom().map(str::to_owned), asked)),
+                        Ok(kept) => {
+                            naming.asked = Some((kept.custom().map(str::to_owned), asked));
+                            naming.saved = Some(Instant::now());
+                        }
                         Err(error) => {
                             naming.asked = None;
                             naming.problem = Some(problem(&error));
@@ -129,7 +160,7 @@ mod tests {
         let now = Instant::now();
         let asked = EmberNaming {
             asked: Some((Some("Pip".to_owned()), now)),
-            problem: None,
+            ..EmberNaming::default()
         };
         assert_eq!(asked.custom(None, now), Some("Pip"));
         assert_eq!(
@@ -139,13 +170,10 @@ mod tests {
         );
         let reset = EmberNaming {
             asked: Some((None, now)),
-            problem: None,
+            ..EmberNaming::default()
         };
         assert_eq!(reset.custom(Some("Pip"), now), None, "back to the default");
-        assert_eq!(
-            EmberNaming::default().custom(Some("Pip"), now),
-            Some("Pip")
-        );
+        assert_eq!(EmberNaming::default().custom(Some("Pip"), now), Some("Pip"));
     }
 
     #[test]

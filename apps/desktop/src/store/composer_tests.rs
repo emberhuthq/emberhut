@@ -230,7 +230,7 @@ fn the_stop_button_stops_the_rooms_turn(cx: &mut TestAppContext) {
     store.update(cx, |store, cx| {
         assert_eq!(
             store.composer().notice(),
-            Some("Couldn't stop Emberhut: can't reach the server")
+            Some("Couldn't stop Your ember: can't reach the server")
         );
         store.dismiss_notice(cx);
         assert_eq!(store.composer().notice(), None);

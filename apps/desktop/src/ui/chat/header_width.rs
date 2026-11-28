@@ -68,8 +68,8 @@ fn main_s_bar_names_the_ember_as_the_user_named_it(cx: &mut TestAppContext) {
     };
     assert_eq!(
         title(None, &mut cx).as_deref(),
-        Some("Emberhut"),
-        "as before"
+        Some("Your ember"),
+        "the default name"
     );
     assert_eq!(title(Some("Pip"), &mut cx).as_deref(), Some("Pip"));
 }

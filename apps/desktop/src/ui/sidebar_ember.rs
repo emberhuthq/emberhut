@@ -1,7 +1,7 @@
 //! The sidebar's first row, your ember: the assistant's little picture and its name (the one
-//! the user gave it, cut with an ellipsis when it is long, else "Your ember"). A click
-//! (or Return or Space) opens the main room, lit while it is open, with a dot while it has
-//! something unread. Its menu (On duty, what it knows about the user, Settings) opens on a
+//! the user gave it, cut with an ellipsis when it is long and said in full in the row's tip,
+//! else "Your ember"). A click (or Return or Space) opens the main room, lit while it is open,
+//! with a dot while it has something unread. Its menu (On duty, what it knows about the user, Settings) opens on a
 //! right-click and from the ellipsis inside the row, which shows on hover and keyboard focus.
 //! Off duty the picture is dimmed and grey; while it works a soft glow breathes around it
 //! (still under Reduce Motion). A second line says Off duty, what it is doing or what is wrong,
@@ -106,8 +106,10 @@ pub(crate) fn row_with_menu(
     let working = on_duty && store.is_working();
     let status = store.status();
     let name = store.ember_name().to_owned();
+    // The tip starts with the name in full: the row cuts a long one.
+    let called = store.ember_called();
     let help = format!(
-        "Opens your ember's chat · {}\nOn duty: when off, your ember does nothing and wakes for \
+        "{name} · {}\nOpens the chat. On duty: when off, {called} does nothing and wakes for \
          nothing; it still answers you in the chat.",
         status.text
     );

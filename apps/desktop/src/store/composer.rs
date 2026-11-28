@@ -16,11 +16,12 @@ use emberhut_api::state::State;
 use gpui_kit::AppContext as _;
 use gpui_kit::Context;
 
+use super::settings::ember_name::SHORT;
 use super::{Store, update_or_log};
 use crate::backend::Error;
-use crate::brand::APP_NAME;
 use crate::dictation::mic::Recording;
 use crate::dictation::{self, FILE_NAME, Unheard, WORDS};
+use emberhut_api::ember_name::shorten;
 
 /// How long a start or stop of a call's recording the server took may go unseen in the state
 /// before the composer stops waiting for it.
@@ -84,15 +85,17 @@ impl Composer {
     }
 }
 
-/// The field's prompt: `Message Emberhut` in Main, `Message Emberhut in <room>` in another room.
+/// The field's prompt to the ember `called` so (cut when long): `Message Juniper` in Main,
+/// `Message Juniper in <room>` in another room.
 #[must_use]
-pub(crate) fn placeholder(state: Option<&State>, room: RoomId) -> String {
+pub(crate) fn placeholder(state: Option<&State>, room: RoomId, called: &str) -> String {
+    let called = shorten(called, SHORT);
     state
         .and_then(|state| state.rooms.iter().find(|row| row.id == room))
         .filter(|row| !row.is_main() && !row.name.trim().is_empty())
         .map_or_else(
-            || format!("Message {APP_NAME}"),
-            |row| format!("Message {APP_NAME} in {}", row.name.trim()),
+            || format!("Message {called}"),
+            |row| format!("Message {called} in {}", row.name.trim()),
         )
 }
 
@@ -166,7 +169,8 @@ impl Store {
             kicker.kick();
             if let Err(error) = stopped {
                 update_or_log(&this, cx, |store, cx| {
-                    store.notify_failure(failure(&format!("Couldn't stop {APP_NAME}"), &error), cx);
+                    let what = format!("Couldn't stop {}", store.ember_name());
+                    store.notify_failure(failure(&what, &error), cx);
                 });
             }
         })
@@ -174,12 +178,14 @@ impl Store {
         cx.notify();
     }
 
-    /// The words the speech-to-text is told to expect: the app's, and the rooms' names.
+    /// The words the speech-to-text is told to expect: the app's, the ember's name, and the
+    /// rooms' names.
     fn dictation_words(&self) -> Vec<String> {
         let rooms = self.state().map_or(&[][..], |state| state.rooms.as_slice());
         WORDS
             .iter()
             .map(|&word| word.to_owned())
+            .chain(self.ember_custom_name().map(str::to_owned))
             .chain(
                 rooms
                     .iter()
@@ -336,16 +342,19 @@ mod tests {
         let state = state(json!({
             "rooms": [room(1, json!({"name": "Main"})), room(2, json!({"name": "Room 2"}))]
         }));
-        assert_eq!(placeholder(Some(&state), RoomId::MAIN), "Message Emberhut");
+        let juniper = |room| placeholder(Some(&state), room, "Juniper");
+        assert_eq!(juniper(RoomId::MAIN), "Message Juniper");
+        assert_eq!(juniper(RoomId::new(2)), "Message Juniper in Room 2");
+        assert_eq!(juniper(RoomId::new(3)), "Message Juniper");
         assert_eq!(
-            placeholder(Some(&state), RoomId::new(2)),
-            "Message Emberhut in Room 2"
+            placeholder(None, RoomId::new(2), "your ember"),
+            "Message your ember"
         );
         assert_eq!(
-            placeholder(Some(&state), RoomId::new(3)),
-            "Message Emberhut"
+            placeholder(None, RoomId::MAIN, "Juniper the Bravest of All"),
+            "Message Juniper the Bra\u{2026}",
+            "a long name is cut"
         );
-        assert_eq!(placeholder(None, RoomId::new(2)), "Message Emberhut");
     }
 
     #[test]

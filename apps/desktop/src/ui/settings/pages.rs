@@ -1,6 +1,6 @@
 //! What each group page holds, built of the rows and sections Settings already had: Your
-//! ember (on duty, its name, what it thinks with and the usage, what it knows, the models under
-//! Technical details), Devices, Connections (data sources and Chrome, the tool servers and the
+//! ember (its name as the hero's title with on duty, what it thinks with and the usage, what it
+//! knows, the models under Technical details), Devices, Connections (data sources and Chrome, the tool servers and the
 //! skills folded), Sharing, Privacy (what it knows, archived rooms, the dark room, where data
 //! goes), Advanced (updates, the server, diagnostics folded, where the agent works) and the
 //! account.
@@ -45,11 +45,12 @@ impl SettingsView {
         p: &Pal,
         cx: &mut Context<'_, Self>,
     ) -> Vec<Block> {
+        let hero = self.hero(now, p, cx);
         let store = self.store.read(cx);
         let problem = store.on_duty_problem().map(str::to_owned);
-        let hero = self.hero(now, p);
+        let called = store.ember_called().to_owned();
         let mut blocks = vec![block(
-            &["on-duty"],
+            &["on-duty", "ember-name"],
             div()
                 .flex()
                 .flex_col()
@@ -57,12 +58,11 @@ impl SettingsView {
                 .child(hero)
                 .children(problem.map(|problem| problem_line(p, problem))),
         )];
-        blocks.push(block(&["ember-name"], self.name.clone()));
         blocks.push(block(
             &["thinks-with"],
             section(
                 p,
-                "What it thinks with",
+                format!("What {called} thinks with"),
                 None,
                 vec![thinks_with_row(store, p)],
                 None,
@@ -86,7 +86,8 @@ impl SettingsView {
             "about-you-row",
             p,
             (IconName::BookOpen, category_color(0)),
-            crate::store::settings::about::TITLE,
+            // Under "What Juniper knows": the row needn't say it again.
+            "About you",
             (knows, health),
             "",
         )
@@ -96,7 +97,7 @@ impl SettingsView {
             &["about-you", "lessons"],
             section(
                 p,
-                "What it knows",
+                format!("What {called} knows"),
                 None,
                 vec![about.into_any_element()],
                 None,
@@ -124,10 +125,12 @@ impl SettingsView {
         blocks
     }
 
-    /// Your ember's hero: its face, what it is doing, and the On duty switch.
-    fn hero(&self, now: &Now, p: &Pal) -> Div {
+    /// Your ember's hero: its face; its name as the title, renamed in place; what it is doing
+    /// and what On duty means; the On duty switch, which a long name doesn't push out.
+    fn hero(&self, now: &Now, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
         let on = now.on_duty;
         let duty = self.store.clone();
+        let reset = self.name.update(cx, |name, cx| name.reset_link(p, cx));
         div()
             .flex()
             .items_center()
@@ -142,32 +145,42 @@ impl SettingsView {
                 div()
                     .flex()
                     .flex_col()
+                    .gap(px(2.))
                     .flex_1()
                     .min_w_0()
+                    .child(self.name.clone())
                     .child(
                         div()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_size(px(15.))
+                            .text_size(px(12.5))
+                            .text_color(p.muted)
                             .child(now.doing.clone()),
                     )
                     .child(div().text_size(px(12.5)).text_color(p.muted).child(if on {
                         "Works on its own, and answers when you message it."
                     } else {
                         "Stops working on its own. Still answers when you message it."
-                    })),
+                    }))
+                    .children(reset.map(|reset| div().pt(px(4.)).child(reset))),
             )
             .child(
                 div()
-                    .text_size(px(13.))
-                    .text_color(p.muted)
-                    .child(duty_word(on)),
-            )
-            .child(
-                Switch::new("on-duty-switch")
-                    .checked(on)
-                    .on_click(move |on, _, cx| {
-                        duty.update(cx, |store, cx| store.set_on_duty(*on, cx));
-                    }),
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .text_size(px(13.))
+                            .text_color(p.muted)
+                            .child(duty_word(on)),
+                    )
+                    .child(
+                        Switch::new("on-duty-switch")
+                            .checked(on)
+                            .on_click(move |on, _, cx| {
+                                duty.update(cx, |store, cx| store.set_on_duty(*on, cx));
+                            }),
+                    ),
             )
     }
 

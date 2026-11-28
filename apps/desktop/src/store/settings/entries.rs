@@ -106,7 +106,8 @@ impl Group {
     #[must_use]
     pub(crate) fn status(self, now: &Now) -> String {
         match self {
-            Self::Ember => now.doing_word(),
+            // The hero says what it is doing.
+            Self::Ember => String::new(),
             Self::Appearance => now.appearance_word(),
             Self::Devices => match now.devices {
                 Some(1) => "1 can reach your ember".to_owned(),
@@ -923,6 +924,19 @@ mod tests {
             );
             assert!(!entry.title.is_empty() && !entry.line(&Now::default()).is_empty());
         }
+    }
+
+    #[test]
+    fn your_embers_page_leaves_what_it_is_doing_to_its_hero() {
+        let busy = Now {
+            on_duty: true,
+            working: true,
+            jobs: 1,
+            doing: "Watching · 1 job".to_owned(),
+            ..Now::default()
+        };
+        assert_eq!(Group::Ember.status(&busy), "", "said once, by the hero");
+        assert_eq!(Group::Sharing.status(&busy), "Only you");
     }
 
     #[test]

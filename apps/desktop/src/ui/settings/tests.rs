@@ -192,75 +192,176 @@ fn return_in_the_name_field_renames_and_a_refusal_shows_on_the_sheet(cx: &mut Te
     assert_eq!(kept, "Work", "the field goes back to the name kept");
 }
 
-/// The ember's name as the store gives it, and the Name field's text.
+/// The ember's name as the store gives it, and whether its title is a field now.
 fn named(
     store: &Entity<Store>,
     view: &Entity<SettingsView>,
     cx: &mut VisualTestContext,
-) -> (String, String) {
+) -> (String, bool) {
     let name = store.read_with(cx, |store, _| store.ember_name().to_owned());
-    let field = view.read_with(cx, |view, cx| view.name.read(cx).input.clone());
-    let typed = field.read_with(cx, |input, _| input.value().to_string());
-    (name, typed)
+    let editing = view.read_with(cx, |view, cx| view.name.read(cx).editing);
+    (name, editing)
 }
 
-#[gpui_kit::test]
-fn the_name_entry_renames_the_ember_and_goes_back_to_the_default(cx: &mut TestAppContext) {
-    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
-    assert_eq!(
-        named(&store, &view, &mut cx),
-        ("Your ember".into(), String::new())
-    );
-    let field = view.read_with(&cx, |view, cx| view.name.read(cx).input.clone());
-    type_in(&field, "  Juniper ", &mut cx);
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    assert_eq!(
-        backend.calls().last(),
-        Some(&Call::RenameEmber(Some("Juniper".into()))),
-        "trimmed"
-    );
-    assert_eq!(named(&store, &view, &mut cx).0, "Juniper", "shown at once");
-
-    // Save does the same; the button back to the default sends none.
-    type_in(&field, "Pip", &mut cx);
-    cx.update(|window, cx| {
-        window.render_frame(cx);
-        window.click(ember_name::NAME_SAVE, cx);
-    });
-    cx.run_until_parked();
-    assert_eq!(named(&store, &view, &mut cx).0, "Pip");
-    cx.update(|window, cx| {
-        window.render_frame(cx);
-        window.click(ember_name::NAME_RESET, cx);
-    });
-    cx.run_until_parked();
-    assert_eq!(backend.calls().last(), Some(&Call::RenameEmber(None)));
-    assert_eq!(
-        named(&store, &view, &mut cx),
-        ("Your ember".into(), String::new())
-    );
+/// The name's field.
+fn name_field(view: &Entity<SettingsView>, cx: &VisualTestContext) -> Entity<InputState> {
+    view.read_with(cx, |view, cx| view.name.read(cx).input.clone())
 }
 
-#[gpui_kit::test]
-fn a_name_the_server_refuses_goes_back_with_its_reason(cx: &mut TestAppContext) {
-    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
-    store.update(&mut cx, |store, cx| {
+/// Clicks the hero's title, which turns it into the field, and types `text` over the name.
+fn rename_to(view: &Entity<SettingsView>, text: &str, cx: &mut VisualTestContext) {
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(ember_name::NAME_TITLE, cx);
+    });
+    cx.run_until_parked();
+    type_in(&name_field(view, cx), text, cx);
+}
+
+/// Whether the hero's title has the keyboard.
+fn title_focused(view: &Entity<SettingsView>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| view.read(cx).name.read(cx).title.is_focused(window))
+}
+
+/// Gives the ember the name `name` as the state says it.
+fn state_names(store: &Entity<Store>, name: &str, cx: &mut VisualTestContext) {
+    store.update(cx, |store, cx| {
         store.take_state_for_tests(
             crate::fixtures::state(json!({
-                "emberName": { "name": "Pip", "custom": true, "at": null }
+                "emberName": { "name": name, "custom": true, "at": null }
             })),
             cx,
         );
     });
     cx.run_until_parked();
     cx.update(Window::render_frame);
+}
+
+#[gpui_kit::test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test window, made active so that leaving the field is heard"
+)]
+fn the_heros_title_is_the_name_and_is_renamed_in_place(cx: &mut TestAppContext) {
+    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    assert_eq!(named(&store, &view, &mut cx), ("Your ember".into(), false));
+    cx.update(|window, _| {
+        assert_eq!(
+            window.find(ember_name::NAME_TITLE).label(),
+            Some("Rename, now Your ember")
+        );
+        assert!(
+            window.try_find(ember_name::NAME_RESET).is_none(),
+            "no way back to the default while it is the default"
+        );
+    });
+
+    // Return keeps it, trimmed with its spaces made one, and gives the title the keyboard back.
+    rename_to(&view, "  Juniper   the  Brave ", &mut cx);
+    assert!(named(&store, &view, &mut cx).1, "the title is a field");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls().last(),
+        Some(&Call::RenameEmber(Some("Juniper the Brave".into())))
+    );
+    assert_eq!(
+        named(&store, &view, &mut cx),
+        ("Juniper the Brave".into(), false),
+        "shown at once"
+    );
+    assert!(title_focused(&view, &mut cx));
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        assert!(window.try_find(ember_name::NAME_SAVED).is_some(), "Saved");
+        assert!(window.try_find(ember_name::NAME_RESET).is_some());
+    });
+
+    // Esc puts the name back and sends nothing.
+    let sent = backend.calls().len();
+    rename_to(&view, "Pip", &mut cx);
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(backend.calls().len(), sent);
+    assert_eq!(
+        named(&store, &view, &mut cx),
+        ("Juniper the Brave".into(), false)
+    );
+
+    // Leaving the field keeps what it holds.
+    rename_to(&view, "Pip", &mut cx);
+    cx.update(|window, cx| {
+        window.blur(cx);
+        window.render_frame(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        backend.calls().last(),
+        Some(&Call::RenameEmber(Some("Pip".into())))
+    );
+    assert_eq!(named(&store, &view, &mut cx), ("Pip".into(), false));
+
+    // Emptied and left: the default, with no complaint.
+    rename_to(&view, "", &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(backend.calls().last(), Some(&Call::RenameEmber(None)));
+    assert_eq!(named(&store, &view, &mut cx), ("Your ember".into(), false));
+    assert_eq!(
+        store.read_with(&cx, |store, _| store
+            .ember_name_problem()
+            .map(str::to_owned)),
+        None
+    );
+
+    // The link goes back to the default too.
+    rename_to(&view, "Juniper", &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        window.click(ember_name::NAME_RESET, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(backend.calls().last(), Some(&Call::RenameEmber(None)));
+    assert_eq!(named(&store, &view, &mut cx).0, "Your ember");
+}
+
+#[gpui_kit::test]
+fn the_name_field_takes_24_characters_counting_from_20(cx: &mut TestAppContext) {
+    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
+    let sent = backend.calls().len();
+    rename_to(&view, &"x".repeat(30), &mut cx);
+    let field = name_field(&view, &cx);
+    assert_eq!(
+        field.read_with(&cx, |input, _| input.value().to_string()),
+        "x".repeat(24),
+        "cut at the limit"
+    );
+    cx.update(|window, cx| {
+        window.render_frame(cx);
+        assert!(window.try_find(ember_name::NAME_FIELD).is_some());
+    });
+    assert_eq!(backend.calls().len(), sent, "nothing sent while typing");
+    // An emoji is one character: 24 of them fit.
+    let astronauts = "\u{1F469}\u{200D}\u{1F680}".repeat(24);
+    type_in(&field, &astronauts, &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(named(&store, &view, &mut cx).0, astronauts);
+}
+
+#[gpui_kit::test]
+fn a_name_the_server_refuses_goes_back_with_its_reason(cx: &mut TestAppContext) {
+    let (backend, store, view, mut cx) = open_settings_view(cx, Some(SettingsPane::Ember));
+    state_names(&store, "Pip", &mut cx);
     backend.replies.push_rename(Err(Error::Refused {
         status: Some(400),
         message: Some("name: one line of plain text".into()),
     }));
-    let field = view.read_with(&cx, |view, cx| view.name.read(cx).input.clone());
-    type_in(&field, "Juniper", &mut cx);
+    rename_to(&view, "Juniper", &mut cx);
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     cx.update(Window::render_frame);
@@ -270,8 +371,8 @@ fn a_name_the_server_refuses_goes_back_with_its_reason(cx: &mut TestAppContext) 
     );
     assert_eq!(
         named(&store, &view, &mut cx),
-        ("Pip".into(), "Pip".into()),
-        "the name and the field go back"
+        ("Pip".into(), false),
+        "the name goes back"
     );
     assert_eq!(
         store.read_with(&cx, |store, _| store
@@ -279,19 +380,38 @@ fn a_name_the_server_refuses_goes_back_with_its_reason(cx: &mut TestAppContext) 
             .map(str::to_owned)),
         Some("Not renamed: one line of plain text".into())
     );
-
-    // A name the app can tell is too long is never sent.
-    let sent = backend.calls().len();
-    type_in(&field, &"x".repeat(30), &mut cx);
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    assert_eq!(backend.calls().len(), sent);
+    cx.update(|window, _| {
+        assert!(
+            window.try_find(ember_name::NAME_SAVED).is_none(),
+            "no check"
+        );
+    });
+    // Typing again puts the reason away.
+    rename_to(&view, "Ju", &mut cx);
     assert_eq!(
         store.read_with(&cx, |store, _| store
             .ember_name_problem()
             .map(str::to_owned)),
-        Some("Not renamed: 24 characters at most".into())
+        None
     );
+}
+
+#[gpui_kit::test]
+fn the_name_setting_lands_on_the_heros_title(cx: &mut TestAppContext) {
+    let (_backend, _store, main, view, mut cx) = open_front_door(cx);
+    search_for("rename", &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Ember))
+    );
+    assert_eq!(
+        view.read_with(&cx, |view, _| view.flashing()),
+        Some("ember-name")
+    );
+    cx.update(Window::render_frame);
+    assert!(title_focused(&view, &mut cx), "the title has the keyboard");
 }
 
 #[gpui_kit::test]

@@ -35,7 +35,7 @@ use self::about::AboutPane;
 use self::appearance::AppearancePane;
 pub(crate) use self::appearance::OpenAgentRoom;
 pub(crate) use self::chrome::ChromePane;
-use self::ember_name::NameField;
+use self::ember_name::NameTitle;
 use self::front_door::{Listing, PLACEHOLDER};
 use self::group::FLASH;
 use self::parts::{nav_row, page_body};
@@ -58,7 +58,7 @@ pub(crate) struct SettingsView {
     pairing: Entity<PairingForm>,
     appearance: Entity<AppearancePane>,
     /// Your ember's Name field.
-    name: Entity<NameField>,
+    name: Entity<NameTitle>,
     about: Entity<AboutPane>,
     chrome: Entity<ChromePane>,
     credentials: Entity<CredentialsView>,
@@ -101,7 +101,7 @@ impl SettingsView {
             cx.observe(&signed, |_, _, cx| cx.notify()).detach();
         }
         let appearance = cx.new(|cx| AppearancePane::new(store.clone(), window, cx));
-        let name = cx.new(|cx| NameField::new(store.clone(), window, cx));
+        let name = cx.new(|cx| NameTitle::new(store.clone(), window, cx));
         let about = cx.new(|cx| AboutPane::new(store.clone(), window, cx));
         let chrome = cx.new(|cx| ChromePane::new(store.clone(), window, cx));
         // Once a provider is saved, back to where the picker was opened from.
@@ -202,6 +202,10 @@ impl SettingsView {
                 self.shown_group = None;
                 self.scroll_to = Some(entry.id);
                 self.flash = Some((entry.id, Instant::now()));
+                // The name is renamed where it is the hero's title: it takes the focus.
+                if entry.id == "ember-name" {
+                    self.name.update(cx, |name, _| name.wants_focus = true);
+                }
                 // Drawn again once the wash is over.
                 cx.spawn(async move |this, cx| {
                     cx.background_executor().timer(FLASH).await;
@@ -359,7 +363,7 @@ fn thinks_with_row(store: &Store, p: &Pal) -> AnyElement {
         "credentials-row",
         p,
         (IconName::Brain, category_color(2)),
-        "What your ember thinks with",
+        "Model provider",
         (status, health),
         &detail,
     )

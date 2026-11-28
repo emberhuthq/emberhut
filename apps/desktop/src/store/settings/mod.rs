@@ -7,7 +7,7 @@
 pub(crate) mod about;
 pub(crate) mod appearance;
 pub(crate) mod chrome;
-mod ember_name;
+pub(crate) mod ember_name;
 pub(crate) mod entries;
 pub(crate) mod now;
 mod on_duty;
