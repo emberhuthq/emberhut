@@ -19,7 +19,7 @@ defaults:
     # bash -eo pipefail: a failing command in a pipe fails the step.
     shell: bash
 
-# Runners: GitHub's hosted runners, Ubuntu 24.04 and macOS 15 (Apple silicon). The workflow uses
+# Runners: GitHub's hosted runners, Ubuntu 24.04, macOS 15 (Apple silicon) and Windows Server 2025. The workflow uses
 # no secrets and a read-only token, so pull requests from forks run it too, once a maintainer
 # approves an outside contributor's first run.
 
@@ -49,16 +49,17 @@ jobs:
       - run: rustup show active-toolchain
       - run: cargo fmt --all --check
 
-  # On macOS too: the desktop's macOS-only code (its menu keys, the computer name, the
-  # automation's memory readout and its `unsafe`) is only seen by a macOS build.
+  # On macOS and Windows too: the desktop's macOS-only code (its menu keys, the computer name, the
+  # automation's memory readout and its `unsafe`) is only seen by a macOS build, and the Windows
+  # code paths (the hut's folders and processes, a step's files) by a Windows one.
   clippy:
     name: clippy and rustdoc (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, macos]
-    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
-    timeout-minutes: 40
+        os: [linux, macos, windows]
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || matrix.os == 'windows' && 'windows-2025' || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ matrix.os == 'windows' && 60 || 40 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,9 +79,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, macos]
-    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
-    timeout-minutes: 40
+        os: [linux, macos, windows]
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || matrix.os == 'windows' && 'windows-2025' || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ matrix.os == 'windows' && 60 || 40 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,8 +99,25 @@ jobs:
           tool: cargo-nextest@0.9.152
       - run: cargo nextest run --workspace --all-features --locked --profile ci
       - run: cargo test --workspace --all-features --doc --locked
+      # The hut for real on Windows (apps/desktop/src/hut/real_tests.rs): a built
+      # emberhut-server.exe started by the app's code with its files in a temporary home, a
+      # pairing code made and taken, and the hut stopped.
+      - name: a real hut starts, pairs and stops (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build -p emberhut-server --locked
+          $hutHome = Join-Path ([IO.Path]::GetTempPath()) "hut-home-$PID"
+          New-Item -ItemType Directory -Force (Join-Path $hutHome 'local') | Out-Null
+          $env:USERPROFILE = $hutHome
+          $env:LOCALAPPDATA = Join-Path $hutHome 'local'
+          $env:EMBERHUT_SERVER_BIN = (Resolve-Path target/debug/emberhut-server.exe).Path
+          cargo nextest run -p emberhut-desktop --all-features --locked --profile ci --run-ignored only -E 'test(=hut::real_tests::a_real_hut_starts_pairs_this_app_and_stops)'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-  # No job opens a window. The hosted macOS runners are virtual machines, and GPUI draws with
+  # Only the Windows job opens a window: the hosted Windows runners have a desktop session and
+  # Direct3D 11 through the WARP software renderer, so the release build's `--self-check` draws
+  # its first frame there. The hosted macOS runners are virtual machines, and GPUI draws with
   # Metal, which they aren't known to offer; a launch check there is left until that is tried.
   # The desktop's launch (and its runtime shader compile) is checked on a Mac with the
   # automation build's `--bench start`; see apps/desktop/README.md.
@@ -108,9 +126,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, macos]
-    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || 'ubuntu-24.04' }}
-    timeout-minutes: 40
+        os: [linux, macos, windows]
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || matrix.os == 'windows' && 'windows-2025' || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ matrix.os == 'windows' && 60 || 40 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,6 +141,33 @@ jobs:
       - if: runner.environment == 'github-hosted'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo build --workspace --release --locked
+      - name: the server runs (Windows)
+        if: runner.os == 'Windows'
+        run: target/release/emberhut-server.exe --version
+      # The window opens beside the displays without the focus, draws its first frame, and the
+      # app exits 0 (1 after a minute). Its log is kept either way.
+      - name: the app draws its first frame (Windows, --self-check)
+        if: runner.os == 'Windows'
+        env:
+          RUST_LOG: info
+        run: |
+          set +e
+          started=$SECONDS
+          timeout 120 target/release/emberhut-desktop.exe --self-check > "$RUNNER_TEMP/self-check.log" 2>&1
+          code=$?
+          echo "--self-check exited $code after $((SECONDS - started)) s"
+          cat "$RUNNER_TEMP/self-check.log"
+          if [ "$code" -ne 0 ]; then
+            echo "::error::emberhut-desktop --self-check exited $code: no first frame (its log is the self-check-log artifact)"
+            exit 1
+          fi
+      - if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: self-check-log
+          path: ${{ runner.temp }}/self-check.log
+          if-no-files-found: ignore
+          retention-days: 14
 
   coverage:
     name: coverage (libraries)
