@@ -25,3 +25,13 @@ Where the exports live: the iOS and Android icons in `apps/mobile/assets/`, the 
 
 Keep clear space of a quarter of the mark's width around it, don't recolour, stretch or rotate it, and
 don't add a flame, arms or a hut to it.
+
+## The ember's tints
+
+The one recolouring allowed is the ember's tint, which a person picks for their own ember (Settings ›
+Your ember › Look): Amber, Rose and Sage beside the default, Ember. A tint is `emberhut-mark-on-dark.svg`
+with the glow's five stops, the seam, the embers in the charcoal, the cracks and the cheeks swapped for
+the tint's colours (`TINTS` in `crates/emberhut-core/src/theme.rs`, whose tests check the face's ink
+reads AA on each); the outline, eyes, smile, charcoal and rim stay. The exports are
+`apps/desktop/assets/face-<tint>.png` (128 px) and `apps/mobile/assets/emberhut-face-<tint>.png`
+(512 px). The app icons stay in the default colours.
