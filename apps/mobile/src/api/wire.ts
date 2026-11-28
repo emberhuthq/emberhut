@@ -59,5 +59,14 @@ export const EXTERNAL_THREADS_GROUP = "t3";
 /** Where an external thread's latest activity is read (GET, read-only). */
 export const EXTERNAL_THREAD_ACTIVITY_PATH = "/api/t3/activity";
 
+/**
+ * Where a step of a task's plan is (a plan step's and the current step's `state`): not started, being worked on, done
+ * (ticked), stuck on what its note says, left out. An open set: a state the app doesn't know reads as not started.
+ */
+export const STEP_STATE = { todo: "todo", doing: "doing", done: "done", blocked: "blocked", skipped: "skipped" } as const;
+
+/** One of the plan step states the app knows. */
+export type StepState = (typeof STEP_STATE)[keyof typeof STEP_STATE];
+
 /** Who a task, a line or a step is from. */
 export type Author = typeof OWNER | typeof ASSISTANT;

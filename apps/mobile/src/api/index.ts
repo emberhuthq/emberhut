@@ -86,12 +86,14 @@ export {
   LOOKING_HEADER,
   OWNER,
   PUSH_CHANNEL,
+  STEP_STATE,
   TASK_KEY_PATTERN,
   CONTRACT_TASK_KEY_PREFIX,
   TASK_KEY_PREFIX,
   taskKeyPrefixFrom,
   taskKey,
   type Author,
+  type StepState,
 } from "./wire";
 export { APPROVALS_EVENT, followParty, followRoomLive, followSession, type RoomLiveOptions } from "./live";
 export type * from "./types";
