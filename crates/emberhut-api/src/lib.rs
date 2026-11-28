@@ -56,6 +56,7 @@ pub mod chrome;
 pub mod connect;
 pub mod dark;
 pub mod directory;
+pub mod ember_name;
 pub mod environments;
 pub mod error;
 pub mod facts;

@@ -46,6 +46,8 @@ pub const SEEN: &str = "/api/seen";
 pub const MACHINES: &str = "/api/machines";
 /// `GET`: the theme; `POST`: change it.
 pub const THEME: &str = "/api/theme";
+/// `GET`: the ember's name; `POST`: change it ([`crate::ember_name`]).
+pub const EMBER_NAME: &str = "/api/ember/name";
 /// `POST`: the person's changes, one route for all of them
 /// ([`crate::settings::SettingsAction`]).
 pub const SETTINGS: &str = "/api/settings";
