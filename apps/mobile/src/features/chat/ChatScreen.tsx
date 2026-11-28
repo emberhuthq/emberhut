@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useBottomTabBarHeight } from "react-native-bottom-tabs";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -23,6 +23,7 @@ import { ErrorState, Icon, Loading, Screen, Text, useBarInsets, useSeeThrough } 
 import { FallbackBanner, HandoffBanner, OfflineBanner, PausedBanner } from "./Banners";
 import { ChatTitle } from "./ChatTitle";
 import { Composer } from "./Composer";
+import { setDraft } from "./composerText";
 import { MessageList } from "./MessageList";
 import { quoteOf } from "./rows";
 import { emberhutStatus } from "./status";
@@ -59,7 +60,10 @@ export function ChatScreen({ route, navigation }: TabScreenProps<"Chat">) {
   const status = useMemo(() => emberhutStatus(data, working, offline !== null), [data, working, offline]);
   useChatHeader(navigation, name, status, data, agent);
 
-  const [text, setText] = useState("");
+  // A draft per room: what's half typed in one room stays there when you switch, and isn't sent to the next.
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const text = drafts[room] ?? "";
+  const setText = useCallback<Dispatch<SetStateAction<string>>>((change) => setDrafts((all) => setDraft(all, room, change)), [room]);
   // A draft handed over (Talk on a task) fills the box once, then leaves the route so the next Talk fills it again.
   const draft = route.params?.draft;
   const [taken, setTaken] = useState<string | undefined>(undefined);
