@@ -75,13 +75,10 @@ fn a_hut_online_and_one_asleep_say_so_with_their_accounts_room(cx: &mut TestAppC
         assert_eq!(studio.role(), Some(Role::Group));
         assert_eq!(studio.label(), Some("Studio, Mac, Online"));
         let tower = window.find("hut-runner");
-        assert_eq!(
-            tower.label(),
-            Some("Tower, Linux PC, Asleep · last seen 2 h ago")
-        );
+        assert_eq!(tower.label(), Some("Tower, Linux PC, Asleep · 2 h ago"));
         assert_eq!(
             window.find("hut-account-studio-a").label(),
-            Some("Work, 60% left, 5-hour not reported · week 40% used"),
+            Some("Work, 60% left · week only, 5-hour not reported · week 60% left"),
             "an unknown 5-hour use is said, never read as 0%"
         );
         assert_eq!(
@@ -91,7 +88,7 @@ fn a_hut_online_and_one_asleep_say_so_with_their_accounts_room(cx: &mut TestAppC
         );
         assert_eq!(
             window.find("hut-account-runner-c").label(),
-            Some("Home, 72% left, 5-hour 28% used · week 10% used")
+            Some("Home, 72% left, 5-hour 72% left · week 90% left")
         );
         let fold = window.find("hut-details-studio");
         assert_eq!(fold.label(), Some("Details of Studio"));
@@ -99,12 +96,31 @@ fn a_hut_online_and_one_asleep_say_so_with_their_accounts_room(cx: &mut TestAppC
         window.click("hut-details-studio", cx);
         window.render_frame(cx);
         assert_eq!(window.find("hut-details-studio").expanded(), Some(true));
-        window.click("huts-add", cx);
         let column = column::of(window, cx).unwrap();
-        assert_eq!(
-            column.read(cx).current(),
-            Some(Page::SettingsPane(SettingsPane::Devices)),
-            "Add a hut opens the pairing code"
-        );
+        for button in ["huts-add", "huts-add-row"] {
+            window.render_frame(cx);
+            window.click(button, cx);
+            assert_eq!(
+                column.read(cx).current(),
+                Some(Page::SettingsPane(SettingsPane::Devices)),
+                "{button} opens the pairing code"
+            );
+            column.update(cx, Column::close);
+        }
     });
+}
+
+#[test]
+fn the_pills_words_and_the_bars_edges_read_in_both_appearances() {
+    for dark in [false, true] {
+        let p = Pal::new(&crate::theme::built_in(), dark);
+        for ink in [p.success, p.warn, p.danger, p.muted] {
+            let (fill, text) = crate::ui::palette::tinted(ink, p.card);
+            let ratio = crate::ui::palette::contrast(text, fill);
+            assert!(ratio >= 4.5, "dark {dark}: {ratio:.2}");
+        }
+        let (_, outline) = crate::ui::palette::track(p.muted, p.card);
+        let ratio = crate::ui::palette::contrast(outline, p.card);
+        assert!(ratio >= 3.0, "dark {dark}: the track's edge at {ratio:.2}");
+    }
 }

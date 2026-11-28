@@ -1,10 +1,10 @@
 //! Huts: each computer the assistant works on (a Mac, a Linux PC, a server) as a card with its
-//! kind, whether it is online or asleep and when it was last seen, what runs there now, and
-//! its accounts with the room each has left. Its processor, memory, graphics, disks, battery,
+//! kind, whether it is online or asleep and since when, its sessions and resources, and its
+//! accounts with the room each has left. Its processor, memory, graphics, disks, battery,
 //! session runner, last 24 hours and sessions fold under it. "Add a hut" opens the pairing
 //! code in Settings › Devices.
 
-use emberhut_api::machines::{Machine, MachineState, WarningLevel};
+use emberhut_api::machines::{Machine, WarningLevel};
 use emberhut_api::runner::accounts::ClaudeAccount;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::Button;
@@ -12,7 +12,8 @@ use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::{Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    App, Div, Entity, FontWeight, Hsla, Role, ScrollHandle, TestSupportExt as _, div, px, relative,
+    AnyElement, App, Div, ElementId, Entity, FontWeight, Hsla, Role, ScrollHandle,
+    TestSupportExt as _, Window, div, px, relative,
 };
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
@@ -29,8 +30,8 @@ use self::words::{HutKind, Presence, Room, RoomTone};
 use super::a11y::{self, Accessible as _};
 use super::column;
 use super::controls::tab_stop;
-use super::palette::Pal;
-use super::widgets::{dot, page_head, pill, scroller};
+use super::palette::{self, Pal};
+use super::widgets::{dot, page_head, scroller};
 use crate::store::settings::SettingsPane;
 use crate::store::{Page, Store};
 
@@ -81,6 +82,7 @@ pub(crate) fn page(store: &Entity<Store>, scroll: &ScrollHandle, p: &Pal, cx: &A
                 let open = feed.is_open(&machine.id);
                 body = body.child(card(store, machine, &on_it, open, &now, p));
             }
+            body = body.child(add_row(p));
             if let Some(problem) = feed.problem() {
                 body = body.child(
                     div()
@@ -92,16 +94,24 @@ pub(crate) fn page(store: &Entity<Store>, scroll: &ScrollHandle, p: &Pal, cx: &A
         }
     }
     body = body.child(super::working::jobs::link_row(p));
+    let updated = feed
+        .fetched()
+        .map(|fetched| words::updated_line(fetched, now.0));
     div()
         .size_full()
         .flex()
         .flex_col()
-        .child(page_head(p, "Huts", Some("live, every 10 s".into())))
+        .child(page_head(p, "Huts", updated))
         .child(scroller("machines-scroll", scroll).child(body))
 }
 
-/// The line over the cards: how many huts and how many asleep, and "Add a hut", which opens
-/// the pairing code (Settings › Devices) over this page: Back returns here.
+/// What "Add a hut" does, from the button and the dashed row alike: opens the pairing code
+/// (Settings › Devices) over this page; Back returns here.
+fn add_hut(_: &gpui_kit::ClickEvent, window: &mut Window, cx: &mut App) {
+    column::push(Page::SettingsPane(SettingsPane::Devices), window, cx);
+}
+
+/// The line over the cards: how many huts and how many asleep, and "Add a hut".
 fn top_row(count: Option<String>, p: &Pal) -> Div {
     div()
         .flex()
@@ -120,24 +130,44 @@ fn top_row(count: Option<String>, p: &Pal) -> Div {
                 .icon(gpui_kit::component::IconName::Plus)
                 .label("Add a hut")
                 .tooltip("Pair another computer with a code or QR code")
-                .on_click(|_, window, cx| {
-                    column::push(Page::SettingsPane(SettingsPane::Devices), window, cx);
-                }),
+                .on_click(add_hut),
         )
 }
 
-/// The dot's colour for `state`: how the hut is, beside whether it is there.
-fn state_color(p: &Pal, state: &MachineState) -> Hsla {
-    match state {
-        MachineState::Ok => p.success,
-        MachineState::Warn | MachineState::Stale => p.warn,
-        MachineState::Low => p.danger,
-        // Asleep, unknown, and a state this app doesn't know yet.
-        _ => p.faint,
-    }
+/// A quiet dashed row after the last card that adds a hut too.
+fn add_row(p: &Pal) -> impl IntoElement {
+    let ring = p.accent;
+    div()
+        .id("huts-add-row")
+        .button_named("Add a hut")
+        .hint("Pair another computer with a code or QR code")
+        .flex()
+        .items_center()
+        .justify_center()
+        .gap(px(6.))
+        .py(px(12.))
+        .rounded(px(12.))
+        .border_1()
+        .border_dashed()
+        .border_color(p.border)
+        .text_size(px(12.5))
+        .text_color(p.muted)
+        .cursor_pointer()
+        .hover(|d| d.bg(p.hover))
+        .tab_index(0)
+        .focus_visible(move |style| style.border_color(ring))
+        .child(
+            Icon::new(IconName::CirclePlus)
+                .size(px(14.))
+                .text_color(p.muted),
+        )
+        .child("Add a hut")
+        .on_click(add_hut)
+        .test_support()
 }
 
-/// A hut's card: its head, its facts as rows, its accounts, and its details folded.
+/// A hut's card: its head, then its sessions and resources, its accounts, and its details
+/// folded, each group under a full-width line.
 fn card(
     store: &Entity<Store>,
     machine: &Machine,
@@ -146,15 +176,42 @@ fn card(
     (now, zone): &(Timestamp, TimeZone),
     p: &Pal,
 ) -> impl IntoElement {
-    let presence = words::presence_line(machine, *now);
-    let running = words::running_line(machine);
+    let presence = Presence::of(&machine.state);
+    let asleep = presence == Presence::Asleep;
+    let pill = words::pill_line(machine, *now);
+    let mut rows: Vec<AnyElement> =
+        vec![fact_row(p, "Sessions", &words::sessions_line(machine), false).into_any_element()];
+    if let Some(line) = words::resources_line(machine) {
+        // An asleep hut's figures are its last ones: dimmed, with their age.
+        let line = match words::as_of(machine, *now) {
+            Some(age) => format!("{line} · {age}"),
+            None => line,
+        };
+        rows.push(fact_row(p, "Resources", &line, asleep).into_any_element());
+    }
+    // Red is for a hut that should be there: an asleep one's head says it quietly instead.
+    if matches!(presence, Presence::Online | Presence::Quiet) {
+        if machine.placeable == Some(false) {
+            let why = machine.skip_why.as_deref().unwrap_or("it isn't reachable");
+            rows.push(note_row(
+                p.danger,
+                format!("Not taking new sessions: {why}"),
+            ));
+        }
+        for warning in &machine.warnings {
+            let tone = if warning.level == WarningLevel::Warn {
+                p.warn
+            } else {
+                p.danger
+            };
+            rows.push(note_row(tone, warning.text.clone()));
+        }
+    }
     let mut card = div()
-        .id(gpui_kit::ElementId::Name(
-            format!("hut-{}", machine.id).into(),
-        ))
+        .id(ElementId::Name(format!("hut-{}", machine.id).into()))
         .read_as(
             Role::Group,
-            a11y::line(&[&machine.name, HutKind::of(machine).word(), &presence]),
+            a11y::line(&[&machine.name, HutKind::of(machine).word(), &pill]),
         )
         .flex()
         .flex_col()
@@ -163,56 +220,18 @@ fn card(
         .border_color(p.border)
         .bg(p.card)
         .overflow_hidden()
-        .child(head(machine, p))
-        .child(fact_row(
-            p,
-            "Status",
-            &presence,
-            Some(state_color(p, &machine.state)),
-        ))
-        .child(fact_row(p, "Running now", &running, None))
-        .when_some(words::resources_line(machine), |d, line| {
-            d.child(fact_row(p, "Resources", &line, None))
-        });
-    let skip = (machine.placeable == Some(false)).then(|| {
-        format!(
-            "Not taking new sessions: {}",
-            machine.skip_why.as_deref().unwrap_or("it isn't reachable")
-        )
-    });
-    let mut notes = div().flex().flex_col().gap(px(4.)).px(px(16.));
-    let has_notes = skip.is_some() || !machine.warnings.is_empty();
-    if let Some(skip) = skip {
-        notes = notes.child(div().text_size(px(12.)).text_color(p.danger).child(skip));
-    }
-    for warning in &machine.warnings {
-        let tone = if warning.level == WarningLevel::Warn {
-            p.warn
-        } else {
-            p.danger
-        };
-        notes = notes.child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .text_size(px(12.))
-                .text_color(tone)
-                .child(
-                    Icon::new(IconName::TriangleAlert)
-                        .size(px(12.))
-                        .text_color(tone),
-                )
-                .child(warning.text.clone()),
-        );
-    }
-    if has_notes {
-        card = card.child(notes.py(px(8.)).border_t_1().border_color(p.border));
-    }
-    card = card.child(accounts_block(machine, accounts, (*now, zone), p));
-    card = card.child(details_fold(store, machine, open, p));
+        .child(head(machine, &pill, p))
+        .child(group(p, "Now", rows))
+        .child(accounts_group(machine, accounts, (*now, zone, asleep), p))
+        .child(details_fold(store, machine, open, p));
     if open {
-        let mut details = div().flex().flex_col().gap(px(8.)).px(px(16.)).pb(px(14.));
+        let mut details = div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .px(px(16.))
+            .pt(px(4.))
+            .pb(px(14.));
         details = bars::resources(p, machine, details);
         if machine
             .history
@@ -226,18 +245,12 @@ fn card(
     card.test_support()
 }
 
-/// The card's head: the kind's icon on a tinted tile, the name, the kind and host name, and
-/// whether it is online or asleep.
-fn head(machine: &Machine, p: &Pal) -> Div {
+/// The card's head: the kind's icon on a neutral tile, the name, the kind and host name (and
+/// on an asleep hut, that it takes no new sessions until it wakes), and the pill.
+fn head(machine: &Machine, pill_text: &str, p: &Pal) -> Div {
     let kind = HutKind::of(machine);
     let presence = Presence::of(&machine.state);
-    let awake = matches!(presence, Presence::Online | Presence::Quiet);
-    let tint = if awake { p.accent } else { p.faint };
-    let (pill_fill, pill_text) = match presence {
-        Presence::Online => (p.success.opacity(0.15), p.success),
-        Presence::Quiet => (p.warn.opacity(0.15), p.warn),
-        Presence::Asleep | Presence::NotYet => (p.faint.opacity(0.15), p.muted),
-    };
+    let (tile, _) = palette::track(p.muted, p.card);
     let subtitle = match &machine.host {
         Some(host) if *host != machine.name => format!("{} · {host}", kind.word()),
         _ => kind.word().to_owned(),
@@ -257,11 +270,11 @@ fn head(machine: &Machine, p: &Pal) -> Div {
                 .flex_none()
                 .items_center()
                 .justify_center()
-                .bg(tint.opacity(0.14))
+                .bg(tile)
                 .child(
                     Icon::new(kind.icon(machine.battery.is_some()))
                         .size(px(20.))
-                        .text_color(tint),
+                        .text_color(p.muted),
                 ),
         )
         .child(
@@ -284,80 +297,152 @@ fn head(machine: &Machine, p: &Pal) -> Div {
                         .text_size(px(12.))
                         .text_color(p.muted)
                         .child(subtitle),
-                ),
+                )
+                .when(presence == Presence::Asleep, |d| {
+                    d.child(
+                        div()
+                            .truncate()
+                            .text_size(px(12.))
+                            .text_color(p.muted)
+                            .child(words::ASLEEP_NOTE),
+                    )
+                }),
         )
-        .child(pill(presence.word(), pill_fill, pill_text))
+        .child(presence_pill(presence, pill_text, p))
 }
 
-/// A fact as a grouped list's row: its label on the left, its value on the right, after a
-/// hairline; `dot` beside the value in its colour.
-fn fact_row(p: &Pal, label: &'static str, value: &str, dot_color: Option<Hsla>) -> Div {
+/// Whether the hut is there, once: a dot and `Online` or `Asleep · 2 h ago`, its text dark
+/// enough to read on its tint.
+fn presence_pill(presence: Presence, text: &str, p: &Pal) -> Div {
+    let ink = match presence {
+        Presence::Online => p.success,
+        Presence::Quiet => p.warn,
+        Presence::Asleep | Presence::NotYet => p.muted,
+    };
+    let (fill, ink) = palette::tinted(ink, p.card);
     div()
         .flex()
+        .flex_none()
         .items_center()
-        .gap(px(10.))
-        .mx(px(16.))
-        .py(px(8.))
-        .border_t_1()
-        .border_color(p.border)
-        .text_size(px(12.5))
-        .child(div().flex_none().text_color(p.muted).child(label))
-        .child(div().flex_1())
-        .when_some(dot_color, |d, color| d.child(dot(color, 7.)))
-        .child(div().truncate().text_right().child(value.to_owned()))
+        .gap(px(5.))
+        .px(px(8.))
+        .py(px(2.))
+        .rounded_full()
+        .bg(fill)
+        .text_color(ink)
+        .text_size(px(11.5))
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(dot(ink, 6.))
+        .child(text.to_owned())
 }
 
-/// The hut's accounts, each with the room it has left; or that none is kept here.
-fn accounts_block(
-    machine: &Machine,
-    accounts: &[&ClaudeAccount],
-    (now, zone): (Timestamp, &TimeZone),
-    p: &Pal,
-) -> Div {
-    let mut block = div()
+/// A group of rows under a full-width line, with its label in the sidebar's style; the rows
+/// part with inset lines.
+fn group(p: &Pal, label: &'static str, rows: Vec<AnyElement>) -> Div {
+    let mut group = div()
         .flex()
         .flex_col()
-        .px(px(16.))
         .pt(px(10.))
-        .pb(px(8.))
+        .pb(px(4.))
         .border_t_1()
         .border_color(p.border)
         .child(
             div()
-                .text_size(px(11.))
+                .px(px(16.))
+                .pb(px(2.))
+                .text_size(px(12.))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(p.muted)
-                .pb(px(4.))
-                .child("ACCOUNTS"),
+                .child(label),
         );
-    if accounts.is_empty() {
-        return block.child(
+    for (i, row) in rows.into_iter().enumerate() {
+        group = group.child(
             div()
-                .text_size(px(12.5))
-                .text_color(p.faint)
-                .py(px(4.))
-                .child("No assistant accounts on this hut"),
+                .mx(px(16.))
+                .when(i > 0, |d| d.border_t_1().border_color(p.border))
+                .child(row),
         );
     }
-    for account in accounts {
-        let room = words::room(account, now, zone);
-        block = block.child(account_row(machine, account, &room, p));
-    }
-    block
+    group
 }
 
-/// The colour of an account's room.
+/// A fact: its label on the left, its value on the right; `dim` for figures that are old.
+fn fact_row(p: &Pal, label: &'static str, value: &str, dim: bool) -> Div {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .py(px(8.))
+        .text_size(px(12.5))
+        .child(div().flex_none().text_color(p.muted).child(label))
+        .child(div().flex_1())
+        .child(
+            div()
+                .truncate()
+                .text_right()
+                .text_color(if dim { p.muted } else { p.text })
+                .child(value.to_owned()),
+        )
+}
+
+/// A warning or a refusal, in its colour.
+fn note_row(tone: Hsla, text: String) -> AnyElement {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .py(px(8.))
+        .text_size(px(12.))
+        .text_color(tone)
+        .child(
+            Icon::new(IconName::TriangleAlert)
+                .size(px(12.))
+                .text_color(tone),
+        )
+        .child(text)
+        .into_any_element()
+}
+
+/// The hut's accounts, each with the room it has left; or that none is kept here.
+fn accounts_group(
+    machine: &Machine,
+    accounts: &[&ClaudeAccount],
+    (now, zone, asleep): (Timestamp, &TimeZone, bool),
+    p: &Pal,
+) -> Div {
+    let rows = if accounts.is_empty() {
+        vec![
+            div()
+                .py(px(8.))
+                .text_size(px(12.5))
+                .text_color(p.muted)
+                .child("No assistant accounts on this hut")
+                .into_any_element(),
+        ]
+    } else {
+        accounts
+            .iter()
+            .map(|account| {
+                let room = words::room(account, now, zone, asleep);
+                account_row(machine, account, &room, p).into_any_element()
+            })
+            .collect()
+    };
+    group(p, "Accounts", rows)
+}
+
+/// The colour of an account's room: its bar's, and its words' (taken dark enough to read).
 fn room_color(p: &Pal, tone: RoomTone) -> Hsla {
     match tone {
         RoomTone::Fine => p.success,
         RoomTone::Low => p.warn,
         RoomTone::Out => p.danger,
-        RoomTone::Unknown => p.faint,
+        RoomTone::Unknown => p.muted,
     }
 }
 
-/// One account: its name and address, the room it has left with a thin bar, and its 5-hour
-/// and week use under it.
+/// One account: its name and address, the room it has left in its colour with a bar, and its
+/// 5-hour and week room under it.
 fn account_row(
     machine: &Machine,
     account: &ClaudeAccount,
@@ -365,21 +450,18 @@ fn account_row(
     p: &Pal,
 ) -> impl IntoElement {
     let color = room_color(p, room.tone);
-    let value_color = if room.tone == RoomTone::Unknown {
-        p.muted
-    } else {
-        p.text
-    };
+    let (_, words_color) = palette::tinted(color, p.card);
+    let (track, outline) = palette::track(p.muted, p.card);
     let said = a11y::line(&[&account.name, &room.value, &room.detail]);
     div()
-        .id(gpui_kit::ElementId::Name(
+        .id(ElementId::Name(
             format!("hut-account-{}-{}", machine.id, account.id).into(),
         ))
         .read_as(Role::ListItem, said)
         .flex()
         .flex_col()
-        .gap(px(4.))
-        .py(px(6.))
+        .gap(px(5.))
+        .py(px(8.))
         .child(
             div()
                 .flex()
@@ -387,6 +469,7 @@ fn account_row(
                 .gap(px(8.))
                 .child(
                     div()
+                        .flex_none()
                         .text_size(px(13.))
                         .font_weight(FontWeight::MEDIUM)
                         .child(account.name.clone()),
@@ -397,7 +480,7 @@ fn account_row(
                             .truncate()
                             .min_w_0()
                             .text_size(px(11.5))
-                            .text_color(p.faint)
+                            .text_color(p.muted)
                             .child(email),
                     )
                 })
@@ -407,7 +490,7 @@ fn account_row(
                         .flex_none()
                         .text_size(px(12.5))
                         .font_weight(FontWeight::MEDIUM)
-                        .text_color(value_color)
+                        .text_color(words_color)
                         .child(room.value.clone()),
                 ),
         )
@@ -419,10 +502,13 @@ fn account_row(
             let width = share.clamp(0., 1.) as f32;
             d.child(
                 div()
-                    .h(px(4.))
+                    .h(px(6.))
                     .w_full()
                     .rounded_full()
-                    .bg(p.faint.opacity(0.18))
+                    .border_1()
+                    .border_color(outline)
+                    .bg(track)
+                    .overflow_hidden()
                     .child(div().h_full().w(relative(width)).rounded_full().bg(color)),
             )
         })
@@ -438,7 +524,7 @@ fn account_row(
 }
 
 /// The fold over a hut's details: processor, memory, graphics, disks, its last day and the
-/// sessions on it.
+/// sessions on it; the whole row is the button.
 fn details_fold(store: &Entity<Store>, machine: &Machine, open: bool, p: &Pal) -> impl IntoElement {
     let store = store.clone();
     let id = machine.id.clone();
@@ -449,7 +535,7 @@ fn details_fold(store: &Entity<Store>, machine: &Machine, open: bool, p: &Pal) -
     };
     let fold = tab_stop(
         div()
-            .id(gpui_kit::ElementId::Name(
+            .id(ElementId::Name(
                 format!("hut-details-{}", machine.id).into(),
             ))
             .button_named(format!("Details of {}", machine.name))
@@ -458,13 +544,12 @@ fn details_fold(store: &Entity<Store>, machine: &Machine, open: bool, p: &Pal) -
             .flex()
             .items_center()
             .gap(px(8.))
-            .px(px(8.))
-            .py(px(6.))
+            .px(px(16.))
+            .py(px(10.))
             .border_1()
-            .rounded(px(8.))
             .cursor_pointer()
             .hover(|d| d.bg(p.hover))
-            .child(Icon::new(chevron).size(px(12.)).text_color(p.faint))
+            .child(Icon::new(chevron).size(px(12.)).text_color(p.muted))
             .child(
                 div()
                     .text_size(px(12.5))
@@ -473,19 +558,13 @@ fn details_fold(store: &Entity<Store>, machine: &Machine, open: bool, p: &Pal) -
             )
             .child(
                 div()
-                    .truncate()
-                    .text_size(px(11.5))
+                    .text_size(px(12.))
                     .text_color(p.muted)
-                    .child("CPU, memory, GPUs, disks, last 24 h, sessions"),
+                    .child("· charts, last 24 h"),
             )
             .on_click(move |_, _, cx| store.update(cx, |store, cx| store.toggle_hut(&id, cx))),
         p,
     )
     .test_support();
-    div()
-        .px(px(8.))
-        .py(px(4.))
-        .border_t_1()
-        .border_color(p.border)
-        .child(fold)
+    div().border_t_1().border_color(p.border).child(fold)
 }

@@ -95,7 +95,6 @@ gpui_kit::assets::icon_assets!(
         MoonStar,
         Music,
         Paperclip,
-        PcCase,
         Pencil,
         Pipette,
         Plug,

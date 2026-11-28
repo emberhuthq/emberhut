@@ -25,6 +25,8 @@ const EVERY: Duration = Duration::from_secs(10);
 pub(crate) struct MachinesFeed {
     page: Option<MachinesPage>,
     problem: Option<String>,
+    /// When the last page came.
+    fetched: Option<jiff::Timestamp>,
     /// The huts whose details (processor, memory, disks, last day, sessions) are unfolded.
     open: HashSet<MachineId>,
     /// Wakes the loop; the loop's end of it waits here until the loop starts.
@@ -38,6 +40,7 @@ impl Default for MachinesFeed {
         Self {
             page: None,
             problem: None,
+            fetched: None,
             open: HashSet::new(),
             kicker,
             kicked: Some(waiting),
@@ -58,6 +61,12 @@ impl MachinesFeed {
         self.problem.as_deref()
     }
 
+    /// When the last page came, if one did.
+    #[must_use]
+    pub(crate) fn fetched(&self) -> Option<jiff::Timestamp> {
+        self.fetched
+    }
+
     /// Whether the hut `id`'s details are unfolded.
     #[must_use]
     pub(crate) fn is_open(&self, id: &MachineId) -> bool {
@@ -73,6 +82,7 @@ impl MachinesFeed {
     fn take(&mut self, page: Result<MachinesPage, crate::backend::Error>) -> bool {
         match page {
             Ok(page) => {
+                self.fetched = Some(jiff::Timestamp::now());
                 let changed = self.page.as_ref() != Some(&page) || self.problem.is_some();
                 (self.page, self.problem) = (Some(page), None);
                 changed
