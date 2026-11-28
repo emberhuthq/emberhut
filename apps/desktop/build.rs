@@ -1,6 +1,6 @@
 //! On Windows, the program's icon and version information, as Explorer, the taskbar and the
 //! installed programs list show them: a resource script written here and compiled into the
-//! executable. Nothing is done for other systems.
+//! executable; and an 8 MiB main-thread stack. Nothing is done for other systems.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-env-changed=EMBERHUT_VERSION");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return Ok(());
+    }
+    // The main thread's stack: 8 MiB, as on Linux, not Windows' 1 MiB.
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        println!("cargo:rustc-link-arg-bins=/STACK:8388608");
     }
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
     let out = PathBuf::from(std::env::var("OUT_DIR")?);
