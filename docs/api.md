@@ -716,7 +716,12 @@ an object or names another runner; 401 as above.
 ### GET /api/runner/mcp
 
 The MCP servers the runners' sessions get too: `{ mcpServers: { name: { ... } } }`, the
-`mcpServers` of the JSON file `--runner-mcp` (none without one). 401 as above.
+`mcpServers` of the JSON file `--runner-mcp` (none without one). With `--task-plans` the list
+always has the server's own entry, `emberhut`: `{ type: "http", url: "<server>/mcp/runner",
+headers: { Authorization: "Bearer <runner sessions' token>", "x-emberhut-session":
+"${EMBERHUT_SESSION}" } }`, unless the file lists the name or one of the server's MCP endpoints
+already; such an entry gets the session header, and the token when it points at `/mcp/runner`
+without one (ADR 0035). 401 as above.
 
 ### GET /api/runner/sessions?task=&room=&direct
 
@@ -885,6 +890,15 @@ other method than `POST` is 405 `{ "error": "POST only" }`, token or not. Each t
 - Another method: the JSON-RPC error -32601. A notification: 202, no body. A body that isn't
   JSON (-32700), isn't one JSON-RPC 2.0 message (-32600), or is over the limit (413, -32600):
   the error, `id` null.
+
+### POST /mcp/runner
+
+The same transport and messages as `POST /mcp/emberhut`, for the runners' sessions. The bearer
+is the runner sessions' token, which only `GET /api/runner/mcp` hands out (one per server
+process: after a restart the old one is 401 `{ "error": "unknown caller" }`, as is a missing or
+a room's token). Its tools are `task`, `plan_set`, `plan_step` and `plan_read`; a plan is written
+only by a session the `x-emberhut-session` header names that is linked to the plan's task, and
+read by any (ADR 0035).
 
 ## Party
 
