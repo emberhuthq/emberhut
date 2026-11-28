@@ -4,13 +4,15 @@ import { aboutYouTitle } from "@/features/aboutYou/facts";
 import { statusText } from "@/features/browser/browser";
 import { useBrowserDevice } from "@/features/browser/browserDevice";
 import { todayLists } from "@/features/tasks/model";
+import { useTaskPlans } from "@/features/tasks/useTaskPlans";
 import type { TabScreenProps } from "@/navigation/types";
 import { useActions } from "@/state/hooks";
 import { useEmberhutState } from "@/state/queries";
 import { ListRow, Screen, Section } from "@/ui";
 
 /**
- * Everything without a tab of its own: Today, what your ember knows about you, Emberhut's browser, the rooms, the machines, Party and Settings, and
+ * Everything without a tab of its own: Today, the Sessions list while the server keeps task plans (Tasks shows the work
+ * running then), what your ember knows about you, Emberhut's browser, the rooms, the machines, Party and Settings, and
  * the emberhut.com account in builds that have it.
  */
 export function MoreScreen({ navigation }: TabScreenProps<"More">) {
@@ -22,6 +24,7 @@ export function MoreScreen({ navigation }: TabScreenProps<"More">) {
     lists.decide.length + lists.ranked.length === 0
       ? "What to decide today, then Emberhut's ranked list"
       : `${lists.decide.length} to decide today · ${lists.ranked.length} ranked`;
+  const plans = useTaskPlans();
   const device = useBrowserDevice();
   const browser = state.data?.browser;
   // Handed to you, it says so as the browser page does (asked to take over, you're driving, your other device).
@@ -35,6 +38,15 @@ export function MoreScreen({ navigation }: TabScreenProps<"More">) {
     <Screen scroll>
       <Section>
         <ListRow key="today" icon="today-outline" title="Today" subtitle={todayLine} onPress={() => navigation.navigate("Today")} />
+        {plans ? (
+          <ListRow
+            key="sessions"
+            icon="terminal-outline"
+            title="Sessions"
+            subtitle="Your own sessions and every one running, with filters"
+            onPress={() => navigation.navigate("SessionList")}
+          />
+        ) : null}
         <ListRow
           key="about"
           icon="person-outline"
