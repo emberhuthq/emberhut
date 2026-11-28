@@ -80,6 +80,9 @@ url = "2.5.9"
 utoipa = { version = "6", default-features = false }
 utoipa-axum = "0.3.0"
 webpki-roots = "1.0.12"
+# The runner as a Windows service (crates/emberhut-runner).
+windows-registry = "0.6.1"
+windows-service = "0.8.1"
 zeroize = "1.9.2"
 # The Mac helper (apps/hands, ADR 0024): the extension's zip, read with deflate only.
 zip = { version = "9.8.2", default-features = false }

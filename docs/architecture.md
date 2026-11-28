@@ -39,7 +39,8 @@ emberhut/
 │   ├── emberhut-api/         request and response types, the OpenAPI schemas
 │   ├── emberhut-client/      the Rust HTTP client the desktop app uses
 │   ├── emberhut-identity/    machine keys, machine ids and signed statements
-│   └── emberhut-relay/       the relay and the account directory: one binary (the directory so far)
+│   ├── emberhut-relay/       the relay and the account directory: one binary (the directory so far)
+│   └── emberhut-runner/      the runner: runs coding-agent sessions on each machine for the server
 ├── packages/             TypeScript packages, one pnpm workspace
 │   ├── api-client/       TS client generated from the server's OpenAPI document
 │   ├── connect/          (planned) TS route rules and statements, on the shared vectors
@@ -71,6 +72,7 @@ emberhut/
 | `crates/emberhut-client` | A blocking Rust client for the contract, used by the desktop app on background threads. |
 | `crates/emberhut-identity` | A machine's Ed25519 keys, the machine id derived from the public key, and the one encoding of every signed statement ([ADR 0007](adr/0007-connectivity.md)), with no I/O, so every side signs and checks the same bytes. |
 | `crates/emberhut-relay` | The relay machines dial out to and the account directory, one binary ([ADR 0007](adr/0007-connectivity.md)). The directory is built (`src/directory/`, with its own SQLite file and migrations, since the server's schema in `emberhut-db` is not the relay's); the gateway is planned. |
+| `crates/emberhut-runner` | The runner on each machine, the other side of the runner protocol ([ADR 0017](adr/0017-runners-machines-and-accounts.md), [ADR 0033](adr/0033-the-runner-in-rust.md)): Claude Code sessions through its command line, accounts and their limits, machine samples, and the service it installs as. Its own SQLite file, as the relay has. |
 | `packages/` | TypeScript shared by mobile and web, kept in one pnpm workspace. |
 | `packages/api-client` | The TS client generated from the server's OpenAPI document, so mobile and web share one checked contract. |
 | `packages/connect` | (planned) The route rules and the statement encoding in TypeScript for mobile and web, held to the Rust ones by the shared test vectors in `crates/emberhut-api/tests/fixtures/connect/`. |
@@ -91,6 +93,7 @@ emberhut-desktop ──► emberhut-client ──► emberhut-api ──► embe
       └──► packages/design-tokens/tokens.json (read by build.rs)
 emberhut-server ──► emberhut-api, emberhut-core, emberhut-db
 emberhut-relay ──► emberhut-api, emberhut-identity
+emberhut-runner ──► (tests only) emberhut-api
 emberhut-db ──► emberhut-core
 xtask ──► (no workspace crates)
 mobile, web ──► packages/api-client ◄── crates/emberhut-server/openapi.json

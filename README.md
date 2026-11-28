@@ -24,6 +24,7 @@ crates/emberhut-core    domain logic, no I/O
 crates/emberhut-db      SeaORM entities and migrations
 crates/emberhut-api     the API types and their OpenAPI schemas
 crates/emberhut-client  the Rust client the desktop app uses
+crates/emberhut-runner  the runner: coding-agent sessions on each of your machines (crates/emberhut-runner/README.md)
 packages/           TypeScript packages: the generated API client, design tokens
 deploy/             Docker image and compose file for self-hosting
 site/               the website, emberhut.com: static HTML on Cloudflare Pages
