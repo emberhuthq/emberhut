@@ -29,6 +29,7 @@ use emberhut_api::task_actions::TaskAction;
 use emberhut_api::task_message::{TaskMessageReply, TaskMessageRequest};
 use emberhut_api::task_page::TaskPage;
 use emberhut_api::task_search::{FoundTasks, TaskQuery};
+use emberhut_api::tasks::Issue;
 use emberhut_api::theme::{ThemeChange, ThemePage, ThemeSetReply};
 use emberhut_api::transcribe::{self, TranscribeQuery, TranscribeReply};
 use emberhut_api::uploads::{UploadQuery, UploadReply};
@@ -325,6 +326,12 @@ impl Client {
     ) -> Result<Answer, Error> {
         let body = exchange::encode(body)?;
         self.send(|bearer| self.http.put_json_within(path, &body, within, bearer))
+    }
+
+    /// A `PATCH` of a JSON body: a change to what the route names.
+    pub(crate) fn patch<B: Serialize>(&self, path: &str, body: &B) -> Result<Answer, Error> {
+        let body = exchange::encode(body)?;
+        self.send(|bearer| self.http.patch_json(path, &body, bearer))
     }
 
     pub(crate) fn delete(&self, path: &str) -> Result<Answer, Error> {
@@ -866,6 +873,17 @@ impl Client {
     /// [`Error::SignInRequired`], [`Error::Status`], the transport's and decoding errors.
     pub fn find_tasks(&self, query: &TaskQuery) -> Result<FoundTasks, Error> {
         exchange::json(self.get(paths::TASKS, &query.to_query())?)
+    }
+
+    /// Changes task `id` (`PATCH /api/tasks/{id}`) with `change`, a body the contract doesn't
+    /// name yet, spelled by the app that calls it (its title): the task as it is now.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Status`] 400 with the server's reason (a change it refuses), 404 for a task it
+    /// doesn't have; [`Error::SignInRequired`], the transport's and decoding errors.
+    pub fn change_task<B: Serialize>(&self, id: TaskId, change: &B) -> Result<Issue, Error> {
+        exchange::json(self.patch(&paths::task(id), change)?)
     }
 
     /// The person writes on a task's page (`POST /api/tasks/{id}/message`): it goes to the

@@ -190,6 +190,19 @@ impl Http {
         self.send(request, self.request.with_total(within))
     }
 
+    /// A `PATCH` of a JSON body (see [`encode`]) to a route, signed when there is a token.
+    pub(crate) fn patch_json(
+        &self,
+        path: &str,
+        body: &[u8],
+        bearer: Option<&AccessToken>,
+    ) -> Result<Answer, Error> {
+        let request = request(Method::PATCH, path, "", bearer)?
+            .with_header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .with_body(Body::Bytes(Cow::Borrowed(body)));
+        self.send(request, self.request)
+    }
+
     /// A `DELETE` of a route, signed when there is a token.
     pub(crate) fn delete(&self, path: &str, bearer: Option<&AccessToken>) -> Result<Answer, Error> {
         self.send(request(Method::DELETE, path, "", bearer)?, self.request)
