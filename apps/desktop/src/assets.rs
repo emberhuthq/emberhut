@@ -97,7 +97,6 @@ gpui_kit::assets::icon_assets!(
         Film,
         Flag,
         FlagTriangleRight,
-        Flame,
         FolderSearch,
         Footprints,
         GitBranch,

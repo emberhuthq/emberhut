@@ -507,6 +507,10 @@ impl Backend for EmberhutBackend {
         self.client.join_waitlist(list).map_err(error)
     }
 
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
+        self.client.agent_accounts().map_err(error)
+    }
+
     fn jobs(&self, fresh: bool) -> Result<JobsPage, Error> {
         self.client.jobs(fresh).map_err(error)
     }

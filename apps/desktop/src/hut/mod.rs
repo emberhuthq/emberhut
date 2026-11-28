@@ -36,7 +36,7 @@ use emberhut_identity::MachineId;
 use gpui_kit::AppContext as _;
 use gpui_kit::{App, Task};
 
-pub(crate) use self::accounts::{HutAccount, STANDIN_ENV};
+pub(crate) use self::accounts::HutAccount;
 pub(crate) use self::error::HutError;
 pub(crate) use self::net::{Heard, HutNet, LoopbackNet};
 pub(crate) use self::paths::{HutPaths, Manager, Place};

@@ -227,7 +227,7 @@ impl HutPaths {
 
     /// The variable `name` as this place reads it.
     #[must_use]
-    pub(crate) fn var(&self, name: &str) -> Option<std::ffi::OsString> {
+    pub(crate) fn var(&self, name: &str) -> Option<OsString> {
         (self.var)(name)
     }
 

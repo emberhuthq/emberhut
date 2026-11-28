@@ -85,13 +85,9 @@ impl SetupView {
         window: &mut Window,
         cx: &mut Context<'_, Self>,
     ) -> AnyElement {
-        let rows: Vec<AnyElement> = SetupStep::ALL
-            .into_iter()
-            .map(|step| {
-                let body = (step == open).then(|| self.body(step, p, window, cx));
-                self.row(step, open, body, p, cx).into_any_element()
-            })
-            .collect();
+        // Only the open step: the rail beside it shows every step and what each unlocks.
+        let body = self.body(open, p, window, cx);
+        let rows = vec![self.row(open, open, Some(body), p, cx).into_any_element()];
         div()
             .id("setup-ladder")
             .flex()
@@ -187,9 +183,6 @@ impl SetupView {
             .flex()
             .gap(px(14.))
             .py(px(16.))
-            .when(step != SetupStep::Home, |d| {
-                d.border_t_1().border_dashed().border_color(p.border)
-            })
             .child(mark(step, &state, is_open, p))
             .child(
                 div()
@@ -292,7 +285,11 @@ impl SetupView {
                         p,
                     )),
             )
-            .child(cloud_card(&self.store, self.store.read(cx).on_cloud_waitlist(), p))
+            .child(cloud_card(
+                &self.store,
+                self.store.read(cx).on_cloud_waitlist(),
+                p,
+            ))
             .child(always_on(p))
             .children(status)
             .when(here != Here::TypeCode, |d| {
@@ -533,8 +530,8 @@ fn choice_card(
         .py(px(12.))
         .rounded(px(12.))
         .border_1()
-        .border_color(if on { p.text } else { p.border })
-        .bg(p.surface)
+        .border_color(if on { p.accent } else { p.border })
+        .bg(if on { p.accent_soft } else { p.surface })
         .cursor_pointer()
         .hover(|d| d.bg(p.hover))
         .on_click(move |_, _, cx| store.update(cx, |store, cx| store.choose_home(choice, cx)))
@@ -649,27 +646,41 @@ fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement 
 /// Why an always-on home matters: a small picture (this computer asleep, an always-on one
 /// lit) and a line.
 fn always_on(p: &Pal) -> impl IntoElement {
-    let place = |glyph: IconName, badge: IconName, color, badge_color, words: &'static str| {
-        div()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap(px(3.))
-            .child(
-                div()
-                    .relative()
-                    .size(px(30.))
-                    .child(Icon::new(glyph).size(px(26.)).text_color(color))
-                    .child(
-                        div()
-                            .absolute()
-                            .top(px(-4.))
-                            .right(px(-6.))
-                            .child(Icon::new(badge).size(px(13.)).text_color(badge_color)),
-                    ),
-            )
-            .child(div().text_size(px(10.5)).text_color(p.muted).child(words))
-    };
+    let place =
+        |glyph: IconName, badge: Option<IconName>, color, badge_color, words: &'static str| {
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap(px(3.))
+                .child(
+                    div()
+                        .relative()
+                        .size(px(30.))
+                        .child(Icon::new(glyph).size(px(26.)).text_color(color))
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(-4.))
+                                .right(px(-6.))
+                                .child(match badge {
+                                    // Asleep: a moon.
+                                    Some(badge) => Icon::new(badge)
+                                        .size(px(13.))
+                                        .text_color(badge_color)
+                                        .into_any_element(),
+                                    // On: a lit dot (a flame on a server would read as a fire).
+                                    None => div()
+                                        .mt(px(3.))
+                                        .size(px(8.))
+                                        .rounded_full()
+                                        .bg(badge_color)
+                                        .into_any_element(),
+                                }),
+                        ),
+                )
+                .child(div().text_size(px(10.5)).text_color(p.muted).child(words))
+        };
     div()
         .id("setup-always-on")
         .role(Role::Note)
@@ -685,8 +696,20 @@ fn always_on(p: &Pal) -> impl IntoElement {
                 .items_end()
                 .gap(px(14.))
                 .flex_none()
-                .child(place(IconName::Laptop, IconName::Moon, p.faint, p.muted, "Asleep"))
-                .child(place(IconName::Server, IconName::Flame, p.text, p.accent, "Always on")),
+                .child(place(
+                    IconName::Laptop,
+                    Some(IconName::Moon),
+                    p.faint,
+                    p.muted,
+                    "Asleep",
+                ))
+                .child(place(
+                    IconName::Server,
+                    None,
+                    p.text,
+                    p.success,
+                    "Always on",
+                )),
         )
         .child(
             div()

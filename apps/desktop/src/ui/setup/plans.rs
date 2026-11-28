@@ -1,7 +1,7 @@
 //! "Light it", plans first: the plans the person already pays for, each with its API key
 //! folded under it ("Use an API key instead"), then more ways. Claude signs in through
 //! Anthropic's own page on Emberhut here, and lists its accounts: who, which plan, which takes
-//! the next work, and whether the ember moves to one with room when one runs out. ChatGPT's
+//! the next work, and whether the ember moves to one with room when one runs out. `ChatGPT`'s
 //! plan sign-in is coming; Google doesn't let other apps use a Gemini plan's sign-in, so
 //! Gemini takes a key.
 
@@ -28,11 +28,11 @@ pub(crate) const GEMINI_ADDRESS: &str = "https://generativelanguage.googleapis.c
 pub(crate) enum Fold {
     /// An Anthropic API key.
     Claude,
-    /// An OpenAI API key.
+    /// An `OpenAI` API key.
     ChatGpt,
     /// A Gemini API key, through "Another service".
     Gemini,
-    /// DeepSeek, OpenRouter, Ollama, any other service.
+    /// `DeepSeek`, `OpenRouter`, Ollama, any other service.
     More,
 }
 
@@ -66,7 +66,10 @@ impl SetupView {
             .child(plan_card(
                 "setup-plan-chatgpt",
                 p,
-                Icon::new(IconName::Bot).size(px(18.)).text_color(p.muted).into_any_element(),
+                Icon::new(IconName::Bot)
+                    .size(px(18.))
+                    .text_color(p.muted)
+                    .into_any_element(),
                 "ChatGPT",
                 "Plus or Pro",
                 Some("Coming soon"),
@@ -89,17 +92,12 @@ impl SetupView {
                 self.fold_link(Fold::Gemini, "Use a Gemini API key", p, cx),
                 None,
             ))
-            .child(
-                div()
-                    .flex()
-                    .pt(px(2.))
-                    .child(self.fold_link(
-                        Fold::More,
-                        "More ways: DeepSeek, OpenRouter, Ollama, any other service",
-                        p,
-                        cx,
-                    )),
-            )
+            .child(div().flex().pt(px(2.)).child(self.fold_link(
+                Fold::More,
+                "More ways: DeepSeek, OpenRouter, Ollama, any other service",
+                p,
+                cx,
+            )))
             .when_some(self.fold, |d, fold| {
                 d.child(
                     div()
@@ -148,15 +146,9 @@ impl SetupView {
                 .flex()
                 .flex_col()
                 .gap(px(8.))
-                .children(
-                    plans
-                        .accounts
-                        .iter()
-                        .enumerate()
-                        .map(|(at, account)| {
-                            account_row(&self.store, account, at, &plans, signed_in, p)
-                        }),
-                )
+                .children(plans.accounts.iter().enumerate().map(|(at, account)| {
+                    account_row(&self.store, account, at, &plans, signed_in, p)
+                }))
                 .when_some(plans.waiting.as_ref(), |d, _| {
                     d.child(
                         div()
@@ -192,7 +184,9 @@ impl SetupView {
                     )
                 })
                 .child(div().flex().child(sign_in))
-                .when(signed_in > 1, |d| d.child(moves_row(&self.store, plans.moves, busy, p)))
+                .when(signed_in > 1, |d| {
+                    d.child(moves_row(&self.store, plans.moves, busy, p))
+                })
                 .child(note(
                     p,
                     "Opens Anthropic's sign-in in your browser. Emberhut never sees your password.",
@@ -342,28 +336,18 @@ fn account_row(
         .signed_in()
         .next()
         .is_some_and(|first| first.id == account.id);
-    let (state, color) = if waiting {
-        ("Signing in…".to_owned(), p.muted)
-    } else if !account.signed_in {
-        ("Not signed in".to_owned(), p.warn)
-    } else if first_signed_in {
-        ("Next work goes here".to_owned(), p.success)
-    } else if plans.moves {
-        ("Ready when the first runs out".to_owned(), p.muted)
-    } else {
-        ("Ready".to_owned(), p.muted)
-    };
+    let (state, color) = account_state(account, plans, waiting, first_signed_in, p);
     let (first_store, remove_store, again_store) = (store.clone(), store.clone(), store.clone());
-    let (first_id, remove_id, again_id) = (
-        account.id.clone(),
-        account.id.clone(),
-        account.id.clone(),
-    );
+    let (first_id, remove_id, again_id) =
+        (account.id.clone(), account.id.clone(), account.id.clone());
     let busy = plans.waiting.is_some() || plans.restarting;
     div()
         .id(SharedString::from(format!("setup-account-{}", account.id)))
         .role(Role::ListItem)
-        .aria_label(SharedString::from(format!("{who}, {}, {state}", account.plan_name())))
+        .aria_label(SharedString::from(format!(
+            "{who}, {}, {state}",
+            account.plan_name()
+        )))
         .flex()
         .items_center()
         .gap(px(10.))
@@ -371,12 +355,11 @@ fn account_row(
         .py(px(8.))
         .rounded(px(10.))
         .bg(p.surface_raised)
-        .child(
-            div()
-                .size(px(7.))
-                .rounded_full()
-                .bg(if account.signed_in { p.success } else { p.faint }),
-        )
+        .child(div().size(px(7.)).rounded_full().bg(if account.signed_in {
+            p.success
+        } else {
+            p.faint
+        }))
         .child(
             div()
                 .flex()
@@ -405,18 +388,21 @@ fn account_row(
                     }),
             )
         })
-        .when(account.signed_in && !first_signed_in && signed_in > 1, |d| {
-            d.child(
-                Button::new(SharedString::from(format!("setup-account-first-{at}")))
-                    .ghost()
-                    .small()
-                    .label("Use first")
-                    .disabled(busy)
-                    .on_click(move |_, _, cx| {
-                        first_store.update(cx, |store, cx| store.put_plan_first(&first_id, cx));
-                    }),
-            )
-        })
+        .when(
+            account.signed_in && !first_signed_in && signed_in > 1,
+            |d| {
+                d.child(
+                    Button::new(SharedString::from(format!("setup-account-first-{at}")))
+                        .ghost()
+                        .small()
+                        .label("Use first")
+                        .disabled(busy)
+                        .on_click(move |_, _, cx| {
+                            first_store.update(cx, |store, cx| store.put_plan_first(&first_id, cx));
+                        }),
+                )
+            },
+        )
         .child(
             Button::new(SharedString::from(format!("setup-account-remove-{at}")))
                 .ghost()
@@ -428,6 +414,36 @@ fn account_row(
                     remove_store.update(cx, |store, cx| store.remove_plan(&remove_id, cx));
                 }),
         )
+}
+
+/// How account `account` stands, in words and their colour.
+fn account_state(
+    account: &HutAccount,
+    plans: &crate::store::setup::Plans,
+    waiting: bool,
+    first_signed_in: bool,
+    p: &Pal,
+) -> (String, gpui_kit::Hsla) {
+    let resting = plans.resting_until(&account.id).map(clock);
+    if waiting {
+        ("Signing in…".to_owned(), p.muted)
+    } else if !account.signed_in {
+        ("Not signed in".to_owned(), p.warn)
+    } else if let Some(until) = resting {
+        (
+            until.map_or_else(
+                || "Resting: at its limit".to_owned(),
+                |until| format!("Resting until {until}"),
+            ),
+            p.warn,
+        )
+    } else if first_signed_in {
+        ("Next work goes here".to_owned(), p.success)
+    } else if plans.moves {
+        ("Ready when the first runs out".to_owned(), p.muted)
+    } else {
+        ("Ready".to_owned(), p.muted)
+    }
 }
 
 /// The switch that lets the ember move to an account with room when one runs out.
@@ -442,7 +458,11 @@ fn moves_row(store: &gpui_kit::Entity<Store>, on: bool, busy: bool, p: &Pal) -> 
                 .flex()
                 .flex_col()
                 .flex_1()
-                .child(div().text_size(px(13.)).child("When one runs out, move to an account with room"))
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .child("When one runs out, move to an account with room"),
+                )
                 .child(note(
                     p,
                     "Off at first: Anthropic's limits assume one person's ordinary use.",
@@ -458,6 +478,17 @@ fn moves_row(store: &gpui_kit::Entity<Store>, on: bool, busy: bool, p: &Pal) -> 
                     store.update(cx, |store, cx| store.set_plans_move(on, cx));
                 }),
         )
+}
+
+/// `at` (the server's time) as a time of day here, `15:00`.
+fn clock(at: &str) -> Option<String> {
+    let now = jiff::ZonedDateTime::now();
+    let at: jiff::Timestamp = at.parse().ok()?;
+    Some(
+        at.to_zoned_datetime(now.time_zone().clone())
+            .strftime("%H:%M")
+            .to_string(),
+    )
 }
 
 /// A line with a spinner: something under way.

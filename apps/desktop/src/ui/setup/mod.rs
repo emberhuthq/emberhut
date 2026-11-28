@@ -18,11 +18,13 @@ mod steps;
 mod tests;
 
 use emberhut_api::ids::RoomId;
+use gpui_kit::assets::IconName;
+use gpui_kit::component::Icon;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    AnyElement, Div, Entity, FocusHandle, FontWeight, ScrollHandle, TestSupportExt as _, Window,
-    div, px, relative,
+    AnyElement, Div, ElementId, Entity, FocusHandle, FontWeight, Role, ScrollHandle,
+    TestSupportExt as _, Window, div, px, relative,
 };
 
 use self::steps::FIND_HINT;
@@ -36,7 +38,7 @@ use super::settings::ChromePane;
 use crate::motion;
 use crate::store::Store;
 use crate::store::settings::SettingsPane;
-use crate::store::setup::{BRIGHTEST, SetupStep};
+use crate::store::setup::{BRIGHTEST, SetupStep, StepState};
 
 /// The welcome's eyebrow, and every other step's.
 pub(crate) const WELCOME: &str = "Welcome to Emberhut";
@@ -51,9 +53,7 @@ pub(crate) const LEAD: &str = "Your ember is a personal agent that lives on a co
 pub(crate) const FOOTER: &str =
     "Your ember thinks with Claude, on your own Claude account. No account with us. Open source.";
 
-/// The ember's width beside the steps, and on the "lit" screen.
-const EMBER: f32 = 150.;
-/// See [`EMBER`].
+/// The ember's width on the "lit" screen.
 const EMBER_LIT: f32 = 180.;
 
 /// The setup's view.
@@ -247,16 +247,181 @@ fn headline(words: &'static str, word: &'static str, size: f32, p: &Pal) -> Div 
         .child(div().italic().text_color(p.accent).child(word))
 }
 
+impl SetupView {
+    /// One step in the rail: its mark, its name, what it unlocks or what came of it.
+    fn rail_row(
+        &self,
+        step: SetupStep,
+        open: SetupStep,
+        keeps: bool,
+        p: &Pal,
+        cx: &Context<'_, Self>,
+    ) -> AnyElement {
+        let setup = self.store.read(cx).setup();
+        let state = setup.state(step).clone();
+        let is_open = step == open;
+        let done = matches!(state, StepState::Done(_));
+        let line = match &state {
+            StepState::Done(line) if !line.is_empty() => line.clone(),
+            _ => step.unlocks().to_owned(),
+        };
+        let mark = rail_mark(step, done, is_open, p);
+        div()
+            .id(ElementId::Name(
+                format!("setup-rail-{}", step.index() + 1).into(),
+            ))
+            .role(Role::ListItem)
+            .aria_label(crate::ui::a11y::line(&[
+                step.name(),
+                &line,
+                if done {
+                    "done"
+                } else if is_open {
+                    "now"
+                } else if step.optional() {
+                    "optional"
+                } else {
+                    ""
+                },
+            ]))
+            .flex()
+            .gap(px(10.))
+            .px(px(10.))
+            .py(px(9.))
+            .rounded(px(10.))
+            .when(is_open, |d| d.bg(p.accent_soft))
+            .child(mark)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_w_0()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .gap(px(6.))
+                            .child(
+                                div()
+                                    .text_size(px(13.5))
+                                    .font_weight(if is_open {
+                                        FontWeight::SEMIBOLD
+                                    } else {
+                                        FontWeight::MEDIUM
+                                    })
+                                    .text_color(if done || is_open { p.text } else { p.muted })
+                                    .child(step.name()),
+                            )
+                            .when(step.optional() && !done, |d| {
+                                d.child(
+                                    div()
+                                        .flex_none()
+                                        .text_size(px(11.))
+                                        .text_color(p.muted)
+                                        .child("optional"),
+                                )
+                            }),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(p.muted)
+                            .line_clamp(2)
+                            .child(line),
+                    )
+                    .when(step == SetupStep::Home && done && keeps, |d| {
+                        d.child(div().flex().child(keep::change_button(&self.store)))
+                    }),
+            )
+            .test_support()
+            .into_any_element()
+    }
+
+    /// The rail: every step, what it unlocks (or, once done, what came of it), the open one
+    /// marked, the optional ones said so.
+    fn rail(&self, open: SetupStep, p: &Pal, cx: &Context<'_, Self>) -> impl IntoElement {
+        let keeps = self.store.read(cx).setup().keep().is_some();
+        let rows: Vec<AnyElement> = SetupStep::ALL
+            .into_iter()
+            .map(|step| self.rail_row(step, open, keeps, p, cx))
+            .collect();
+        div()
+            .id("setup-rail")
+            .role(Role::List)
+            .aria_label("The setup's steps")
+            .w(px(272.))
+            .h_full()
+            .flex_none()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .px(px(16.))
+            .pt(px(52.))
+            .pb(px(20.))
+            .border_r_1()
+            .border_color(p.border)
+            .bg(p.sidebar)
+            .child(
+                div()
+                    .px(px(10.))
+                    .pb(px(12.))
+                    .text_size(px(12.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(p.accent)
+                    .child(SETTING_UP.to_uppercase()),
+            )
+            .children(rows)
+            .child(div().flex_1())
+            .child(
+                div()
+                    .px(px(10.))
+                    .text_size(px(11.5))
+                    .text_color(p.muted)
+                    .child("You can change any step later in Settings."),
+            )
+            .test_support()
+    }
+}
+
+/// A step's mark in the rail: a tick once done, else its number, ringed while open.
+fn rail_mark(step: SetupStep, done: bool, is_open: bool, p: &Pal) -> Div {
+    if done {
+        div()
+            .size(px(20.))
+            .rounded_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(p.success)
+            .child(
+                Icon::new(IconName::Check)
+                    .size(px(12.))
+                    .text_color(p.on_accent),
+            )
+    } else {
+        div()
+            .size(px(20.))
+            .rounded_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .border_1()
+            .border_color(if is_open { p.accent } else { p.border })
+            .text_size(px(11.))
+            .text_color(if is_open { p.accent } else { p.muted })
+            .child((step.index() + 1).to_string())
+    }
+}
+
 impl Render for SetupView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let p = pal(cx);
         let reduced = motion::reduced(cx);
         let read = self.store.read(cx);
-        let (open, glow, note) = (
-            read.setup().open(),
-            read.setup().glow(),
-            read.setup().note(),
-        );
+        let open = read.setup().open();
         let sheet = read.chrome().sheet().is_some();
         let root = div()
             .id("setup")
@@ -270,31 +435,7 @@ impl Render for SetupView {
         let steps = self.steps(open, &p, window, cx);
         let keep_sheet = self.keep_sheet(&p, window, cx);
         root.flex()
-            .child(
-                div()
-                    .w(relative(0.34))
-                    .max_w(px(420.))
-                    .h_full()
-                    .flex_none()
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .justify_center()
-                    .gap(px(30.))
-                    .border_r_1()
-                    .border_dashed()
-                    .border_color(p.border)
-                    .child(ember::picture(glow, EMBER, &p, reduced))
-                    .child(
-                        div()
-                            .id("setup-note")
-                            .italic()
-                            .text_size(px(24.))
-                            .text_color(p.accent)
-                            .child(note)
-                            .test_support(),
-                    ),
-            )
+            .child(self.rail(open, &p, cx))
             .child(steps)
             .when(sheet, |d| {
                 d.child(div().absolute().inset_0().child(self.chrome.clone()))

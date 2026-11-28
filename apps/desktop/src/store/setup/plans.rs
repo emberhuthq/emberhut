@@ -21,7 +21,7 @@ use crate::hut::{HutAccount, LocalHut};
 const LOOK_EVERY: Duration = Duration::from_secs(2);
 
 /// How long a sign-in is waited for before the step stops looking (the person can try again).
-const WAIT_AT_MOST: Duration = Duration::from_secs(10 * 60);
+const WAIT_AT_MOST: Duration = Duration::from_mins(10);
 
 /// The plans' accounts as the step shows them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -36,11 +36,23 @@ pub(crate) struct Plans {
     pub(crate) restarting: bool,
     /// What went wrong last, in words.
     pub(crate) problem: Option<String>,
+    /// How each account stands on the server (whether it can take work, until when not).
+    pub(crate) states: Vec<emberhut_api::agent_accounts::AgentAccountState>,
     /// Which look this is, so a newer one wins.
     look: u64,
 }
 
 impl Plans {
+    /// When account `id` can take work again, while it can't (the server's time).
+    #[must_use]
+    pub(crate) fn resting_until(&self, id: &str) -> Option<&str> {
+        self.states
+            .iter()
+            .find(|state| state.id == id && !state.can_work)
+            .and_then(|state| state.resting_until.as_ref())
+            .map(emberhut_api::time::Timestamp::as_str)
+    }
+
     /// The signed-in accounts.
     pub(crate) fn signed_in(&self) -> impl Iterator<Item = &HutAccount> {
         self.accounts.iter().filter(|account| account.signed_in)
@@ -80,8 +92,9 @@ impl Store {
         &self.setup.plans
     }
 
-    /// Reads the accounts as their CLI says now.
+    /// Reads the accounts as their CLI says now, and how each stands on the server.
     pub(crate) fn load_plans(&mut self, cx: &mut Context<'_, Self>) {
+        self.read_plan_states(cx);
         let Some(hut) = self.plan_hut() else {
             return;
         };
@@ -91,6 +104,23 @@ impl Store {
             update_or_log(&this, cx, |store, cx| {
                 store.setup.plans.accounts = accounts;
                 store.setup.plans.moves = moves;
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Asks the server how each account stands (a server without the list leaves none).
+    fn read_plan_states(&mut self, cx: &mut Context<'_, Self>) {
+        if !self.is_signed_in() {
+            return;
+        }
+        let backend = std::sync::Arc::clone(&self.backend);
+        let read = cx.background_spawn(async move { backend.agent_accounts() });
+        cx.spawn(async move |this, cx| {
+            let states = read.await.map_or_else(|_| Vec::new(), |page| page.accounts);
+            update_or_log(&this, cx, |store, cx| {
+                store.setup.plans.states = states;
                 cx.notify();
             });
         })
@@ -161,7 +191,9 @@ impl Store {
                 cx.background_executor().timer(LOOK_EVERY).await;
                 let hut = hut.clone();
                 let accounts = cx.background_spawn(async move { hut.accounts_now() }).await;
-                let done = accounts.iter().any(|account| account.id == id && account.signed_in);
+                let done = accounts
+                    .iter()
+                    .any(|account| account.id == id && account.signed_in);
                 let current = this
                     .update(cx, |store, cx| {
                         if store.setup.plans.look != look {
@@ -186,8 +218,9 @@ impl Store {
             update_or_log(&this, cx, |store, cx| {
                 if store.setup.plans.look == look {
                     store.setup.plans.waiting = None;
-                    store.setup.plans.problem =
-                        Some("The sign-in wasn't finished. Try again when you're ready.".to_owned());
+                    store.setup.plans.problem = Some(
+                        "The sign-in wasn't finished. Try again when you're ready.".to_owned(),
+                    );
                     cx.notify();
                 }
             });
@@ -222,7 +255,10 @@ impl Store {
                 store.setup.plans.accounts = accounts;
                 store.setup.plans.moves = moves;
                 match used {
-                    Ok(_) => store.read_setup_page(cx),
+                    Ok(_) => {
+                        store.read_setup_page(cx);
+                        store.read_plan_states(cx);
+                    }
                     Err(error) => store.setup.plans.problem = Some(error.to_string()),
                 }
                 cx.notify();

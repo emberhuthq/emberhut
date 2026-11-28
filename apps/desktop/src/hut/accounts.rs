@@ -73,10 +73,7 @@ impl Status {
 /// The `--agent-accounts` value for `accounts` signed in (`id=dir`, comma-separated), in
 /// order: every one when the ember `moves`, else the first; `None` when none is signed in.
 #[must_use]
-pub(crate) fn agent_accounts(
-    accounts: &[(HutAccount, PathBuf)],
-    moves: bool,
-) -> Option<String> {
+pub(crate) fn agent_accounts(accounts: &[(HutAccount, PathBuf)], moves: bool) -> Option<String> {
     let mut signed_in = accounts.iter().filter(|(account, _)| account.signed_in);
     let chosen: Vec<String> = if moves {
         signed_in
@@ -108,7 +105,9 @@ impl LocalHut {
         if !READS_TEST_VARS {
             return None;
         }
-        self.inner.paths.var(STANDIN_ENV)
+        self.inner
+            .paths
+            .var(STANDIN_ENV)
             .and_then(|value| value.into_string().ok())
             .filter(|value| !value.is_empty())
     }
@@ -161,7 +160,10 @@ impl LocalHut {
             // It answers in JSON whether signed in or not.
             Ok(ran) => Status::read(&ran.stdout),
             Err(error) => {
-                log::warn!("couldn't ask the CLI how account {} is signed in: {error}", dir.display());
+                log::warn!(
+                    "couldn't ask the CLI how account {} is signed in: {error}",
+                    dir.display()
+                );
                 Status::default()
             }
         }
@@ -178,10 +180,10 @@ impl LocalHut {
         let _busy = lock(&self.inner.busy);
         self.prepare()?;
         let mut state = self.read_state();
-        let id = (1..)
+        let id = (1..=999)
             .map(|n| format!("claude-{n}"))
             .find(|id| !state.accounts.contains(id) && !self.account_dir(id).exists())
-            .unwrap_or_default();
+            .unwrap_or_else(|| format!("claude-{}", state.accounts.len() + 1));
         let dir = self.account_dir(&id);
         for folder in [self.accounts_dir(), dir.clone()] {
             private_files::folder(&folder).map_err(|source| HutError::Files {
@@ -345,7 +347,11 @@ mod tests {
 
     #[test]
     fn the_server_runs_on_the_signed_in_accounts_and_moves_only_when_asked() {
-        let accounts = [account("claude-1", true), account("claude-2", false), account("claude-3", true)];
+        let accounts = [
+            account("claude-1", true),
+            account("claude-2", false),
+            account("claude-3", true),
+        ];
         assert_eq!(
             agent_accounts(&accounts, true).as_deref(),
             Some("claude-1=/h/accounts/claude-1,claude-3=/h/accounts/claude-3")
@@ -359,11 +365,16 @@ mod tests {
 
     #[test]
     fn the_cli_status_reads_who_and_which_plan() {
-        let status = Status::read(r#"{"loggedIn":true,"email":"a@b.c","subscriptionType":"max","orgId":"x"}"#);
+        let status = Status::read(
+            r#"{"loggedIn":true,"email":"a@b.c","subscriptionType":"max","orgId":"x"}"#,
+        );
         assert!(status.logged_in);
         assert_eq!(status.email.as_deref(), Some("a@b.c"));
         assert!(!Status::read("not json").logged_in);
-        let max = HutAccount { plan: Some("max".into()), ..HutAccount::default() };
+        let max = HutAccount {
+            plan: Some("max".into()),
+            ..HutAccount::default()
+        };
         assert_eq!(max.plan_name(), "Claude Max");
         assert_eq!(HutAccount::default().plan_name(), "Claude");
     }

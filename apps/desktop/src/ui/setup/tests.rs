@@ -68,21 +68,31 @@ fn a_fresh_install_shows_the_welcome_with_every_step(cx: &mut TestAppContext) {
     let (store, cx) = open(&backend, true, cx);
     assert_eq!(store.read_with(cx, |store, _| store.gate()), Gate::Setup);
     for step in 1..=5 {
-        let id = ElementId::Name(format!("setup-step-{step}").into());
+        let id = ElementId::Name(format!("setup-rail-{step}").into());
         cx.update(|window, cx| {
             window.render_frame(cx);
-            assert!(window.try_find(id.clone()).is_some(), "step {step}");
+            assert!(
+                window.try_find(id.clone()).is_some(),
+                "step {step} in the rail"
+            );
         });
     }
+    assert!(shows(cx, "setup-step-1"), "the open step beside the rail");
+    assert!(!shows(cx, "setup-step-2"), "only the open step");
     assert!(shows(cx, "setup-home-here"));
+    assert!(shows(cx, "setup-home-cloud"), "renting one, coming soon");
+    assert!(shows(cx, "setup-always-on"), "why an always-on home");
     assert!(!shows(cx, "ember"), "no sidebar behind the setup");
     let label = cx.update(|window, _| {
         window
-            .find("setup-ember")
+            .find("setup-rail-1")
             .label()
             .map_or_else(String::new, str::to_owned)
     });
-    assert_eq!(label, "Your ember. Not lit yet.");
+    assert_eq!(
+        label,
+        "Give your ember a home, Works while you're away, now"
+    );
 }
 
 #[gpui_kit::test]
@@ -124,7 +134,10 @@ fn light_it_shows_the_picker_and_saving_lights_the_ember(cx: &mut TestAppContext
     assert!(backend.calls().contains(&Call::AgentProvider));
     cx.update(|window, cx| window.click("setup-fold-claude", cx));
     cx.run_until_parked();
-    assert!(shows(cx, "provider-anthropic"), "the picker, unfolded under Claude");
+    assert!(
+        shows(cx, "provider-anthropic"),
+        "the picker, unfolded under Claude"
+    );
     store.update(cx, |store, cx| {
         store.type_provider_key("sk-ant-example", cx);
         store.test_provider(cx);
@@ -145,7 +158,7 @@ fn the_embers_glow_holds_still_under_reduce_motion(cx: &mut TestAppContext) {
     let backend = Arc::new(FakeBackend::new([]).with_session());
     let (store, cx) = open(&backend, false, cx);
     store.update(cx, |store, cx| {
-        store.preview_setup(Some(SetupStep::Reach), cx);
+        store.preview_setup(None, cx);
     });
     assert!(shows(cx, ember::BREATHING));
     assert!(!shows(cx, ember::STILL));

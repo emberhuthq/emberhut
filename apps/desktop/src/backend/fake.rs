@@ -1042,6 +1042,13 @@ impl Backend for FakeBackend {
         Ok(())
     }
 
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
+        Ok(emberhut_api::agent_accounts::AgentAccounts {
+            accounts: Vec::new(),
+            moves: false,
+        })
+    }
+
     fn use_account(&self, request: &UseAccountRequest) -> Result<UseAccountReply, Error> {
         self.record(Call::UseAccount(request.clone()));
         self.working.use_account(request)

@@ -687,6 +687,10 @@ impl Backend for Failover {
         self.active().join_waitlist(list)
     }
 
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
+        self.active().agent_accounts()
+    }
+
     fn jobs(&self, fresh: bool) -> Result<JobsPage, Error> {
         self.active().jobs(fresh)
     }

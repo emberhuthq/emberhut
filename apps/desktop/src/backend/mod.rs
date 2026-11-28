@@ -549,6 +549,13 @@ pub(crate) trait Backend: Send + Sync {
     /// As [`Backend::state`]; [`Error::Refused`] with the server's words.
     fn join_waitlist(&self, list: &str) -> Result<(), Error>;
 
+    /// The agent CLI accounts the server runs on and whether each can take work.
+    ///
+    /// # Errors
+    ///
+    /// As [`Backend::state`].
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error>;
+
     /// The background jobs on the machines; `fresh` looks again on the server.
     ///
     /// # Errors

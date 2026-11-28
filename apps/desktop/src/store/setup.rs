@@ -150,6 +150,18 @@ impl SetupStep {
         }
     }
 
+    /// What it unlocks, for the rail beside the step.
+    #[must_use]
+    pub(crate) fn unlocks(self) -> &'static str {
+        match self {
+            Self::Home => "Works while you're away",
+            Self::Light => "It can think",
+            Self::Reach => "Reaches your phone",
+            Self::World => "Sees your mail and calendar",
+            Self::Share => "Others can talk to it",
+        }
+    }
+
     /// Whether the ember gets going without it.
     #[must_use]
     pub(crate) fn optional(self) -> bool {
@@ -442,6 +454,7 @@ impl Setup {
     /// it has a home, lit once it thinks, warmer once it can reach the user or see their
     /// world, and brightest when the setup is done.
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn glow(&self) -> u8 {
         if self.showing && self.open.is_none() {
             return BRIGHTEST;
@@ -452,8 +465,9 @@ impl Setup {
         u8::from(home) + u8::from(lit) + u8::from(warmer)
     }
 
-    /// The note beside the ember.
+    /// The note the ember had beside it, by its glow.
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn note(&self) -> &'static str {
         NOTES[usize::from(self.glow())]
     }
@@ -727,7 +741,7 @@ impl Store {
         if !self.setup.kept.cloud_waitlist || !self.is_signed_in() {
             return;
         }
-        let backend = std::sync::Arc::clone(&self.backend);
+        let backend = Arc::clone(&self.backend);
         cx.background_spawn(async move {
             if let Err(error) = backend.join_waitlist("cloud-home") {
                 log::info!("the server didn't keep the cloud waitlist: {error}");

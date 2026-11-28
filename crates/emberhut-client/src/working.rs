@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use emberhut_api::agent_accounts::AgentAccounts;
 use emberhut_api::environments::{EnvActionRequest, EnvPage};
 use emberhut_api::error::OkReply;
 use emberhut_api::jobs::{self, JobAction, JobActionRequest, JobsPage};
@@ -66,6 +67,17 @@ impl Client {
         exchange::json(self.post(paths::ACCOUNTS_USE, request)?)
     }
 
+    /// The agent CLI accounts the server runs on and whether each can take work
+    /// (`GET /api/agent/accounts`).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Status`] 404 from a server without the list; [`Error::SignInRequired`] and
+    /// the transport's and decoding errors.
+    pub fn agent_accounts(&self) -> Result<AgentAccounts, Error> {
+        exchange::json(self.get(paths::AGENT_CLI_ACCOUNTS, "")?)
+    }
+
     /// Asks to hear when `list` is ready (`PUT /api/waitlist/{list}`, `cloud-home`): kept on
     /// the server, nothing paid.
     ///
@@ -75,9 +87,9 @@ impl Client {
     /// waitlists; [`Error::SignInRequired`] and the transport's errors.
     pub fn join_waitlist(&self, list: &str) -> Result<(), Error> {
         let answer = self.put_within(
-            &format!("/api/waitlist/{list}"),
+            &paths::WAITLIST.replace("{list}", list),
             &serde_json::json!({}),
-            std::time::Duration::from_secs(20),
+            Duration::from_secs(20),
         )?;
         if !answer.status().is_success() {
             return Err(exchange::refusal(answer));

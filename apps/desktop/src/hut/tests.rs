@@ -180,8 +180,7 @@ impl Spawner for FakeSpawner {
                     .env
                     .iter()
                     .find(|(name, _)| name == "CLAUDE_CONFIG_DIR")
-                    .map(|(_, dir)| dir.clone())
-                    .unwrap_or_default();
+                    .map_or_else(OsString::new, |(_, dir)| dir.clone());
                 if world.signed_in.contains(&dir) {
                     ok(r#"{"loggedIn":true,"email":"ada@example.com","subscriptionType":"max"}"#)
                 } else {
@@ -1273,6 +1272,6 @@ fn a_claude_account_signs_in_through_anthropic_and_the_hut_runs_on_it() {
     );
 
     hut.remove_account_now("claude-1").unwrap();
-    assert!(hut.accounts_now().is_empty());
+    assert_eq!(hut.accounts_now(), Vec::new());
     assert!(!dir.exists(), "its folder goes");
 }
