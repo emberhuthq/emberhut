@@ -1,6 +1,8 @@
 //! The sidebar: your ember (the assistant's row), Needs you, Tasks, the rooms, the recent
 //! sessions, the agents (below all those unless Settings puts them above the rooms, or hidden),
-//! and More (Machines, Settings, and the windows of their own this build has).
+//! and More (Machines, Settings, and the windows of their own this build has). On a server that
+//! keeps plans, Tasks is the main place: Sessions moves under More and the recent sessions
+//! leave the sidebar (the Tasks list shows the sessions with no task).
 //! Its right edge drags it wider or narrower; Recent sessions and More fold, kept across
 //! launches. Every row explains itself on hover and is in the Tab order.
 
@@ -144,7 +146,8 @@ fn pages(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<Stat
     let column = window.column.read(cx).current();
     let needs = store.needs_count();
     let open_tasks = store.needs().map_or(0, |needs| needs.open_tasks().len());
-    let shows_tasks = store.state().is_none_or(lookup::shows_tasks);
+    let shows_tasks = store.state().is_none_or(lookup::lists_tasks);
+    let plans = store.keeps_plans();
     let mut rows = Vec::new();
     let needs_row = row("needs", column == Some(Page::Needs), p);
     rows.push(
@@ -171,7 +174,11 @@ fn pages(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<Stat
         rows.push(
             tip_for(
                 tasks_row,
-                "Your open tasks: needs you, Today, then the rest",
+                if plans {
+                    "Your tasks, each with its plan: needs you, what runs, then the rest"
+                } else {
+                    "Your open tasks: needs you, Today, then the rest"
+                },
                 &OpenTasks,
             )
             .aria_label(format!("Tasks, {open_tasks} open"))
@@ -193,34 +200,56 @@ fn pages(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<Stat
         p,
         cx,
     ));
-    if let Some(state) = store.state().filter(|state| sessions_lists::has_any(state)) {
-        let running = sessions_lists::running_now(state);
-        let sessions_row = row("sessions", column == Some(Page::Sessions), p);
-        rows.push(
-            tip(sessions_row, format!("{APP_NAME}'s sessions and threads"))
-                .aria_label(if running > 0 {
-                    format!("Sessions, {running} running")
-                } else {
-                    "Sessions".to_owned()
-                })
-                .child(icon(IconName::SquareTerminal, p.muted, 14.))
-                .child("Sessions")
-                .child(div().flex_1())
-                .when(running > 0, |d| {
-                    d.child(
-                        div()
-                            .text_size(px(11.5))
-                            .text_color(p.success)
-                            .child(running.to_string()),
-                    )
-                })
-                .on_click(cx.listener(|this, _, window, cx| this.open(Page::Sessions, window, cx))),
-        );
+    if !plans && let Some(row) = sessions_row(store, column == Some(Page::Sessions), p, cx) {
+        rows.push(row);
     }
     if super::browser::sidebar::is_handed_over(store) {
         rows.push(browser_row(true, None, p, cx));
     }
     rows
+}
+
+/// The Sessions row, with how many run now, when there is any session: among the top rows, or
+/// under More on a server that keeps plans.
+fn sessions_row(
+    store: &Store,
+    selected: bool,
+    p: &Pal,
+    cx: &Context<'_, MainWindow>,
+) -> Option<Stateful<Div>> {
+    let state = store
+        .state()
+        .filter(|state| sessions_lists::has_any(state))?;
+    let running = sessions_lists::running_now(state);
+    // Under More, beside the tasks that hold most of them, it says it is every session.
+    let label = if store.keeps_plans() {
+        "All sessions"
+    } else {
+        "Sessions"
+    };
+    Some(
+        tip(
+            row("sessions", selected, p),
+            format!("{APP_NAME}'s sessions and threads"),
+        )
+        .aria_label(if running > 0 {
+            format!("{label}, {running} running")
+        } else {
+            label.to_owned()
+        })
+        .child(icon(IconName::SquareTerminal, p.muted, 14.))
+        .child(label)
+        .child(div().flex_1())
+        .when(running > 0, |d| {
+            d.child(
+                div()
+                    .text_size(px(11.5))
+                    .text_color(p.success)
+                    .child(running.to_string()),
+            )
+        })
+        .on_click(cx.listener(|this, _, window, cx| this.open(Page::Sessions, window, cx))),
+    )
 }
 
 /// The Browser row: among the top rows with `needs you` while the assistant has handed the
@@ -301,9 +330,11 @@ fn scheduled_row(
 
 /// The recent sessions, under a header that folds them: the user's waiting ones, what runs,
 /// then their last few finished ones, each opening its page; and Your sessions, the Sessions
-/// window (⇧⌘T), noting how many of theirs wait or run.
+/// window (⇧⌘T), noting how many of theirs wait or run. None on a server that keeps plans:
+/// the Tasks list shows the sessions with no task, and Sessions is under More.
 fn sessions(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<AnyElement> {
-    let Some(state) = window.store.read(cx).state() else {
+    let store = window.store.read(cx);
+    let Some(state) = store.state().filter(|_| !store.keeps_plans()) else {
         return Vec::new();
     };
     let shown = sessions_lists::sidebar(state);
@@ -424,7 +455,8 @@ fn fold_title(id: &'static str, title: &'static str, open: bool, p: &Pal) -> Sta
     )
 }
 
-/// More: Machines, Settings, and the windows of their own this build has, folded at first.
+/// More: Sessions (on a server that keeps plans), Machines, Settings, and the windows of their
+/// own this build has, folded at first.
 fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<Stateful<Div>> {
     let column = window.column.read(cx).current();
     let open = window.more_open;
@@ -450,6 +482,12 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
             })),
     ];
     if open {
+        let store = window.store.read(cx);
+        if store.keeps_plans()
+            && let Some(row) = sessions_row(store, column == Some(Page::Sessions), p, cx)
+        {
+            rows.push(row.pl(px(26.)));
+        }
         // Windows of their own open their window and never light. The Dark room's row is the
         // last of Rooms; the quick note opens from the chat's bar and File, not from here.
         for kind in windows::available(cx).into_iter().filter(|kind| {
@@ -507,22 +545,25 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
                 .child("Settings")
                 .on_click(cx.listener(|this, _, window, cx| this.open(Page::Settings, window, cx))),
         );
-        let about = column == Some(Page::SettingsPane(SettingsPane::AboutYou));
-        rows.push(
-            row("about-you", about, p)
-                .pl(px(26.))
-                .child(
-                    Icon::new(AssetIcon::Contact)
-                        .size(px(14.))
-                        .text_color(p.muted),
-                )
-                .child(ABOUT_TITLE)
-                .on_click(|_, window, cx| {
-                    routes::open_settings(Some(SettingsPane::AboutYou), window, cx);
-                }),
-        );
+        rows.push(about_row(column, p));
     }
     rows
+}
+
+/// About you, under More: it opens that page of Settings.
+fn about_row(column: Option<Page>, p: &Pal) -> Stateful<Div> {
+    let about = column == Some(Page::SettingsPane(SettingsPane::AboutYou));
+    row("about-you", about, p)
+        .pl(px(26.))
+        .child(
+            Icon::new(AssetIcon::Contact)
+                .size(px(14.))
+                .text_color(p.muted),
+        )
+        .child(ABOUT_TITLE)
+        .on_click(|_, window, cx| {
+            routes::open_settings(Some(SettingsPane::AboutYou), window, cx);
+        })
 }
 
 /// A window of its own's tip in the sidebar.

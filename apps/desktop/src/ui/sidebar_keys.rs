@@ -1,6 +1,7 @@
 //! ↑ and ↓ through the sidebar: it keeps the keyboard after a click on one of its rows, and
 //! the arrows move through the places it lists (your ember, Needs you, Tasks, the rooms, the
-//! agents where they are shown, Machines, Settings), opening each one they land on.
+//! agents where they are shown, Sessions under More on a server that keeps plans, Machines,
+//! Settings), opening each one they land on.
 
 use gpui_kit::prelude::*;
 use gpui_kit::{App, Div, KeyBinding, MouseButton, Window, actions};
@@ -36,7 +37,7 @@ pub(crate) fn places(store: &Store, more_open: bool) -> Vec<Page> {
     let mut places = Vec::new();
     places.extend(switcher.main().map(|main| Page::Room(main.id)));
     places.push(Page::Needs);
-    if store.state().is_none_or(lookup::shows_tasks) {
+    if store.state().is_none_or(lookup::lists_tasks) {
         places.push(Page::Tasks);
     }
     places.push(Page::Scheduled);
@@ -62,6 +63,9 @@ pub(crate) fn places(store: &Store, more_open: bool) -> Vec<Page> {
     }
     places.extend(below);
     if more_open {
+        if store.keeps_plans() {
+            places.push(Page::Sessions);
+        }
         places.extend([Page::Machines, Page::Settings]);
     }
     places
@@ -180,6 +184,15 @@ mod tests {
                 places(store, false),
                 [r(1), Page::Needs, Page::Scheduled],
                 "no Tasks while the server hides them"
+            );
+            store.take_state_for_tests(
+                state(json!({ "rooms": rooms, "ui": {"hideProjects": false, "taskPlans": true} })),
+                cx,
+            );
+            assert_eq!(
+                places(store, true),
+                [&top[..], &[Page::Sessions, Page::Machines, Page::Settings]].concat(),
+                "with plans: Tasks always, and Sessions under More"
             );
         });
     }
