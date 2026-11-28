@@ -1,16 +1,20 @@
-//! The MCP endpoint's wire values: its path, the server's name in the `initialize` answer, and
+//! The MCP endpoints' wire values: their paths, the server's name in the `initialize` answer, and
 //! the tool names agents' prompts carry.
 
 /// The server's name in the MCP `initialize` answer, which agent configurations name the
 /// server by.
 pub const SERVER_NAME: &str = "emberhut";
 
-/// The MCP endpoint's path.
+/// The path of the MCP endpoint a room's agent session calls, with the room's token.
 pub const ROOM_PATH: &str = "/mcp/emberhut";
 
-/// The request header a runner session sends with its calls to the MCP endpoint: its own
-/// session id, so the server knows which session (and so which task) a call is from. Runner
-/// sessions share one room token; without the header a call is the room's.
+/// The path of the MCP endpoint the runners' sessions call with the token the server lists for
+/// them in the runners' shared MCP list: a task's plan and the task itself, nothing else.
+pub const RUNNER_PATH: &str = "/mcp/runner";
+
+/// The request header a runner session sends with its calls to the server's MCP endpoints: its
+/// own session id, so the server knows which session (and so which task) a call is from. Runner
+/// sessions share one token; without the header a call names no session.
 pub const SESSION_HEADER: &str = "x-emberhut-session";
 
 /// The value the server lists for [`SESSION_HEADER`] in the runners' shared MCP list: the
