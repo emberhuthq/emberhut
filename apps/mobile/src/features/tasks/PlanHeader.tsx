@@ -101,13 +101,7 @@ export function PlanHeader({
             </Text>
             <Text variant="footnote" tone="secondary">{`${Math.round(fraction * 100)}%`}</Text>
           </View>
-          <SegmentBar
-            segments={planSegments(plan)}
-            fraction={fraction}
-            blocked={blocker != null}
-            height={6}
-            label={`${summary.done} of ${summary.total} steps done`}
-          />
+          <SegmentBar segments={planSegments(plan)} fraction={fraction} blocked={blocker != null} height={6} label={countLine(plan)} />
         </View>
       ) : null}
     </View>
