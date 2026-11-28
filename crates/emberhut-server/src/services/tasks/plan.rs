@@ -105,8 +105,8 @@ impl TaskService {
     }
 
     /// Replaces the task `id`'s plan with `steps`, as `who` wrote it ([`plan::set`]); its
-    /// estimate too when `eta` is given (`Some(None)` clears it). A key or token in a title or
-    /// note is masked: the plan is shown in the apps.
+    /// estimate too when `eta` is given (`Some(None)` clears it). A key or token in a title,
+    /// note or link is masked: the plan is shown in the apps.
     ///
     /// # Errors
     ///
@@ -146,6 +146,7 @@ impl TaskService {
         }
         edit.title = edit.title.as_deref().map(masked);
         edit.note = edit.note.as_deref().map(masked);
+        edit.link = edit.link.as_deref().map(masked);
         Ok(self
             .tasks
             .edit_plan(id, &edit, eta, who, self.now())
@@ -172,10 +173,11 @@ fn masked(text: &str) -> String {
     key_mask::mask(text, &[], None)
 }
 
-/// `step` and its sub-steps with their titles and notes masked.
+/// `step` and its sub-steps with their titles, notes and links masked.
 fn mask_new(step: &mut NewStep) {
     step.title = masked(&step.title);
     step.note = step.note.as_deref().map(masked);
+    step.link = step.link.as_deref().map(masked);
     for sub in &mut step.steps {
         mask_new(sub);
     }

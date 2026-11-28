@@ -1132,3 +1132,57 @@ pub(crate) async fn with_the_flag_off_open_runs_are_left_alone() {
             .is_some()
     );
 }
+
+#[tokio::test]
+pub(crate) async fn a_key_in_a_steps_link_is_masked_as_in_its_title_and_note() {
+    let app = app(true).await;
+    let id = task(&app, "the deploy").await;
+    let github = format!("ghp_{}", "a1B2c3D4e5".repeat(4));
+    let openai = format!("sk-{}", "x9Y8z7W6v5".repeat(3));
+    let set = as_worker(
+        &app,
+        id,
+        "plan_set",
+        json!({ "steps": [
+            { "title": "Build", "link": format!("https://ci.example.com/run?token={github}") },
+            { "title": "Ship" },
+        ] }),
+    )
+    .await;
+    assert_ne!(set.is_error, Some(true), "{set:?}");
+    let edited = as_worker(
+        &app,
+        id,
+        "plan_step",
+        json!({ "step": 2, "link": format!("https://ship.example.com/?key={openai}") }),
+    )
+    .await;
+    assert_ne!(edited.is_error, Some(true), "{edited:?}");
+    let added = as_worker(
+        &app,
+        id,
+        "plan_step",
+        json!({ "add": { "title": "Check" }, "link": format!("https://x.example.com/{github}") }),
+    )
+    .await;
+    assert_ne!(added.is_error, Some(true), "{added:?}");
+
+    let steps = page(&app, id).await.plan.unwrap().steps;
+    let links: Vec<&str> = steps
+        .iter()
+        .map(|step| step.link.as_deref().unwrap())
+        .collect();
+    assert_eq!(
+        links,
+        [
+            "https://ci.example.com/run?token=[secret: ghp_…]",
+            "https://ship.example.com/?key=[secret: sk-…]",
+            "https://x.example.com/[secret: ghp_…]",
+        ]
+    );
+    let read = as_worker(&app, id, "plan_read", json!({})).await;
+    assert!(
+        !text(&read).contains(&github) && !text(&read).contains(&openai),
+        "{read:?}"
+    );
+}
