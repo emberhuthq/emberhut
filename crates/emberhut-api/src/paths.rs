@@ -123,6 +123,23 @@ pub const RUNNER_FOLDERS: &str = "/api/runner/folders";
 /// worktree ([`crate::runner::new_session::BranchQuery`]).
 pub const RUNNER_BRANCHES: &str = "/api/runner/branches";
 
+/// `GET`: the runners the server knows ([`crate::runner::pairing::RunnersPage`]). One
+/// paired runner is [`runner`].
+pub const RUNNERS: &str = "/api/runners";
+/// `POST`: a one-time code a new runner pairs with
+/// ([`crate::runner::pairing::RunnerCode`]), for a signed-in device.
+pub const RUNNER_CODES: &str = "/api/runners/codes";
+/// `POST`: a new runner trades a one-time code for its token
+/// ([`crate::runner::pairing::PairRunner`]); no session, the code is the proof.
+pub const RUNNER_PAIR: &str = "/api/runner/pair";
+
+/// `DELETE`: forget the paired runner `name` (a name
+/// [`is_runner_name`](crate::runner::pairing::is_runner_name) takes, so it needs no escaping).
+#[must_use]
+pub fn runner(name: &str) -> String {
+    format!("{RUNNERS}/{name}")
+}
+
 /// One route of session `id`: `transcript`, `live`, `send`, `stop`, `interrupt` or `settings`
 /// (see [`crate::runner`]).
 #[must_use]

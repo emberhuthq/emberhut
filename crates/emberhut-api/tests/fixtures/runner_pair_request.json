@@ -1,0 +1,8 @@
+{
+  "code": "ABCD-EFGH",
+  "name": "build",
+  "url": "https://build.example.com:8800",
+  "place": "Build box",
+  "platform": "linux",
+  "version": "1.4.0"
+}
