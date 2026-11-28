@@ -72,7 +72,12 @@ jobs:
       - if: runner.environment == 'github-hosted'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo clippy --workspace --all-targets --all-features --locked
-      - run: cargo doc --workspace --all-features --no-deps --locked
+      - if: runner.os != 'Windows'
+        run: cargo doc --workspace --all-features --no-deps --locked
+      # The Mac helper (apps/hands) is an empty library on Windows, whose crate page would link
+      # to modules that aren't built there.
+      - if: runner.os == 'Windows'
+        run: cargo doc --workspace --exclude emberhut-hands --all-features --no-deps --locked
 
   test:
     name: tests (${{ matrix.os }})
@@ -166,6 +171,90 @@ jobs:
         with:
           name: self-check-log
           path: ${{ runner.temp }}/self-check.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The Windows installer, as a release makes it (`cargo xtask bundle-windows`, WiX Toolset v5),
+  # installed per user without a prompt, its files and shortcut checked, the installed app's
+  # first frame drawn, a newer version installed over it (one copy registered after), and
+  # uninstalled. The MSIs and the installer's logs are kept as an artifact.
+  msi:
+    name: windows installer (dry run)
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      # The installer's UpgradeCode (apps/desktop/wix/Emberhut.wxs).
+      UPGRADE_CODE: "{DDD826CF-51BB-471D-94A5-FA14619F2764}"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.environment == 'github-hosted'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # v5, under the MS-RL (v6's terms add a maintenance fee).
+      - name: WiX Toolset 5.0.2
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          echo "$USERPROFILE/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: build two installers, the second a newer version of the first
+        run: |
+          mkdir -p "$RUNNER_TEMP/msi"
+          EMBERHUT_MSI_VERSION=0.1.1 cargo xtask bundle-windows
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "emberhut-desktop") | .version')
+          mv "target/bundle/Emberhut-$version-windows-x64.msi" "$RUNNER_TEMP/msi/first.msi"
+          EMBERHUT_MSI_VERSION=0.1.2 cargo xtask bundle-windows
+          mv "target/bundle/Emberhut-$version-windows-x64.msi" "$RUNNER_TEMP/msi/second.msi"
+          ls -l "$RUNNER_TEMP/msi"
+      - name: install, check, upgrade and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $msi = Join-Path $env:RUNNER_TEMP 'msi'
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Emberhut'
+          $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Emberhut.lnk'
+          function Invoke-Msi([string[]] $arguments) {
+            $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
+            if ($process.ExitCode -ne 0) { throw "msiexec $arguments exited $($process.ExitCode)" }
+          }
+          function Get-Installed {
+            $installer = New-Object -ComObject WindowsInstaller.Installer
+            @($installer.RelatedProducts($env:UPGRADE_CODE)) | ForEach-Object {
+              [pscustomobject]@{ Code = $_; Version = $installer.ProductInfo($_, 'VersionString') }
+            }
+          }
+
+          Invoke-Msi @('/i', "$msi\first.msi", '/qn', '/l*v', "$msi\install.log")
+          foreach ($file in 'emberhut-desktop.exe', 'emberhut-server.exe', 'LICENSE-MIT.txt', 'LICENSE-APACHE.txt', 'README.md') {
+            if (-not (Test-Path (Join-Path $dir $file))) { throw "$file is not in $dir" }
+          }
+          if (-not (Test-Path $shortcut)) { throw "no Start menu shortcut at $shortcut" }
+          $installed = @(Get-Installed)
+          if ($installed.Count -ne 1 -or $installed[0].Version -ne '0.1.1') { throw "installed: $($installed | Out-String)" }
+          & (Join-Path $dir 'emberhut-server.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw "the installed server's --version exited $LASTEXITCODE" }
+
+          # The installed app draws its first frame.
+          $check = Start-Process (Join-Path $dir 'emberhut-desktop.exe') -ArgumentList '--self-check' -Wait -PassThru `
+            -RedirectStandardError "$msi\self-check.log" -RedirectStandardOutput "$msi\self-check.out"
+          Get-Content "$msi\self-check.log"
+          if ($check.ExitCode -ne 0) { throw "the installed app's --self-check exited $($check.ExitCode)" }
+
+          # A silent per-user upgrade, as the updater runs it: one copy registered after.
+          Invoke-Msi @('/i', "$msi\second.msi", '/passive', '/norestart', '/l*v', "$msi\upgrade.log")
+          $installed = @(Get-Installed)
+          if ($installed.Count -ne 1 -or $installed[0].Version -ne '0.1.2') { throw "after the upgrade: $($installed | Out-String)" }
+          if (-not (Test-Path (Join-Path $dir 'emberhut-desktop.exe'))) { throw 'the app is gone after the upgrade' }
+
+          Invoke-Msi @('/x', "$msi\second.msi", '/qn', '/l*v', "$msi\uninstall.log")
+          if (@(Get-Installed).Count -ne 0) { throw 'still registered after the uninstall' }
+          if (Test-Path $dir) { throw "$dir is still there after the uninstall" }
+          if (Test-Path $shortcut) { throw 'the shortcut is still there after the uninstall' }
+          Write-Output 'installed, checked, upgraded and uninstalled'
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-installer
+          path: ${{ runner.temp }}/msi
           if-no-files-found: ignore
           retention-days: 14
 
@@ -300,7 +389,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [fmt, clippy, test, build, coverage, deny, machete, secrets, js]
+    needs: [fmt, clippy, test, build, msi, coverage, deny, machete, secrets, js]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

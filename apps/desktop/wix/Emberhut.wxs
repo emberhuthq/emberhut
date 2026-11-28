@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Windows installer of the desktop app and its hut (WiX Toolset v5). `cargo xtask bundle-windows`
+  builds the two programs and passes them in, with the version:
+
+    Version      ProductVersion, X.Y.(Z*100+N): EMBERHUT_MSI_VERSION (docs/releasing.md)
+    DesktopExe   emberhut-desktop.exe
+    ServerExe    emberhut-server.exe, the hut the app runs beside itself (ADR 0030)
+    Icon         apps/desktop/assets/AppIcon.ico
+    LicenseMit, LicenseApache, Readme   the repository's files
+
+  Per user, with no administrator prompt: into %LOCALAPPDATA%\Programs\Emberhut, a Start menu
+  shortcut, and the installed programs list's entry. The UpgradeCode never changes: every version
+  replaces the one installed (MajorUpgrade), a rebuild of the same version too.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Emberhut"
+    Manufacturer="Emberhut"
+    Version="$(var.Version)"
+    UpgradeCode="DDD826CF-51BB-471D-94A5-FA14619F2764"
+    Scope="perUser"
+    Language="1033"
+    Compressed="yes">
+    <SummaryInformation Description="Emberhut, the desktop app and its hut" Manufacturer="Emberhut" />
+
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of Emberhut is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="Emberhut.ico" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="Emberhut.ico" />
+    <Property Id="ARPHELPLINK" Value="https://emberhut.com" />
+    <Property Id="ARPURLINFOABOUT" Value="https://emberhut.com" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="LocalProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Emberhut" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Files in a user's profile are kept by a registry value each (their key path), and the
+         folders made are removed on uninstall, as Windows Installer asks of a per-user package. -->
+    <ComponentGroup Id="Programs" Directory="INSTALLFOLDER">
+      <Component Id="Desktop">
+        <File Id="DesktopExe" Name="emberhut-desktop.exe" Source="$(var.DesktopExe)" />
+        <RegistryValue Root="HKCU" Key="Software\Emberhut\Installer" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsFolder" Directory="LocalProgramsFolder" On="uninstall" />
+      </Component>
+      <Component Id="Server">
+        <File Id="ServerExe" Name="emberhut-server.exe" Source="$(var.ServerExe)" />
+        <RegistryValue Root="HKCU" Key="Software\Emberhut\Installer" Name="Server" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="Licenses">
+        <File Id="LicenseMit" Name="LICENSE-MIT.txt" Source="$(var.LicenseMit)" />
+        <File Id="LicenseApache" Name="LICENSE-APACHE.txt" Source="$(var.LicenseApache)" />
+        <File Id="Readme" Name="README.md" Source="$(var.Readme)" />
+        <RegistryValue Root="HKCU" Key="Software\Emberhut\Installer" Name="Licenses" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="StartMenu" Directory="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut
+          Id="EmberhutShortcut"
+          Name="Emberhut"
+          Description="Emberhut"
+          Target="[INSTALLFOLDER]emberhut-desktop.exe"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="Emberhut.ico" />
+        <RegistryValue Root="HKCU" Key="Software\Emberhut\Installer" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Emberhut" Title="Emberhut">
+      <ComponentGroupRef Id="Programs" />
+      <ComponentGroupRef Id="StartMenu" />
+    </Feature>
+  </Package>
+</Wix>

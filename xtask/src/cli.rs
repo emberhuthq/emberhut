@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 use crate::bundle_hands::HandsArgs;
 use crate::bundle_macos::BundleArgs;
+use crate::bundle_windows::WindowsArgs;
 
 /// Repository tasks for emberhut, run with `cargo xtask <task>`.
 #[derive(Debug, Parser)]
@@ -32,6 +33,17 @@ pub(crate) enum Task {
     /// signs it with its entitlements, zips it, and optionally installs it to
     /// ~/Applications with its launch agent, com.emberhut.hands. Runs on macOS only.
     BundleHands(HandsArgs),
+
+    /// Build the desktop app and package it as a Windows installer (`.msi`).
+    ///
+    /// Builds `emberhut-desktop` and the hut's `emberhut-server` for x86_64-pc-windows-msvc and
+    /// makes `target/bundle/Emberhut-<version>-windows-x64.msi` with the `WiX` Toolset v5 from
+    /// apps/desktop/wix/Emberhut.wxs: a per-user install to %LOCALAPPDATA%\Programs\Emberhut
+    /// with a Start menu shortcut. With `EMBERHUT_VERSION` and `EMBERHUT_MSI_VERSION` set (`cargo
+    /// xtask release version` prints them) it is a release build of that version. Runs on
+    /// Windows only; it needs the MSVC build tools and `wix` 5.0.2 (a .NET tool).
+    #[command(name = "bundle-windows")]
+    WindowsInstaller(WindowsArgs),
 }
 
 #[cfg(test)]

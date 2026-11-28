@@ -41,7 +41,7 @@ the `emberhut-server` binary, starts it on `127.0.0.1:18990` (the next free port
 program has that one), makes a pairing code for this app with the server's own `pair --json`,
 and keeps it lit after the app closes or from login when asked. The setup's first step calls it
 through `store::setup::HutHome`; nothing starts until then. A hut that runs as the app's child
-is asked to stop (`SIGTERM`, not waited for) as the app quits. At a later launch, when the
+is asked to stop (`SIGTERM`, not waited for; on Windows its process tree is ended) as the app quits. At a later launch, when the
 app's server is the hut's address (`hut.json`'s port; `localhost` and `127.0.0.1` alike) and the
 hut doesn't answer, the app starts it again while the window shows Connecting; a start that
 fails shows the hut's words with Try again. Nothing starts when `EMBERHUT_URL` is set, for any
@@ -50,18 +50,23 @@ other address, or before the setup first started the hut.
 - **The binary**: in the macOS bundle at `Emberhut.app/Contents/MacOS/emberhut-server` (put there
   by `cargo xtask bundle-macos`), else beside the app's executable (`target/<profile>/` for a
   build from source: `cargo build -p emberhut-server` next to the app), else the file
-  `EMBERHUT_SERVER_BIN` names. On Linux there is no bundle: use one of the last two.
+  `EMBERHUT_SERVER_BIN` names. On Linux there is no bundle: use one of the last two. On
+  Windows the installer puts `emberhut-server.exe` beside `emberhut-desktop.exe`, and only an
+  `.exe` counts.
 - **Its files**: `~/Library/Application Support/Emberhut/Hut/` on macOS,
   `$XDG_DATA_HOME/emberhut/hut/` (`~/.local/share/emberhut/hut/`) elsewhere: `emberhut.db`,
   `machine.key`, `secrets/` and `hut.json` (its port, the server build it last started, how it
   stays lit), all owner-only. Its log: `~/Library/Logs/Emberhut/hut.log`, or
-  `$XDG_STATE_HOME/emberhut/hut.log`.
+  `$XDG_STATE_HOME/emberhut/hut.log`. On Windows: `%LOCALAPPDATA%\Emberhut\Hut\` and
+  `%LOCALAPPDATA%\Emberhut\Logs\hut.log`, in the user's own (not roaming) profile folder.
 - **Keeping it lit**: the launch agent `com.emberhut.hut` on macOS, the systemd user unit
-  `emberhut-hut.service` on Linux, else the app's child. A newer server in the app (an update)
-  restarts the hut once.
+  `emberhut-hut.service` on Linux, else the app's child (Windows has no service manager here
+  yet: keeping it lit without the app says so). A newer server in the app (an update) restarts
+  the hut once. The server and the tools the hut runs start without a console window.
 - **The real run**: `hut::real_tests` starts a built server through `LocalHut`, pairs with its
   code over `POST /api/auth/pair` and stops it. It is ignored by default and refuses a `HOME`
-  outside the temporary folder; its module says how to run it with `env -i`.
+  (`USERPROFILE` on Windows) outside the temporary folder; its module says how to run it with
+  `env -i`. CI runs it on Windows.
 - **Test runs on a real computer** (debug and automation builds only; a release build ignores
   both): `EMBERHUT_HUT_PORT=18995` makes that the hut's first port, to keep off a default port
   another server uses; `EMBERHUT_HUT_SERVICE=none` leaves launchd and systemd out, so no launch
@@ -827,6 +832,46 @@ To check it on a Mac: Settings › Chrome profiles › Add, Get link, then Share
 Share… in the chat (right-click it). Pass: the system's menu (Mail, Messages, AirDrop...)
 opens under the pointer, and the service picked gets the link or the file, named as in the
 chat.
+
+## The Windows app
+
+A release build on Windows is a windowed program (no console window opens with it); started
+from a terminal it writes there, as `--help`, `--pair` and the log need. `build.rs` compiles
+the icon (`assets/AppIcon.ico`, made from `assets/AppIcon-1024.png` with its margin cropped) and
+the version information into `emberhut-desktop.exe`. The session is kept as on Linux, in a file
+in the app's folder (`%APPDATA%\emberhut`).
+
+### Building on Windows
+
+You need:
+
+- the Visual Studio Build Tools with the "Desktop development with C++" workload (the MSVC
+  compiler and linker and the Windows SDK, whose `fxc.exe` compiles GPUI's Direct3D shaders in a
+  release build and whose `rc.exe` compiles the icon);
+- Rust through `rustup` (`rust-toolchain.toml` picks the compiler);
+- for the installer, the .NET SDK and the WiX Toolset **v5** as a .NET tool:
+  `dotnet tool install --global wix --version 5.0.2`. v5 is under the MS-RL; v6's terms add a
+  maintenance fee, so it isn't used.
+
+Then `cargo run -p emberhut-desktop --release` runs the app, and
+
+```sh
+cargo xtask bundle-windows [--dist]
+```
+
+builds `emberhut-desktop` and `emberhut-server` for `x86_64-pc-windows-msvc` and writes
+`target/bundle/Emberhut-<version>-windows-x64.msi` from `apps/desktop/wix/Emberhut.wxs`. It runs
+on Windows only. The installer is per user (no administrator prompt): both programs, the licences
+and the README go to `%LOCALAPPDATA%\Programs\Emberhut`, with a Start menu shortcut "Emberhut" and
+an entry in the installed programs list. Its UpgradeCode is fixed
+(`{DDD826CF-51BB-471D-94A5-FA14619F2764}`), so any version replaces the one installed, the same
+version too; `msiexec /i <msi> /passive /norestart` upgrades without a question. With
+`EMBERHUT_VERSION` and `EMBERHUT_MSI_VERSION` set (`cargo xtask release version` prints them) it is
+a release build; otherwise the workspace's version, with the ProductVersion `X.Y.(Z*100)`, below
+every release candidate. The installer isn't Authenticode signed yet.
+
+CI runs clippy, the tests, a release build and its `--self-check` on Windows, and builds,
+installs, upgrades and uninstalls the installer (`ci.yml`'s `msi` job).
 
 ## Files
 
