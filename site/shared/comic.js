@@ -1,6 +1,6 @@
 // The demo as a comic strip: four panels per room, drawn from the same room scripts as the app demos.
-import { ROOMS } from "./demo.js?v=3f14f3d5e9";
-import { mount } from "./ember.js?v=3f14f3d5e9";
+import { ROOMS } from "./demo.js?v=ef5a40d8dd";
+import { mount } from "./ember.js?v=ef5a40d8dd";
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 const wait = (ms) => new Promise((r) => setTimeout(r, still.matches ? 0 : ms));
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
