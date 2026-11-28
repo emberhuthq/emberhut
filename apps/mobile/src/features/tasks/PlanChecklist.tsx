@@ -24,7 +24,9 @@ export function PlanChecklist({ plan, onAnswer }: { plan: Plan; onAnswer?: () =>
   const entries = foldChecklist(rows, open);
   return (
     <View style={{ gap: spacing.sm }}>
-      <SectionHeading>{`Plan · ${rows.length} ${rows.length === 1 ? "step" : "steps"}`}</SectionHeading>
+      {/* No count here: the header's "4 of 8 done" is the server's count (sub-steps for their step, skipped ones out);
+          the rows listed would disagree with it. */}
+      <SectionHeading>Plan</SectionHeading>
       <View accessibilityRole="list" style={{ backgroundColor: colors.surface, borderRadius: radius.lg, paddingVertical: spacing.sm }}>
         {entries.map((entry, i) =>
           entry.kind === "step" ? (
