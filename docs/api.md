@@ -1433,7 +1433,8 @@ logged-in browser or mint a pairing link, so they need a signed-in device in eit
 ### GET /api/browser/session?device=
 
 The live view (the browser's screen, streamed by the machine it runs on, `EMBERHUT_BROWSER_VIEW`):
-200 `{ ok, url, user, password, mode, screen }`. `mode` is `control`, with the
+200 `{ ok, url, user, password, mode, screen }`. `user` is `owner`, or the name the configured
+address gives (`https://name@host/`; `url` is then the address without it). `mode` is `control`, with the
 `browser-control` secret's password, for the device that took over (or any, when it didn't
 say which); else `view`, with `browser-view`'s. 503 `{ ok: false, error }` while it isn't set up.
 

@@ -118,8 +118,28 @@ const FRAME_FRESH: Duration = Duration::from_secs(5);
 const AUTOFILL_KEY: &str = "Control+Backslash";
 /// The biggest piece of a download read from the page at once.
 const PIECE: u64 = 4_000_000;
-/// The user name the live view takes.
+/// The user name the live view takes, unless its address names another
+/// (`live_view_address`).
 pub const LIVE_VIEW_USER: &str = "owner";
+
+/// The live view's address as the app loads it, and the user its sign-in takes: the plain name
+/// the address names (`https://name@host/`, which the stream's own setup may have fixed), else
+/// [`LIVE_VIEW_USER`]. The name leaves the address: it goes with the password, as Basic auth.
+fn live_view_address(address: &str) -> (String, String) {
+    let Ok(mut url) = url::Url::parse(address) else {
+        return (address.to_owned(), LIVE_VIEW_USER.to_owned());
+    };
+    let named = url.username().to_owned();
+    if named.is_empty() {
+        return (address.to_owned(), LIVE_VIEW_USER.to_owned());
+    }
+    // A URL with a host always takes an empty user and no password; one that wouldn't keeps its
+    // address as given.
+    if url.set_username("").and(url.set_password(None)).is_err() {
+        return (address.to_owned(), named);
+    }
+    (url.into(), named)
+}
 
 /// `POST /api/browser/input`: `kind` and what goes with it. `takeover` (`device`), `handback`;
 /// while the owner drives: `back`, `forward`, `reload`, `go` (`url`), `tab` (`id`), `newtab`,
@@ -480,7 +500,7 @@ impl BrowserService {
         let password = tokio::fs::read_to_string(self.inner.parts.places.secrets_dir.join(secret))
             .await
             .map_or_default(|p| p.trim().to_owned());
-        let Some(url) = self.inner.parts.live_view.clone() else {
+        let Some((url, user)) = self.inner.parts.live_view.as_deref().map(live_view_address) else {
             return Err(NoLiveView);
         };
         if password.is_empty() {
@@ -490,7 +510,7 @@ impl BrowserService {
             ok: true,
             session: BrowserSession {
                 url: Some(url),
-                user: LIVE_VIEW_USER.to_owned(),
+                user,
                 password,
                 mode: if mine {
                     StreamMode::Control
