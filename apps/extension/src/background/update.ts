@@ -1,16 +1,18 @@
-// The extension reloads itself from its folder once the server says the folder holds a newer version (emberhut.update):
-// never while it holds a tab, and only once per version (version.ts). The folder is kept by the owner's server, never
-// the Web Store (ADR 0023).
+// Loaded unpacked (the developer's way, ADR 0023), the extension reloads itself from its folder once the server says
+// the folder holds a newer version (emberhut.update): never while it holds a tab, and only once per version
+// (version.ts). Installed from the Chrome Web Store, Chrome updates it and the server's word is ignored: the store
+// adds an update_url to the manifest it serves.
 
 import { shouldReload } from "../version";
 import { attached } from "./held";
 import { setSettings, settings } from "./state";
 
 const VERSION = chrome.runtime.getManifest().version;
+const FROM_STORE = typeof chrome.runtime.getManifest().update_url === "string";
 
 /** The server said the folder holds `version`: reload when it's newer and nothing holds us. */
 export async function noteUpdate(version: unknown): Promise<void> {
-  if (typeof version !== "string" || version === "") return;
+  if (FROM_STORE || typeof version !== "string" || version === "") return;
   await setSettings({ update: version });
   await maybeReload();
 }

@@ -6,6 +6,7 @@ import { badge } from "./badge";
 import { pause, unpause } from "./pause-control";
 import { setSession, setSettings, settings, step } from "./state";
 import { letGoAll, syncAll } from "./tabs";
+import { notify, unnotify } from "./notify";
 import { noteUpdate } from "./update";
 import { emit } from "./wire";
 
@@ -41,7 +42,7 @@ export async function onServerMessage(method: string, params: unknown): Promise<
 
 async function handoff(reason: string): Promise<void> {
   await setSession({ handoff: reason, notice: null });
-  await chrome.notifications.create("handoff", {
+  await notify("handoff", {
     type: "basic",
     iconUrl: ICON,
     title: "Emberhut needs you",
@@ -56,14 +57,14 @@ async function handoff(reason: string): Promise<void> {
 /** The owner handed back from the app, or Emberhut took the browser back (by: the assistant). */
 async function handback(by: string | null, reason: string | null): Promise<void> {
   await setSession({ handoff: null });
-  await chrome.notifications.clear("handoff");
+  await unnotify("handoff");
   const tookBack = by === BY_ASSISTANT;
   const paused = pausedNow((await settings()).paused, Date.now());
   if (paused && (!tookBack || paused.turn)) await unpause(tookBack ? "your turn ended" : "you handed back");
   if (tookBack) {
     const line = `Emberhut took it back${reason ? `: ${reason}` : ""}`;
     await setSession({ notice: { at: Date.now(), text: line } });
-    await chrome.notifications.create("takeback", {
+    await notify("takeback", {
       type: "basic",
       iconUrl: ICON,
       title: "Emberhut took it back",

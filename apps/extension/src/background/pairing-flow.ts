@@ -3,9 +3,10 @@
 // confirms that server's address, since any page could show a pairing link, and the server a profile pairs with is
 // the one that drives it. Never from a tab Emberhut drives, opened or adopted.
 
-import { inBackground, messageOf } from "../log";
-import { codeOfOffer, linkAction, offerId, originOf } from "../offers";
+import { messageOf } from "../log";
+import { linkAction, originOf } from "../offers";
 import { linkOf, type PairWith } from "../pairing";
+import { transportProblem } from "../transport";
 import type { Offer } from "../status";
 import { badge } from "./badge";
 import { adopted, made, reported } from "./held";
@@ -13,6 +14,9 @@ import { pairWith } from "./link";
 import { session, setSession, settings, step } from "./state";
 
 const tried = new Set<string>();
+
+/** The extension's own page that asks the owner before a first pairing. */
+export const CONSENT_PAGE = "consent.html";
 
 /** The origins offered in this browser session. */
 async function offered(): Promise<string[]> {
@@ -33,7 +37,7 @@ async function pairNow(pair: PairWith): Promise<void> {
   }
 }
 
-/** A tab showing a pairing link: paired by itself on the known server, else offered. */
+/** A tab showing a pairing link: paired by itself on the known server, else offered (the consent page first). */
 export async function pairFromTab(tab: chrome.tabs.Tab): Promise<void> {
   if (tab.id === undefined || reported.has(tab.id) || adopted.has(tab.id) || made.has(tab.id)) return;
   const pair = linkOf(tab.url || tab.pendingUrl || "");
@@ -47,19 +51,31 @@ export async function pairFromTab(tab: chrome.tabs.Tab): Promise<void> {
     return;
   }
   await chrome.storage.session.set({ offered: [...(await offered()), originOf(pair.server)] });
-  const { offer } = await session();
-  if (offer) await chrome.notifications.clear(offerId(offer));
   await setSession({ offer: pair });
-  if (action !== "offer-notification") return;
-  await chrome.notifications.create(offerId(pair), {
-    type: "basic",
-    iconUrl: "icons/emberhut-128.png",
-    title: "Pair this Chrome profile with Emberhut?",
-    message: `With the Emberhut server at ${pair.server}. Pair only if that is your own server.`,
-    buttons: [{ title: "Pair" }, { title: "Not now" }],
-    priority: 2,
-    requireInteraction: true,
+  await badge();
+  if (action !== "offer-page") return;
+  // Before any pairing: what pairing sends, and the owner's Pair or Not now, on a page of the extension's own.
+  await chrome.tabs.create({
+    url: CONSENT_PAGE,
+    openerTabId: tab.id,
+    index: tab.index + 1,
+    ...(tab.windowId === undefined ? {} : { windowId: tab.windowId }),
   });
+}
+
+/** Opens the consent page for the offer the session holds: every pairing the owner starts goes through it. */
+export async function reviewOffer(): Promise<void> {
+  if (!(await session()).offer) throw new Error("That pairing offer is gone");
+  await chrome.tabs.create({ url: CONSENT_PAGE });
+}
+
+/** A pairing typed or pasted in the popup: checked, then offered on the consent page like a link's. */
+export async function offerTyped(pair: PairWith): Promise<void> {
+  const problem = transportProblem(pair.server);
+  if (problem) throw new Error(problem);
+  await setSession({ offer: pair });
+  await badge();
+  await reviewOffer();
 }
 
 /** Every open tab checked for a pairing link (the extension was just added from the pairing page, say). */
@@ -77,16 +93,8 @@ export async function acceptOffer(code?: string): Promise<void> {
 
 /** The offer withdrawn. */
 export async function dismissOffer(): Promise<void> {
-  const { offer } = await session();
   await setSession({ offer: null });
-  if (offer) await chrome.notifications.clear(offerId(offer));
-}
-
-/** An offer's notification's buttons: Pair, or Not now; for that offer only. */
-export function onOfferButton(id: string, button: number): void {
-  const code = codeOfOffer(id);
-  if (code === null) return;
-  inBackground(button === 0 ? acceptOffer(code) : dismissOffer(), "pairing offer");
+  await badge();
 }
 
 /** The offer, for the popup. */

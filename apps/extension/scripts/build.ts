@@ -1,5 +1,5 @@
-// Builds the extension into dist/: the service worker and the popup bundled by esbuild, with the manifest, the popup's
-// page and the icons beside them. dist/ is the folder Chrome loads unpacked, and what scripts/zip.ts packs. Paths in
+// Builds the extension into dist/: the service worker, the popup and the consent page bundled by esbuild (not minified,
+// no source maps: the store reads the code as it runs), with the manifest, the pages and the icons beside them. dist/ is the folder Chrome loads unpacked, and what scripts/zip.ts packs. Paths in
 // the bundle are relative to this package, whatever the working directory, so the same sources give the same bytes;
 // the build fails if the package's own folder shows up in a bundle.
 //
@@ -11,6 +11,7 @@ import { build } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseDialect } from "../src/dialect.ts";
+import { versionProblem } from "./release.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = `${root}dist`;
@@ -30,11 +31,19 @@ function wireDialect(): string {
 
 const dialect = wireDialect();
 
+// The extension ships with the apps: its version is the workspace's (Cargo.toml), in the manifest and package.json alike.
+const problem = versionProblem(
+  readFileSync(`${root}manifest.json`, "utf8"),
+  readFileSync(`${root}package.json`, "utf8"),
+  readFileSync(`${root}../../Cargo.toml`, "utf8"),
+);
+if (problem) throw new Error(problem);
+
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 await build({
   absWorkingDir: root,
-  entryPoints: { background: "src/background/main.ts", popup: "src/popup/popup.ts" },
+  entryPoints: { background: "src/background/main.ts", popup: "src/popup/popup.ts", consent: "src/consent/consent.ts" },
   outdir: "dist",
   bundle: true,
   format: "iife",
@@ -46,9 +55,10 @@ await build({
 });
 cpSync(`${root}manifest.json`, `${dist}/manifest.json`);
 cpSync(`${root}static/popup.html`, `${dist}/popup.html`);
+cpSync(`${root}static/consent.html`, `${dist}/consent.html`);
 cpSync(`${root}icons`, `${dist}/icons`, { recursive: true });
 
-for (const bundle of ["background.js", "popup.js"]) {
+for (const bundle of ["background.js", "popup.js", "consent.js"]) {
   if (readFileSync(`${dist}/${bundle}`, "utf8").includes(root.replace(/\/$/, ""))) {
     throw new Error(`dist/${bundle} holds this machine's path to the package`);
   }

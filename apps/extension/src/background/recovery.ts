@@ -26,20 +26,20 @@ export async function offer(tabId: number): Promise<boolean> {
 const reattached = new Map<number, number[]>();
 
 /**
- * Chrome's own "started debugging this browser" bar dropped the link (its Cancel drops every extension's, and it
- * closes itself a moment after the last detach): the tab is offered again, at most 3 times a minute; past that it is
- * attached again when the assistant next uses it.
+ * Chrome cut the link to a tab that is still there (another extension's frame came into the page): the tab is offered
+ * again, at most 3 times a minute; past that it is attached again when the assistant next uses it. (Cancel on Chrome's
+ * debugging bar is not this: it pauses Emberhut, main.ts.)
  */
 export async function reattach(tabId: number): Promise<void> {
   const now = Date.now();
   const times = (reattached.get(tabId) ?? []).filter((t) => now - t < 60_000);
   if (times.length >= 3) {
-    await step("Chrome's debugging bar keeps dropping Emberhut's link: it attaches again when Emberhut next uses the tab");
+    await step("Chrome keeps cutting Emberhut's link to its tab: it attaches again when Emberhut next uses the tab");
     return;
   }
   reattached.set(tabId, [...times, now]);
   await wait(500 * (times.length + 1));
-  if (await offer(tabId)) await step("Chrome's debugging bar dropped Emberhut's link: attached again");
+  if (await offer(tabId)) await step("Chrome cut Emberhut's link to its tab: attached again");
 }
 
 /**

@@ -7,8 +7,9 @@ import type { PopupAsk, Status } from "../status";
 import { Msg } from "../protocol";
 import { badge } from "./badge";
 import { attached, reported } from "./held";
-import { linkError, pairWith, unpair } from "./link";
-import { acceptOffer, dismissOffer } from "./pairing-flow";
+import { linkError, unpair } from "./link";
+import { acceptOffer, dismissOffer, offerTyped, reviewOffer } from "./pairing-flow";
+import { canNotify, unnotify } from "./notify";
 import { pause, unpause } from "./pause-control";
 import { session, setSession, setSettings, settings, step } from "./state";
 import { blockedUrl, joinGroup, letGoAll, slim, syncAll } from "./tabs";
@@ -20,12 +21,15 @@ const VERSION = chrome.runtime.getManifest().version;
 export async function onPopup(ask: PopupAsk): Promise<Status> {
   switch (ask.kind) {
     case "pair": {
+      // Typed or pasted: the consent page says what pairing sends and pairs on its Pair.
       const pair = readPairing(ask.code, ask.server);
       if (typeof pair === "string") throw new Error(pair);
-      await pairWith(pair);
-      await step(`Paired with ${pair.server}`);
+      await offerTyped(pair);
       break;
     }
+    case "review":
+      await reviewOffer();
+      break;
     case "accept":
       await acceptOffer();
       break;
@@ -42,7 +46,7 @@ export async function onPopup(ask: PopupAsk): Promise<Status> {
       break;
     case "handback":
       await setSession({ handoff: null, notice: null });
-      await chrome.notifications.clear("handoff");
+      await unnotify("handoff");
       emit(Msg.handback, {});
       await step("Handed back to Emberhut");
       await unpause("you handed back");
@@ -88,5 +92,6 @@ async function status(): Promise<Status> {
     defaults: BUILT_IN_BLOCKED,
     tabs: tabs.flatMap((tab) => (tab ? [slim(tab)] : [])).map(({ title, url }) => ({ title, url })),
     offer: x.offer,
+    notifications: await canNotify(),
   };
 }

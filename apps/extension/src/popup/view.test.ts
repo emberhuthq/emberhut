@@ -19,6 +19,7 @@ const base: Status = {
   defaults: ["1password.com"],
   tabs: [],
   offer: null,
+  notifications: false,
 };
 
 describe("the popup's words", () => {

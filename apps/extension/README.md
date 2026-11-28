@@ -40,12 +40,14 @@ owner's server. Manifest V3, in TypeScript (a browser extension runs only JavaSc
 - **Final steps** (submit, send, pay, delete…) wait for the owner's OK in the server's step gate; the extension only acts
   on the server's calls and has no way around it.
 - **Pause** (the popup, the pill on the page, the app) lets go of every tab and keeps Emberhut out for up to 10 minutes, or
-  until the owner hands back; then it comes back by itself. Hand-offs and take-backs show as notifications.
+  until the owner hands back; then it comes back by itself. Hand-offs and take-backs show on the badge and in the popup,
+  and as Chrome notifications once the owner turns them on there.
 - The pill "Emberhut is driving · Pause" and Emberhut's own cursor are drawn from an isolated world, in a closed shadow root that
   is aria-hidden, so the page and the assistant's snapshots never see or press them (`src/page-scripts.ts`). A page
   that removes, restyles or covers the pill gets it back within a second. The page's
   console is quiet while Emberhut holds a tab, and a page that closes itself says so first.
-- Recovers by itself: Chrome's debugging bar or another extension's frame cutting the link (the tab is offered again),
+- Cancel on Chrome's "started debugging this browser" bar pauses Emberhut, as Pause does.
+- Recovers by itself: another extension's frame cutting the link (the tab is offered again),
   a computer that slept, a server that went away (back-off: 20 s, 40 s, 80 s, then every 2 minutes; `src/backoff.ts`).
 
 ## Its id
@@ -62,20 +64,47 @@ needed to pack a signed CRX, which the extension doesn't use.
 
 The server's address comes only from pairing. In the Emberhut app, Settings → Chrome profiles → Add, then open the link in the
 profile. A link on the server this profile is already paired with pairs by itself. A link on any other server is
-offered first, since any page could show a link: before the profile is paired, as a notification and in the popup;
-once paired, in the popup only, so a page can't raise a prompt to switch servers. A server is offered at most once per
-browser session. Pairing tells the server only the code (and this profile's old token only when it is that same
-server's); what the profile is (its version, Google account, system and Chrome) goes only in the hello, to the server
-it paired with. Or paste the link, or its code and the server's address, in the popup.
+offered first, since any page could show a link: before the profile is paired, on the extension's own consent page
+(`static/consent.html`), which says what pairing sends and to whom (`src/disclosure.ts`) and waits for Pair; once
+paired, in the popup only, so a page can't raise a prompt to switch servers. A server is offered at most once per
+browser session. Or paste the link, or its code and the server's address, in the popup: that opens the same consent
+page. A link on a server this profile was unpaired from asks again.
 
-## Installing and updating
+Pairing tells the server only the code (and this profile's old token only when it is that same server's); what the
+profile is (its version, system and Chrome) goes only in the hello, to the server it paired with. The extension pairs
+only over https, or plain http to this computer or a Tailscale (100.x or fd7a:115c:a1e0::) address, whose WireGuard
+tunnel encrypts it (`src/transport.ts`).
 
-Not from the Web Store. Every profile on a computer loads it unpacked (`chrome://extensions`, Developer mode, Load
-unpacked) from one folder: on a Mac `~/Library/Application Support/Emberhut/Extension`, which the Mac helper keeps in step
-with the zip the server serves ([docs/mac-helper.md](../../docs/mac-helper.md)). When the server says the folder holds a
-newer version (`emberhut.update`), the extension reloads itself from it, never while it holds a tab and only once per
-version: a reload that comes back still older (the profile loads the extension from another folder) isn't tried again
-for that version. Elsewhere, unzip the server's `/chrome/emberhut-extension.zip` into a folder that stays.
+## Permissions
+
+| Permission                 | Why                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `debugger`                 | The hut's browser engine works in a page through the DevTools protocol: `chrome.debugger` in Emberhut's own tabs only, with the allow-list above              |
+| `tabs`                     | The tabs' addresses: to keep to Emberhut's tabs and their popups, check every command against the blocked sites, and see a pairing link opened in the profile |
+| `tabGroups`                | The blue "Emberhut" tab group that marks Emberhut's tabs                                                                                                      |
+| `webNavigation`            | Letting go of a tab before a navigation to a blocked site commits, in the page or a frame                                                                     |
+| `storage`                  | The pairing, the blocked sites, a pause; the session's recent steps                                                                                           |
+| `alarms`                   | Reconnecting after the service worker sleeps, and ending a pause after 10 minutes                                                                             |
+| `notifications` (optional) | Asked for in the popup when the owner turns on Chrome notifications for hand-offs; without it the badge, the popup, the pill and the app say the same         |
+
+No host permissions and no content scripts: the extension reads nothing from a page Emberhut doesn't hold.
+
+## Installing
+
+From the Chrome Web Store, in every profile: the store's page is `emberhut_api::chrome::extension::STORE_PAGE`, the
+same id as below ([ADR 0031](../../docs/adr/0031-extension-on-the-chrome-web-store.md)). The desktop app's Chrome step
+adds it for you after you agree (Chrome's external-extension entry; you click Enable in Chrome), and the hut's pairing
+page links to it. Chrome keeps it up to date; the hut's `emberhut.update` is ignored by a store install.
+
+### Loading it unpacked (developers)
+
+For a build of your own: `pnpm --filter @emberhut/extension run build`, then in `chrome://extensions` turn on
+Developer mode, click Load unpacked and pick `apps/extension/dist` (or unzip `dist/emberhut-extension-<version>.zip`, or
+the hut's `/chrome/emberhut-extension.zip`, into a folder that stays). Remove the store copy first: both have the same
+id. On a Mac the helper can keep a folder in step with the zip the hut serves,
+`~/Library/Application Support/Emberhut/Extension` ([docs/mac-helper.md](../../docs/mac-helper.md)); when the hut says that
+folder holds a newer version (`emberhut.update`), an unpacked extension reloads itself from it, never while it holds a
+tab and only once per version.
 
 Keep "Allow access to file URLs" off for the extension at `chrome://extensions`: with it off, Chrome lets no extension
 debug a `file://` page, and the extension refuses them as well.
@@ -113,11 +142,18 @@ The manifest, its key and the extension's id stay the same with any dialect.
 ## Working on it
 
 - `pnpm install --frozen-lockfile` at the repository root.
-- `pnpm --filter @emberhut/extension run check`: types, lint, format, tests, the build into `dist/` and
-  `dist/emberhut-extension-<version>.zip` (the version from `manifest.json`; the same sources give the same zip from any
-  working directory, and the build fails if a local path lands in a bundle). Point the
-  server's `EMBERHUT_CHROME_EXTENSION_ZIP` at that zip.
-- The logic that needs no browser (the rules, the pause, the back-off, pairing links, versions, the page scripts, the
-  popup's words, the zip writer, the wire dialect) has vitest tests; the modules under `src/background/` call Chrome's
-  APIs and are checked by type and lint. The server's tests drive a scripted extension over a real socket.
-- A new version: bump `version` in `manifest.json`, build, and serve the zip.
+- `pnpm --filter @emberhut/extension run check`: types, lint, format, tests, the build into `dist/` and two zips
+  (`scripts/zip.ts`): `dist/emberhut-extension-<version>.zip` to load unpacked or serve from the hut
+  (`EMBERHUT_CHROME_EXTENSION_ZIP`), and `dist/emberhut-extension-<version>-store.zip`, the Chrome Web Store's upload,
+  whose manifest has no `key` (the store keeps the item's own). The same sources give the same bytes from any working
+  directory; the build fails if a local path lands in a bundle, and the zips take only what the extension runs (no
+  source maps, sources or dotfiles; `scripts/release.ts`). The bundles are not minified.
+- The version is the apps' own: `manifest.json` and `package.json` must say the workspace's `version` in the root
+  `Cargo.toml`, or the build fails. Change the three together.
+- CI builds both zips twice and compares them, and keeps them as the run's artifact; a `v*` tag attaches them to its
+  release. The store listing's words, the permissions' reasons and the privacy answers are in
+  [store/listing.md](store/listing.md).
+- The logic that needs no browser (the rules, the pause, the back-off, pairing links, the transport rule, the
+  disclosure, versions, the page scripts, the popup's words, the zip writer and the release rules, the wire dialect)
+  has vitest tests; the modules under `src/background/` call Chrome's APIs and are checked by type and lint. The
+  server's tests drive a scripted extension over a real socket.

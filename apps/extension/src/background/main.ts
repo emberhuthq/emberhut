@@ -3,22 +3,22 @@
 // opened, or any popup one of them opened), never a blocked site, never DevTools commands that reach past the page,
 // never a password typed or filled in. Once paired, Emberhut may work here any time; the owner's brake is Pause (the pill, the
 // popup, the app), which lets go of every tab and comes back by itself after 10 minutes, or when the owner hands
-// back. Chrome's own "started debugging this browser" bar is not a pause: its Cancel drops every extension in every
-// profile, so a detach from it just attaches that tab again.
+// back. Cancel on Chrome's own "started debugging this browser" bar is the owner saying stop, so it pauses Emberhut
+// the same way.
 
 import { aboutOwnWorld, forwards, stripCookies } from "../cdp-rules";
 import { inBackground, messageOf } from "../log";
 import { CLOSING_BINDING, PILL_BINDING, PILL_WORLD } from "../page-scripts";
 import { BY_ASSISTANT } from "../protocol";
 import { hostOf, isNewTabPage } from "../scope";
-import type { PopupAsk } from "../status";
+import type { Answer, PopupAsk } from "../status";
 import { badge } from "./badge";
 import { adopted, attached, closing, dropped, forget, mainFrame, noteOwnContext, ownContexts, pillWorld, reported, urls } from "./held";
 import { TICK, connect, tick } from "./link";
-import { onOfferButton, pairFromTab, pairTabs } from "./pairing-flow";
+import { pairFromTab, pairTabs } from "./pairing-flow";
 import { UNPAUSE_ALARM, pause, tidyPause, unpause } from "./pause-control";
 import { onPopup } from "./popup-api";
-import { cut, reattach } from "./recovery";
+import { cut } from "./recovery";
 import { step } from "./state";
 import { blockedUrl, joinGroup, leaveBlocked, sync } from "./tabs";
 import { maybeReload } from "./update";
@@ -69,7 +69,7 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   if (!attached.delete(tabId)) return;
   emit("chrome.debugger.onDetach", [source, reason]); // its session is gone either way
   inBackground(badge(), "badge");
-  if (reason === "canceled_by_user") inBackground(reattach(tabId), "reattach");
+  if (reason === "canceled_by_user") inBackground(pause("you pressed Cancel on Chrome's debugging bar"), "debugging bar");
   if (reason === "target_closed") inBackground(cut(tabId), "cut");
 });
 
@@ -123,10 +123,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === UNPAUSE_ALARM) inBackground(unpause("10 minutes are up"), "unpause");
 });
 
-chrome.notifications.onButtonClicked.addListener(onOfferButton);
-
-chrome.runtime.onMessage.addListener((ask: PopupAsk, _sender, reply: (answer: unknown) => void) => {
-  onPopup(ask).then(reply, (e: unknown) => reply({ error: messageOf(e) }));
+chrome.runtime.onMessage.addListener((ask: PopupAsk, _sender, reply: (answer: Answer) => void) => {
+  onPopup(ask).then(reply, (e: unknown) => reply({ refused: messageOf(e) }));
   return true;
 });
 

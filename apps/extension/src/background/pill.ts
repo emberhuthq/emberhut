@@ -19,10 +19,16 @@ interface World {
  * still over two frames would time out. DevTools' focus emulation counts as a capture of the tab, so the page runs as
  * if visible and focused while the owner's window, tab and focus don't move. Active: a tab Chrome froze in the
  * background runs again. Quiet: the page's console goes nowhere, from this document on, and what it logged before
- * Emberhut came is dropped. All of it ends with Emberhut's link to the tab.
+ * Emberhut came is dropped. All of it ends with Emberhut's link to the tab, and lasts across the tab's navigations
+ * until then.
  */
 export async function awake(tabId: number): Promise<void> {
   const steps: [string, object][] = [
+    // First, so the bindings and new-document scripts below outlive the page's navigations (Chrome drops them on the
+    // next document from a session without these domains on) and the pill's Pause reaches the worker
+    // (Runtime.bindingCalled), with the pill's world known (Runtime.executionContextCreated, main.ts).
+    ["Page.enable", {}],
+    ["Runtime.enable", {}],
     ["Emulation.setFocusEmulationEnabled", { enabled: true }],
     ["Page.setWebLifecycleState", { state: "active" }],
     ["Runtime.addBinding", { name: CLOSING_BINDING }],

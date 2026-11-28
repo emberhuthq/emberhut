@@ -11,7 +11,8 @@
     width: 320px;
     margin: 0;
     padding: 14px;
-    color: #1f1f1f;
+    color: #2a211b;
+    background: #fffaf2;
   }
   h1 {
     font-size: 15px;
@@ -30,18 +31,18 @@
     margin-bottom: 12px;
   }
   .on {
-    color: #2563eb;
+    color: #b83d0c;
     font-weight: 600;
   }
   .need {
-    background: #fef3c7;
+    background: #fbe7c6;
     border-radius: 8px;
     padding: 8px 10px;
     margin: 8px 0;
   }
   .notice {
-    background: #e5ecfd;
-    color: #1e40af;
+    background: #f3e9da;
+    color: #6d3a12;
     border-radius: 8px;
     padding: 8px 10px;
     margin: 8px 0;
@@ -54,19 +55,20 @@
     font: inherit;
     padding: 6px 10px;
     border-radius: 7px;
-    border: 1px solid #ccc;
-    background: #fafafa;
+    border: 1px solid #e3d6c3;
+    background: #f6f0e6;
+    color: #2a211b;
     cursor: pointer;
     margin: 2px 4px 2px 0;
   }
   button.main {
-    background: #2563eb;
-    border-color: #2563eb;
+    background: #b83d0c;
+    border-color: #b83d0c;
     color: white;
   }
   button.stop {
-    background: #b91c1c;
-    border-color: #b91c1c;
+    background: #2a211b;
+    border-color: #2a211b;
     color: white;
   }
   label {
@@ -80,8 +82,9 @@
     box-sizing: border-box;
     font: inherit;
     padding: 5px 7px;
-    border: 1px solid #ccc;
+    border: 1px solid #e3d6c3;
     border-radius: 6px;
+    background: #fff;
   }
   textarea {
     height: 64px;
@@ -108,6 +111,15 @@
     cursor: pointer;
     color: #555;
   }
+  .small {
+    color: #555;
+    font-size: 12px;
+  }
+  label.check {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
   .hide {
     display: none;
   }
@@ -116,9 +128,9 @@
 <div class="sub" id="status">…</div>
 
 <section id="offer" class="need hide">
-  <b>Pair with this server?</b> <span id="offerServer"></span><br />
-  Pair only if it is your own Emberhut server.<br />
-  <button class="main" id="accept">Pair</button><button id="dismiss">Not now</button>
+  <b>Pair with this hut?</b> <span id="offerServer"></span><br />
+  Pair only if it is your own Emberhut hut. <span class="small" id="offerWhat"></span><br />
+  <button class="main" id="review">Review and pair</button><button id="dismiss">Not now</button>
 </section>
 
 <section id="pair" class="hide">
@@ -128,7 +140,8 @@
   </p>
   <label>Pairing link or code <input type="text" id="code" placeholder="https://…/chrome/pair#ABCD-EFGH" autocomplete="off" /></label>
   <label>Server's address (with a code) <input type="text" id="server" placeholder="https://…" autocomplete="off" /></label>
-  <p><button class="main" id="doPair">Pair</button></p>
+  <p class="small" id="pairWhat"></p>
+  <p><button class="main" id="doPair">Continue</button></p>
 </section>
 
 <section id="main" class="hide">
@@ -144,8 +157,8 @@
   </div>
   <div id="in" class="hide">
     <p>
-      <span class="on" id="inText"></span><br />It works only in the blue "Emberhut" tab group, never types a password, and asks you before
-      any final step.
+      <span class="on" id="inText"></span><br />It works only in the blue "Emberhut" tab group and never types into a password field; the
+      Emberhut app asks you before any final step.
     </p>
     <button class="stop" id="pause" title="Emberhut lets go of its tabs now and comes back by itself in 10 minutes">Pause 10 min</button
     ><button id="share">Share this tab</button>
@@ -160,6 +173,7 @@
     <summary>Settings</summary>
     <label>Blocked sites (one per line, besides the built-in ones)</label>
     <textarea id="blocked" placeholder="mybank.com"></textarea>
+    <label class="check"><input type="checkbox" id="notify" /> Chrome notifications when Emberhut hands you a tab</label>
     <p><button id="save">Save</button><button id="unpair">Unpair this profile</button></p>
     <p class="sub">Rename it or pair another profile in the Emberhut app: Settings → Chrome profiles.</p>
     <p class="sub" id="builtin"></p>

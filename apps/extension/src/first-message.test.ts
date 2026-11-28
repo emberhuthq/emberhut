@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { firstMessage } from "./first-message";
 
-const about = { version: "0.1.0", email: "me@example.com", os: "mac", agent: "Chrome/131.0" };
+const about = { version: "0.1.0", os: "mac", agent: "Chrome/131.0" };
 
 describe("the first message", () => {
   it("pairs with the code alone: no account, no system, no token for another server", () => {

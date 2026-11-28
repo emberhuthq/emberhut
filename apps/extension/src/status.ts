@@ -38,6 +38,8 @@ export interface Status {
   defaults: readonly string[];
   tabs: TabLine[];
   offer: Offer | null;
+  /** Chrome notifications are on (an optional permission the owner grants in the popup). */
+  notifications: boolean;
 }
 
 /** What the popup asks the service worker. */
@@ -45,9 +47,23 @@ export type PopupAsk =
   | { kind: "status" }
   | { kind: "pair"; code: string; server: string }
   | { kind: "accept" }
+  | { kind: "review" }
   | { kind: "dismiss" }
   | { kind: "pause" }
   | { kind: "share" }
   | { kind: "handback" }
   | { kind: "settings"; blocked: string[] }
   | { kind: "unpair" };
+
+/** The service worker's answer when it couldn't do what was asked; a `Status` otherwise. */
+export interface Refused {
+  refused: string;
+}
+
+/** What the worker answers a popup or page: the status, or why it couldn't. */
+export type Answer = Status | Refused;
+
+/** Why the worker refused, or null when `answer` is the status (whose own `error` is the link's, not a refusal). */
+export function refusal(answer: Answer): string | null {
+  return "refused" in answer ? answer.refused : null;
+}
