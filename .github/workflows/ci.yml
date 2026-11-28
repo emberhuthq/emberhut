@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      macos:
+        description: "Run the macOS legs whatever changed (otherwise they run only when the Mac build is touched)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +43,51 @@ env:
     libasound2-dev
 
 jobs:
+  # Which operating systems the clippy, test and build jobs run on. macOS runners are the scarce
+  # ones, so a pull request whose every changed file is outside what the Mac app, the hut's server
+  # and the release pipeline build (the phone app, the site's pages, docs, the JS packages, the
+  # relay) runs those jobs on Linux and Windows only. Any other file, and every push to main, a
+  # tag or a manual run with `macos` set, runs all three. The list below is of paths known to stay
+  # out of the Mac build; a path missing from it errs towards running macOS.
+  changes:
+    name: what changed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      os: ${{ steps.os.outputs.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: os
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          MANUAL_MACOS: ${{ inputs.macos }}
+        run: |
+          all='["linux","macos","windows"]'
+          if [ "$EVENT" = pull_request ]; then
+            git fetch --quiet --depth=1 origin "$BASE"
+            from=$BASE
+          elif [ "$EVENT" = workflow_dispatch ] && [ "$MANUAL_MACOS" != true ]; then
+            git fetch --quiet --depth=1 origin main
+            from=FETCH_HEAD
+          else
+            echo "os=$all" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Paths outside the Mac build: the desktop embeds site/shared's logos and the Mac helper
+          # reads apps/extension/manifest.json, so those two stay in.
+          mac_free='^(apps/mobile/|apps/web/|apps/extension/|site/|docs/|packages/|deploy/|patches/|crates/emberhut-relay/|\.github/dependabot\.yml$|\.gitleaks[^/]*\.toml$|(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\.md$|LICENSE-|package\.json$|pnpm-(lock|workspace)\.yaml$|\.nvmrc$)'
+          mac_inside='^(site/shared/|apps/extension/manifest\.json$)'
+          changed=$(git diff --name-only "$from" HEAD)
+          printf 'changed:\n%s\n' "$changed"
+          if [ -n "$changed" ] && ! grep -vE "$mac_free" <<<"$changed" | grep -q . && ! grep -qE "$mac_inside" <<<"$changed"; then
+            echo "Nothing the Mac builds changed: no macOS legs."
+            echo 'os=["linux","windows"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "os=$all" >> "$GITHUB_OUTPUT"
+          fi
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-24.04
@@ -54,10 +104,11 @@ jobs:
   # code paths (the hut's folders and processes, a step's files) by a Windows one.
   clippy:
     name: clippy and rustdoc (${{ matrix.os }})
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, macos, windows]
+        os: ${{ fromJSON(needs.changes.outputs.os) }}
     runs-on: ${{ matrix.os == 'macos' && 'macos-15' || matrix.os == 'windows' && 'windows-2025' || 'ubuntu-24.04' }}
     timeout-minutes: ${{ matrix.os == 'windows' && 60 || 40 }}
     steps:
@@ -81,10 +132,11 @@ jobs:
 
   test:
     name: tests (${{ matrix.os }})
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, macos, windows]
+        os: ${{ fromJSON(needs.changes.outputs.os) }}
     runs-on: ${{ matrix.os == 'macos' && 'macos-15' || matrix.os == 'windows' && 'windows-2025' || 'ubuntu-24.04' }}
     timeout-minutes: ${{ matrix.os == 'windows' && 60 || 40 }}
     steps:
@@ -128,10 +180,11 @@ jobs:
   # automation build's `--bench start`; see apps/desktop/README.md.
   build:
     name: build (${{ matrix.os }}, release)
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, macos, windows]
+        os: ${{ fromJSON(needs.changes.outputs.os) }}
     runs-on: ${{ matrix.os == 'macos' && 'macos-15' || matrix.os == 'windows' && 'windows-2025' || 'ubuntu-24.04' }}
     timeout-minutes: ${{ matrix.os == 'windows' && 60 || 40 }}
     steps:
@@ -389,7 +442,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [fmt, clippy, test, build, msi, coverage, deny, machete, secrets, js]
+    needs: [changes, fmt, clippy, test, build, msi, coverage, deny, machete, secrets, js]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
