@@ -1,0 +1,14 @@
+{
+  "machine": "test-runner",
+  "home": "/home/example",
+  "recent": [
+    {
+      "path": "/home/example/work/app",
+      "name": "app",
+      "git": true,
+      "used": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "documents": "/home/example",
+  "projects": []
+}

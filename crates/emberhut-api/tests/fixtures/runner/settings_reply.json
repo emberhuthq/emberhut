@@ -1,0 +1,25 @@
+{
+  "id": "r-1a2b3c4d",
+  "title": "Tidy",
+  "cwd": "/home/example/work/app",
+  "project": null,
+  "status": "waiting",
+  "account": "a-2",
+  "claude": "00000000-0000-4000-8000-000000000000",
+  "worktree": null,
+  "branch": null,
+  "meta": {
+    "direct": true
+  },
+  "created": "2026-01-01T00:00:00.000Z",
+  "updated": "2026-01-01T00:00:00.000Z",
+  "model": null,
+  "effort": "max",
+  "running": false,
+  "doing": null,
+  "since": null,
+  "turn": null,
+  "tokens": null,
+  "agents": [],
+  "queued": 0
+}

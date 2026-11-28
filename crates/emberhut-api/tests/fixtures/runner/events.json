@@ -1,0 +1,351 @@
+[
+  {
+    "machine": "test-runner",
+    "kind": "session",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "idle",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "turn_queued",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "queued",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:1",
+      "n": 1,
+      "prompt": "Tidy the readme\n\n(Files sent to you since your last turn, in /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d: /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d/readme.md (1 KB, from owner))",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": null,
+      "ended": null,
+      "outcome": null,
+      "last": null,
+      "accounts": []
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "turn_started",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:1",
+      "n": 1,
+      "prompt": "Tidy the readme\n\n(Files sent to you since your last turn, in /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d: /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d/readme.md (1 KB, from owner))",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": "2026-01-01T00:00:00.000Z",
+      "ended": null,
+      "outcome": null,
+      "last": null,
+      "accounts": [
+        "a-2"
+      ]
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "activity",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:1",
+      "n": 1,
+      "prompt": "Tidy the readme\n\n(Files sent to you since your last turn, in /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d: /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d/readme.md (1 KB, from owner))",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": "2026-01-01T00:00:00.000Z",
+      "ended": null,
+      "outcome": null,
+      "last": null,
+      "accounts": [
+        "a-2"
+      ]
+    },
+    "doing": "Running: Run the tests"
+  },
+  {
+    "machine": "test-runner",
+    "kind": "turn_finished",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "completed",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:1",
+      "n": 1,
+      "prompt": "Tidy the readme\n\n(Files sent to you since your last turn, in /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d: /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d/readme.md (1 KB, from owner))",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": "2026-01-01T00:00:00.000Z",
+      "ended": "2026-01-01T00:00:00.000Z",
+      "outcome": "completed",
+      "last": "All green.\nSTATUS: done",
+      "accounts": [
+        "a-2"
+      ]
+    },
+    "usage": {
+      "tokens": 0,
+      "cost": null
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "turn_queued",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "queued",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:2",
+      "n": 2,
+      "prompt": "ASK",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": null,
+      "ended": null,
+      "outcome": null,
+      "last": null,
+      "accounts": []
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "turn_started",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:2",
+      "n": 2,
+      "prompt": "ASK",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": "2026-01-01T00:00:00.000Z",
+      "ended": null,
+      "outcome": null,
+      "last": null,
+      "accounts": [
+        "a-2"
+      ]
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "question",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:2",
+      "n": 2,
+      "prompt": "ASK",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": "2026-01-01T00:00:00.000Z",
+      "ended": null,
+      "outcome": null,
+      "last": null,
+      "accounts": [
+        "a-2"
+      ]
+    },
+    "text": "Which one?"
+  },
+  {
+    "machine": "test-runner",
+    "kind": "turn_finished",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "waiting",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high"
+    },
+    "turn": {
+      "id": "r-1a2b3c4d:2",
+      "n": 2,
+      "prompt": "ASK",
+      "by": "owner",
+      "requested": "2026-01-01T00:00:00.000Z",
+      "started": "2026-01-01T00:00:00.000Z",
+      "ended": "2026-01-01T00:00:00.000Z",
+      "outcome": "completed",
+      "last": "Asked.",
+      "accounts": [
+        "a-2"
+      ]
+    },
+    "usage": {
+      "tokens": 0,
+      "cost": null
+    }
+  },
+  {
+    "machine": "test-runner",
+    "kind": "note",
+    "at": "2026-01-01T00:00:00.000Z",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "waiting",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "max"
+    },
+    "text": "Settings changed"
+  }
+]

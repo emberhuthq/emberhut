@@ -1,0 +1,410 @@
+[
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "idle",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": false,
+      "doing": null,
+      "since": null,
+      "turn": null,
+      "tokens": null,
+      "agents": [],
+      "queued": 0
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 1,
+      "turn": null,
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "system",
+      "text": "File from owner: /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d/readme.md"
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 2,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "user",
+      "text": "Tidy the readme",
+      "by": "owner"
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "queued",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": false,
+      "doing": null,
+      "since": null,
+      "turn": null,
+      "tokens": null,
+      "agents": [],
+      "queued": 1
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": true,
+      "doing": null,
+      "since": "2026-01-01T00:00:00.000Z",
+      "turn": "r-1a2b3c4d:1",
+      "tokens": 0,
+      "agents": [],
+      "queued": 0
+    }
+  },
+  {
+    "type": "think",
+    "turn": "r-1a2b3c4d:1",
+    "start": true,
+    "text": "",
+    "since": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "type": "tokens",
+    "turn": "r-1a2b3c4d:1",
+    "tokens": 0
+  },
+  {
+    "type": "think",
+    "turn": "r-1a2b3c4d:1",
+    "text": "Look first"
+  },
+  {
+    "type": "delta",
+    "turn": "r-1a2b3c4d:1",
+    "start": true,
+    "text": ""
+  },
+  {
+    "type": "delta",
+    "turn": "r-1a2b3c4d:1",
+    "text": "Hel"
+  },
+  {
+    "type": "tokens",
+    "turn": "r-1a2b3c4d:1",
+    "tokens": 0
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 3,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "thinking",
+      "text": "Look first",
+      "ms": 0
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 4,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "text",
+      "text": "Hello"
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 5,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "tool",
+      "id": "call-1",
+      "name": "Bash",
+      "summary": "npm test",
+      "doing": "Running: Run the tests",
+      "input": "{\n \"command\": \"npm test\",\n \"description\": \"Run the tests\"\n}"
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": true,
+      "doing": "Running: Run the tests",
+      "since": "2026-01-01T00:00:00.000Z",
+      "turn": "r-1a2b3c4d:1",
+      "tokens": 0,
+      "agents": [],
+      "queued": 0
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": true,
+      "doing": "Running: Run the tests",
+      "since": "2026-01-01T00:00:00.000Z",
+      "turn": "r-1a2b3c4d:1",
+      "tokens": 0,
+      "agents": [],
+      "queued": 0
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 6,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "result",
+      "id": "call-1",
+      "error": false,
+      "text": "ok\n2 passed",
+      "lines": 2
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 7,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "tool",
+      "id": "call-2",
+      "name": "Edit",
+      "summary": "/w/a.ts",
+      "doing": "Editing a.ts",
+      "input": "{\n \"file_path\": \"/w/a.ts\",\n \"old_string\": \"old\",\n \"new_string\": \"new\"\n}",
+      "diff": "- old\n+ new"
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": true,
+      "doing": "Editing a.ts",
+      "since": "2026-01-01T00:00:00.000Z",
+      "turn": "r-1a2b3c4d:1",
+      "tokens": 0,
+      "agents": [],
+      "queued": 0
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 8,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "result",
+      "id": "call-2",
+      "error": false,
+      "text": "edited",
+      "lines": 1
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 9,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "tool",
+      "id": "call-3",
+      "name": "TodoWrite",
+      "summary": "",
+      "doing": "Updating its to-do list",
+      "input": "{\n \"todos\": [\n  {\n   \"content\": \"Test\",\n   \"status\": \"in_progress\",\n   \"activeForm\": \"Testing\"\n  }\n ]\n}"
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 10,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "todos",
+      "todos": [
+        {
+          "content": "Test",
+          "status": "in_progress",
+          "activeForm": "Testing"
+        }
+      ]
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "running",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": true,
+      "doing": "Updating its to-do list",
+      "since": "2026-01-01T00:00:00.000Z",
+      "turn": "r-1a2b3c4d:1",
+      "tokens": 0,
+      "agents": [],
+      "queued": 0
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 11,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "result",
+      "id": "call-3",
+      "error": false,
+      "text": "ok",
+      "lines": 1
+    }
+  },
+  {
+    "type": "step",
+    "step": {
+      "seq": 12,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "end",
+      "outcome": "completed",
+      "n": 1
+    }
+  },
+  {
+    "type": "head",
+    "session": {
+      "id": "r-1a2b3c4d",
+      "title": "Tidy",
+      "cwd": "/home/example/work/app",
+      "project": null,
+      "status": "completed",
+      "account": "a-2",
+      "claude": "00000000-0000-4000-8000-000000000000",
+      "worktree": null,
+      "branch": null,
+      "meta": {
+        "direct": true
+      },
+      "created": "2026-01-01T00:00:00.000Z",
+      "updated": "2026-01-01T00:00:00.000Z",
+      "model": null,
+      "effort": "high",
+      "running": false,
+      "doing": null,
+      "since": null,
+      "turn": null,
+      "tokens": null,
+      "agents": [],
+      "queued": 0
+    }
+  }
+]

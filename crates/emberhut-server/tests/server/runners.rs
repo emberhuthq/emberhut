@@ -63,6 +63,42 @@ async fn state(app: &TestApp) -> State {
     answer.read_as()
 }
 
+/// The events the runner (`apps/runner`) sent in its own tests, recorded with stable times and ids
+/// (`fixtures/runner/events.json`), reported again here as the build runner: they make the session
+/// the runner had, with its ask, its question and its answer.
+#[tokio::test]
+pub(crate) async fn a_recorded_runners_events_make_its_session() {
+    let app = app().await;
+    let Value::Array(events) = crate::common::fixture("runner/events.json") else {
+        panic!("a list of events");
+    };
+    assert_ne!(events.len(), 0, "the record has events");
+    for mut event in events {
+        event["machine"] = json!("build");
+        let answer = report(&app, BUILD, &event).await;
+        assert_eq!(answer.status, 200, "{event}: {}", answer.text);
+    }
+    let session = app.sign_in().await;
+    let listed: SessionsPage = app
+        .call(Call::get("/api/runner/sessions").token(&session))
+        .await
+        .read_as();
+    let one = &listed.sessions[0];
+    assert_eq!(one.id.as_str(), "r-1a2b3c4d");
+    assert!(one.direct);
+    assert_eq!(one.status, "waiting");
+    assert_eq!(one.question.as_deref(), Some("Which one?"));
+    assert_eq!(one.last.as_deref(), Some("Asked."));
+    assert!(
+        one.ask
+            .as_deref()
+            .is_some_and(|ask| ask.starts_with("Tidy the readme")),
+        "the first ask: {:?}",
+        one.ask
+    );
+    assert_eq!(one.account.as_deref(), Some("a-2"));
+}
+
 #[tokio::test]
 pub(crate) async fn a_runners_events_make_its_sessions() {
     let app = app().await;

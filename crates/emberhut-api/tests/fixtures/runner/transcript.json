@@ -1,0 +1,179 @@
+{
+  "session": {
+    "id": "r-1a2b3c4d",
+    "title": "Tidy",
+    "cwd": "/home/example/work/app",
+    "project": null,
+    "status": "waiting",
+    "account": "a-2",
+    "claude": "00000000-0000-4000-8000-000000000000",
+    "worktree": null,
+    "branch": null,
+    "meta": {
+      "direct": true
+    },
+    "created": "2026-01-01T00:00:00.000Z",
+    "updated": "2026-01-01T00:00:00.000Z",
+    "model": null,
+    "effort": "high",
+    "running": false
+  },
+  "events": [
+    {
+      "seq": 1,
+      "turn": null,
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "system",
+      "text": "File from owner: /home/example/.local/share/emberhut-runner/inbox/r-1a2b3c4d/readme.md"
+    },
+    {
+      "seq": 2,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "user",
+      "text": "Tidy the readme",
+      "by": "owner"
+    },
+    {
+      "seq": 3,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "thinking",
+      "text": "Look first",
+      "ms": 0
+    },
+    {
+      "seq": 4,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "text",
+      "text": "Hello"
+    },
+    {
+      "seq": 5,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "tool",
+      "id": "call-1",
+      "name": "Bash",
+      "summary": "npm test",
+      "doing": "Running: Run the tests",
+      "input": "{\n \"command\": \"npm test\",\n \"description\": \"Run the tests\"\n}"
+    },
+    {
+      "seq": 6,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "result",
+      "id": "call-1",
+      "error": false,
+      "text": "ok\n2 passed",
+      "lines": 2
+    },
+    {
+      "seq": 7,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "tool",
+      "id": "call-2",
+      "name": "Edit",
+      "summary": "/w/a.ts",
+      "doing": "Editing a.ts",
+      "input": "{\n \"file_path\": \"/w/a.ts\",\n \"old_string\": \"old\",\n \"new_string\": \"new\"\n}",
+      "diff": "- old\n+ new"
+    },
+    {
+      "seq": 8,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "result",
+      "id": "call-2",
+      "error": false,
+      "text": "edited",
+      "lines": 1
+    },
+    {
+      "seq": 9,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "tool",
+      "id": "call-3",
+      "name": "TodoWrite",
+      "summary": "",
+      "doing": "Updating its to-do list",
+      "input": "{\n \"todos\": [\n  {\n   \"content\": \"Test\",\n   \"status\": \"in_progress\",\n   \"activeForm\": \"Testing\"\n  }\n ]\n}"
+    },
+    {
+      "seq": 10,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "todos",
+      "todos": [
+        {
+          "content": "Test",
+          "status": "in_progress",
+          "activeForm": "Testing"
+        }
+      ]
+    },
+    {
+      "seq": 11,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "result",
+      "id": "call-3",
+      "error": false,
+      "text": "ok",
+      "lines": 1
+    },
+    {
+      "seq": 12,
+      "turn": "r-1a2b3c4d:1",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "end",
+      "outcome": "completed",
+      "n": 1
+    },
+    {
+      "seq": 13,
+      "turn": "r-1a2b3c4d:2",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "user",
+      "text": "ASK",
+      "by": "owner"
+    },
+    {
+      "seq": 14,
+      "turn": "r-1a2b3c4d:2",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "question",
+      "id": "call-ask",
+      "questions": [
+        {
+          "question": "Which one?",
+          "header": "Pick",
+          "multiSelect": false,
+          "options": [
+            {
+              "label": "The first",
+              "description": null
+            },
+            {
+              "label": "The second",
+              "description": "Slower"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seq": 15,
+      "turn": "r-1a2b3c4d:2",
+      "at": "2026-01-01T00:00:00.000Z",
+      "kind": "end",
+      "outcome": "completed",
+      "n": 2
+    }
+  ],
+  "earlier": false
+}

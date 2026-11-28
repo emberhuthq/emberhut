@@ -48,6 +48,8 @@ mod requests;
 #[cfg(test)]
 mod runner;
 #[cfg(test)]
+mod runner_recorded;
+#[cfg(test)]
 mod settings;
 #[cfg(test)]
 mod setup;

@@ -1,0 +1,13 @@
+{
+  "machine": "test-runner",
+  "home": "/home/example",
+  "path": "/home/example/work/app",
+  "git": true,
+  "folders": [
+    {
+      "path": "/home/example/work/app/docs",
+      "name": "docs",
+      "git": false
+    }
+  ]
+}
