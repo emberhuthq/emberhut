@@ -896,9 +896,10 @@ other method than `POST` is 405 `{ "error": "POST only" }`, token or not. Each t
 The same transport and messages as `POST /mcp/emberhut`, for the runners' sessions. The bearer
 is the runner sessions' token, which only `GET /api/runner/mcp` hands out (one per server
 process: after a restart the old one is 401 `{ "error": "unknown caller" }`, as is a missing or
-a room's token). Its tools are `task`, `plan_set`, `plan_step` and `plan_read`; a plan is written
-only by a session the `x-emberhut-session` header names that is linked to the plan's task, and
-read by any (ADR 0035).
+a room's token). Its tools are `task`, `plan_set`, `plan_step` and `plan_read`. A session the
+`x-emberhut-session` header names that is linked to tasks writes only their plans; a call naming
+no such session writes the task it names, as a room token does, and leaving the task out is
+refused with a message naming the header (ADR 0035).
 
 ## Party
 

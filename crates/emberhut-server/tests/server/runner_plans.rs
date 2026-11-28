@@ -1,6 +1,7 @@
 //! The runner sessions' endpoint (`POST` [`emberhut_api::paths::MCP_RUNNER`], `--task-plans`):
 //! the server's own entry in the runners' shared MCP list, with the runner sessions' token; the
-//! short list of tools the token reaches; and plan writes only as a session linked to its task.
+//! short list of tools the token reaches; and plan writes: a linked session's own tasks only, a
+//! call naming no linked session the task it names.
 #![expect(
     clippy::unwrap_used,
     reason = "test helpers: a failure here fails the test that called them"
@@ -280,27 +281,41 @@ pub(crate) async fn the_runner_sessions_token_reaches_only_its_task_and_plan_too
 }
 
 #[tokio::test]
-pub(crate) async fn a_runner_session_writes_only_its_linked_task_s_plan() {
+#[expect(
+    clippy::too_many_lines,
+    reason = "one story: unnamed sessions, a linked one, then a room's token"
+)]
+pub(crate) async fn a_runner_session_writes_its_linked_task_s_plan_or_the_one_it_names() {
     let app = app(true).await;
     let token = listed_token(&app).await;
     let mine = task(&app, "the lexer").await;
     let other = task(&app, "the parser").await;
 
-    // No session, an unexpanded one, one the server doesn't know: reads only.
+    // No session, an unexpanded one, one the server doesn't know: as a room token, a write
+    // names its task; left out, the call is told the session header names none.
     for session in [None, Some(SESSION_HEADER_VALUE), Some("r-0ff")] {
         let write = as_runner(
             &app,
             &token,
             session,
             "plan_set",
-            json!({ "task": mine.get(), "steps": [{ "title": "Tokens" }] }),
+            json!({ "task": other.get(), "steps": [{ "title": "Draft" }] }),
         )
         .await;
-        let refused = error(&write);
-        assert!(refused.contains(SESSION_HEADER), "{session:?}: {refused}");
         assert!(
-            refused.starts_with("Writing a plan needs the runner session"),
-            "{refused}"
+            ok(&write).starts_with(&format!("Plan of {}", other.key())),
+            "{session:?}: {write:?}"
+        );
+        assert_eq!(
+            app.state
+                .tasks()
+                .history_of(other)
+                .await
+                .unwrap()
+                .last()
+                .unwrap()
+                .who,
+            Who::Assistant
         );
         let step = as_runner(
             &app,
@@ -310,7 +325,12 @@ pub(crate) async fn a_runner_session_writes_only_its_linked_task_s_plan() {
             json!({ "add": { "title": "Tokens" } }),
         )
         .await;
-        assert!(error(&step).contains(SESSION_HEADER), "{session:?}");
+        let refused = error(&step);
+        assert!(
+            refused.starts_with("Say which task (task: its number or key, T-12)")
+                && refused.contains(SESSION_HEADER),
+            "{session:?}: {refused}"
+        );
         let read = as_runner(
             &app,
             &token,
@@ -321,7 +341,7 @@ pub(crate) async fn a_runner_session_writes_only_its_linked_task_s_plan() {
         .await;
         assert!(ok(&read).contains("No plan yet"), "{session:?}");
         let unnamed = as_runner(&app, &token, session, "plan_read", json!({})).await;
-        assert!(error(&unnamed).starts_with("Say which task"));
+        assert!(error(&unnamed).contains(SESSION_HEADER), "{session:?}");
     }
     let full = as_runner(&app, &token, None, "task", json!({ "id": mine.get() })).await;
     let full: Value = serde_json::from_str(ok(&full)).unwrap();
