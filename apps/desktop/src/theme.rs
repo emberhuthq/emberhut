@@ -4,7 +4,8 @@
 //! server's own, so they are the server's default to the last digit.
 
 use emberhut_api::theme::{
-    Contrast, ContrastFacts, DEFAULT_PRESET, Preset, ThemeChoice, ThemePage, TokenPair, Tokens,
+    Contrast, ContrastFacts, DEFAULT_PRESET, EmberTint, Preset, ThemeChoice, ThemePage, TokenPair,
+    Tokens,
 };
 use emberhut_core::theme as rules;
 
@@ -12,7 +13,7 @@ use emberhut_core::theme as rules;
 const BUILT_IN_PRESETS: [&str; 2] = [DEFAULT_PRESET, "blue"];
 
 /// The built-in theme: the server's default (paper, as the system is, never set), with blue
-/// to pick as well.
+/// to pick as well, and the ember's tints.
 #[must_use]
 pub(crate) fn built_in() -> ThemePage {
     let (_, light) = rules::resolve(DEFAULT_PRESET, None, false);
@@ -41,6 +42,13 @@ pub(crate) fn built_in() -> ThemePage {
             aa,
         },
         names: rules::NAMES.iter().map(|name| (*name).to_owned()).collect(),
+        tints: rules::TINTS
+            .iter()
+            .map(|tint| EmberTint {
+                id: tint.id.into(),
+                name: tint.name.into(),
+            })
+            .collect(),
     }
 }
 

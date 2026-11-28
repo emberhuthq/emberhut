@@ -5,7 +5,9 @@
 use gpui_kit::component::IconName;
 use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::prelude::*;
-use gpui_kit::{Action, Div, ElementId, SharedString, Stateful, div, px, transparent_black};
+use gpui_kit::{
+    Action, Div, ElementId, FontWeight, SharedString, Stateful, div, px, transparent_black,
+};
 
 use super::a11y::Accessible as _;
 use super::palette::Pal;
@@ -19,6 +21,27 @@ pub(crate) fn tab_stop(element: Stateful<Div>, p: &Pal) -> Stateful<Div> {
         .border_color(transparent_black())
         .tab_index(0)
         .focus_visible(move |style| style.border_color(ring))
+}
+
+/// One segment of a segmented switch (System, Light, Dark), raised while it is the one `on`.
+pub(crate) fn segment(id: &'static str, label: &'static str, on: bool, p: &Pal) -> Stateful<Div> {
+    div()
+        .id(id)
+        .button_named(label)
+        .aria_selected(on)
+        .px(px(12.))
+        .py(px(5.))
+        .rounded(px(7.))
+        .cursor_pointer()
+        .text_size(px(12.5))
+        .when(on, |d| {
+            d.bg(p.surface)
+                .border_1()
+                .border_color(p.border)
+                .font_weight(FontWeight::SEMIBOLD)
+        })
+        .when(!on, |d| d.text_color(p.muted))
+        .child(label)
 }
 
 /// Shows `text` on hover over `element`.

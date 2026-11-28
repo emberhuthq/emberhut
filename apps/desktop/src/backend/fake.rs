@@ -105,8 +105,8 @@ pub(crate) enum Call {
     PairWithMachine(String, emberhut_identity::MachineId),
     /// A link statement asked of the server.
     LinkStatement(emberhut_api::connect::LinkStatementRequest),
-    /// A theme change: its preset, and whether it was only a preview.
-    ChangeTheme(Option<String>, bool),
+    /// A theme change, as sent.
+    ChangeTheme(ThemeChange),
     /// A rename of the ember: the name sent (none: back to the default).
     RenameEmber(Option<String>),
     /// The machines.
@@ -680,15 +680,18 @@ impl Backend for FakeBackend {
         Self::unavailable()
     }
 
-    /// The built-in theme, with the change's preset and appearance.
+    /// The built-in theme, with the change's preset, appearance and tint.
     fn change_theme(&self, change: &ThemeChange) -> Result<ThemePage, Error> {
-        self.record(Call::ChangeTheme(change.preset.clone(), change.preview));
+        self.record(Call::ChangeTheme(change.clone()));
         let mut page = crate::theme::built_in();
         if let Some(preset) = &change.preset {
             page.choice.preset.clone_from(preset);
         }
         if let Some(appearance) = &change.appearance {
             page.choice.appearance = appearance.clone();
+        }
+        if let Some(tint) = &change.ember_tint {
+            page.choice.ember_tint.clone_from(tint);
         }
         Ok(page)
     }

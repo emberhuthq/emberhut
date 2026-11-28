@@ -1283,3 +1283,43 @@ fn appearance_hides_the_agents_moves_them_and_still_opens_their_rooms(cx: &mut T
         "a wide window keeps Settings open beside the chat, as the sidebar's row does"
     );
 }
+
+#[gpui_kit::test]
+fn appearance_opens_your_embers_look_where_it_lives(cx: &mut TestAppContext) {
+    use super::appearance::LOOK_ROW;
+
+    let (_backend, _store, main, view, mut cx) = open_front_door(cx);
+    cx.update(|window, cx| {
+        crate::ui::routes::open_settings(Some(SettingsPane::Appearance), window, cx);
+    });
+    cx.run_until_parked();
+    draws_light_and_dark(&mut cx, &[LOOK_ROW]);
+    cx.update(|window, cx| window.click(LOOK_ROW, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Ember))
+    );
+    assert_eq!(
+        view.read_with(&cx, |view, _| view.flash.map(|(id, _)| id)),
+        Some("ember-look"),
+        "its block washed"
+    );
+    draws_light_and_dark(
+        &mut cx,
+        &["ember-look", "look-preset-paper", "look-tint-ember"],
+    );
+}
+
+#[gpui_kit::test]
+fn the_look_is_found_by_theme_and_opens_on_your_embers_page(cx: &mut TestAppContext) {
+    let (_backend, _store, main, _view, mut cx) = open_front_door(cx);
+    search_for("theme", &mut cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        column_shows(&main, &cx),
+        Some(Page::SettingsPane(SettingsPane::Ember))
+    );
+    draws_light_and_dark(&mut cx, &["look-mode-dark"]);
+}
