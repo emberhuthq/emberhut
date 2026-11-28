@@ -2,8 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { taskKey, type Issue, type EmberhutState, type Project, type RunnerSession } from "@/api";
-import { RecentRow, RunningRow } from "@/features/sessions/SessionRows";
-import { allSessions, isRunning, shortTitle } from "@/features/sessions/sessionList";
+import { allSessions, isRunning } from "@/features/sessions/sessionList";
 import { inBackground } from "@/log";
 import type { TabScreenProps } from "@/navigation/types";
 import { useActions, useConnection } from "@/state/hooks";
@@ -16,6 +15,7 @@ import { flatTasks, subtasksOf, taskOverview } from "./model";
 import { tasklessSessions } from "./plan";
 import { planLists, quietMinutes } from "./planView";
 import { PlanTaskRow } from "./PlanTaskRow";
+import { SessionItemRow } from "./SessionItemRow";
 import { HealthChip, PriorityMark } from "./ProjectMarks";
 import { TaskRow } from "./TaskRow";
 import { useTaskPlans } from "./useTaskPlans";
@@ -96,7 +96,6 @@ function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; g
   const now = new Date();
   const name = (pid: number | null | undefined) => (state.ui?.hideProjects ? null : state.projects?.find((p) => p.id === pid)?.name);
   const row = (t: Issue) => <PlanTaskRow key={`t${t.id}`} task={t} project={name(t.pid)} quiet={quietMinutes(t, every, now)} />;
-  const open = (s: RunnerSession) => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) });
   return (
     <>
       {lists.needs > 0 ? (
@@ -112,7 +111,7 @@ function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; g
       <Section title="Running" count={lists.running.length + running.length}>
         {lists.running.map(row)}
         {running.map((s) => (
-          <RunningRow key={`s${s.id}`} session={s} onOpen={() => open(s)} />
+          <SessionItemRow key={`s${s.id}`} session={s} />
         ))}
       </Section>
       <Section title="Blocked" count={lists.blocked.length} tone="danger">
@@ -132,11 +131,10 @@ function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; g
 
 /** Sessions with no task that aren't running: waiting on you, or finished in the last day. Each opens its session. */
 function OtherSessions({ sessions }: { sessions: RunnerSession[] }) {
-  const navigation = useNavigation();
   return (
     <Section title="Sessions with no task" footer="Every session, with filters: More › Sessions.">
       {sessions.map((s) => (
-        <RecentRow key={s.id} session={s} onOpen={() => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) })} />
+        <SessionItemRow key={s.id} session={s} />
       ))}
     </Section>
   );

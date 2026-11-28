@@ -202,7 +202,8 @@ describe("the checklist", () => {
     expect(stepLink("https://github.com/example/app/pull/7")).toEqual({ kind: "web", text: "github.com/…/pull/7" });
     expect(stepLink("https://www.example.com/")).toEqual({ kind: "web", text: "example.com" });
     expect(stepLink("https://example.com/docs/plan?x=1")).toEqual({ kind: "web", text: "example.com/docs/plan" });
-    expect(stepLink("/api/artifacts/12")).toEqual({ kind: "server", text: "12" });
+    expect(stepLink("/api/artifacts/12")).toEqual({ kind: "server", text: "The file" });
+    expect(stepLink("/files/Emberhut-2.4.dmg")).toEqual({ kind: "server", text: "Emberhut-2.4.dmg" });
     expect(stepLink("//elsewhere.example.com/x")).toEqual({ kind: "text", text: "//elsewhere.example.com/x" });
     expect(stepLink("  ")).toBeNull();
   });
