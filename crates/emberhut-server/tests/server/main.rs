@@ -95,6 +95,7 @@ mod slack;
 mod slack_live;
 mod state_route;
 mod talk_routes;
+mod task_plans;
 mod task_tools;
 mod tasks;
 mod theme_route;

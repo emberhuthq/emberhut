@@ -217,7 +217,8 @@ pub(super) async fn machine(
 }
 
 /// The MCP servers the runners' sessions get too, as the server's operator listed them (none
-/// when no list is configured).
+/// when no list is configured). On a server that keeps tasks' plans, the entry for the server's
+/// own MCP endpoint gets the session header too, so each session's calls name the session.
 #[utoipa::path(
     get,
     path = "/api/runner/mcp",
@@ -250,9 +251,47 @@ pub(super) async fn mcp(State(app): State<AppState>, Runner(machine): Runner) ->
             Map::new()
         }
     };
+    let servers = if app.task_plans() {
+        servers
+            .into_iter()
+            .map(|(name, entry)| (name, with_session(entry)))
+            .collect()
+    } else {
+        servers
+    };
     Json(SharedMcp {
         mcp_servers: servers,
     })
+}
+
+/// `entry` of the shared MCP list, with the session header
+/// ([`emberhut_api::wire::mcp::SESSION_HEADER`], the session's id from the variable the runner
+/// sets) when its URL is this server's MCP endpoint and it doesn't set that header itself.
+fn with_session(mut entry: Value) -> Value {
+    let ours = entry.get("url").and_then(Value::as_str).is_some_and(|url| {
+        let url = url.split(['?', '#']).next().unwrap_or_default();
+        url.trim_end_matches('/')
+            .ends_with(emberhut_api::wire::mcp::ROOM_PATH)
+    });
+    if !ours {
+        return entry;
+    }
+    if let Value::Object(fields) = &mut entry {
+        let headers = fields
+            .entry("headers")
+            .or_insert_with(|| Value::Object(Map::new()));
+        if let Value::Object(headers) = headers
+            && !headers
+                .keys()
+                .any(|name| name.eq_ignore_ascii_case(emberhut_api::wire::mcp::SESSION_HEADER))
+        {
+            headers.insert(
+                emberhut_api::wire::mcp::SESSION_HEADER.to_owned(),
+                Value::from(emberhut_api::wire::mcp::SESSION_HEADER_VALUE),
+            );
+        }
+    }
+    entry
 }
 
 /// `?history=0` leaves each machine's last day out.

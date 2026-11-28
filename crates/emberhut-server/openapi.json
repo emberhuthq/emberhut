@@ -2592,7 +2592,7 @@
         "tags": [
           "runners"
         ],
-        "summary": "The MCP servers the runners' sessions get too, as the server's operator listed them (none\nwhen no list is configured).",
+        "summary": "The MCP servers the runners' sessions get too, as the server's operator listed them (none\nwhen no list is configured). On a server that keeps tasks' plans, the entry for the server's\nown MCP endpoint gets the session header too, so each session's calls name the session.",
         "operationId": "mcp",
         "responses": {
           "200": {
@@ -12327,6 +12327,29 @@
           }
         }
       },
+      "CurrentStep": {
+        "type": "object",
+        "description": "The step a task is on: the first one being worked on, else the first not started.",
+        "required": [
+          "id",
+          "title",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/u32",
+            "description": "Its id."
+          },
+          "title": {
+            "type": "string",
+            "description": "Its title."
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState",
+            "description": "Its state: `doing`, `todo` or `blocked`."
+          }
+        }
+      },
       "DarkEvent": {
         "type": "object",
         "description": "An event of the answer's stream: one of its fields.",
@@ -12718,6 +12741,10 @@
           "hideProjects": {
             "type": "boolean",
             "description": "Hide the projects."
+          },
+          "taskPlans": {
+            "type": "boolean",
+            "description": "Tasks carry plans: show tasks as the work running, each with its plan, and the\nsessions inside them rather than as a list of their own."
           }
         }
       },
@@ -14631,6 +14658,17 @@
               {
                 "$ref": "#/components/schemas/TaskSend",
                 "description": "What the person's last tap on its send card came to."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlanSummary",
+                "description": "Its plan at a glance, on a server that keeps plans (empty: no plan yet)."
               },
               {
                 "type": "null"
@@ -17051,6 +17089,170 @@
       "PersonaId": {
         "type": "string",
         "description": "A persona: `p1` to `p5` in a party, a ready-made one's own id (`skeptic`) among the\npresets, `recent1`… among the person's own from earlier parties."
+      },
+      "Plan": {
+        "type": "object",
+        "description": "A task's whole plan.",
+        "required": [
+          "summary"
+        ],
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanStep"
+            },
+            "description": "Every step in order: each top-level step, then its sub-steps."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PlanSummary",
+            "description": "The plan at a glance, as the task's row shows it."
+          }
+        }
+      },
+      "PlanStep": {
+        "type": "object",
+        "description": "One step of a plan.",
+        "required": [
+          "id",
+          "title",
+          "state",
+          "updated"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/u32",
+            "description": "Its id."
+          },
+          "parent": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/u32",
+                "description": "The top-level step it is a sub-step of; none for a top-level step."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "What the step is, one short line (`Build the Mac app`)."
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState",
+            "description": "Where it is."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note: what it came to, or what blocks it."
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A link to what it produced (a pull request, a page, a file)."
+          },
+          "started": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When it was first worked on."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When it was done or skipped."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated": {
+            "$ref": "#/components/schemas/Timestamp",
+            "description": "When it last changed."
+          }
+        }
+      },
+      "PlanSummary": {
+        "type": "object",
+        "description": "A plan at a glance.",
+        "required": [
+          "done",
+          "total"
+        ],
+        "properties": {
+          "done": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Steps done (sub-steps in place of the step they make up; skipped ones not counted).",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Steps in all, counted the same way. 0: no plan yet.",
+            "minimum": 0
+          },
+          "current": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CurrentStep",
+                "description": "The step being worked on, or next."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocker": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What blocks the plan: the first blocked step's note, else its title."
+          },
+          "eta": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent's estimate of what is left, in words (`about 2 hours`)."
+          },
+          "updated": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When the plan last changed; none while it is empty and never written."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unplannedTurn": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "A turn of work on the task ended while its plan was still empty: when the last one did."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       },
       "Point": {
         "type": "object",
@@ -19786,6 +19988,17 @@
           }
         }
       },
+      "StepState": {
+        "type": "string",
+        "description": "One of: todo, doing, done, blocked, skipped. A newer server may send another word; clients keep it as it is.",
+        "examples": [
+          "todo",
+          "doing",
+          "done",
+          "blocked",
+          "skipped"
+        ]
+      },
       "StreamMode": {
         "type": "string",
         "description": "One of: control, view. A newer server may send another word; clients keep it as it is.",
@@ -20336,6 +20549,17 @@
                   {
                     "$ref": "#/components/schemas/UltraRun",
                     "description": "Its run's lead and sub-agents, when it is an ultra run, has sub-agents or a worker to\nwatch."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fullPlan": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Plan",
+                    "description": "Its plan, step by step, on a server that keeps plans. On the wire it is `fullPlan`: the\npage's task is flattened into it, and the task's own `plan` is its plan at a glance."
                   },
                   {
                     "type": "null"
@@ -22938,6 +23162,11 @@
             "description": "Where it is."
           }
         }
+      },
+      "u32": {
+        "type": "integer",
+        "format": "int32",
+        "minimum": 0
       }
     },
     "securitySchemes": {
