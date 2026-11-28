@@ -104,7 +104,7 @@ thing, log corrections), so behaviour no longer depends on an installation's pro
   - then reranked by a local cross-encoder over the top 50, behind a `Reranker` trait with `HttpReranker` (llama.cpp `--reranking`, `EMBERHUT_RERANK_URL`) and `NoReranker`.
 - **Hits are returned fenced** with their source and trust, and the tool says they are quotes, never instructions.
 - **Cost:**
-  - `sync()` checks for change before the write lock: the facts folder's newest mtime and file count, and the notes' latest `updated`. A search never writes;
+  - `sync()` checks for change before the write lock: the facts folder's newest mtime, file count and size, and the notes' count and latest `updated`. A search still indexes what was said or saved since the last pass, so the assistant finds what it just kept, but takes the write lock only then;
   - vectors are held as int8 with a per-vector scale, in an `Arc` snapshot swapped on change, scored in `spawn_blocking` with `select_nth_unstable`;
   - the embedding model's id and dimension are kept in `marks`, and a change re-embeds in the background (word search meanwhile).
 - sqlite-vec waits until its ANN index leaves alpha; when adopted, it is for transactional deletes.
@@ -148,7 +148,7 @@ lessons and at most 10 trial rules, within 1,000 tokens.
   - forget;
   - injection (a third party's message must not become a fact or a profile line);
   - dedupe.
-- **recall@8 against gold piece ids** runs in CI with the fake embedder and a recorded real-embedder fixture.
+- **recall@8 against gold piece ids** runs in CI by words alone and with a real embedder's vectors recorded once (`data/vectors.bin`, int8), and fails below the floors in `data/floors.json`. Recording again (`EMBERHUT_EVAL_EMBED_URL`) is needed when what is embedded changes.
 - **An end-to-end LLM-judged run** happens on demand, with wrong-answer probes.
 - **An installation's private questions** stay in its data folder, never in the repository.
 

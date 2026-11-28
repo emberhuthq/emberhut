@@ -38,7 +38,6 @@ pub(crate) struct Chat {
     pub(crate) key: String,
     pub(crate) at: String,
     pub(crate) who: String,
-    pub(crate) room: String,
     pub(crate) text: String,
 }
 

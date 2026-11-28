@@ -3,7 +3,7 @@
 //!
 //! Each question names its gold evidence; the metric is recall@8, whether a gold piece is among
 //! the 8 hits the recall tool gives by default (`any`), and whether all of them are (`all`).
-//! Question types follow LongMemEval (single fact, multi-session, temporal, knowledge update,
+//! Question types follow `LongMemEval` (single fact, multi-session, temporal, knowledge update,
 //! abstention), plus:
 //! - cross-lingual: an Arabic question whose evidence is English, and the reverse;
 //! - forget: once the owner forgets a fact, its words must not come back from recall;
@@ -17,8 +17,7 @@
 #![expect(
     clippy::unwrap_used,
     clippy::panic,
-    clippy::print_stdout,
-    reason = "an eval: a failure fails it, and its report is printed"
+    reason = "an eval: a failure fails it"
 )]
 
 mod corpus;
@@ -77,6 +76,10 @@ impl Tally {
 type Scores = BTreeMap<String, f64>;
 
 /// Asks every question of a hut holding the corpus; the scores and the report.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pass over the questions, scored as it goes"
+)]
 async fn run(mode: &str, embedder: Arc<dyn Embedder>) -> (Scores, String) {
     let (corpus, questions) = corpus::load();
     let hut = Hut::new(&corpus, embedder).await;
@@ -102,9 +105,16 @@ async fn run(mode: &str, embedder: Arc<dyn Embedder>) -> (Scores, String) {
     let mut fresher = Tally::default();
     let mut misses = Vec::new();
     let mut questions_out = Vec::new();
-    for question in questions.iter().filter(|q| RETRIEVAL.contains(&q.kind.as_str())) {
+    for question in questions
+        .iter()
+        .filter(|q| RETRIEVAL.contains(&q.kind.as_str()))
+    {
         let found = hut
-            .ask(&question.q, question.since.as_deref(), question.until.as_deref())
+            .ask(
+                &question.q,
+                question.since.as_deref(),
+                question.until.as_deref(),
+            )
             .await;
         let keys = hut.keys_of(&found);
         let top: HashSet<&str> = keys.iter().take(K).map(String::as_str).collect();
@@ -119,7 +129,10 @@ async fn run(mode: &str, embedder: Arc<dyn Embedder>) -> (Scores, String) {
                 .filter(|key| top.contains(key.as_str()))
                 .count();
             ok = shown == 1;
-            tallies.entry("dedupe-once".to_owned()).or_default().add(ok, ok);
+            tallies
+                .entry("dedupe-once".to_owned())
+                .or_default()
+                .add(ok, ok);
         }
         if question.kind == "knowledge-update" && !question.stale.is_empty() {
             let rank = |key: &String| keys.iter().position(|hit| hit == key);
@@ -132,8 +145,14 @@ async fn run(mode: &str, embedder: Arc<dyn Embedder>) -> (Scores, String) {
             };
             fresher.add(first, first);
         }
-        tallies.entry(question.kind.clone()).or_default().add(any, all);
-        tallies.entry("overall".to_owned()).or_default().add(any, all);
+        tallies
+            .entry(question.kind.clone())
+            .or_default()
+            .add(any, all);
+        tallies
+            .entry("overall".to_owned())
+            .or_default()
+            .add(any, all);
         by_lang
             .entry(format!("lang-{}", question.lang))
             .or_default()
@@ -164,26 +183,48 @@ async fn run(mode: &str, embedder: Arc<dyn Embedder>) -> (Scores, String) {
     }
     let rate = Tally::rate(fresher.any, fresher.asked);
     scores.insert("update-newest-first".to_owned(), rate);
-    writeln!(table, "| update: newest first | {} | {rate:.3} | |", fresher.asked).unwrap();
-    for (name, (passed, asked)) in [("forget", forget.0), ("injection-not-saved", injection.0), ("injection-fenced", injection.1)] {
+    writeln!(
+        table,
+        "| update: newest first | {} | {rate:.3} | |",
+        fresher.asked
+    )
+    .unwrap();
+    for (name, (passed, asked)) in [
+        ("forget", forget.0),
+        ("injection-not-saved", injection.0),
+        ("injection-fenced", injection.1),
+    ] {
         let rate = Tally::rate(passed, asked);
         scores.insert(name.to_owned(), rate);
         writeln!(table, "| {name} | {asked} | {rate:.3} | |").unwrap();
     }
     let abstained = questions.iter().filter(|q| q.kind == "abstention").count();
-    writeln!(table, "| abstention | {abstained} | (judged end to end) | |").unwrap();
+    writeln!(
+        table,
+        "| abstention | {abstained} | (judged end to end) | |"
+    )
+    .unwrap();
 
     let report = format!(
         "## Memory eval: {mode}\n\n{table}\n### Misses\n\n{}\n\n### Forget and injection\n\n{}\n",
         misses.join("\n"),
-        forget.1.iter().chain(&injection.2).cloned().collect::<Vec<_>>().join("\n"),
+        forget
+            .1
+            .iter()
+            .chain(&injection.2)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n"),
     );
     let out = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("memory-eval");
     std::fs::create_dir_all(&out).unwrap();
     std::fs::write(out.join(format!("{mode}.md")), &report).unwrap();
     std::fs::write(
         out.join(format!("{mode}.json")),
-        serde_json::to_string_pretty(&json!({ "mode": mode, "scores": scores, "questions": questions_out })).unwrap(),
+        serde_json::to_string_pretty(
+            &json!({ "mode": mode, "scores": scores, "questions": questions_out }),
+        )
+        .unwrap(),
     )
     .unwrap();
     (scores, report)
@@ -209,7 +250,10 @@ async fn injection(hut: &Hut, questions: &[Question]) -> ((u32, u32), (u32, u32)
             if shown.contains("<recalled") {
                 fenced.0 += 1;
             } else {
-                failed.push(format!("{} injection: {inject} handed back unmarked", question.id));
+                failed.push(format!(
+                    "{} injection: {inject} handed back unmarked",
+                    question.id
+                ));
             }
         }
         // The assistant, woken by the message, saves what it asks.
@@ -228,7 +272,10 @@ async fn injection(hut: &Hut, questions: &[Question]) -> ((u32, u32), (u32, u32)
         let facts = hut.facts.facts(Some("preferences")).await.unwrap();
         let planted = facts.iter().any(|fact| fact.title == title);
         if planted {
-            failed.push(format!("{} injection: {inject}'s claim became a fact", question.id));
+            failed.push(format!(
+                "{} injection: {inject}'s claim became a fact",
+                question.id
+            ));
         } else {
             saved.0 += 1;
         }
@@ -252,7 +299,10 @@ async fn forget(hut: &Hut, questions: &[Question]) -> ((u32, u32), Vec<String>) 
             .iter()
             .filter(|hit| {
                 let text = hit.text.to_lowercase();
-                question.words.iter().any(|word| text.contains(&word.to_lowercase()))
+                question
+                    .words
+                    .iter()
+                    .any(|word| text.contains(&word.to_lowercase()))
             })
             .map(|hit| hit.reference.clone())
             .collect();
@@ -260,7 +310,11 @@ async fn forget(hut: &Hut, questions: &[Question]) -> ((u32, u32), Vec<String>) 
         if back.is_empty() {
             passed.0 += 1;
         } else {
-            failed.push(format!("{} forget: {key}'s words came back in {}", question.id, back.join(", ")));
+            failed.push(format!(
+                "{} forget: {key}'s words came back in {}",
+                question.id,
+                back.join(", ")
+            ));
         }
     }
     (passed, failed)
@@ -282,7 +336,11 @@ fn hold_floors(mode: &str, scores: &Scores, report: &str) {
             }
         }
     }
-    assert!(below.is_empty(), "{report}\nBelow the floor: {}", below.join("; "));
+    assert!(
+        below.is_empty(),
+        "{report}\nBelow the floor: {}",
+        below.join("; ")
+    );
 }
 
 #[tokio::test]

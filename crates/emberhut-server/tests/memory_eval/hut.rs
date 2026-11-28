@@ -26,8 +26,6 @@ pub(crate) const ASKED_AT: &str = "2026-11-01T09:00:00Z";
 
 pub(crate) struct Hut {
     _dir: tempfile::TempDir,
-    pub(crate) db: Database,
-    pub(crate) clock: Arc<ManualClock>,
     pub(crate) facts: FactService,
     pub(crate) recall: RecallService,
     /// Each piece of evidence's reference in the index, by its key.
@@ -65,6 +63,7 @@ fn write_transcript(path: &PathBuf, lines: &[Line], refs: &mut HashMap<String, S
 
 impl Hut {
     /// A hut holding `corpus`, its recall searching with `embedder`.
+    #[expect(clippy::too_many_lines, reason = "each store of the corpus in turn")]
     pub(crate) async fn new(corpus: &Corpus, embedder: Arc<dyn Embedder>) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let url = format!("sqlite://{}", dir.path().join("emberhut.db").display())
@@ -245,8 +244,6 @@ impl Hut {
         clock.set(at(ASKED_AT));
         let hut = Self {
             _dir: dir,
-            db,
-            clock,
             facts,
             recall,
             refs,

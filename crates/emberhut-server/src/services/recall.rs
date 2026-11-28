@@ -13,17 +13,17 @@
 //! slices, whole lines only), and the vectors of the pieces that changed. A search first
 //! indexes the chat, notes and facts up to that moment.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
 use emberhut_core::RoomId;
 use emberhut_core::memory::notes::{NoteAuthor, hour_minute};
 use emberhut_core::memory::recall::{
-    EACH, Filter, Found, NewDoc, closeness, embed_query, embed_text, fuse, match_query, normalised,
+    EACH, Filter, Found, NewDoc, Vectors, embed_query, embed_text, fuse, match_query, normalised,
     query_words, sameness, source,
 };
 use emberhut_db::{
@@ -50,6 +50,19 @@ const TASKS_MARK: &str = "issues";
 const LINES_MARK: &str = "events";
 /// How far the voice notes are indexed: the last one transcribed.
 const VOICE_MARK: &str = "voice";
+/// Which model made the vectors, and their length (`<model> <dimension>`): vectors of another
+/// model are not comparable, so a change embeds every piece again.
+pub const EMBED_MARK: &str = "embed_model";
+
+/// The folder an agent session keeps its sub-agents' transcripts in: workers' chatter, not
+/// what the owner said, so it is not indexed.
+const SUBAGENTS: &str = "subagents";
+
+/// How many of the meaning search's nearest are read before the filters.
+const NEAR_CANDIDATES: usize = 200;
+
+/// Embedding batches between two new vector snapshots while a lot is embedded.
+const SNAPSHOT_EVERY: usize = 64;
 
 /// Messages indexed per transaction.
 const CHAT_BATCH: u64 = 500;
@@ -74,6 +87,11 @@ pub trait Embedder: fmt::Debug + Send + Sync {
     /// The texts' vectors, in order (not yet normalised).
     fn embed<'a>(&'a self, texts: &'a [String])
     -> BoxFuture<'a, Result<Vec<Vec<f32>>, EmbedError>>;
+
+    /// Which model it is, as kept with the vectors it made ([`EMBED_MARK`]).
+    fn name(&self) -> String {
+        "unnamed".to_owned()
+    }
 }
 
 /// Why the model gave no vectors.
@@ -136,6 +154,10 @@ impl HttpEmbedder {
 }
 
 impl Embedder for HttpEmbedder {
+    fn name(&self) -> String {
+        self.model.clone().unwrap_or_else(|| self.url.clone())
+    }
+
     fn embed<'a>(
         &'a self,
         texts: &'a [String],
@@ -256,10 +278,15 @@ struct Inner {
     parts: RecallParts,
     /// One indexing pass at a time.
     syncing: tokio::sync::Mutex<()>,
-    /// Every vector, by piece id, once loaded.
-    vectors: Mutex<Option<BTreeMap<i64, Vec<f32>>>>,
+    /// Every vector, once loaded: a snapshot a search scores while a new one is made.
+    vectors: RwLock<Option<Arc<Vectors>>>,
     /// A piece changed since the vectors were last brought up to date.
     changed: AtomicBool,
+    /// The embedding model was checked against the one that made the vectors kept.
+    model_checked: AtomicBool,
+    /// The facts' and notes' stamps when they were last indexed: unchanged, they are not
+    /// read again and the index is not written.
+    indexed_stamp: Mutex<Option<String>>,
 }
 
 impl RecallService {
@@ -270,8 +297,10 @@ impl RecallService {
             inner: Arc::new(Inner {
                 parts,
                 syncing: tokio::sync::Mutex::new(()),
-                vectors: Mutex::new(None),
+                vectors: RwLock::new(None),
                 changed: AtomicBool::new(true),
+                model_checked: AtomicBool::new(false),
+                indexed_stamp: Mutex::new(None),
             }),
         }
     }
@@ -292,6 +321,22 @@ impl RecallService {
         self.sync_task_lines().await?;
         self.sync_voice().await?;
         let parts = &self.inner.parts;
+        // Read before what it stamps, so a change made while they are read shows next pass.
+        let stamp = format!(
+            "{} | {}",
+            parts.facts.stamp().await?,
+            parts.notes.stamp().await?
+        );
+        if self
+            .inner
+            .indexed_stamp
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_deref()
+            == Some(stamp.as_str())
+        {
+            return Ok(());
+        }
         let notes = parts.notes.list(None, None).await?;
         let mut docs = Vec::with_capacity(notes.len());
         let mut kept = HashSet::new();
@@ -345,6 +390,11 @@ impl RecallService {
         if self.store().index(&batch).await? {
             self.inner.changed.store(true, Ordering::Release);
         }
+        *self
+            .inner
+            .indexed_stamp
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(stamp);
         Ok(())
     }
 
@@ -628,81 +678,136 @@ impl RecallService {
     }
 
     /// Embeds the pieces with no vector yet; `true` when every piece has one now (`false`: the
-    /// model didn't answer, or there is none).
+    /// model didn't answer, or there is none). The first time, when the model is not the one
+    /// that made the vectors kept ([`EMBED_MARK`]), those are dropped and every piece is
+    /// embedded again.
     ///
     /// # Errors
     ///
     /// [`RecallError::Database`].
     pub async fn embed_new(&self) -> Result<bool, RecallError> {
         self.load_vectors().await?;
-        loop {
+        if !self.inner.model_checked.load(Ordering::Acquire) {
+            // Once a start: which model answers now, by the length of a vector it makes.
+            let probe = vec![embed_query("recall")];
+            let Ok(vectors) = self.inner.parts.embedder.embed(&probe).await else {
+                return Ok(false);
+            };
+            if let Some(vector) = vectors.first().filter(|vector| !vector.is_empty()) {
+                self.model_changed(vector.len()).await?;
+                self.inner.model_checked.store(true, Ordering::Release);
+            }
+        }
+        let mut fresh: Vec<(i64, Vec<f32>)> = Vec::new();
+        let mut batches = 0;
+        let done = loop {
             let batch = self.store().unembedded(EMBED_BATCH).await?;
             if batch.is_empty() {
-                return Ok(true);
+                break true;
             }
             let texts: Vec<String> = batch
                 .iter()
                 .map(|doc| embed_text(&doc.title, &doc.text))
                 .collect();
             let Ok(vectors) = self.inner.parts.embedder.embed(&texts).await else {
-                return Ok(false);
+                break false;
             };
             let vectors: Vec<(i64, Vec<f32>)> = batch
                 .iter()
                 .zip(vectors)
                 .map(|(doc, vector)| (doc.id, normalised(vector)))
+                .filter(|(_, vector)| !vector.is_empty())
                 .collect();
             self.store().store_vectors(&vectors).await?;
-            let mut cache = self
+            fresh.extend(vectors);
+            batches += 1;
+            if batches % SNAPSHOT_EVERY == 0 {
+                self.add_vectors(&std::mem::take(&mut fresh));
+            }
+        };
+        self.add_vectors(&fresh);
+        Ok(done)
+    }
+
+    /// Whether the model now embedding (making vectors `dimension` long) is another than the one
+    /// that made the vectors kept; if so, those are dropped, and the mark names the new one. An
+    /// index from before the mark keeps its vectors when they are as long.
+    async fn model_changed(&self, dimension: usize) -> Result<bool, RecallError> {
+        let now = format!("{} {dimension}", self.inner.parts.embedder.name());
+        let kept = self.store().mark(EMBED_MARK).await?;
+        if kept.as_deref() == Some(now.as_str()) {
+            return Ok(false);
+        }
+        let held = self.snapshot().map_or(0, |vectors| vectors.dimension());
+        let changed = kept.is_some() || (held != 0 && held != dimension);
+        if changed {
+            tracing::info!(was = ?kept, now = %now, "recall: the embedding model changed; every piece is embedded again");
+            self.store().drop_vectors().await?;
+            *self
                 .inner
                 .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            if let Some(cache) = cache.as_mut() {
-                cache.extend(vectors);
-            }
+                .write()
+                .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(Vectors::default()));
+        }
+        self.store().set_mark(EMBED_MARK, &now).await?;
+        Ok(changed)
+    }
+
+    /// The vectors as loaded, if they are.
+    fn snapshot(&self) -> Option<Arc<Vectors>> {
+        self.inner
+            .vectors
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Makes the snapshot with `added` in it the one searched.
+    fn add_vectors(&self, added: &[(i64, Vec<f32>)]) {
+        if added.is_empty() {
+            return;
+        }
+        let mut held = self
+            .inner
+            .vectors
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(vectors) = held.as_ref() {
+            *held = Some(Arc::new(vectors.with(added)));
         }
     }
 
     /// Loads every vector, once.
     async fn load_vectors(&self) -> Result<(), RecallError> {
-        let loaded = self
-            .inner
-            .vectors
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some();
-        if !loaded {
-            let all: BTreeMap<i64, Vec<f32>> = self.store().vectors().await?.into_iter().collect();
+        if self.snapshot().is_none() {
+            let all = self.store().vectors().await?;
+            let vectors = tokio::task::spawn_blocking(move || Vectors::from_pairs(all))
+                .await
+                .unwrap_or_default();
             *self
                 .inner
                 .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = Some(all);
+                .write()
+                .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(vectors));
         }
         Ok(())
     }
 
     /// Forgets the vectors whose pieces changed or went (their rows are gone with them).
     async fn prune_vectors(&self) -> Result<(), RecallError> {
-        let loaded = self
+        let Some(vectors) = self.snapshot() else {
+            return Ok(());
+        };
+        let live = self.store().vector_ids().await?;
+        let pruned =
+            tokio::task::spawn_blocking(move || vectors.retaining(|id| live.contains(&id)))
+                .await
+                .unwrap_or_default();
+        *self
             .inner
             .vectors
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some();
-        if loaded {
-            let live = self.store().vector_ids().await?;
-            if let Some(cache) = self
-                .inner
-                .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .as_mut()
-            {
-                cache.retain(|id, _| live.contains(id));
-            }
-        }
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(pruned));
         Ok(())
     }
 
@@ -748,7 +853,8 @@ impl RecallService {
     }
 
     /// Searches for `query`: at most `limit` hits that pass `filter`, best first, the same
-    /// words said twice shown once. The chat, notes and facts are indexed up to now first.
+    /// words said twice shown once. The chat, notes and facts are indexed up to now first, which
+    /// writes only when something was said or saved since the last pass.
     ///
     /// # Errors
     ///
@@ -788,21 +894,28 @@ impl RecallService {
             .ok()
             .and_then(|vectors| vectors.into_iter().next())
             .map(normalised);
-        let meaning = query_vector.is_some();
-        if let Some(query_vector) = query_vector {
+        if query_vector.is_some() {
             self.load_vectors().await?;
-            let mut near: Vec<(i64, f64)> = self
-                .inner
-                .vectors
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .iter()
-                .flatten()
-                .map(|(id, vector)| (*id, closeness(vector, &query_vector)))
-                .collect();
-            near.sort_by(|a, b| b.1.total_cmp(&a.1));
+        }
+        let vectors = self.snapshot().unwrap_or_default();
+        let meaning = query_vector
+            .as_ref()
+            .is_some_and(|query| vectors.is_empty() || query.len() == vectors.dimension());
+        if let Some(query_vector) = query_vector.filter(|_| meaning) {
+            let narrow =
+                filter.source.is_some() || filter.since.is_some() || filter.until.is_some();
+            let scored = Arc::clone(&vectors);
+            let near = tokio::task::spawn_blocking(move || {
+                if narrow {
+                    scored.nearest(&query_vector, scored.len())
+                } else {
+                    scored.nearest(&query_vector, NEAR_CANDIDATES)
+                }
+            })
+            .await
+            .unwrap_or_default();
             let mut ids = Vec::new();
-            for chunk in near.chunks(200) {
+            for chunk in near.chunks(NEAR_CANDIDATES) {
                 if ids.len() >= EACH {
                     break;
                 }
@@ -834,24 +947,18 @@ impl RecallService {
                 hits.push(doc.clone());
             }
         }
-        let embedded = self
-            .inner
-            .vectors
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .as_ref()
-            .map_or(0, BTreeMap::len);
         Ok(Found {
             hits,
             meaning,
             indexed: self.store().count().await?,
-            embedded,
+            embedded: vectors.len(),
         })
     }
 }
 
 /// Every `.jsonl` file under `dir` (`root`'s), with the first folder under `root` it is in and
-/// its size, folders before what is in them, each folder in name order.
+/// its size, folders before what is in them, each folder in name order. Sub-agents' folders
+/// are left out.
 fn walk(root: &Path, dir: &Path, found: &mut Vec<(PathBuf, String, u64)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -865,7 +972,9 @@ fn walk(root: &Path, dir: &Path, found: &mut Vec<(PathBuf, String, u64)>) {
             continue;
         };
         if kind.is_dir() {
-            folders.push(path);
+            if entry.file_name() != SUBAGENTS {
+                folders.push(path);
+            }
         } else if kind.is_file() && path.extension().is_some_and(|ext| ext == "jsonl") {
             let folder = path
                 .strip_prefix(root)

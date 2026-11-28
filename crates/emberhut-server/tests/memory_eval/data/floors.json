@@ -1,0 +1,28 @@
+{
+  "words": {
+    "overall": 0.583,
+    "single-fact": 0.833,
+    "multi-session": 0.6,
+    "temporal": 0.7,
+    "knowledge-update": 0.666,
+    "cross-lingual": 0.0,
+    "lang-ar": 0.367,
+    "lang-en": 0.732,
+    "forget": 0.0,
+    "injection-not-saved": 0.0,
+    "injection-fenced": 0.0
+  },
+  "meaning": {
+    "overall": 0.858,
+    "single-fact": 0.966,
+    "multi-session": 0.9,
+    "temporal": 0.95,
+    "knowledge-update": 1.0,
+    "cross-lingual": 0.52,
+    "lang-ar": 0.877,
+    "lang-en": 0.845,
+    "forget": 0.0,
+    "injection-not-saved": 0.0,
+    "injection-fenced": 0.0
+  }
+}
