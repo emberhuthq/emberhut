@@ -54,6 +54,8 @@ struct World {
     pair: Ran,
     /// The launch agent's plist or the unit file, which a start of the service reads.
     managed_file: Option<String>,
+    /// Whether launchd refuses to load the launch agent.
+    refuses_agent: bool,
 }
 
 impl World {
@@ -166,6 +168,11 @@ impl Spawner for FakeSpawner {
             ["--version"] => ok("emberhut-server 0.1.0\n"),
             ["id", ..] => ok(&format!("{}\n", world.machine)),
             ["pair", ..] => world.pair.clone(),
+            ["bootstrap", ..] if world.refuses_agent => Ran {
+                ok: false,
+                stdout: String::new(),
+                stderr: "Bootstrap failed: 5: Input/output error".to_owned(),
+            },
             ["bootout", _] | ["--user", "stop", _] => {
                 world.put_out_service();
                 ok("")
@@ -261,6 +268,7 @@ impl Setup {
                     stderr: String::new(),
                 },
                 managed_file: None,
+                refuses_agent: false,
             })),
             dir,
         };
@@ -993,6 +1001,13 @@ fn keeping_the_hut_lit_on_macos_loads_its_launch_agent_and_unloads_it() {
         at_login: true,
     };
     hut.keep_lit_now(keep).unwrap();
+    assert!(
+        setup.world().commands().contains(&format!(
+            "xattr -d com.apple.quarantine {}",
+            plist.display()
+        )),
+        "launchd never loads a quarantined plist"
+    );
     assert_eq!(
         setup.world().managed(),
         [
@@ -1164,4 +1179,35 @@ fn a_quitting_app_asks_its_child_to_stop_without_waiting() {
     .unwrap();
     kept.let_go();
     assert_eq!(setup.world().terminated, [101]);
+}
+
+#[test]
+fn a_hut_launchd_refuses_runs_on_as_the_apps_child() {
+    let setup = Setup::new(Os::Mac);
+    let hut = setup.hut();
+    assert_eq!(hut.start_now().unwrap(), url(18990));
+    setup.world().refuses_agent = true;
+    let keep = KeepLit {
+        when_closed: true,
+        at_login: true,
+    };
+
+    assert!(
+        hut.keep_lit_now(keep).is_err(),
+        "it says why it isn't kept lit"
+    );
+
+    let world = setup.world();
+    assert_eq!(world.terminated, [101], "the app's child made way");
+    assert_eq!(world.spawned.len(), 2, "and was started again");
+    assert_eq!(world.ports.get(&18990), Some(&Listener::Hut(Some(102))));
+    drop(world);
+    assert!(
+        !setup
+            .home()
+            .join("Library/LaunchAgents/com.emberhut.hut.plist")
+            .exists()
+    );
+    let state = setup.state();
+    assert_eq!((state.keep, state.pid), (KeepLit::default(), Some(102)));
 }

@@ -236,6 +236,16 @@ pub(crate) fn systemd_unit(serve: &Serve) -> String {
 }
 
 /// The launch agent's commands, for the user `uid`.
+/// Takes the quarantine off the launch agent's plist. The app's bundle has
+/// `LSFileQuarantineEnabled`, so every file it writes is quarantined, and launchd refuses to
+/// load a quarantined plist ("Bootstrap failed: 5: Input/output error").
+#[must_use]
+pub(crate) fn unquarantine(plist: &Path) -> Run {
+    Run::new("/usr/bin/xattr")
+        .args(["-d", "com.apple.quarantine"])
+        .arg(plist)
+}
+
 pub(crate) mod launchctl {
     use std::path::Path;
 

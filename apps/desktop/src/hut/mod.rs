@@ -358,7 +358,22 @@ impl LocalHut {
         }
         state.keep = keep;
         self.write_state(&state)?;
-        self.light(changed && after).map(drop)
+        let lit = self.light(changed && after).map(drop);
+        if let Err(error) = &lit
+            && !before
+            && after
+        {
+            // The service wouldn't run it, and the app's own hut was put out for it: it runs as
+            // the app's child again, so it is never left out, and the error still says why it
+            // isn't kept lit.
+            log::warn!("the hut couldn't be kept lit ({error}): it runs as the app's child");
+            self.remove_service();
+            let mut state = self.read_state();
+            state.keep = KeepLit::default();
+            self.write_state(&state)?;
+            self.light(true)?;
+        }
+        lit
     }
 
     /// [`LocalHut::stop`], on this thread.
@@ -605,6 +620,7 @@ impl LocalHut {
         match self.inner.paths.manager() {
             Manager::Launchd { plist, uid } => {
                 write_file(plist, &service::launch_agent(serve, keep))?;
+                self.quietly(&service::unquarantine(plist));
                 // Unloaded first, so launchd reads the new plist; it may not be loaded.
                 self.quietly(&launchctl::bootout(*uid));
                 self.retried(
