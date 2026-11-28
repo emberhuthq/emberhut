@@ -1,4 +1,5 @@
-//! A task's page, the task search, a message on a task, the task actions and today's health.
+//! A task's page, the task search, a message on a task, a rename, the task actions and today's
+//! health.
 
 use emberhut_api::health_today::HealthToday;
 use emberhut_api::ids::{AgentId, ProjectId, RunId, TaskId};
@@ -8,8 +9,9 @@ use emberhut_api::task_live::LiveState;
 use emberhut_api::task_message::{MessageTo, TaskMessageReply, TaskMessageRequest};
 use emberhut_api::task_page::{LinkKind, TaskPage};
 use emberhut_api::task_plan::StepState;
+use emberhut_api::task_rename::{RenameTask, TITLE_MAX};
 use emberhut_api::task_search::{FoundTasks, ProjectScope, TaskQuery};
-use emberhut_api::tasks::{Landed, TaskSize, TaskStatus};
+use emberhut_api::tasks::{Issue, Landed, TaskSize, TaskStatus};
 use emberhut_api::time::{Day, Timestamp};
 use emberhut_api::ultra::{AgentKind, AgentState, UltraState};
 use serde_json::json;
@@ -125,6 +127,16 @@ fn a_message_on_a_task_round_trips() {
     let to_the_assistant: TaskMessageReply =
         from_value(json!({"ok": true, "to": MessageTo::ASSISTANT}));
     assert_eq!(to_the_assistant.to, MessageTo::Assistant);
+}
+
+#[test]
+fn a_rename_and_its_answer_keep_their_shape() {
+    let request: RenameTask = assert_round_trip("task_rename_request.json");
+    assert_eq!(request.title, "Ship the release notes");
+    assert!(request.title.chars().count() <= TITLE_MAX);
+    let renamed: Issue = read("task_rename_reply.json");
+    assert_eq!(renamed.title, "Ship the release notes");
+    assert_eq!(emberhut_api::paths::task(TaskId::new(12)), "/api/tasks/12");
 }
 
 #[test]

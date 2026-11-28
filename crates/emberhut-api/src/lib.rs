@@ -96,6 +96,7 @@ pub mod task_live;
 pub mod task_message;
 pub mod task_page;
 pub mod task_plan;
+pub mod task_rename;
 pub mod task_search;
 pub mod tasks;
 pub mod theme;

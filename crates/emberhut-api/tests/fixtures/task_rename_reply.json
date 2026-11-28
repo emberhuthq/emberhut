@@ -1,0 +1,93 @@
+{
+  "id": 12,
+  "key": "T-12",
+  "title": "Ship the release notes",
+  "body": "A made-up task.",
+  "owner": "assistant",
+  "status": "waiting",
+  "goal": null,
+  "project": "Example project",
+  "pid": 2,
+  "hard": false,
+  "size": "S",
+  "priority": 2,
+  "due": null,
+  "today": true,
+  "parkedUntil": null,
+  "decideBy": "2026-11-26",
+  "decision": {
+    "question": "Which name should the example report have?",
+    "options": [
+      "Report A",
+      "Report B",
+      "Leave it"
+    ],
+    "kind": "choose",
+    "brief": [
+      "Both names are made up."
+    ],
+    "recommend": 0,
+    "asked": "2026-11-24T20:00:00.000Z",
+    "checked": "2026-11-24T21:00:00.000Z"
+  },
+  "action": "Pick a name for the example report",
+  "created": "2026-11-20T10:00:00.000Z",
+  "updated": "2026-11-24T21:00:00.000Z",
+  "doneAt": null,
+  "last": "Asked which name",
+  "parent": null,
+  "progress": null,
+  "total": null,
+  "unit": null,
+  "sub": {
+    "done": 1,
+    "total": 2,
+    "waiting": [
+      13
+    ],
+    "progress": 3,
+    "of": 6,
+    "left": null,
+    "unit": "parts"
+  },
+  "tracked": true,
+  "eta": null,
+  "requested": null,
+  "requestedBy": null,
+  "ultra": true,
+  "agents": {
+    "done": 1,
+    "total": 3,
+    "running": 1
+  },
+  "artifacts": [
+    {
+      "id": 7,
+      "kind": "image",
+      "caption": "A made-up chart",
+      "at": "2026-11-24T19:00:00.000Z",
+      "name": "chart.png",
+      "url": "/api/artifacts/7",
+      "thumb": "/api/artifacts/7/thumb"
+    }
+  ],
+  "send": null,
+  "live": {
+    "state": "running",
+    "since": "2026-11-24T21:00:00.000Z",
+    "alarm": false,
+    "run": {
+      "machine": "runner",
+      "place": "the example machine",
+      "thread": "w-12",
+      "title": null,
+      "worker": true,
+      "requested": "2026-11-24T20:59:00.000Z",
+      "started": "2026-11-24T21:00:00.000Z"
+    },
+    "last": {
+      "ended": "2026-11-24T19:00:00.000Z",
+      "line": "Drafted both names"
+    }
+  }
+}

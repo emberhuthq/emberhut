@@ -85,8 +85,9 @@ pub const FACTS: &str = "/api/facts";
 /// `POST`: pair, rename, unpair or pause a Chrome profile ([`crate::chrome::ChromeAction`]).
 pub const CHROME: &str = "/api/chrome";
 /// `GET ?q=&limit=&...`: tasks from the whole list ([`crate::task_search::TaskQuery`]);
-/// `GET /{id}`: one task's page ([`crate::task_page::TaskPage`]); `POST /{id}/message`: the
-/// person writes on it ([`crate::task_message::TaskMessageRequest`]).
+/// `GET /{id}`: one task's page ([`crate::task_page::TaskPage`]); `PATCH /{id}`: the person
+/// renames it ([`crate::task_rename::RenameTask`]); `POST /{id}/message`: the person writes on
+/// it ([`crate::task_message::TaskMessageRequest`]).
 pub const TASKS: &str = "/api/tasks";
 /// `GET ?device=`: the live view of the assistant's browser, its address and sign-in
 /// ([`crate::browser::BrowserSessionQuery`]).
@@ -100,7 +101,7 @@ pub const BROWSER_UPLOAD: &str = "/api/browser/upload";
 /// `GET`: the latest picture of the browser's page (JPEG); 404 while the person drives.
 pub const BROWSER_FRAME: &str = "/api/browser/frame.jpg";
 
-/// `GET`: the page of task `id`.
+/// `GET`: the page of task `id`; `PATCH`: rename it.
 #[must_use]
 pub fn task(id: crate::ids::TaskId) -> String {
     format!("{TASKS}/{id}")
