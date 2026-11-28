@@ -208,10 +208,6 @@ mod tests {
             ("Glob", json!({ "pattern": "**/*.md" })),
             ("Glob", json!({ "pattern": "*.md", "path": "notes" })),
             (
-                "Glob",
-                json!({ "pattern": format!("{}/**", root.display()) }),
-            ),
-            (
                 "Grep",
                 json!({ "pattern": "fee", "glob": "*.md", "path": "notes" }),
             ),
@@ -227,6 +223,14 @@ mod tests {
                 "{tool} {input}"
             );
         }
+        // Its own folder named absolutely: through on Unix; held on Windows, whose paths hold
+        // backslashes, which a glob never may.
+        let absolute = json!({ "pattern": format!("{}/**", root.display()) });
+        assert_eq!(
+            first_outside("Glob", &absolute, &root, &roots).is_none(),
+            cfg!(unix),
+            "{absolute}"
+        );
         let held = [
             (
                 "Read",

@@ -273,8 +273,13 @@ mod tests {
         for pattern in ["*.md", "**/*.md", "notes/*.md", "notes/{a,b}.md", "new/**"] {
             assert!(glob_within(pattern, &root, elsewhere, &roots), "{pattern}");
         }
+        // Its own folder named absolutely; refused on Windows, whose paths hold backslashes,
+        // which a glob never may.
         let mine = format!("{}/**/*.pdf", root.display());
-        assert!(glob_within(&mine, Path::new("/"), elsewhere, &roots));
+        assert_eq!(
+            glob_within(&mine, Path::new("/"), elsewhere, &roots),
+            cfg!(unix)
+        );
         let theirs = format!("{}/**/*.pdf", dir.path().display());
         for pattern in [
             "/etc/*",

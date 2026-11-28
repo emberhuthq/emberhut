@@ -28,7 +28,10 @@ fn openapi_document_is_up_to_date() {
         std::fs::write(&path, made).unwrap();
         return;
     }
-    let committed = std::fs::read_to_string(&path).unwrap_or_default();
+    // A Windows checkout may turn the file's line ends into CRLF (git's core.autocrlf).
+    let committed = std::fs::read_to_string(&path)
+        .unwrap_or_default()
+        .replace("\r\n", "\n");
     assert!(
         committed == made,
         "crates/emberhut-server/openapi.json is out of date: run the tests with EMBERHUT_BLESS=1 and \

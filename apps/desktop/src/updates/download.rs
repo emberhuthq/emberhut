@@ -273,6 +273,7 @@ mod tests {
         assert!(!error.is_verification());
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_free_space_is_read_where_the_folder_will_be() {
         let dir = tempfile::tempdir().unwrap();
