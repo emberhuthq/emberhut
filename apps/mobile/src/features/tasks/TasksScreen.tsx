@@ -1,7 +1,9 @@
 import { useNavigation } from "@react-navigation/native";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Pressable, View } from "react-native";
-import { taskKey, type Issue, type EmberhutState, type Project } from "@/api";
+import { taskKey, type Issue, type EmberhutState, type Project, type RunnerSession } from "@/api";
+import { RecentRow, RunningRow } from "@/features/sessions/SessionRows";
+import { isRunning, shortTitle } from "@/features/sessions/sessionList";
 import { inBackground } from "@/log";
 import type { TabScreenProps } from "@/navigation/types";
 import { useActions, useConnection } from "@/state/hooks";
@@ -11,13 +13,20 @@ import { useTheme } from "@/theme";
 import { Button, ErrorState, FoldRow, Icon, ListRow, Loading, Screen, Section, Text, TextField, usePullRefresh } from "@/ui";
 import { AreaRow } from "./AreaRow";
 import { flatTasks, subtasksOf, taskOverview } from "./model";
+import { runningTasks, tasklessSessions } from "./plan";
 import { HealthChip, PriorityMark } from "./ProjectMarks";
+import { RunningTaskRow } from "./RunningTaskRow";
 import { TaskRow } from "./TaskRow";
+import { useTaskPlans } from "./useTaskPlans";
 
 /**
  * Your work by project, as the reference client's Projects list: Today (ranked by Emberhut), then each project with its areas and open
  * tasks, the projects with nothing open, tasks in no project, paused and archived projects, and your archived tasks
  * folded. What needs you has its own tab. A search runs over every task, done and archived ones too.
+ *
+ * While the server keeps task plans, Tasks is the work running: the tasks a run is going on come first, each with its
+ * plan's step and ticks (and the sessions running with no task), then the lists as above without them, then the other
+ * sessions with no task, so nothing that ran leaves the list.
  */
 export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
   const { colors, spacing } = useTheme();
@@ -27,6 +36,8 @@ export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const search = useDebounced(query.trim(), 300);
+  const plans = useTaskPlans();
+  const gone = useActions((s) => s.gone);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -66,14 +77,56 @@ export function TasksScreen({ navigation }: TabScreenProps<"Tasks">) {
         returnKeyType="search"
         autoCorrect={false}
       />
-      {search ? <Found query={search} /> : state.data.ui?.hideProjects ? <FlatList state={state.data} /> : <ByProject state={state.data} />}
+      {search ? <Found query={search} /> : <Lists state={state.data} plans={plans} gone={gone} />}
     </Screen>
   );
 }
 
-function ByProject({ state }: { state: EmberhutState }) {
+/** The lists; with plans, what runs first and the sessions with no task last, each task listed once. */
+function Lists({ state, plans, gone }: { state: EmberhutState; plans: boolean; gone: ReadonlySet<number> }) {
+  if (!plans) return state.ui?.hideProjects ? <FlatList state={state} gone={gone} /> : <ByProject state={state} gone={gone} />;
+  const running = runningTasks(state, gone);
+  const sessions = tasklessSessions(state);
+  const shown = running.length === 0 ? gone : new Set([...gone, ...running.map((t) => t.id)]);
+  return (
+    <>
+      <RunningNow state={state} tasks={running} sessions={sessions.filter((s) => isRunning(s.status))} />
+      {state.ui?.hideProjects ? <FlatList state={state} gone={shown} running={running.length} /> : <ByProject state={state} gone={shown} />}
+      <OtherSessions sessions={sessions.filter((s) => !isRunning(s.status))} />
+    </>
+  );
+}
+
+/** What runs now: each task with its plan, then the sessions running with no task. */
+function RunningNow({ state, tasks, sessions }: { state: EmberhutState; tasks: Issue[]; sessions: RunnerSession[] }) {
+  const navigation = useNavigation();
+  const name = (pid: number | null | undefined) => (state.ui?.hideProjects ? null : state.projects?.find((p) => p.id === pid)?.name);
+  return (
+    <Section title="Running" count={tasks.length + sessions.length} tone="secondary">
+      {tasks.map((t) => (
+        <RunningTaskRow key={`t${t.id}`} task={t} project={name(t.pid)} />
+      ))}
+      {sessions.map((s) => (
+        <RunningRow key={`s${s.id}`} session={s} onOpen={() => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) })} />
+      ))}
+    </Section>
+  );
+}
+
+/** Sessions with no task that aren't running: waiting on you, or finished in the last day. Each opens its session. */
+function OtherSessions({ sessions }: { sessions: RunnerSession[] }) {
+  const navigation = useNavigation();
+  return (
+    <Section title="Sessions with no task" footer="Every session, with filters: More › Sessions.">
+      {sessions.map((s) => (
+        <RecentRow key={s.id} session={s} onOpen={() => navigation.navigate("Session", { id: s.id, title: shortTitle(s.title) })} />
+      ))}
+    </Section>
+  );
+}
+
+function ByProject({ state, gone }: { state: EmberhutState; gone: ReadonlySet<number> }) {
   const { spacing } = useTheme();
-  const gone = useActions((s) => s.gone);
   const overview = taskOverview(state, gone);
   const name = (pid: number | null | undefined) => state.projects?.find((p) => p.id === pid)?.name;
   const row = (task: Issue, project?: string | null) => (
@@ -102,9 +155,8 @@ function ByProject({ state }: { state: EmberhutState }) {
   );
 }
 
-/** Projects hidden (state.ui): one list, no project headers. */
-function FlatList({ state }: { state: EmberhutState }) {
-  const gone = useActions((s) => s.gone);
+/** Projects hidden (state.ui): one list, no project headers. `running`: how many tasks the Running list above holds. */
+function FlatList({ state, gone, running = 0 }: { state: EmberhutState; gone: ReadonlySet<number>; running?: number }) {
   const { needs, today, rest } = flatTasks(state, gone);
   const row = (task: Issue) => <TaskRow key={task.id} task={task} subtasks={task.sub ? subtasksOf(task.id, state, gone) : undefined} />;
   return (
@@ -114,7 +166,7 @@ function FlatList({ state }: { state: EmberhutState }) {
       </Section>
       <Section title="Today">{today.map(row)}</Section>
       <Section title={today.length === 0 && needs.length === 0 ? "Open" : "The rest"}>{rest.map(row)}</Section>
-      {needs.length + today.length + rest.length === 0 && <Text tone="secondary">Nothing open.</Text>}
+      {needs.length + today.length + rest.length + running === 0 && <Text tone="secondary">Nothing open.</Text>}
       <ArchivedTasks />
     </>
   );
