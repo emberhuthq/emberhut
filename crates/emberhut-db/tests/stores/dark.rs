@@ -12,9 +12,12 @@ use crate::common::{at, database};
 
 /// The tables a SQLite file at `path` has.
 async fn tables(path: &std::path::Path) -> Vec<String> {
-    let conn = sea_orm::Database::connect(format!("sqlite://{}?mode=ro", path.display()))
-        .await
-        .unwrap();
+    let conn = sea_orm::Database::connect(format!(
+        "{}?mode=ro",
+        emberhut_db::DatabaseUrl::from_path(path).unwrap()
+    ))
+    .await
+    .unwrap();
     let rows = conn
         .query_all_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Sqlite,

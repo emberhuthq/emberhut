@@ -52,9 +52,8 @@ impl DarkStore {
     ///
     /// [`DbError::Connect`] or [`DbError::Migrate`].
     pub async fn open(path: &Path) -> Result<Self, DbError> {
-        let url: DatabaseUrl = format!("sqlite://{}", path.display())
-            .parse()
-            .map_err(|_| DbError::Missing(path.to_path_buf()))?;
+        let url: DatabaseUrl =
+            DatabaseUrl::from_path(path).map_err(|_| DbError::Missing(path.to_path_buf()))?;
         let mut options = ConnectOptions::new(url.as_str());
         options
             .max_connections(1)

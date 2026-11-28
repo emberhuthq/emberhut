@@ -352,9 +352,7 @@ mod tests {
 
     async fn store() -> (tempfile::TempDir, ChromeStore) {
         let dir = tempfile::tempdir().unwrap();
-        let url = format!("sqlite://{}", dir.path().join("t.db").display())
-            .parse()
-            .unwrap();
+        let url = crate::DatabaseUrl::from_path(&dir.path().join("t.db")).unwrap();
         let db = Database::connect(&url).await.unwrap();
         (dir, db.chrome())
     }

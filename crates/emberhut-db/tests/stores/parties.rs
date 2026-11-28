@@ -109,7 +109,10 @@ async fn a_restart_pauses_running_parties_and_delete_removes_the_talk() {
 /// How many rows `party_messages` holds for party `id`, read straight from the table.
 async fn party_messages_of(db: &emberhut_db::Database, id: i64) -> i64 {
     use sea_orm::ConnectionTrait as _;
-    let url = format!("sqlite://{}?mode=ro", db.path().display());
+    let url = format!(
+        "{}?mode=ro",
+        emberhut_db::DatabaseUrl::from_path(db.path()).unwrap()
+    );
     let conn = sea_orm::Database::connect(url).await.unwrap();
     let row = conn
         .query_one_raw(sea_orm::Statement::from_sql_and_values(

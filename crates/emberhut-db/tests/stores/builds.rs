@@ -74,7 +74,7 @@ async fn a_snapshot_is_a_whole_database_with_the_latest_commits() {
         "a snapshot never overwrites a file"
     );
 
-    let url: DatabaseUrl = format!("sqlite://{}", copy.display()).parse().unwrap();
+    let url: DatabaseUrl = DatabaseUrl::from_path(&copy).unwrap();
     let restored = Database::open_existing(&url).await.unwrap();
     assert_eq!(restored.builds().latest().await.unwrap().mac, Some(5));
     let snapshot = restored.snapshots().read(RoomId::MAIN).await.unwrap();

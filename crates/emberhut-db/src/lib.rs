@@ -746,9 +746,7 @@ mod tests {
     }
 
     fn url_in(dir: &TempDir) -> DatabaseUrl {
-        format!("sqlite://{}", dir.path().join("emberhut.db").display())
-            .parse()
-            .unwrap()
+        DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap()
     }
 
     /// The real migrations, then one that fails half-way.
@@ -857,9 +855,12 @@ mod tests {
     async fn open_existing_leaves_another_program_s_database_as_it_was() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("other.db");
-        let other = sea_orm::Database::connect(format!("sqlite://{}?mode=rwc", path.display()))
-            .await
-            .unwrap();
+        let other = sea_orm::Database::connect(format!(
+            "{}?mode=rwc",
+            DatabaseUrl::from_path(&path).unwrap()
+        ))
+        .await
+        .unwrap();
         SchemaManager::new(&other)
             .create_table(
                 Table::create()
@@ -872,7 +873,7 @@ mod tests {
         other.close().await.unwrap();
         let before = std::fs::read(&path).unwrap();
 
-        let url: DatabaseUrl = format!("sqlite://{}", path.display()).parse().unwrap();
+        let url: DatabaseUrl = DatabaseUrl::from_path(&path).unwrap();
         assert!(matches!(
             Database::open_existing(&url).await,
             Err(DbError::NotEmberhut(_))

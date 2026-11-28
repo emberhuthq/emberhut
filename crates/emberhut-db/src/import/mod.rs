@@ -195,7 +195,9 @@ async fn connect_one(
     create: bool,
     busy: Duration,
 ) -> Result<DatabaseConnection, DbError> {
-    let mut options = ConnectOptions::new(format!("sqlite://{}", path.display()));
+    // The URL only picks the driver: the file is the one `filename` names.
+    let url = DatabaseUrl::from_path(path).map_err(|_| DbError::Missing(path.to_path_buf()))?;
+    let mut options = ConnectOptions::new(url.as_str());
     let filename = path.to_path_buf();
     options
         .max_connections(1)

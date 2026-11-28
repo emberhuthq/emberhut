@@ -753,9 +753,7 @@ mod tests {
 
     async fn bridge(dir: &tempfile::TempDir) -> OpenAiBridge {
         let url: emberhut_db::DatabaseUrl =
-            format!("sqlite://{}", dir.path().join("emberhut.db").display())
-                .parse()
-                .unwrap();
+            emberhut_db::DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
         let db = emberhut_db::Database::connect(&url).await.unwrap();
         OpenAiBridge::bind(BridgeParts {
             store: ProviderStore::new(Secrets::new(dir.path().join("secrets")), db.settings()),

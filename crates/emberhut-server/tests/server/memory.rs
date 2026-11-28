@@ -660,9 +660,7 @@ impl Embedder for FakeEmbedder {
 /// Recall over a fresh database in `dir`, with `embedder` and the transcripts in `dir`'s
 /// `transcripts` folder.
 async fn recall(dir: &Path, embedder: Arc<dyn Embedder>) -> (Database, RecallService, FactService) {
-    let url = format!("sqlite://{}", dir.join("emberhut.db").display())
-        .parse()
-        .unwrap();
+    let url = emberhut_db::DatabaseUrl::from_path(&dir.join("emberhut.db")).unwrap();
     let db = Database::connect(&url).await.unwrap();
     let clock = Arc::new(ManualClock::new("2026-11-24T10:00:00Z".parse().unwrap()));
     let facts = FactService::new(dir.join("context"), clock, db.events());

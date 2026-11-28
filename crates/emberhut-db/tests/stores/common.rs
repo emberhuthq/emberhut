@@ -19,9 +19,7 @@ pub(crate) async fn database() -> (TempDir, Database) {
 
 /// A pool on the database in `dir`, as another process would open it.
 pub(crate) async fn reopen(dir: &TempDir) -> Database {
-    let url: DatabaseUrl = format!("sqlite://{}", dir.path().join("emberhut.db").display())
-        .parse()
-        .unwrap();
+    let url: DatabaseUrl = DatabaseUrl::from_path(&dir.path().join("emberhut.db")).unwrap();
     Database::connect(&url).await.unwrap()
 }
 
