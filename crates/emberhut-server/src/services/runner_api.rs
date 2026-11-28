@@ -9,9 +9,12 @@
 //! the server (`POST /api/runner/events`, `POST /api/runner/machine`), which is how the server
 //! knows which runner it is.
 //!
-//! Runners are configured, not discovered: `--runner NAME=URL` for each, their tokens as
-//! `NAME=TOKEN` lines of `--runner-tokens` (read again when the file changes, so a new token
-//! works without a restart), and their names in words with `--runner-name NAME=WORDS`.
+//! Runners are configured or paired, not discovered: `--runner NAME=URL` for each configured
+//! one, their tokens as `NAME=TOKEN` lines of `--runner-tokens` (read again when the file
+//! changes, so a new token works without a restart), and their names in words with
+//! `--runner-name NAME=WORDS`; a paired runner's address, words and token are its row
+//! (`services::paired_runners`). Both are reached by [`HttpRunners`], each over its own
+//! [`RunnerBook`], and `services::runner_registry` makes one [`RunnerApi`] of the two.
 //!
 //! Runners don't prove the machine on a route as devices do (ADR 0007): they don't pin its key.
 //! A runner's address must be a trusted one (TLS the caller checks, or a network that limits
@@ -22,7 +25,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use axum::body::Bytes;
@@ -98,11 +101,14 @@ pub enum Verb {
 
 /// The runners, as the server reaches them.
 pub trait RunnerApi: fmt::Debug + Send + Sync {
-    /// The configured runners' names, in their configured order.
+    /// The known runners' names, in their order.
     fn machines(&self) -> Vec<String>;
 
     /// A runner's machine in words (its configured name, or its own name).
     fn place(&self, machine: &str) -> String;
+
+    /// A runner's API address, when it is a known runner.
+    fn address(&self, machine: &str) -> Option<String>;
 
     /// The tokens the runners are sent and present, by runner: read once for all of them.
     fn tokens(&self) -> BoxFuture<'_, BTreeMap<String, String>>;
@@ -155,6 +161,10 @@ impl RunnerApi for NoRunners {
 
     fn place(&self, machine: &str) -> String {
         machine.to_owned()
+    }
+
+    fn address(&self, _machine: &str) -> Option<String> {
+        None
     }
 
     fn tokens(&self) -> BoxFuture<'_, BTreeMap<String, String>> {
@@ -212,9 +222,25 @@ pub struct RunnerAt {
     pub url: String,
 }
 
-/// The runners over HTTP.
-pub struct HttpRunners {
-    client: reqwest::Client,
+/// Where each of a set of runners is: their names, their machines in words, their API
+/// addresses and their tokens. [`HttpRunners`] reaches the runners a book lists.
+pub trait RunnerBook: fmt::Debug + Send + Sync {
+    /// The runners' names, in their order.
+    fn names(&self) -> Vec<String>;
+
+    /// `name`'s machine in words, if it has words of its own.
+    fn words(&self, name: &str) -> Option<String>;
+
+    /// `name`'s API address, without a final `/`.
+    fn url(&self, name: &str) -> Option<String>;
+
+    /// The runners' tokens, by name: read once for all of them.
+    fn tokens(&self) -> BoxFuture<'_, BTreeMap<String, String>>;
+}
+
+/// The runners the server's configuration names: `--runner NAME=URL`, `--runner-name
+/// NAME=WORDS`, and the `NAME=TOKEN` file `--runner-tokens`, read again when it changes.
+pub struct ConfiguredRunners {
     runners: Vec<RunnerAt>,
     places: BTreeMap<String, String>,
     tokens: Option<PathBuf>,
@@ -229,27 +255,25 @@ struct KeptTokens {
     tokens: BTreeMap<String, String>,
 }
 
-impl fmt::Debug for HttpRunners {
+impl fmt::Debug for ConfiguredRunners {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("HttpRunners")
+        f.debug_struct("ConfiguredRunners")
             .field("runners", &self.runners)
             .field("places", &self.places)
             .finish_non_exhaustive()
     }
 }
 
-impl HttpRunners {
-    /// `runners`, named in words by `places`, sent the tokens of the `NAME=TOKEN` file
-    /// `tokens`, reached with `client`.
+impl ConfiguredRunners {
+    /// `runners`, named in words by `places`, with the tokens of the `NAME=TOKEN` file
+    /// `tokens`.
     #[must_use]
     pub fn new(
-        client: reqwest::Client,
         runners: Vec<RunnerAt>,
         places: BTreeMap<String, String>,
         tokens: Option<PathBuf>,
     ) -> Self {
         Self {
-            client,
             runners: runners
                 .into_iter()
                 .map(|runner| RunnerAt {
@@ -300,12 +324,65 @@ impl HttpRunners {
             Err(error) => unreadable(&error),
         }
     }
+}
 
-    fn url(&self, machine: &str, path: &str) -> Result<String, RunnerError> {
+impl RunnerBook for ConfiguredRunners {
+    fn names(&self) -> Vec<String> {
         self.runners
             .iter()
-            .find(|runner| runner.name == machine)
-            .map(|runner| format!("{}{path}", runner.url))
+            .map(|runner| runner.name.clone())
+            .collect()
+    }
+
+    fn words(&self, name: &str) -> Option<String> {
+        self.places.get(name).cloned()
+    }
+
+    fn url(&self, name: &str) -> Option<String> {
+        self.runners
+            .iter()
+            .find(|runner| runner.name == name)
+            .map(|runner| runner.url.clone())
+    }
+
+    fn tokens(&self) -> BoxFuture<'_, BTreeMap<String, String>> {
+        Box::pin(self.read_tokens())
+    }
+}
+
+/// The runners a [`RunnerBook`] lists, over HTTP.
+#[derive(Debug)]
+pub struct HttpRunners {
+    client: reqwest::Client,
+    book: Arc<dyn RunnerBook>,
+}
+
+impl HttpRunners {
+    /// The configured `runners`, named in words by `places`, sent the tokens of the
+    /// `NAME=TOKEN` file `tokens`, reached with `client`.
+    #[must_use]
+    pub fn new(
+        client: reqwest::Client,
+        runners: Vec<RunnerAt>,
+        places: BTreeMap<String, String>,
+        tokens: Option<PathBuf>,
+    ) -> Self {
+        Self::over(
+            client,
+            Arc::new(ConfiguredRunners::new(runners, places, tokens)),
+        )
+    }
+
+    /// The runners `book` lists, reached with `client`.
+    #[must_use]
+    pub fn over(client: reqwest::Client, book: Arc<dyn RunnerBook>) -> Self {
+        Self { client, book }
+    }
+
+    fn url(&self, machine: &str, path: &str) -> Result<String, RunnerError> {
+        self.book
+            .url(machine)
+            .map(|url| format!("{url}{path}"))
             .ok_or_else(|| RunnerError::Unknown(machine.to_owned()))
     }
 
@@ -317,7 +394,7 @@ impl HttpRunners {
     ) -> Result<reqwest::RequestBuilder, RunnerError> {
         let url = self.url(machine, path)?;
         let request = self.client.request(method, url);
-        Ok(match self.read_tokens().await.remove(machine) {
+        Ok(match self.book.tokens().await.remove(machine) {
             Some(token) => request.bearer_auth(token),
             None => request,
         })
@@ -372,21 +449,21 @@ fn answer_of(body: &[u8]) -> Value {
 
 impl RunnerApi for HttpRunners {
     fn machines(&self) -> Vec<String> {
-        self.runners
-            .iter()
-            .map(|runner| runner.name.clone())
-            .collect()
+        self.book.names()
     }
 
     fn place(&self, machine: &str) -> String {
-        self.places
-            .get(machine)
-            .cloned()
+        self.book
+            .words(machine)
             .unwrap_or_else(|| machine.to_owned())
     }
 
+    fn address(&self, machine: &str) -> Option<String> {
+        self.book.url(machine)
+    }
+
     fn tokens(&self) -> BoxFuture<'_, BTreeMap<String, String>> {
-        Box::pin(self.read_tokens())
+        self.book.tokens()
     }
 
     fn call<'a>(
@@ -584,7 +661,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("tokens");
         std::fs::write(&path, "build=abc\n").unwrap();
-        let runners = HttpRunners::new(client(), Vec::new(), BTreeMap::new(), Some(path.clone()));
+        let runners = ConfiguredRunners::new(Vec::new(), BTreeMap::new(), Some(path.clone()));
         assert_eq!(
             runners.tokens().await.get("build").map(String::as_str),
             Some("abc")
@@ -608,6 +685,35 @@ mod tests {
         assert_eq!(runners.tokens().await, BTreeMap::new());
         let unset = HttpRunners::new(client(), Vec::new(), BTreeMap::new(), None);
         assert_eq!(unset.tokens().await, BTreeMap::new());
+        assert_eq!(unset.address("build"), None);
+    }
+
+    #[test]
+    fn a_configured_runner_is_reached_at_its_address_without_a_final_slash() {
+        let runners = HttpRunners::new(
+            client(),
+            vec![RunnerAt {
+                name: "build".to_owned(),
+                url: "http://192.0.2.7:8800/".to_owned(),
+            }],
+            BTreeMap::from([("build".to_owned(), "Build box".to_owned())]),
+            None,
+        );
+        assert_eq!(runners.machines(), ["build"]);
+        assert_eq!(runners.place("build"), "Build box");
+        assert_eq!(runners.place("laptop"), "laptop");
+        assert_eq!(
+            runners.address("build").as_deref(),
+            Some("http://192.0.2.7:8800")
+        );
+        assert_eq!(
+            runners.url("build", "/health").unwrap(),
+            "http://192.0.2.7:8800/health"
+        );
+        assert_eq!(
+            runners.url("laptop", "/health").unwrap_err(),
+            RunnerError::Unknown("laptop".to_owned())
+        );
     }
 
     #[test]

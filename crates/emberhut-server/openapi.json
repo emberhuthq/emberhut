@@ -2692,6 +2692,247 @@
         ]
       }
     },
+    "/api/runners/codes": {
+      "post": {
+        "tags": [
+          "runners"
+        ],
+        "summary": "A one-time code a new runner pairs with, made on a signed-in device, with the server's\naddress the runner is to use and the lines that install and pair a runner with both. The\ncode works once, for 10 minutes.",
+        "operationId": "new_code",
+        "requestBody": {
+          "description": "May be empty",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRunnerCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "A code, shown as ABCD-EFGH, and the lines to run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunnerCode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A server address the server doesn't take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/runner/pair": {
+      "post": {
+        "tags": [
+          "runners"
+        ],
+        "summary": "A new runner trades a one-time code for its name and token. A name another runner has is\nnot taken over: the runner is paired under the first free one near it (`build-2`), which\nthe answer gives.",
+        "operationId": "pair",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairRunner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Paired: the runner's name and token, the token shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairedRunner"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name or address the server doesn't take, or a body that isn't a pairing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No code, or a wrong, used or expired one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Every name near the one asked for is another runner's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong codes lately, for every caller",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                },
+                "description": "Seconds until a code is taken again"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runners": {
+      "get": {
+        "tags": [
+          "runners"
+        ],
+        "summary": "Every runner the server knows: the ones its configuration names, in their order, then the\npaired ones, by name. No token is listed.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "The runners",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunnersPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/runners/{name}": {
+      "delete": {
+        "tags": [
+          "runners"
+        ],
+        "summary": "Forgets a paired runner: its token stops working at once, and the server no longer calls\nit. A runner the server's configuration names can't be forgotten here.",
+        "operationId": "forget",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The paired runner's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forgotten",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No paired runner of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A runner the server's configuration names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/machines": {
       "get": {
         "tags": [
@@ -16275,6 +16516,19 @@
           }
         }
       },
+      "NewRunnerCode": {
+        "type": "object",
+        "description": "`POST /api/runners/codes`: what the app knows of where a runner reaches this server. The\nbody may be empty.",
+        "properties": {
+          "server": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server's address as the app reaches it, when the app knows one another machine can\nreach: `http://` or `https://` and a host, at most 2048 characters, without `?` or `#`\n([`is_runner_url`]). Left out, the server picks one ([`RunnerCode::server`])."
+          }
+        }
+      },
       "NewSession": {
         "type": "object",
         "description": "`POST /api/runner/sessions`: one of the person's own sessions, on the machine and in the\nfolder they picked, with their first message.\n\nThe server relays it as the runner sends it; [`crate::runner::new_session::OpenSession`] describes the same wire.",
@@ -16596,6 +16850,64 @@
               "null"
             ],
             "description": "The device's own Ed25519 public key, base64url without padding, which the machine keeps\non the device's row. Clients that predate it leave it out."
+          }
+        }
+      },
+      "PairRunner": {
+        "type": "object",
+        "description": "`POST /api/runner/pair`: a new runner, with the one-time code that proves the person let it\nin. A name another runner has is not refused: the runner is paired under the first free\none ([`free_name`]), which the answer gives.",
+        "required": [
+          "code",
+          "name",
+          "url",
+          "platform",
+          "version"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The code as typed: case, spaces and the dash don't matter. Not blank, at most 32\ncharacters."
+          },
+          "name": {
+            "type": "string",
+            "description": "The runner's name, the one it reports itself by: 1 to 40 of `A-Z`, `a-z`, `0-9`, `-` and\n`_`, not `codes` ([`is_runner_name`])."
+          },
+          "url": {
+            "type": "string",
+            "description": "The runner's API, `http://` or `https://` and a host, at most 2048 characters, without\n`?` or `#` ([`is_runner_url`]); a final `/` is dropped."
+          },
+          "place": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its machine in words (`Build box`), on one line, at most 60 characters. Left out or blank,\nthe machine is called by the runner's name."
+          },
+          "platform": {
+            "type": "string",
+            "description": "The runner's system (`linux`, `macos`, `windows`), on one line, 1 to 40 characters."
+          },
+          "version": {
+            "type": "string",
+            "description": "The runner's own version, on one line, 1 to 40 characters."
+          }
+        }
+      },
+      "PairedRunner": {
+        "type": "object",
+        "description": "`POST /api/runner/pair`'s answer: the name the runner is paired under (the one it asked\nfor, or the first free one near it) and its token, which the server sends\nit with every call (`Authorization: Bearer <token>`) and it presents when it reports back.\nShown once.",
+        "required": [
+          "name",
+          "token"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The runner's name on the server: the one it reports itself by from now on."
+          },
+          "token": {
+            "type": "string",
+            "description": "Its token: 32 random bytes in URL-safe base64, without padding."
           }
         }
       },
@@ -18512,6 +18824,39 @@
         "format": "int64",
         "description": "One run of work on a task: a turn of a thread, or a worker's session."
       },
+      "RunnerCode": {
+        "type": "object",
+        "description": "`POST /api/runners/codes`'s answer: a one-time code a new runner pairs with, the server's\naddress the runner is to use, and the lines that install and pair a runner with both. The\ncode works once, for 10 minutes.",
+        "required": [
+          "code",
+          "expiresAt",
+          "server",
+          "reachable",
+          "install"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The code as shown to the person, `ABCD-EFGH`."
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Timestamp",
+            "description": "When it stops working."
+          },
+          "server": {
+            "type": "string",
+            "description": "The server's address in the lines, without a final `/`: the one the app sent; else the\nserver's public URL, or the address it listens on, when another machine can reach\nthem; else the address the request came in on; else the server's own."
+          },
+          "reachable": {
+            "type": "boolean",
+            "description": "Whether another machine can reach [`Self::server`]: false for a loopback address\n(`127.0.0.1`, `localhost`), which reaches only the server's own computer."
+          },
+          "install": {
+            "$ref": "#/components/schemas/RunnerInstall",
+            "description": "The lines that install a runner and pair it with this code."
+          }
+        }
+      },
       "RunnerFacts": {
         "type": "object",
         "description": "A runner's own figures.",
@@ -18581,6 +18926,29 @@
           }
         }
       },
+      "RunnerInstall": {
+        "type": "object",
+        "description": "The lines that install a runner and pair it with a code, each one line to copy.",
+        "required": [
+          "command",
+          "shell",
+          "powershell"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "With the runner already on the machine: `emberhut-runner install --server URL --pair\nCODE`."
+          },
+          "shell": {
+            "type": "string",
+            "description": "macOS and Linux: the release's `install-runner.sh` through `curl`, which downloads the\nrunner, checks it and runs the command."
+          },
+          "powershell": {
+            "type": "string",
+            "description": "Windows, in PowerShell as an administrator: the release's `install-runner.ps1` through\n`irm`, with the address and code in its environment."
+          }
+        }
+      },
       "RunnerReply": {
         "allOf": [
           {
@@ -18601,6 +18969,59 @@
           }
         ],
         "description": "A runner's answer passed through with `ok: true` in front (a send's `{ turn, queued }`, a\nstop's `{ running }`), or a worker's."
+      },
+      "RunnerRow": {
+        "type": "object",
+        "description": "One runner the server knows. Its token is never listed.",
+        "required": [
+          "name",
+          "place",
+          "url",
+          "source"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The runner's name, the one it reports itself by."
+          },
+          "place": {
+            "type": "string",
+            "description": "Its machine in words (its name when it has none)."
+          },
+          "url": {
+            "type": "string",
+            "description": "Its API's address."
+          },
+          "source": {
+            "$ref": "#/components/schemas/RunnerSource",
+            "description": "Where the server knows it from."
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its system, as it said when it paired; left out for a configured runner."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its own version, as it said when it paired; left out for a configured runner."
+          },
+          "created": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When it first paired; left out for a configured runner."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       },
       "RunnerSession": {
         "type": "object",
@@ -18746,6 +19167,30 @@
           "room": {
             "$ref": "#/components/schemas/RoomId",
             "description": "Its room (Main for one with no project)."
+          }
+        }
+      },
+      "RunnerSource": {
+        "type": "string",
+        "description": "One of: flag, paired. A newer server may send another word; clients keep it as it is.",
+        "examples": [
+          "flag",
+          "paired"
+        ]
+      },
+      "RunnersPage": {
+        "type": "object",
+        "description": "`GET /api/runners`: the runners the server's configuration names, in its order, then the\npaired ones, by name. A paired runner whose name the configuration also gives is left out:\nthe configured one is the one the server reaches.",
+        "required": [
+          "runners"
+        ],
+        "properties": {
+          "runners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunnerRow"
+            },
+            "description": "The runners."
           }
         }
       },
