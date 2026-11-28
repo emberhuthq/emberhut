@@ -160,6 +160,7 @@ area's logic lives in its service (`services/<area>.rs`), tested on its own; the
 | `apps/web`, `deploy/` | placeholders |
 | The MCP endpoint and its tools, the settings actions, the state's sections (ADR 0009) | yes: the registries, with `theme`, `ui` and the theme routes; the areas add theirs |
 | Tasks, projects, areas, findings, artifacts, runs and the plan (ADR 0015) | yes: the tables, the board and the state's keys, `/api/tasks*`, `/api/artifacts/*`, `/api/scheduled`, their settings actions and tools; the workers, runner sessions and projects' rooms plug in when their areas land |
+| Task plans (ADR 0035): a task's steps (`plan_steps`), the plan tools, each task's plan in the state and on its page | yes: behind `--task-plans` (`EMBERHUT_TASK_PLANS`), off by default |
 | The agent runtime (a CLI session per room, failover, interrupt), the wake rule, check-ins, watches, routines and the assistant's own tools (ADR 0014) | yes: `Silent` unless `EMBERHUT_AGENT_COMMAND` is set |
 | The assistant's workers (a CLI session per task on `POST /mcp/worker`), ultra runs (`POST /ultra/gate`) and the guard rails: grants, the chat's OK, a card's Send it, Go ahead cards, outward steps, the ask guard, keys masked (ADR 0018) | yes: workers run when `EMBERHUT_AGENT_COMMAND` is set; the ask guard's judge with it |
 | The agent's model provider, saved from the apps (ADR 0028), and the OpenAI bridge the CLI reaches `openai` and `openai-compatible` through, on its own loopback listener (ADR 0029) | yes: the bridge listens when `EMBERHUT_AGENT_COMMAND` is set |
