@@ -3,12 +3,14 @@ import { useEmberhutState } from "@/state/queries";
 import { Loading, Screen, Section, Text, usePullRefresh } from "@/ui";
 import { subtasksOf, todayLists } from "./model";
 import { TaskRow } from "./TaskRow";
+import { useTaskPlans } from "./useTaskPlans";
 
 /** Today: what you have to decide today (the rest waits in Needs you), then the server's ranked list. */
 export function TodayScreen() {
   const state = useEmberhutState();
   const pull = usePullRefresh(state.refetch);
   const gone = useActions((s) => s.gone);
+  const plans = useTaskPlans();
   if (!state.data) return <Loading label="Reaching Emberhut" />;
   const name = (pid: number | null | undefined) => state.data.projects?.find((p) => p.id === pid)?.name;
   const { decide, ranked: today } = todayLists(state.data, gone);
@@ -17,7 +19,7 @@ export function TodayScreen() {
     <Screen scroll {...pull}>
       <Section title="To decide today" tone="needsYou">
         {decide.map((t) => (
-          <TaskRow key={t.id} task={t} project={name(t.pid)} />
+          <TaskRow key={t.id} task={t} project={name(t.pid)} plans={plans} />
         ))}
       </Section>
       <Section
@@ -29,7 +31,13 @@ export function TodayScreen() {
         }
       >
         {today.map((t) => (
-          <TaskRow key={t.id} task={t} project={name(t.pid)} subtasks={t.sub ? subtasksOf(t.id, state.data, gone) : undefined} />
+          <TaskRow
+            key={t.id}
+            task={t}
+            project={name(t.pid)}
+            subtasks={t.sub ? subtasksOf(t.id, state.data, gone) : undefined}
+            plans={plans}
+          />
         ))}
       </Section>
       {today.length === 0 && <Text tone="secondary">Nothing ranked for today.</Text>}
