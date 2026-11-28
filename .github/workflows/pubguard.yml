@@ -1,0 +1,64 @@
+name: Public text check
+
+# Scans what goes public (a pull request's title, body, commits and diff; pushes to main; release
+# notes and assets) for private or exploitable details. The scanner and its rules are private:
+# the rules come from an encrypted secret and nothing is printed but the rule and the place.
+# pull_request_target runs this file as it is on main, so a pull request can't change the check;
+# the pull request's commits are fetched as data and never run.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  release:
+    types: [published, created, edited, prereleased]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pubguard-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pubguard:
+    name: pubguard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # only to put a release that fails the check back into draft
+      pull-requests: read
+    steps:
+      - name: Unpack the scanner (its source is in encrypted secrets)
+        env:
+          S0: ${{ secrets.PUBGUARD_SRC_0 }}
+          S1: ${{ secrets.PUBGUARD_SRC_1 }}
+          S2: ${{ secrets.PUBGUARD_SRC_2 }}
+        run: |
+          test -n "$S0" || { echo "::error::the scanner's secrets aren't available to this run"; exit 1; }
+          mkdir -p pubguard-src
+          printf '%s%s%s' "$S0" "$S1" "$S2" | tr -d ' ' | base64 -d | xz -d | tar -x -C pubguard-src
+      - name: Cache the build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pubguard-src/target
+          key: pubguard-${{ runner.os }}-${{ hashFiles('pubguard-src/Cargo.lock', 'pubguard-src/src/**') }}
+          restore-keys: pubguard-${{ runner.os }}-
+      - name: Build the scanner
+        run: cargo build --release --locked --manifest-path pubguard-src/Cargo.toml
+      - name: gitleaks 8.30.1 (checksum pinned)
+        run: |
+          curl -sSfL -o gl.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gl.tgz" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin" && tar -xzf gl.tgz -C "$HOME/.local/bin" gitleaks
+      - name: Check
+        env:
+          PUBGUARD_RULES_GZ: ${{ secrets.PUBGUARD_RULES }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -n "$PUBGUARD_RULES_GZ" || { echo "::error::the PUBGUARD_RULES secret isn't available to this run"; exit 1; }
+          umask 077
+          printf '%s' "$PUBGUARD_RULES_GZ" | base64 -d | gunzip > "$RUNNER_TEMP/rules.toml"
+          pubguard-src/target/release/pubguard ci --rules "$RUNNER_TEMP/rules.toml" --redact all
