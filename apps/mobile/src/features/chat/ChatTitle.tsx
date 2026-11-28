@@ -8,7 +8,7 @@ import { Icon, Text } from "@/ui";
 import type { EmberhutStatus } from "./status";
 
 /**
- * The header: the room ("Emberhut" for Main) and what Emberhut is doing there; a tap lists the rooms. An agent's room is marked
+ * The header: the room (for Main, the name you gave your ember, else its own) and what Emberhut is doing there; a tap lists the rooms. An agent's room is marked
  * as one, with who the agent works for beside its status.
  */
 export function ChatTitle({

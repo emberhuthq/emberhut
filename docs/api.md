@@ -304,6 +304,7 @@ request and fingerprints it:
 | `areas` | `Area[]` | each project's areas: `status`, the `state` rolled up from its tasks, `counts`, `questions`, `findings` and its `tree` of tasks with their steps; a done area comes bare |
 | `report` | `WeekReport` | the weekly report: `concern`, `weeks` (finished per week, this one last), `weekStarts`, `since`, `goals` with their projects, `done` |
 | `theme` | `ThemeChoice` | the theme choice only: a newer `at` than the client's means `GET /api/theme` |
+| `emberName` | `EmberName` | what the person calls their ember: `{ name, custom, at }`; `name` is "Your ember" and `custom` false when they gave none (an older server leaves it out: "Your ember") |
 | `ui` | `{ hideGoals, hideProjects }` | screens to hide (by default both `true`) |
 | `account` | `Account` | the assistant's account and its use (`used5h`, `used7d` 0 to 1); every field `null` until the first turn |
 | `auth` | `{ mode, bound, devices[] }` | sign-in mode and the signed-in devices (`id`, `name`, `model`, `created`, `seen`; no tokens) |
@@ -876,6 +877,36 @@ preset's own, a colour (`#RGB` or `#RRGGBB`, `#` optional) sets it. `preview: tr
 out without saving. 200 `{ "ok": true, ...ThemePage }` (`ThemeSetReply`); 400
 `{ "ok": false, "error": "preset: one of paper, graphite, blue, ..." }`,
 `"appearance: system, light or dark"` or `"accent: a hex colour like #3366FF (or null for the preset's own)"`.
+
+## The ember's name
+
+What the person calls their ember ("Pip", "Juniper"): one name for every device, kept per person
+(the owner), and the state's `emberName`, so every app shows a new name at its next poll. The
+assistant's prompt names it (its session starts again on the same conversation at its next turn
+after a rename), and the owner's reply alerts are titled with it in place of "Emberhut". Without a
+name, everything says "Your ember" (alerts: "Emberhut"), as before.
+
+### GET /api/ember/name
+
+`EmberName`: `{ "name": "Pip", "custom": true, "at": "2026-11-28T10:00:00.000Z" }`. Without a
+name: `{ "name": "Your ember", "custom": false, "at": null }`.
+
+### POST /api/ember/name
+
+```json
+{ "name": "Pip" }
+```
+
+`EmberNameChange`: the name is trimmed, each run of spaces inside it made one, and must be one
+line of 1 to 24 characters as a person counts them (grapheme clusters: an emoji, even one joined of
+several, is one), with no line breaks, control characters or characters that hide or reorder text
+(the joiner inside an emoji is fine). `null`, `""` (or only spaces) and "Your ember" (any case,
+any spacing) go back to the default. 200
+`{ "ok": true, "name": "Pip", "custom": true, "at": "2026-11-28T10:00:00.000Z" }`
+(`EmberNameReply`; a reset: `{ "ok": true, "name": "Your ember", "custom": false, "at": ... }`);
+400 `{ "ok": false, "error": "name: 24 characters at most" }`, `"name: one line of plain text"` or,
+for a body without `name` as text or `null`, `"name: text, or null for the default"`. Nothing
+changes on a 400.
 
 ## The MCP endpoint
 

@@ -7,7 +7,6 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{App, Div, Entity, FontWeight, div, px};
 
-use crate::brand::APP_NAME;
 use crate::store::Store;
 use crate::ui::palette::Pal;
 
@@ -15,6 +14,7 @@ use crate::ui::palette::Pal;
 pub(super) fn banner(store: &Entity<Store>, p: &Pal, cx: &App) -> Option<Div> {
     let held = store.read(cx);
     let paused = !held.is_on_duty();
+    let name = held.ember_name().to_owned();
     let problem = held.on_duty_problem().map(str::to_owned);
     if !paused && problem.is_none() {
         return None;
@@ -53,7 +53,7 @@ pub(super) fn banner(store: &Entity<Store>, p: &Pal, cx: &App) -> Option<Div> {
                                     div()
                                         .text_size(px(13.))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .child(format!("{APP_NAME} is paused")),
+                                        .child(format!("{name} is paused")),
                                 )
                                 .child(div().text_size(px(12.)).text_color(p.muted).child(
                                     "It wakes for nothing until you resume it. It still answers \

@@ -7,6 +7,7 @@
 pub(crate) mod about;
 pub(crate) mod appearance;
 pub(crate) mod chrome;
+pub(crate) mod ember_name;
 pub(crate) mod entries;
 pub(crate) mod now;
 mod on_duty;
@@ -19,6 +20,7 @@ use gpui_kit::Context;
 
 use self::about::FactsFeed;
 use self::chrome::{ChromeFeed, ChromeSheet};
+use self::ember_name::EmberNaming;
 use self::on_duty::OnDuty;
 use self::switches::SwitchesFeed;
 use super::{Page, Store};
@@ -72,6 +74,7 @@ pub(crate) struct SettingsData {
     facts: FactsFeed,
     chrome: ChromeFeed,
     on_duty: OnDuty,
+    naming: EmberNaming,
 }
 
 impl Store {

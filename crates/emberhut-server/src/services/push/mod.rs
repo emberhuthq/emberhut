@@ -18,7 +18,7 @@ use std::sync::Arc;
 use emberhut_api::push::PushRegistration;
 use emberhut_core::push::{Alert, ApnsDevice, ApnsEnv, ApnsToken, FcmToken, PushTokenError};
 use emberhut_core::{Clock, DeviceId, RoomId};
-use emberhut_db::{DbError, FamilyStore, PushStore, RoomStore};
+use emberhut_db::{DbError, FamilyStore, PushStore, RoomStore, SettingStore};
 use futures_util::future::BoxFuture;
 
 use crate::services::family::{FAMILY_ROOMS, NOT_AVAILABLE};
@@ -122,6 +122,8 @@ pub struct PushService {
     /// The family members' rooms and phones: a reply in one of their rooms goes to their
     /// phones, never the owner's.
     family: Option<FamilyStore>,
+    /// Where the owner's name for their ember is kept: their replies' alerts carry it.
+    names: Option<SettingStore>,
 }
 
 impl PushService {
@@ -143,6 +145,7 @@ impl PushService {
             presence,
             senders,
             family: None,
+            names: None,
         }
     }
 
@@ -152,6 +155,26 @@ impl PushService {
     pub fn with_family(mut self, family: FamilyStore) -> Self {
         self.family = Some(family);
         self
+    }
+
+    /// The same service, titling the owner's reply alerts with the name they gave their ember
+    /// (kept in `settings`) in place of "Emberhut".
+    #[must_use]
+    pub fn with_names(mut self, settings: SettingStore) -> Self {
+        self.names = Some(settings);
+        self
+    }
+
+    /// The owner's name for their ember, when they gave one.
+    async fn ember_name(&self) -> Option<String> {
+        let settings = self.names.as_ref()?;
+        match crate::services::ember_name::custom_name(settings).await {
+            Ok(name) => name,
+            Err(error) => {
+                tracing::warn!(%error, "no ember name for the push");
+                None
+            }
+        }
     }
 
     /// Keeps a phone's push address, as `device`'s: an Android phone's FCM token when its
@@ -218,6 +241,7 @@ impl PushService {
                     tracing::warn!(%room, "no push: {NOT_AVAILABLE}");
                     return PushReport::default();
                 }
+                // A family member's own rooms keep "Emberhut": the name is the owner's.
                 Ok(Some(person)) => return self.push_family(family, &person, &alert).await,
                 Ok(None) => {}
                 Err(error) => {
@@ -227,6 +251,10 @@ impl PushService {
                 }
             }
         }
+        let alert = match self.ember_name().await {
+            Some(from) => Alert::reply_from(Some(&from), room, name.as_deref(), reply),
+            None => alert,
+        };
         self.push(&alert).await
     }
 

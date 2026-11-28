@@ -21,7 +21,6 @@ use super::files::drag;
 use super::palette::Pal;
 use super::viewer::OpenInViewer;
 use super::widgets::icon;
-use crate::brand::APP_NAME;
 use crate::config::ServerUrl;
 use crate::heic;
 use crate::prose::events::{self, EventLine};
@@ -109,10 +108,11 @@ fn run_lines(run: &[Rc<Parsed>]) -> Vec<EventLine> {
         .collect()
 }
 
-/// What a run's line says: `Emberhut noticed · 1 check-in · 2 new mails`, or its first line as it
-/// is when none of it is an event line.
+/// What a run's line says, `noticer` being who noticed (the ember, or the room's agent):
+/// `Juniper noticed · 1 check-in · 2 new mails`, or its first line as it is when none of it is an
+/// event line.
 #[must_use]
-fn event_summary(lines: &[EventLine], run: &[Rc<Parsed>]) -> String {
+fn event_summary(noticer: &str, lines: &[EventLine], run: &[Rc<Parsed>]) -> String {
     let said = events::summary(lines).unwrap_or_else(|| {
         run.iter()
             .map(|parsed| parsed.first_line.as_str())
@@ -120,7 +120,7 @@ fn event_summary(lines: &[EventLine], run: &[Rc<Parsed>]) -> String {
             .unwrap_or_default()
             .to_owned()
     });
-    format!("{APP_NAME} noticed · {said}")
+    format!("{noticer} noticed · {said}")
 }
 
 /// A row: centred, at most the chat's width, with its time stamp.
@@ -149,9 +149,10 @@ pub(crate) fn row(stamp: Option<String>, body: AnyElement, p: &Pal) -> Div {
     div().w_full().flex().justify_center().child(column)
 }
 
-/// A run of event lines (each message as it was read, `parsed`): one muted line summing it up,
-/// which lists each event when clicked.
+/// A run of event lines (each message as it was read, `parsed`) that `noticer` noticed: one
+/// muted line summing it up, which lists each event when clicked.
 pub(crate) fn event_line(
+    noticer: &str,
     run: &[ChatMessage],
     parsed: &[Rc<Parsed>],
     open: bool,
@@ -162,7 +163,7 @@ pub(crate) fn event_line(
         .first()
         .map_or_else(|| "events".to_owned(), |m| format!("event-{}", m.id));
     let lines = run_lines(parsed);
-    let summary = event_summary(&lines, parsed);
+    let summary = event_summary(noticer, &lines, parsed);
     let opens = !lines.is_empty();
     div()
         .flex()
@@ -539,7 +540,7 @@ mod tests {
 
     fn summed_up(run: &[ChatMessage]) -> String {
         let parsed: Vec<Rc<Parsed>> = run.iter().map(|m| Rc::new(Parsed::of(m))).collect();
-        event_summary(&run_lines(&parsed), &parsed)
+        event_summary("Juniper", &run_lines(&parsed), &parsed)
     }
 
     #[test]
@@ -555,12 +556,12 @@ mod tests {
         ];
         assert_eq!(
             summed_up(&run),
-            "Emberhut noticed · 1 check-in · 2 new mails"
+            "Juniper noticed · 1 check-in · 2 new mails"
         );
         let plain = [message(3, "", true, "\nSomething else happened")];
         assert_eq!(
             summed_up(&plain),
-            "Emberhut noticed · Something else happened"
+            "Juniper noticed · Something else happened"
         );
     }
 

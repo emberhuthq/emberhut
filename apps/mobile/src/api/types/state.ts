@@ -4,11 +4,24 @@ import type { AreaTree } from "./areas";
 import type { AuthInfo } from "./auth";
 import type { BrowserInfo, ChromePairing, ChromeProfile } from "./browser";
 import type { ChatMsg, Live } from "./chat";
-import type { Day, Instant } from "./common";
+import type { Day, Instant, Reply } from "./common";
 import type { Author } from "../wire";
 import type { AgentNow, RunnerSession, ExternalThread } from "./sessions";
 import type { Issue, NeedKind, TaskArtifact, TaskLive } from "./tasks";
 import type { ThemeChoice } from "./theme";
+
+/** What you call your ember, the same on every device (`GET /api/ember/name`, the state's `emberName`). */
+export interface EmberName {
+  /** The name to show: yours, or "Your ember". */
+  name: string;
+  /** You gave it; false: the default. */
+  custom: boolean;
+  /** When it last changed; null: never. */
+  at: Instant | null;
+}
+
+/** `POST /api/ember/name`'s answer: `{ ok: true }` and the name as it is now. */
+export type EmberNameReply = Reply & EmberName;
 
 /** A room: Main ("Emberhut", id 1) or one per project, each its own conversation. */
 export interface RoomRow {
@@ -320,6 +333,8 @@ export interface EmberhutState {
   builds?: { ios?: number | null; mac?: number | null } | null;
   /** Your theme choice; a server on older code has none. */
   theme?: ThemeChoice | null;
+  /** What you call your ember; a server on older code has none ("Your ember"). */
+  emberName?: EmberName | null;
   /** Every agent, the default agent ("main") first. Left out by a server without agents. */
   agents?: AgentRow[] | null;
   /** The approval requests waiting on an answer, yours or an approver's, newest first. Left out when there are none. */

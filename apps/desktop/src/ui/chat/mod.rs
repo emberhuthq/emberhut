@@ -37,6 +37,7 @@ use super::palette::{Pal, pal};
 use crate::dictation::Dictation;
 use crate::prose::parsed::ParsedCache;
 use crate::store::Store;
+use crate::store::approvals::shown::visible;
 use crate::store::composer::placeholder;
 
 pub(crate) use self::composer::bind_keys;
@@ -123,7 +124,10 @@ impl ChatView {
         })
         .detach();
         let room = store.read(cx).room();
-        let prompt = placeholder(store.read(cx).state(), room);
+        let prompt = {
+            let store = store.read(cx);
+            placeholder(store.state(), room, store.ember_called())
+        };
         let input = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(1, FIELD_LINES)
@@ -350,7 +354,13 @@ impl ChatView {
                 };
                 let open = self.open_events.contains(&first);
                 let parsed = self.parsed(run);
+                // The room's agent noticed them in its own room; the ember everywhere else.
+                let noticer = store.agent_of_room(store.room()).map_or_else(
+                    || store.ember_name().to_owned(),
+                    |agent| visible(&agent.name).into_owned(),
+                );
                 let body = message::event_line(
+                    &noticer,
                     run,
                     &parsed,
                     open,

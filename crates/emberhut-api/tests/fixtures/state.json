@@ -144,6 +144,7 @@
   },
   "ui": { "hideGoals": true, "hideProjects": true },
   "theme": { "preset": "blue", "appearance": "system", "accent": null, "at": null },
+  "emberName": { "name": "Juniper", "custom": true, "at": "2026-11-24T21:57:53.410Z" },
   "builds": { "ios": 120, "mac": 121 },
   "working": [
     {

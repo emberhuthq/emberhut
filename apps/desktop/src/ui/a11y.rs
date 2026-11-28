@@ -13,8 +13,6 @@ use gpui_kit::accesskit::Live;
 use gpui_kit::prelude::*;
 use gpui_kit::{Div, ElementId, Role, SharedString, Stateful, StatefulInteractiveElement, div};
 
-use crate::brand::APP_NAME;
-
 /// Roles, names, hints and announcements for an element with an id.
 pub(crate) trait Accessible: StatefulInteractiveElement + Sized {
     /// A button the screen reader names `label` (for one that shows an icon, or more than its
@@ -54,11 +52,12 @@ pub(crate) fn said(id: impl Into<ElementId>, text: impl Into<SharedString>) -> S
     div().id(id).announced(text)
 }
 
-/// The working line: "Emberhut is working: Reading a thread", or "… thinking" with no step yet.
+/// The working line of the ember `name`d so: "Juniper is working: Reading a thread", or
+/// "… thinking" with no step yet.
 #[must_use]
-pub(crate) fn working(doing: Option<&str>) -> String {
+pub(crate) fn working(name: &str, doing: Option<&str>) -> String {
     let doing = doing.map(str::trim).filter(|doing| !doing.is_empty());
-    format!("{APP_NAME} is working: {}", doing.unwrap_or("thinking"))
+    format!("{name} is working: {}", doing.unwrap_or("thinking"))
 }
 
 /// "1 needs you", "3 need you".
@@ -192,13 +191,13 @@ mod tests {
     #[test]
     fn the_working_line_says_what_the_assistant_does() {
         assert_eq!(
-            working(Some("Reading a thread")),
-            format!("{APP_NAME} is working: Reading a thread")
+            working("Juniper", Some("Reading a thread")),
+            "Juniper is working: Reading a thread"
         );
-        assert_eq!(working(None), format!("{APP_NAME} is working: thinking"));
+        assert_eq!(working("Pip", None), "Pip is working: thinking");
         assert_eq!(
-            working(Some("  ")),
-            format!("{APP_NAME} is working: thinking")
+            working("Your ember", Some("  ")),
+            "Your ember is working: thinking"
         );
     }
 

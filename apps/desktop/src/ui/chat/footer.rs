@@ -16,7 +16,6 @@ use jiff::ZonedDateTime;
 use super::ChatView;
 use super::attachments;
 use super::composer::is_working;
-use crate::brand::APP_NAME;
 use crate::store::{PendingMessage, Store};
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::palette::Pal;
@@ -27,9 +26,10 @@ impl ChatView {
     pub(super) fn footer(&self, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
         let store = self.store.read(cx);
         let doing = store.live().and_then(|live| live.doing.clone());
-        let spoken = a11y::working(doing.as_deref());
+        let name = store.ember_name();
+        let spoken = a11y::working(name, doing.as_deref());
         let working = is_working(store)
-            .then(|| doing.unwrap_or_else(|| format!("{APP_NAME} is working…")))
+            .then(|| doing.unwrap_or_else(|| format!("{name} is working…")))
             .map(|line| (line, spoken));
         let column =
             div()

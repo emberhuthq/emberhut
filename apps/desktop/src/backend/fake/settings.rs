@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::sync::{Mutex, PoisonError};
 
 use emberhut_api::chrome::ChromeReply;
+use emberhut_api::ember_name::{EmberName, clean_name};
 use emberhut_api::facts::FactsPage;
 use emberhut_api::switches::SwitchPage;
 
@@ -17,6 +18,7 @@ pub(crate) struct SettingsReplies {
     switches: Mutex<VecDeque<Result<SwitchPage, Error>>>,
     facts: Mutex<VecDeque<Result<FactsPage, Error>>>,
     chrome: Mutex<VecDeque<Result<ChromeReply, Error>>>,
+    names: Mutex<VecDeque<Result<EmberName, Error>>>,
 }
 
 fn push<T>(queue: &Mutex<VecDeque<T>>, reply: T) {
@@ -53,6 +55,22 @@ impl SettingsReplies {
     /// Queues the answer to the next Chrome change (by default no profile and no link).
     pub(crate) fn push_chrome(&self, reply: Result<ChromeReply, Error>) {
         push(&self.chrome, reply);
+    }
+
+    /// Queues the answer to the next rename (by default the name is taken as the server
+    /// would keep it).
+    pub(crate) fn push_rename(&self, reply: Result<EmberName, Error>) {
+        push(&self.names, reply);
+    }
+
+    pub(super) fn rename(&self, name: Option<&str>) -> Result<EmberName, Error> {
+        pop(&self.names).unwrap_or_else(|| {
+            let kept = clean_name(name.unwrap_or_default()).map_err(|refusal| Error::Refused {
+                status: Some(400),
+                message: Some(refusal.to_string()),
+            })?;
+            Ok(EmberName::new(kept, None))
+        })
     }
 
     pub(super) fn settings(&self) -> Result<(), Error> {

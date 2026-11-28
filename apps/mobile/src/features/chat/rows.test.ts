@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMsg } from "@/api";
-import { buildRows, eventLines, eventSummary, quoteOf } from "./rows";
+import { buildRows, eventLines, eventSummary, noticedLine, quoteOf } from "./rows";
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 10, 24, 9, minutes)).toISOString();
 const m = (id: number, minutes: number | null, extra: Partial<ChatMsg> = {}): ChatMsg => ({
@@ -30,6 +30,8 @@ describe("events", () => {
     const lines = eventLines("- [checkin] look at the build\n- [note] a\nnot a line\n- [note] b\n- [new_mail] c\n- [body] d\n- [body] e");
     expect(lines).toHaveLength(6);
     expect(eventSummary(lines)).toBe("1 check-in · 2 notes · 1 new mail · 2 bodies");
+    expect(noticedLine("Juniper", eventSummary(lines))).toBe("Juniper noticed · 1 check-in · 2 notes · 1 new mail · 2 bodies");
+    expect(noticedLine("Your ember", "1 check-in")).toBe("Your ember noticed · 1 check-in");
   });
 });
 

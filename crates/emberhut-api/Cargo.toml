@@ -22,6 +22,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 utoipa = { workspace = true, optional = true, features = ["macros"] }
+# Counting a name in the characters a person sees (an emoji is one).
+unicode-segmentation = { workspace = true }
 emberhut-identity = { workspace = true, features = ["serde"] }
 
 [lints]

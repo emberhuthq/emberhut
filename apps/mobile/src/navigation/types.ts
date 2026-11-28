@@ -51,7 +51,8 @@ export type RootStackParamList = {
   /** Settings' front door: the search, the groups, the suggestions. */
   Settings: undefined;
   /** One group of Settings ("ember", "connections"), on a screen of its own. */
-  SettingsGroup: { group: SettingsGroupId };
+  /** A group of Settings; `focus`: a setting on it to open at once (Your ember's name, to type a new one). */
+  SettingsGroup: { group: SettingsGroupId; focus?: "ember-name" };
   /** What your ember thinks with: the model provider, its key and model, checked with the provider before it's saved. */
   Credentials: undefined;
   /** Each runner machine's live capacity, as the server lists them. */

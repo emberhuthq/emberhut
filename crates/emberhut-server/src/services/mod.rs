@@ -21,6 +21,7 @@ pub mod coding_app;
 pub mod context;
 pub mod dark;
 pub mod display;
+pub mod ember_name;
 pub mod environments;
 pub mod facts;
 pub mod family;

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { entries, groupName, groups, groupStatus, nothingKnown, pathOf } from "./entries";
+import { calledIn, entries, groupName, groups, groupStatus, nothingKnown, pathOf } from "./entries";
 import { search, suggestions } from "./find";
 
 /** The list both apps check theirs against. */
@@ -28,10 +28,23 @@ describe("the settings' list", () => {
 describe("Your ember's status line", () => {
   it("says what it is doing, not that it is on duty", () => {
     const on = { ...nothingKnown, onDuty: true };
-    expect(groupStatus("ember", on)).toBe("Ready");
-    expect(groupStatus("ember", { ...on, working: true })).toBe("Working on 1 thing");
-    expect(groupStatus("ember", { ...on, jobs: 2 })).toBe("Working on 2 things");
+    expect(groupStatus("ember", on)).toBe("Watching");
+    expect(groupStatus("ember", { ...on, working: true })).toBe("Working…");
+    expect(groupStatus("ember", { ...on, jobs: 1 })).toBe("Watching · 1 job");
+    expect(groupStatus("ember", { ...on, working: true, jobs: 2 })).toBe("Working… · 2 jobs");
     expect(groupStatus("ember", nothingKnown)).toBe("Off duty");
+  });
+});
+
+describe("the ember by its name", () => {
+  it("is called by it mid-sentence, else your ember", () => {
+    expect(calledIn({ emberName: "Juniper" })).toBe("Juniper");
+    expect(calledIn(nothingKnown)).toBe("your ember");
+    expect(groupStatus("devices", { ...nothingKnown, devices: 2, emberName: "Juniper" })).toBe("2 can reach Juniper");
+  });
+
+  it("opens the Name setting on its card, ready to type", () => {
+    expect(entries.find((entry) => entry.id === "ember-name")?.to).toEqual({ group: "ember", focus: "ember-name" });
   });
 });
 
@@ -48,6 +61,10 @@ describe("search", () => {
       ["memory", "about-you"],
       ["hide agents", "show-agents"],
       ["agents below rooms", "agents-place"],
+      ["name", "ember-name"],
+      ["rename", "ember-name"],
+      ["call it", "ember-name"],
+      ["nickname", "ember-name"],
     ] as const) {
       expect(first(query), query).toBe(id);
     }

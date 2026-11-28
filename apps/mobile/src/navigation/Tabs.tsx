@@ -11,6 +11,7 @@ import { useTaskPlans } from "@/features/tasks/useTaskPlans";
 import { useEmberhutState } from "@/state/queries";
 import { useTheme } from "@/theme";
 import { TranslucentBars } from "@/ui";
+import { emberName } from "@/features/ember/name";
 import { emberTabOptions } from "./emberTab";
 import { withHeader } from "./TabHeader";
 import { androidTabIcon, emberFaces } from "./tabIcons";
@@ -43,7 +44,9 @@ const More = withHeader(MoreScreen, { largeTitle: true });
 export function Tabs() {
   const { colors } = useTheme();
   const needs = useNeedsCount();
-  const onDuty = useEmberhutState().data?.on;
+  const state = useEmberhutState().data;
+  const onDuty = state?.on;
+  const ember = emberName(state);
   // A server that keeps task plans: each task shows its own progress, so Tasks is the work running and the Sessions list
   // moves under More (SessionList), with the sessions that have no task in Tasks too.
   const plans = useTaskPlans();
@@ -65,7 +68,7 @@ export function Tabs() {
         tabBarStyle={Platform.OS === "android" ? { backgroundColor: colors.surface } : undefined}
         screenOptions={{ sceneStyle: { backgroundColor: colors.background } }}
       >
-        <Tab.Screen name="Chat" component={Chat} options={emberTabOptions(onDuty, emberFaces)} />
+        <Tab.Screen name="Chat" component={Chat} options={emberTabOptions(onDuty, emberFaces, ember)} />
         <Tab.Screen
           name="NeedsYou"
           component={NeedsYou}

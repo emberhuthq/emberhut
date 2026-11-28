@@ -904,6 +904,106 @@
         ]
       }
     },
+    "/api/ember/name": {
+      "get": {
+        "tags": [
+          "ember"
+        ],
+        "summary": "The ember's name: the owner's, or \"Your ember\" (`custom: false`).",
+        "operationId": "name",
+        "responses": {
+          "200": {
+            "description": "The ember's name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmberName"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "ember"
+        ],
+        "summary": "Renames the ember: `{ \"name\": \"Pip\" }`, or `{ \"name\": null }` (or `\"\"`) for the default.\nThe name is trimmed, its runs of spaces made one, and must be one line of at most 24\ncharacters, an emoji counting as one.",
+        "operationId": "set_name",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmberNameChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Renamed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmberNameReply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name the server doesn't take, or a body that isn't `{ name }` (`{ ok: false, error }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is over the server's limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/mcp/emberhut": {
       "post": {
         "tags": [
@@ -12990,6 +13090,69 @@
           }
         }
       },
+      "EmberName": {
+        "type": "object",
+        "description": "The ember's name as every device shows it.",
+        "required": [
+          "name",
+          "custom"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name to show: the person's, or \"Your ember\"."
+          },
+          "custom": {
+            "type": "boolean",
+            "description": "The person gave it; `false`: the default."
+          },
+          "at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When it last changed; none: never."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "EmberNameChange": {
+        "type": "object",
+        "description": "`POST /api/ember/name`: the new name, or `null` (or `\"\"`) for the default.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One line of 1 to 24 characters (an emoji is one) once trimmed, runs of spaces made one;\n`null` or blank: back to \"Your ember\"."
+          }
+        }
+      },
+      "EmberNameReply": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EmberName",
+            "description": "The name."
+          },
+          {
+            "type": "object",
+            "required": [
+              "ok"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean",
+                "description": "Always `true`."
+              }
+            }
+          }
+        ],
+        "description": "`POST /api/ember/name`'s answer: `{ ok: true }` and the name as it is now. A name the server\ndoesn't take is refused with 400 and an `ErrorBody` (`{ ok: false, error }`)."
+      },
       "EnvAction": {
         "type": "object",
         "description": "An action a row offers.",
@@ -19930,6 +20093,17 @@
               }
             ]
           },
+          "emberName": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmberName",
+                "description": "What the person calls their ember; none from an older server: \"Your ember\"."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ui": {
             "oneOf": [
               {
@@ -23478,6 +23652,10 @@
     {
       "name": "theme",
       "description": "The colour theme, the same on every device"
+    },
+    {
+      "name": "ember",
+      "description": "What the person calls their ember, the same on every device"
     },
     {
       "name": "mcp",
