@@ -133,6 +133,21 @@ describe("theme sync", () => {
     expect(prefs.getState().themeCache?.choice.at).not.toBeNull();
   });
 
+  it("tints the ember at once, offline too, keeping the preset, and sends the tint alone", async () => {
+    const { store, prefs, net, posts } = setup({ preset: "purple" });
+    await store.getState().refresh();
+    const sent = store.getState().choose({ emberTint: "rose" });
+    expect(prefs.getState().themeCache?.choice).toMatchObject({ preset: "purple", emberTint: "rose" });
+    await sent;
+    expect(posts()).toEqual([{ emberTint: "rose" }]);
+    expect(prefs.getState().themeCache?.choice).toMatchObject({ preset: "purple", emberTint: "rose" });
+
+    net.down = true;
+    await store.getState().choose({ emberTint: "sage" });
+    expect(currentTheme(prefs.getState()).choice.emberTint).toBe("sage");
+    expect(prefs.getState().themePending).toEqual({ emberTint: "sage" });
+  });
+
   it("keeps an offline change across a restart", async () => {
     const storage = memory();
     const { server, api } = fakeApi();

@@ -2,6 +2,7 @@ import { createNativeBottomTabNavigator } from "@bottom-tabs/react-navigation";
 import { Platform, type ImageSourcePropType } from "react-native";
 import type { AppleIcon } from "react-native-bottom-tabs";
 import { ChatScreen } from "@/features/chat/ChatScreen";
+import { useEmberTint } from "@/features/ember/useEmberTint";
 import { MoreScreen } from "@/features/more/MoreScreen";
 import { NeedsYouScreen } from "@/features/needsYou/NeedsYouScreen";
 import { useNeedsCount } from "@/features/needsYou/useNeedsCount";
@@ -14,14 +15,14 @@ import { TranslucentBars } from "@/ui";
 import { emberName } from "@/features/ember/name";
 import { emberTabOptions } from "./emberTab";
 import { withHeader } from "./TabHeader";
-import { androidTabIcon, emberFaces } from "./tabIcons";
+import { androidTabIcon, emberFacesIn } from "./tabIcons";
 import type { IconTab } from "./tabIconNames";
 import type { TabParamList } from "./types";
 
 // Each platform's own tab bar around the same screens (react-native-bottom-tabs): UIKit's UITabBarController on iOS,
 // Liquid Glass from iOS 26 and the standard blur before, with SF Symbols; Material 3's bottom navigation on Android,
 // with Material icons (bundled PNGs, tabIcons.ts) and its pill behind the one picked. Your ember's tab has the ember itself
-// as its icon on both, in its own colours (emberTab.ts). Each tab has a native header of its own (TabHeader.tsx).
+// as its icon on both, in the tint its look names (emberTab.ts). Each tab has a native header of its own (TabHeader.tsx).
 const Tab = createNativeBottomTabNavigator<TabParamList>();
 
 /** SF Symbols, the plain one and the filled one for the tab picked. */
@@ -50,6 +51,7 @@ export function Tabs() {
   // A server that keeps task plans: each task shows its own progress, so Tasks is the work running and the Sessions list
   // moves under More (SessionList), with the sessions that have no task in Tasks too.
   const plans = useTaskPlans();
+  const tint = useEmberTint();
   const icon =
     (tab: IconTab) =>
     ({ focused }: { focused: boolean }): ImageSourcePropType | AppleIcon => {
@@ -68,7 +70,7 @@ export function Tabs() {
         tabBarStyle={Platform.OS === "android" ? { backgroundColor: colors.surface } : undefined}
         screenOptions={{ sceneStyle: { backgroundColor: colors.background } }}
       >
-        <Tab.Screen name="Chat" component={Chat} options={emberTabOptions(onDuty, emberFaces, ember)} />
+        <Tab.Screen name="Chat" component={Chat} options={emberTabOptions(onDuty, emberFacesIn(tint), ember)} />
         <Tab.Screen
           name="NeedsYou"
           component={NeedsYou}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Pressable, SectionList, StyleSheet, View } from "react-native";
 import type { AgentRow, RoomRow } from "@/api";
 import { agentLine } from "@/features/approvals/model";
+import { useEmberTint } from "@/features/ember/useEmberTint";
 import { inBackground } from "@/log";
 import { openChat } from "@/navigation/openChat";
 import type { RootScreenProps } from "@/navigation/types";
@@ -209,6 +210,7 @@ function RoomLine({
   onMenu: () => void;
 }) {
   const { colors, radius, spacing } = useTheme();
+  const tint = useEmberTint();
   const off = agent?.enabled === false;
   const quiet = isPaused(room) || isArchived(room);
   const unread = room.unread > 0 && !quiet && !off;
@@ -249,7 +251,7 @@ function RoomLine({
         {agent ? (
           <Icon name="person-circle-outline" size={28} color={off ? colors.textTertiary : colors.accent} />
         ) : isMain(room) ? (
-          <Face size={28} />
+          <Face size={28} tint={tint} />
         ) : (
           <View style={[styles.dot, { backgroundColor: color }]} />
         )}

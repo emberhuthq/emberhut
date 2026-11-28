@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EmberhutState } from "@/api";
 import { emberName } from "@/features/ember/name";
-import { EMBER_TITLE, emberTabOptions } from "./emberTab";
+import { EMBER_TITLE, emberTabOptions, tintedFaces } from "./emberTab";
 
 const faces = { on: "ember", off: "ember off duty" };
 
@@ -37,5 +37,18 @@ describe("a rename made elsewhere", () => {
     expect(emberTabOptions(true, faces, emberName(before)).title).toBe("Your ember");
     expect(emberTabOptions(true, faces, emberName(after)).title).toBe("Juniper");
     expect(emberTabOptions(true, faces, emberName(polled(null))).title).toBe("Your ember");
+  });
+});
+
+describe("your ember's tab in its tint", () => {
+  const tinted = { ember: "ember", rose: "rose ember" };
+
+  it("draws the ember in the tint its look names", () => {
+    expect(emberTabOptions(true, tintedFaces("rose", tinted, "off")).tabBarIcon()).toBe("rose ember");
+  });
+
+  it("draws a tint this build has no picture of as the ember's own colours, and off duty grey whatever the tint", () => {
+    expect(emberTabOptions(true, tintedFaces("calm", tinted, "off")).tabBarIcon()).toBe("ember");
+    expect(emberTabOptions(false, tintedFaces("rose", tinted, "off")).tabBarIcon()).toBe("off");
   });
 });
