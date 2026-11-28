@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use emberhut_api::theme::{
-    Appearance, Contrast, ContrastFacts, Preset, ThemeChoice, ThemePage, TokenPair, Tokens,
+    Appearance, Contrast, ContrastFacts, EmberTint, Preset, ThemeChoice, ThemePage, TokenPair,
+    Tokens,
 };
 use emberhut_core::Clock;
 use emberhut_core::theme::{self, Palette, ThemeRefusal};
@@ -14,7 +15,7 @@ use serde_json::Value;
 
 use crate::convert::timestamp_to_api;
 
-/// The setting the choice is kept under (`{ preset, appearance, accent, at }`).
+/// The setting the choice is kept under (`{ preset, appearance, accent, emberTint, at }`).
 const THEME: SettingKey<ThemeChoice> = SettingKey::new("theme");
 
 /// Why a theme change was not made.
@@ -60,14 +61,18 @@ impl ThemeService {
         }
     }
 
-    /// The choice: the one last saved, or the default (paper, as the system is, never set). A
-    /// saved choice names its preset, so changing the default leaves it as it was.
+    /// The choice: the one last saved, or the default (paper, as the system is, the ember in its
+    /// own colours, never set). A saved choice names its preset, so changing the default leaves
+    /// it as it was; one saved before tints, or naming a tint no longer offered, reads as the
+    /// default tint.
     ///
     /// # Errors
     ///
     /// [`DbError`].
     pub async fn choice(&self) -> Result<ThemeChoice, DbError> {
-        Ok(self.settings.get(&self.key).await?.unwrap_or_default())
+        let mut choice: ThemeChoice = self.settings.get(&self.key).await?.unwrap_or_default();
+        theme::saved_tint(&choice.ember_tint).clone_into(&mut choice.ember_tint);
+        Ok(choice)
     }
 
     /// The choice's page: its colours and contrast, and every preset's colours.
@@ -79,10 +84,10 @@ impl ThemeService {
         Ok(page(&self.choice().await?))
     }
 
-    /// Changes the fields `change` gives (`{ preset?, appearance?, accent? }`; `accent: null`
-    /// or blank goes back to the preset's own) and keeps the rest; with `preview`, nothing is
-    /// saved. A change is read leniently: a preset or an appearance in
-    /// any case, with spaces around; `accent` as `#RGB` or `#RRGGBB`, the `#` optional.
+    /// Changes the fields `change` gives (`{ preset?, appearance?, accent?, emberTint? }`;
+    /// `accent: null` or blank goes back to the preset's own) and keeps the rest; with
+    /// `preview`, nothing is saved. A change is read leniently: a preset, an appearance or a
+    /// tint in any case, with spaces around; `accent` as `#RGB` or `#RRGGBB`, the `#` optional.
     ///
     /// # Errors
     ///
@@ -108,6 +113,9 @@ impl ThemeService {
                 _ => return Err(ThemeRefusal::Accent.into()),
             };
         }
+        if let Some(tint) = change.get("emberTint") {
+            theme::tint_id(tint.as_str().unwrap_or_default())?.clone_into(&mut choice.ember_tint);
+        }
         if preview {
             return Ok(choice);
         }
@@ -118,10 +126,15 @@ impl ThemeService {
             .accent
             .as_deref()
             .map_or_else(String::new, |accent| format!(" with {accent}"));
+        let tint = if choice.ember_tint == theme::DEFAULT_TINT {
+            String::new()
+        } else {
+            format!(", the ember in {}", choice.ember_tint)
+        };
         self.log
             .add(
                 format!(
-                    "The theme is now {}{accent}, {}",
+                    "The theme is now {}{accent}, {}{tint}",
                     choice.preset,
                     choice.appearance.as_str()
                 ),
@@ -161,6 +174,13 @@ pub fn page(choice: &ThemeChoice) -> ThemePage {
             })
             .collect(),
         names: theme::NAMES.iter().map(|name| (*name).to_owned()).collect(),
+        tints: theme::TINTS
+            .iter()
+            .map(|tint| EmberTint {
+                id: tint.id.to_owned(),
+                name: tint.name.to_owned(),
+            })
+            .collect(),
     }
 }
 

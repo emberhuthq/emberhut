@@ -39,6 +39,7 @@
 //! ```
 
 pub mod accounts;
+pub mod agent_accounts;
 pub mod agent_provider;
 pub mod agents;
 pub mod answers;
@@ -56,6 +57,7 @@ pub mod chrome;
 pub mod connect;
 pub mod dark;
 pub mod directory;
+pub mod ember_name;
 pub mod environments;
 pub mod error;
 pub mod facts;
@@ -107,6 +109,7 @@ pub mod ultra;
 pub mod uploads;
 pub mod usage;
 pub mod voice;
+pub mod waitlist;
 pub mod wake;
 pub mod whatsapp;
 pub mod wire;

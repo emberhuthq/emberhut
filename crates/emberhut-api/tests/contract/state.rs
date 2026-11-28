@@ -138,6 +138,11 @@ fn reads_the_settings_in_the_state() {
         (theme.preset.as_str(), theme.appearance),
         ("blue", Appearance::System)
     );
+    let ember = state.ember_name.unwrap();
+    assert_eq!(
+        (ember.name.as_str(), ember.custom()),
+        ("Juniper", Some("Juniper"))
+    );
     let ui = state.ui.unwrap();
     assert!(ui.hide_goals && ui.hide_projects);
     let account = state.account.unwrap();
@@ -192,6 +197,7 @@ fn reads_an_older_server() {
     assert!(state.issues.is_empty() && state.working.is_empty() && state.sessions.is_empty());
     assert!(
         state.theme.is_none()
+            && state.ember_name.is_none()
             && state.ui.is_none()
             && state.account.is_none()
             && state.auth.is_none()

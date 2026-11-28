@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "@/theme";
 import { Icon, Text } from "@/ui";
-import { eventLines, eventSummary } from "./rows";
+import { eventLines, eventSummary, noticedLine } from "./rows";
 
-/** What the server told Emberhut (events, check-ins): not conversation, so one quiet centered line; a tap lists them. */
-export function EventBatch({ text }: { text: string }) {
+/**
+ * What the server told the ember (events, check-ins): not conversation, so one quiet centered line, `Juniper noticed · …`
+ * (`noticer`: the ember's name, or the room's agent); a tap lists them.
+ */
+export function EventBatch({ text, noticer }: { text: string; noticer: string }) {
   const { colors, radius, spacing } = useTheme();
   const [open, setOpen] = useState(false);
   const lines = eventLines(text);
@@ -16,13 +19,13 @@ export function EventBatch({ text }: { text: string }) {
         onPress={() => setOpen((o) => !o)}
         disabled={lines.length === 0}
         accessibilityRole="button"
-        accessibilityLabel={`Emberhut noticed: ${summary}`}
-        accessibilityHint={open ? "Hides the list" : "Shows what Emberhut noticed"}
+        accessibilityLabel={`${noticer} noticed: ${summary}`}
+        accessibilityHint={open ? "Hides the list" : `Shows what ${noticer} noticed`}
         hitSlop={8}
         style={[styles.row, { gap: spacing.xs }]}
       >
         <Text variant="caption" tone="secondary" numberOfLines={1}>
-          Emberhut noticed · {summary}
+          {noticedLine(noticer, summary)}
         </Text>
         {lines.length > 0 && <Icon name={open ? "chevron-down" : "chevron-forward"} size={12} color={colors.textSecondary} />}
       </Pressable>

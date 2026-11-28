@@ -18,6 +18,7 @@ use emberhut_api::chat::{ChatFile, ChatPage, HistoryQuery};
 use emberhut_api::chrome::{ChromeAction, ChromeReply};
 use emberhut_api::connect::{LinkStatementRequest, SignedLink};
 use emberhut_api::dark::{DarkEvent, DarkRequest, DarkRoom};
+use emberhut_api::ember_name::{EmberName, EmberNameChange};
 use emberhut_api::environments::{EnvActionRequest, EnvPage};
 use emberhut_api::facts::FactsPage;
 use emberhut_api::headers::ETag;
@@ -247,6 +248,13 @@ impl Backend for EmberhutBackend {
 
     fn change_theme(&self, change: &ThemeChange) -> Result<ThemePage, Error> {
         self.client.set_theme(change).map_err(error)
+    }
+
+    fn rename_ember(&self, name: Option<&str>) -> Result<EmberName, Error> {
+        let change = EmberNameChange {
+            name: name.map(str::to_owned),
+        };
+        self.client.set_ember_name(&change).map_err(error)
     }
 
     fn machines(&self) -> Result<MachinesPage, Error> {
@@ -493,6 +501,14 @@ impl Backend for EmberhutBackend {
 
     fn use_account(&self, request: &UseAccountRequest) -> Result<UseAccountReply, Error> {
         self.client.use_account(request).map_err(error)
+    }
+
+    fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        self.client.join_waitlist(list).map_err(error)
+    }
+
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
+        self.client.agent_accounts().map_err(error)
     }
 
     fn jobs(&self, fresh: bool) -> Result<JobsPage, Error> {

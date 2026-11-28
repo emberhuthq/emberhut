@@ -21,6 +21,7 @@ use crate::builds::LatestBuilds;
 use crate::calls::CallRecording;
 use crate::chat::ChatMessage;
 use crate::chrome::{ChromePairing, ChromeProfile};
+use crate::ember_name::EmberName;
 use crate::health_today::HealthToday;
 use crate::ids::{RoomId, TaskId};
 use crate::live::Live;
@@ -85,6 +86,9 @@ pub struct State {
     /// The theme choice: a newer `at` than the client's means fetch `GET /api/theme`.
     #[serde(default)]
     pub theme: Option<ThemeChoice>,
+    /// What the person calls their ember; none from an older server: "Your ember".
+    #[serde(default)]
+    pub ember_name: Option<EmberName>,
     /// What the app hides for now.
     #[serde(default)]
     pub ui: Option<DisplayUi>,

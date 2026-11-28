@@ -61,15 +61,20 @@ actions!(
 );
 
 /// What the menus say that changes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Shown {
     /// Whether the front window's sidebar is shown (View › Hide Sidebar, else Show Sidebar).
     sidebar: bool,
+    /// What the ember is called (View's item that opens its room).
+    ember: String,
 }
 
 impl Default for Shown {
     fn default() -> Self {
-        Self { sidebar: true }
+        Self {
+            sidebar: true,
+            ember: emberhut_api::ember_name::DEFAULT_NAME.to_owned(),
+        }
     }
 }
 
@@ -119,23 +124,29 @@ pub(crate) fn install(cx: &mut App) {
         KeyBinding::new("f11", ToggleFullScreen, None),
     ]);
 
+    cx.set_menus(menus(&Shown::default()));
     cx.set_global(Shown::default());
-    cx.set_menus(menus(Shown::default()));
 }
 
 /// Sets the menus again if what they say changed: `sidebar`, whether the front window's
-/// sidebar is shown.
-pub(crate) fn refresh(sidebar: bool, cx: &mut App) {
-    let shown = Shown { sidebar };
-    if cx.try_global::<Shown>() == Some(&shown) {
+/// sidebar is shown, and `ember`, what the ember is called.
+pub(crate) fn refresh(sidebar: bool, ember: &str, cx: &mut App) {
+    if cx
+        .try_global::<Shown>()
+        .is_some_and(|shown| shown.sidebar == sidebar && shown.ember == ember)
+    {
         return;
     }
+    let shown = Shown {
+        sidebar,
+        ember: ember.to_owned(),
+    };
+    cx.set_menus(menus(&shown));
     cx.set_global(shown);
-    cx.set_menus(menus(shown));
 }
 
 /// The menu bar, in order.
-fn menus(shown: Shown) -> Vec<Menu> {
+fn menus(shown: &Shown) -> Vec<Menu> {
     vec![
         app_menu(),
         file_menu(),
@@ -206,7 +217,7 @@ fn edit_menu() -> Menu {
 
 /// View: the sidebar, the places, the column, and full screen off macOS (`AppKit` adds its own
 /// Enter Full Screen, on ⌃⌘F, to a menu titled View).
-fn view_menu(shown: Shown) -> Menu {
+fn view_menu(shown: &Shown) -> Menu {
     let sidebar = if shown.sidebar {
         "Hide Sidebar"
     } else {
@@ -215,7 +226,7 @@ fn view_menu(shown: Shown) -> Menu {
     let mut items = vec![
         MenuItem::action(sidebar, ToggleSidebar),
         MenuItem::separator(),
-        MenuItem::action("Your ember", Room0),
+        MenuItem::action(shown.ember.clone(), Room0),
         MenuItem::action("Needs you", OpenNeeds),
         MenuItem::action("Tasks", OpenTasks),
         MenuItem::action("Machines", OpenMachines),
@@ -300,7 +311,7 @@ mod tests {
 
     #[test]
     fn the_menu_bar_has_the_mac_menus_in_their_order() {
-        let names: Vec<String> = menus(Shown::default())
+        let names: Vec<String> = menus(&Shown::default())
             .iter()
             .map(|menu| menu.name.to_string())
             .collect();
@@ -312,13 +323,29 @@ mod tests {
 
     #[test]
     fn view_says_what_the_sidebar_item_will_do() {
-        assert!(titles(&view_menu(Shown { sidebar: true })).contains(&"Hide Sidebar".to_owned()));
-        assert!(titles(&view_menu(Shown { sidebar: false })).contains(&"Show Sidebar".to_owned()));
+        let shown = |sidebar| Shown {
+            sidebar,
+            ..Shown::default()
+        };
+        assert!(titles(&view_menu(&shown(true))).contains(&"Hide Sidebar".to_owned()));
+        assert!(titles(&view_menu(&shown(false))).contains(&"Show Sidebar".to_owned()));
+    }
+
+    #[test]
+    fn view_opens_the_ember_by_its_name() {
+        assert!(titles(&view_menu(&Shown::default())).contains(&"Your ember".to_owned()));
+        let named = Shown {
+            ember: "Juniper".to_owned(),
+            ..Shown::default()
+        };
+        let items = titles(&view_menu(&named));
+        assert!(items.contains(&"Juniper".to_owned()), "{items:?}");
+        assert!(!items.contains(&"Your ember".to_owned()));
     }
 
     #[test]
     fn full_screen_is_in_view_once() {
-        let full_screen = titles(&view_menu(Shown::default()))
+        let full_screen = titles(&view_menu(&Shown::default()))
             .iter()
             .filter(|title| title.contains("Full Screen"))
             .count();

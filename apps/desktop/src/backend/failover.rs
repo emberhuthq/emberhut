@@ -32,6 +32,7 @@ use emberhut_api::chat::{ChatFile, ChatPage};
 use emberhut_api::chrome::{ChromeAction, ChromeReply};
 use emberhut_api::connect::{LinkStatementRequest, SignedLink};
 use emberhut_api::dark::{DarkEvent, DarkRoom};
+use emberhut_api::ember_name::EmberName;
 use emberhut_api::environments::{EnvActionRequest, EnvPage};
 use emberhut_api::facts::FactsPage;
 use emberhut_api::headers::ETag;
@@ -467,6 +468,10 @@ impl Backend for Failover {
         self.active().change_theme(change)
     }
 
+    fn rename_ember(&self, name: Option<&str>) -> Result<EmberName, Error> {
+        self.active().rename_ember(name)
+    }
+
     fn machines(&self) -> Result<MachinesPage, Error> {
         self.active().machines()
     }
@@ -676,6 +681,14 @@ impl Backend for Failover {
 
     fn use_account(&self, request: &UseAccountRequest) -> Result<UseAccountReply, Error> {
         self.active().use_account(request)
+    }
+
+    fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        self.active().join_waitlist(list)
+    }
+
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
+        self.active().agent_accounts()
     }
 
     fn jobs(&self, fresh: bool) -> Result<JobsPage, Error> {

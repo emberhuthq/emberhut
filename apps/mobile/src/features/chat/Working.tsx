@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from "react-native";
+import { useEmberTint } from "@/features/ember/useEmberTint";
 import { inBackground } from "@/log";
 import { useTheme } from "@/theme";
 import { Face, Text } from "@/ui";
@@ -7,6 +8,7 @@ import { Face, Text } from "@/ui";
 /** Emberhut is working: its face, gently breathing, and what it's doing now. */
 export function Working({ doing }: { doing: string | null }) {
   const { spacing } = useTheme();
+  const tint = useEmberTint();
   const [breath] = useState(() => new Animated.Value(0));
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -34,7 +36,7 @@ export function Working({ doing }: { doing: string | null }) {
       accessibilityLabel={`Emberhut is working: ${doing || "thinking"}`}
     >
       <Animated.View style={{ transform: [{ scale: breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }}>
-        <Face size={26} />
+        <Face size={26} tint={tint} />
       </Animated.View>
       <Animated.View style={[styles.shrink, { opacity: breath.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]}>
         <Text variant="callout" tone="secondary" numberOfLines={1}>

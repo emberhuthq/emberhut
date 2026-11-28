@@ -17,16 +17,16 @@ use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::prelude::*;
 use gpui_kit::{
     Anchor, Animation, AnimationExt as _, AnyElement, App, ClipboardItem, Div, Entity, Hsla,
-    KeyBinding, PathPromptOptions, PromptLevel, Window, div, px, transparent_black,
+    KeyBinding, PathPromptOptions, PromptLevel, SharedString, Window, div, px, transparent_black,
 };
 use std::time::Duration;
 
 use super::ChatView;
 use super::attachments;
 use super::paste::Pasted;
-use crate::brand::APP_NAME;
 use crate::store::Store;
 use crate::store::composer::placeholder;
+use crate::store::settings::ember_name::is_long;
 use crate::ui::a11y::Accessible as _;
 use crate::ui::palette::Pal;
 
@@ -83,7 +83,10 @@ impl ChatView {
             self.discard_dictation(cx);
             fill(&self.input, &draft, window, cx);
         }
-        let prompt = placeholder(self.store.read(cx).state(), room);
+        let prompt = {
+            let store = self.store.read(cx);
+            placeholder(store.state(), room, store.ember_called())
+        };
         if prompt != self.prompt {
             self.input.update(cx, |input, cx| {
                 input.set_placeholder(prompt.clone(), window, cx);
@@ -132,19 +135,33 @@ impl ChatView {
             .child(row)
     }
 
-    /// The + menu, the field, and the buttons after it.
+    /// The + menu, the field, and the buttons after it. While the field is empty and its prompt
+    /// cuts a long name, the prompt in full shows on hover.
     fn field_row(&self, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
         let store = self.store.clone();
         let field = Textarea::new(&self.input)
             .appearance(false)
             .small()
             .on_paste(move |item, _, cx| attach_pasted(&store, item, cx));
+        let name = self.store.read(cx).ember_name();
+        let full = (is_long(name) && self.input.read(cx).value().is_empty())
+            .then(|| SharedString::from(format!("Message {name}")));
         div()
             .flex()
             .items_end()
             .gap(px(INSET))
             .child(self.attach_menu(p, cx))
-            .child(div().flex_1().min_w_0().py(px(FIELD_PAD_Y)).child(field))
+            .child(
+                div()
+                    .id("composer-field")
+                    .flex_1()
+                    .min_w_0()
+                    .py(px(FIELD_PAD_Y))
+                    .child(field)
+                    .when_some(full, |d, full| {
+                        d.tooltip(move |window, cx| Tooltip::new(full.clone()).build(window, cx))
+                    }),
+            )
             .children(self.mic_button(p, cx))
             .children(self.send_or_stop(p, cx))
     }
@@ -172,11 +189,13 @@ impl ChatView {
         if !is_working(store) {
             return None;
         }
+        let stop = format!("Stop {}", store.ember_name());
+        let tip = stop.clone();
         Some(
             round_button("stop", p.text)
-                .button_named(format!("Stop {APP_NAME}"))
+                .button_named(stop)
                 .accessibility_id("stop")
-                .tooltip(|window, cx| Tooltip::new(format!("Stop {APP_NAME}")).build(window, cx))
+                .tooltip(move |window, cx| Tooltip::new(tip.clone()).build(window, cx))
                 .child(div().size(px(9.)).rounded(px(2.)).bg(p.surface))
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.store.update(cx, Store::interrupt);

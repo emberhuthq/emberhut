@@ -2,17 +2,20 @@ import { useNavigation } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { Alert, View } from "react-native";
 import { aboutYouTitle } from "@/features/aboutYou/facts";
+import { emberCalled } from "@/features/ember/name";
+import { LookPicker } from "@/features/ember/LookPicker";
 import { inBackground } from "@/log";
 import type { RootScreenProps } from "@/navigation/types";
 import { sessionStore } from "@/services";
 import { offlineReason } from "@/state/connection";
 import { useConnection, useSession } from "@/state/hooks";
-import { useApplySettings, useEmberhutState } from "@/state/queries";
+import { useEmberhutState } from "@/state/queries";
 import { useTheme } from "@/theme";
-import { Button, Chip, ListRow, Screen, Section, Text, Toggle, usePullRefresh } from "@/ui";
+import { Button, Chip, ListRow, Screen, Section, Text, usePullRefresh } from "@/ui";
 import { Appearance, RoomsList } from "./Appearance";
 import { Devices, PairAnother } from "./Devices";
-import { groupStatus, type GroupId, type Now } from "./entries";
+import { EmberHero } from "./EmberHero";
+import { calledIn, groupStatus, type GroupId, type Now } from "./entries";
 import { Environments } from "./Environments";
 import { FallbackServer } from "./FallbackServer";
 import { PushRow } from "./PushRow";
@@ -27,11 +30,12 @@ const dataFlow =
 /** One group of Settings on a screen of its own, built of the rows Settings had: how it stands first, then its rows. */
 export function SettingsGroupScreen({ route }: RootScreenProps<"SettingsGroup">) {
   const { spacing } = useTheme();
-  const { group } = route.params;
+  const { group, focus } = route.params;
   const now = useSettingsNow();
   const state = useEmberhutState();
   const pull = usePullRefresh(state.refetch);
-  const status = groupStatus(group, now);
+  // Your ember's card says how it stands, in the same words: its screen doesn't say it again above.
+  const status = group === "ember" ? "" : groupStatus(group, now);
   return (
     <Screen scroll {...pull}>
       <View style={{ gap: spacing.lg }}>
@@ -40,16 +44,22 @@ export function SettingsGroupScreen({ route }: RootScreenProps<"SettingsGroup">)
             {status}
           </Text>
         ) : null}
-        <GroupRows group={group} now={now} />
+        <GroupRows group={group} now={now} renaming={focus === "ember-name"} />
       </View>
     </Screen>
   );
 }
 
-function GroupRows({ group, now }: { group: GroupId; now: Now }) {
+function GroupRows({ group, now, renaming }: { group: GroupId; now: Now; renaming: boolean }) {
   switch (group) {
     case "ember":
-      return <EmberRows now={now} />;
+      return (
+        <>
+          <EmberHero now={now} renaming={renaming} />
+          <OpensRows now={now} />
+          <LookSection />
+        </>
+      );
     case "appearance":
       return (
         <>
@@ -77,59 +87,39 @@ function GroupRows({ group, now }: { group: GroupId; now: Now }) {
   }
 }
 
-/** Your ember: on duty (with how it's reached), what it thinks with, what it knows. */
-function EmberRows({ now }: { now: Now }) {
-  const settings = useApplySettings();
-  const offline = useConnection(offlineReason);
+/** Your ember's look, below its card and what it opens: the same theme as Appearance. */
+function LookSection() {
+  const { spacing } = useTheme();
   return (
-    <>
-      <Section>
-        <ListRow
-          key="duty"
-          icon="flame-outline"
-          title={now.onDuty ? "On duty" : "Off duty"}
-          subtitle={
-            offline
-              ? "Can't reach your ember"
-              : now.onDuty
-                ? "Works on its own, and answers when you message it"
-                : "Still answers when you message it"
-          }
-          trailing={
-            <Toggle
-              value={now.onDuty}
-              onChange={(on) => settings.mutate({ on })}
-              disabled={settings.isPending || offline !== null}
-              label="On duty"
-            />
-          }
-        />
-      </Section>
-      <OpensRows now={now} />
-    </>
+    <Section title="Look" subtitle="Also in Appearance. Syncs to your other devices.">
+      <View key="look" style={{ padding: spacing.md }}>
+        <LookPicker />
+      </View>
+    </Section>
   );
 }
 
-/** What it thinks with and what it knows: rows that open their screens. */
+/** What it thinks with and what it knows, each called by the ember's name: rows that open their screens. */
 function OpensRows({ now }: { now: Now }) {
   const navigate = useNavigate();
+  const called = calledIn(now);
   const knows = now.facts === undefined ? "Facts, and lessons from your corrections" : `${now.facts} things`;
   return (
     <>
-      <Section title="What it thinks with">
+      <Section title={`What ${called} thinks with`}>
         <ListRow
           key="thinks"
           icon="key-outline"
-          title="What your ember thinks with"
+          title="Model provider"
           subtitle={now.provider ?? "Looking…"}
           onPress={() => navigate("Credentials")}
         />
       </Section>
-      <Section title="What it knows">
+      <Section title={`What ${called} knows`}>
         <ListRow
           key="about"
           icon="book-outline"
-          title={aboutYouTitle}
+          title="About you"
           subtitle={now.lessons > 0 ? `${knows} · ${now.lessons} lessons to review` : knows}
           onPress={() => navigate("AboutYou")}
         />
@@ -146,6 +136,7 @@ function useNavigate() {
 
 /** Devices: this phone's alerts, the signed-in devices, pairing another, the machines. */
 function DevicesRows() {
+  const called = emberCalled(useEmberhutState().data);
   const signedIn = useSession((s) => s.status === "signedIn");
   const state = useEmberhutState();
   const navigate = useNavigate();
@@ -158,7 +149,7 @@ function DevicesRows() {
       ) : null}
       <Devices auth={state.data?.auth} />
       {signedIn ? <PairAnother /> : null}
-      <Section title="Computers your ember works on">
+      <Section title={`Computers ${called} works on`}>
         <ListRow
           key="machines"
           icon="hardware-chip-outline"
@@ -173,12 +164,13 @@ function DevicesRows() {
 
 /** Sharing: only you, today, and how it is set up for now. */
 function SharingRows() {
+  const called = emberCalled(useEmberhutState().data);
   return (
     <Section footer="Today sharing is set up through your server's API, for developers. Inviting someone from here comes next.">
       <ListRow
         key="only"
         icon="people-outline"
-        title="Only you can talk to your ember"
+        title={`Only you can talk to ${called}`}
         subtitle="Sharing lets someone else ask it things, within limits you set."
         trailing={<Chip label="Early preview" />}
       />
@@ -202,7 +194,7 @@ function PrivacyRows({ now }: { now: Now }) {
   );
 }
 
-/** Advanced: your ember's home, the fallback server, diagnostics, this app's version, where your ember works, signing this phone out. */
+/** Advanced: where the ember lives, the fallback server, diagnostics, this app's version, where your ember works, signing this phone out. */
 function AdvancedRows() {
   const signedIn = useSession((s) => s.status === "signedIn");
   const serverUrl = useSession((s) => s.serverUrl);
@@ -217,9 +209,10 @@ function AdvancedRows() {
       { text: "Sign out", style: "destructive", onPress: () => inBackground(sessionStore.getState().signOut(), "Settings: signOut") },
     ]);
   const mode = state.data?.auth?.mode;
+  const called = emberCalled(state.data);
   return (
     <>
-      <Section title="Your ember's home">
+      <Section title={`Where ${called} lives`}>
         <ListRow key="server" icon="server-outline" title="Server" subtitle={serverUrl ?? "None yet: it's set when this phone pairs"} />
         <ListRow key="version" icon="information-circle-outline" title="App version" subtitle={build ? `${version} (${build})` : version} />
       </Section>
@@ -228,7 +221,7 @@ function AdvancedRows() {
         <ListRow
           key="connection"
           icon={offline ? "cloud-offline-outline" : "cloud-done-outline"}
-          title={offline ? "Can't reach your ember" : state.data ? "Connected" : "Reaching your ember…"}
+          title={offline ? `Can't reach ${called}` : state.data ? "Connected" : `Reaching ${called}…`}
           subtitle={offline ?? undefined}
         />
         {mode ? (

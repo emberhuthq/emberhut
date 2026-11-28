@@ -1,11 +1,12 @@
-//! The bar over the chat as the chat narrows, on GPUI's headless test platform: with a long
-//! room name and asks waiting, everything on it stays inside the chat.
+//! The bar over the chat, on GPUI's headless test platform: as the chat narrows, with a long
+//! room name and asks waiting, everything on it stays inside the chat; Main's is named as the
+//! user named the ember.
 
 use gpui_kit::test::TestWindowExt as _;
 use gpui_kit::{Bounds, Pixels, TestAppContext, VisualTestContext, Window, px, size};
 use serde_json::json;
 
-use super::header::{HEADER, ROOM_NEEDS};
+use super::header::{HEADER, ROOM_NEEDS, TITLE};
 use super::tests::open_chat_over;
 use crate::backend::fake::FakeBackend;
 use crate::fixtures::{message_at, room, state};
@@ -45,4 +46,30 @@ fn the_bar_stays_inside_a_narrow_chat(cx: &mut TestAppContext) {
             "{width}: the needs button is whole, inside the bar: {needs:?} in {bar:?}"
         );
     }
+}
+
+#[gpui_kit::test]
+fn main_s_bar_names_the_ember_as_the_user_named_it(cx: &mut TestAppContext) {
+    let (_backend, store, window) = open_chat_over(FakeBackend::new([]), cx);
+    let mut cx = VisualTestContext::from_window(window.into(), cx);
+    let title = |named: Option<&str>, cx: &mut VisualTestContext| {
+        let ember = named.map(|name| json!({ "name": name, "custom": true, "at": null }));
+        store.update(cx, |store, cx| {
+            store.take_state_for_tests(
+                state(json!({ "rooms": [room(1, json!({}))], "emberName": ember })),
+                cx,
+            );
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            window.find(TITLE).label().map(str::to_owned)
+        })
+    };
+    assert_eq!(
+        title(None, &mut cx).as_deref(),
+        Some("Your ember"),
+        "the default name"
+    );
+    assert_eq!(title(Some("Pip"), &mut cx).as_deref(), Some("Pip"));
 }

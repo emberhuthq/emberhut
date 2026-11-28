@@ -16,6 +16,7 @@ use crate::error::ApiError;
 use crate::extract::SignedIn;
 
 mod accounts;
+mod agent_accounts;
 mod agent_provider;
 mod agents;
 mod agents_inbound;
@@ -29,6 +30,7 @@ mod calls;
 mod connect;
 mod dark;
 mod document;
+mod ember_name;
 mod events;
 mod family;
 mod gmail;
@@ -55,6 +57,7 @@ mod theme;
 mod threads;
 mod uploads;
 mod voice;
+mod waitlist;
 mod whatsapp;
 mod workers;
 
@@ -80,6 +83,7 @@ const BEARER: &str = "bearer";
         (name = "talk", description = "Saying something, and marking a room read"),
         (name = "settings", description = "The app's small changes, answered with the state"),
         (name = "theme", description = "The colour theme, the same on every device"),
+        (name = "ember", description = "What the person calls their ember, the same on every device"),
         (name = "mcp", description = "The tools a room's agent session calls (MCP)"),
         (name = "files", description = "Files attached in the chat"),
         (name = "push", description = "Where the server pushes a phone's alerts"),
@@ -138,6 +142,7 @@ fn api() -> OpenApiRouter<AppState> {
         .routes(routes!(document::openapi_json))
         .routes(routes!(settings::settings))
         .routes(routes!(theme::theme, theme::set_theme))
+        .routes(routes!(ember_name::name, ember_name::set_name))
         .routes({
             let (schemas, paths, method) = routes!(mcp::mcp_room);
             (schemas, paths, method.fallback(mcp::post_only))
@@ -159,6 +164,9 @@ fn api() -> OpenApiRouter<AppState> {
             agent_provider::remove
         ))
         .routes(routes!(agent_provider::test))
+        .routes(routes!(agent_accounts::accounts))
+        .routes(routes!(waitlist::lists))
+        .routes(routes!(waitlist::join))
         .routes(routes!(push::register))
         .routes(routes!(secret_links::page, secret_links::save))
         .routes(routes!(mac::mac))

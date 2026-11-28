@@ -59,6 +59,7 @@ use crate::services::coding_app::{CodingThreadApp, NoCodingApp};
 use crate::services::context::ContextService;
 use crate::services::dark::{DarkModels, DarkService};
 use crate::services::display::DisplayService;
+use crate::services::ember_name::EmberNameService;
 use crate::services::environments::EnvironmentService;
 use crate::services::facts::FactService;
 use crate::services::family::{
@@ -138,6 +139,8 @@ struct Inner {
     report_log: ReportLog,
     display: DisplayService,
     theme: ThemeService,
+    ember_name: EmberNameService,
+    waitlist: crate::services::waitlist::WaitlistService,
     agent_tokens: AgentTokens,
     history: HistoryService,
     uploads: UploadService,
@@ -545,6 +548,7 @@ impl AppState {
         let display = DisplayService::new(db.settings(), db.log(), Arc::clone(&clock))
             .with_task_plans(task_plans);
         let theme = ThemeService::new(db.settings(), db.log(), Arc::clone(&clock));
+        let ember_name = EmberNameService::new(db.settings(), db.log(), Arc::clone(&clock));
         let browser_secrets = secrets_dir.clone();
         let browser_url = chrome_url.unwrap_or_else(|| public_url.clone());
         let secret_links = SecretLinkService::new(SecretLinkParts {
@@ -563,7 +567,8 @@ impl AppState {
             presence.clone(),
             push,
         )
-        .with_family(db.family());
+        .with_family(db.family())
+        .with_names(db.settings());
         let builds = BuildService::new(db.builds());
         let (browser, kit) = browser_service(
             db,
@@ -745,6 +750,7 @@ impl AppState {
             Sections {
                 display: display.clone(),
                 theme: theme.clone(),
+                ember_name: ember_name.clone(),
                 builds: builds.clone(),
                 threads: threads.clone(),
                 tasks: tasks.clone(),
@@ -841,6 +847,11 @@ impl AppState {
                 report_log: ReportLog::new(Arc::clone(&clock)),
                 display,
                 theme,
+                ember_name,
+                waitlist: crate::services::waitlist::WaitlistService::new(
+                    db.settings(),
+                    Arc::clone(&clock),
+                ),
                 agent_tokens,
                 history,
                 uploads,
@@ -1072,6 +1083,18 @@ impl AppState {
     #[must_use]
     pub fn theme(&self) -> &ThemeService {
         &self.inner.theme
+    }
+
+    /// What the owner calls their ember.
+    #[must_use]
+    pub fn ember_name(&self) -> &EmberNameService {
+        &self.inner.ember_name
+    }
+
+    /// The waitlists kept on this server.
+    #[must_use]
+    pub fn waitlist(&self) -> &crate::services::waitlist::WaitlistService {
+        &self.inner.waitlist
     }
 
     /// The rooms' agent tokens, which let a room's agent session call the MCP endpoint.

@@ -31,6 +31,10 @@ describe("palette from the theme's tokens", () => {
       danger: "#A51D2D",
       bubbleMine: "#B83D0C",
       onBubbleMine: "#FFF8EF",
+      track: "#EFE6D8",
+      raised: "#FFFDF9",
+      raisedEdge: "#DCD6CD",
+      outline: "#DCD6CD",
     });
   });
 
@@ -39,6 +43,11 @@ describe("palette from the theme's tokens", () => {
     expect(p).toMatchObject({ needsYou: "#FF9A5A", onPrimary: "#1D1206", onStatus: "#15110E", switchThumb: "#F6EEE5" });
     expect(p.bubbleMine).toBe(mix("#FF9A5A", "#211B16", 0.35));
     expect(p.onBubbleMine).toBe(dark.text);
+    // A switch's track, its chosen segment and a card's edge show on the dark rows: the text lifted into the surface.
+    expect(p.track).toBe(mix(dark.text, dark.surface, 0.05));
+    expect(p.raised).toBe(mix(dark.text, dark.surface, 0.12));
+    expect(p.outline).toBe(mix(dark.text, dark.surface, 0.09));
+    expect(p.track).not.toBe(dark.surface);
   });
 
   it("follows a custom accent everywhere it shows", () => {

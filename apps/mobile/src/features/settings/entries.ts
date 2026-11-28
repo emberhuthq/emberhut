@@ -40,6 +40,8 @@ export const groupIcon: Record<GroupId, IconName> = {
 /** How the things Settings speaks of stand now: what the live lines, the suggestions and the status lines read. */
 export interface Now {
   onDuty: boolean;
+  /** Your own name for the ember; undefined while it is "Your ember". */
+  emberName?: string;
   /** Whether it is at work on something now. */
   working: boolean;
   /** How many background jobs it is running. */
@@ -92,7 +94,7 @@ export const nothingKnown: Now = {
 };
 
 /** Where opening a setting goes: its group's screen, or a screen of its own. */
-export type Destination = { group: GroupId } | { screen: "Credentials" | "AboutYou" | "Machines" | "Account" };
+export type Destination = { group: GroupId; focus?: "ember-name" } | { screen: "Credentials" | "AboutYou" | "Machines" | "Account" };
 
 export interface Entry {
   /** Its id: the desktop's list uses the same. */
@@ -138,6 +140,16 @@ export const entries: readonly Entry[] = [
     icon: "power-outline",
   },
   {
+    id: "ember-name",
+    title: "Name",
+    line: (now) => (now.emberName ? `Called ${now.emberName} · rename it` : "Give your ember a name of your own"),
+    group: "ember",
+    synonyms: ["name", "rename", "call it", "nickname", "what to call", "assistant name", "change name"],
+    // Its group's card, its name open to type a new one.
+    to: { group: "ember", focus: "ember-name" },
+    icon: "pencil-outline",
+  },
+  {
     id: "thinks-with",
     title: "What your ember thinks with",
     line: (now) => now.provider ?? "Claude, OpenAI, DeepSeek, OpenRouter, Ollama…",
@@ -176,6 +188,15 @@ export const entries: readonly Entry[] = [
     synonyms: ["trial", "corrections", "keep", "drop", "trying out"],
     to: { screen: "AboutYou" },
     icon: "school-outline",
+  },
+  {
+    id: "ember-look",
+    title: "Look",
+    line: "Your ember's theme, picked by how it looks",
+    group: "ember",
+    synonyms: ["theme", "colour", "color", "look", "style", "dark", "tint"],
+    to: { group: "ember" },
+    icon: "color-palette-outline",
   },
   {
     id: "models",
@@ -412,13 +433,18 @@ export const entries: readonly Entry[] = [
 ];
 
 /**
- * What the agent is doing, as Your ember's screen says it under its title: `Ready`, `Working on 2 things`, `Off duty`. The On
- * duty switch says whether it is on duty; this doesn't repeat it.
+ * What the agent is doing, as Your ember's card says it under its name and the front door under the group: `Watching`,
+ * `Working…`, `Watching · 2 jobs`, `Off duty`. The same words as the chat's header.
  */
 export function doingWord(now: Now): string {
   if (!now.onDuty) return "Off duty";
-  const count = Math.max(now.jobs, now.working ? 1 : 0);
-  return count === 0 ? "Ready" : `Working on ${counted(count, "thing")}`;
+  const jobs = now.jobs > 0 ? ` · ${counted(now.jobs, "job")}` : "";
+  return `${now.working ? "Working…" : "Watching"}${jobs}`;
+}
+
+/** What the ember is called mid-sentence: your name for it, or "your ember". */
+export function calledIn(now: Pick<Now, "emberName">): string {
+  return now.emberName ?? "your ember";
 }
 
 /** Whether a group shows now: Account only in builds with the account. */
@@ -434,7 +460,7 @@ export function groupStatus(group: GroupId, now: Now): string {
     case "appearance":
       return appearanceWord(now);
     case "devices":
-      return now.devices === undefined ? "" : `${now.devices} can reach your ember`;
+      return now.devices === undefined ? "" : `${now.devices} can reach ${calledIn(now)}`;
     case "connections": {
       const look = now.failingTools.length + now.sourcesToFix.length;
       return [now.sourcesOn > 0 ? `${now.sourcesOn} on` : null, look === 0 ? null : look === 1 ? "1 needs a look" : `${look} need a look`]

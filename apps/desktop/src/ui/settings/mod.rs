@@ -6,10 +6,11 @@
 
 mod about;
 mod account;
-mod appearance;
+pub(crate) mod appearance;
 mod chrome;
 mod chrome_profile;
 mod chrome_sheets;
+pub(crate) mod ember_name;
 pub(crate) mod environment;
 mod front_door;
 mod group;
@@ -34,11 +35,13 @@ use self::about::AboutPane;
 use self::appearance::AppearancePane;
 pub(crate) use self::appearance::OpenAgentRoom;
 pub(crate) use self::chrome::ChromePane;
+use self::ember_name::NameTitle;
 use self::front_door::{Listing, PLACEHOLDER};
 use self::group::FLASH;
 use self::parts::{nav_row, page_body};
 use super::column;
 use super::ember::credentials::CredentialsView;
+use super::ember::look::{LookPicker, LookVariant};
 use super::pairing::PairingForm;
 use super::palette::{Pal, category_color, pal};
 use super::qr::{PairingQr, Qr};
@@ -46,7 +49,7 @@ use super::widgets::page_head;
 use crate::store::credentials::{not_in_use, saved_line};
 use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::Health;
-use crate::store::settings::entries::{Destination, Entry, Fold, Group};
+use crate::store::settings::entries::{self, Destination, Entry, Fold, Group};
 use crate::store::settings::now::Now;
 use crate::store::{Metrics, Page, Store};
 
@@ -55,9 +58,13 @@ pub(crate) struct SettingsView {
     store: Entity<Store>,
     pairing: Entity<PairingForm>,
     appearance: Entity<AppearancePane>,
+    /// Your ember's Name field.
+    name: Entity<NameTitle>,
     about: Entity<AboutPane>,
     chrome: Entity<ChromePane>,
     credentials: Entity<CredentialsView>,
+    /// Your ember's look, on its page.
+    look: Entity<LookPicker>,
     /// The account's sign-in sheet's focus.
     account_sheet: FocusHandle,
     /// The pairing link last drawn as a QR code.
@@ -96,7 +103,25 @@ impl SettingsView {
         if let Some(signed) = crate::account::installed(cx) {
             cx.observe(&signed, |_, _, cx| cx.notify()).detach();
         }
-        let appearance = cx.new(|cx| AppearancePane::new(store.clone(), window, cx));
+        // Appearance's row to the look opens it where it lives, on Your ember's page.
+        let this = cx.weak_entity();
+        let appearance = cx.new(|cx| {
+            AppearancePane::new(
+                store.clone(),
+                move |window, cx| {
+                    let Some(look) = entries::entry(entries::LOOK) else {
+                        return;
+                    };
+                    if let Err(error) = this.update(cx, |view, cx| view.go(look, window, cx)) {
+                        log::debug!("Settings closed before the look opened: {error}");
+                    }
+                },
+                window,
+                cx,
+            )
+        });
+        let look = cx.new(|cx| LookPicker::new(store.clone(), LookVariant::Settings, cx));
+        let name = cx.new(|cx| NameTitle::new(store.clone(), window, cx));
         let about = cx.new(|cx| AboutPane::new(store.clone(), window, cx));
         let chrome = cx.new(|cx| ChromePane::new(store.clone(), window, cx));
         // Once a provider is saved, back to where the picker was opened from.
@@ -131,9 +156,11 @@ impl SettingsView {
             store,
             pairing,
             appearance,
+            name,
             about,
             chrome,
             credentials,
+            look,
             account_sheet: cx.focus_handle(),
             qr: PairingQr::default(),
             search,
@@ -196,6 +223,10 @@ impl SettingsView {
                 self.shown_group = None;
                 self.scroll_to = Some(entry.id);
                 self.flash = Some((entry.id, Instant::now()));
+                // The name is renamed where it is the hero's title: it takes the focus.
+                if entry.id == "ember-name" {
+                    self.name.update(cx, |name, _| name.wants_focus = true);
+                }
                 // Drawn again once the wash is over.
                 cx.spawn(async move |this, cx| {
                     cx.background_executor().timer(FLASH).await;
@@ -353,7 +384,7 @@ fn thinks_with_row(store: &Store, p: &Pal) -> AnyElement {
         "credentials-row",
         p,
         (IconName::Brain, category_color(2)),
-        "What your ember thinks with",
+        "Model provider",
         (status, health),
         &detail,
     )

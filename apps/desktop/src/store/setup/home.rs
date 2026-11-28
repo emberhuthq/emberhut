@@ -18,7 +18,7 @@ use crate::hut::{KeepLit, LocalHut};
 use crate::store::sign_in::same_server;
 
 /// What the step says when Emberhut can't live on this computer through this build.
-pub(crate) const CANT_HERE: &str = "This build can't start Emberhut here yet.";
+pub(crate) const CANT_HERE: &str = "This build can't start a hut here yet.";
 
 /// How long the first step waits for Emberhut on this computer to answer.
 const LOOK_WITHIN: Duration = Duration::from_secs(3);
@@ -45,6 +45,12 @@ pub(crate) trait LocalHome {
     /// for any other address, or a home that isn't this app's to start.
     fn relight(&self, _server: &ServerUrl, _cx: &mut App) -> Task<Relit> {
         Task::ready(Relit::NotHere)
+    }
+
+    /// The hut, when Emberhut here is this app's own: its Claude accounts are signed in and
+    /// used through it. `None` for any other home.
+    fn hut(&self) -> Option<LocalHut> {
+        None
     }
 }
 
@@ -160,6 +166,10 @@ impl LocalHome for HutHome {
 
     fn keep_lit(&self, keep: KeepLit, cx: &mut App) -> Option<Task<Result<(), String>>> {
         Some(in_words(self.hut.keep_lit(keep, cx), cx))
+    }
+
+    fn hut(&self) -> Option<LocalHut> {
+        Some(self.hut.clone())
     }
 
     fn relight(&self, server: &ServerUrl, cx: &mut App) -> Task<Relit> {

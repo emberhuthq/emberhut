@@ -20,7 +20,7 @@ export function SettingsScreen({ navigation }: RootScreenProps<"Settings">) {
   const found = typed ? search(query, now) : null;
   const rows = found ? found.rows : suggestions(now);
   const open = (to: Destination) => {
-    if ("group" in to) navigation.navigate("SettingsGroup", { group: to.group });
+    if ("group" in to) navigation.navigate("SettingsGroup", to.focus ? { group: to.group, focus: to.focus } : { group: to.group });
     else if (to.screen === "Account") navigation.navigate("Account");
     else navigation.navigate(to.screen);
   };

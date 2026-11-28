@@ -24,6 +24,7 @@ use crate::services::calls::CallService;
 use crate::services::chat::{chat_lines, one_line};
 use crate::services::context::ContextService;
 use crate::services::display::DisplayService;
+use crate::services::ember_name::EmberNameService;
 use crate::services::health_data::HealthDataService;
 use crate::services::live::LiveHub;
 use crate::services::plan::PlanService;
@@ -80,6 +81,8 @@ pub struct Sections {
     pub display: DisplayService,
     /// `theme`: the theme choice.
     pub theme: ThemeService,
+    /// `emberName`: what the owner calls their ember.
+    pub ember_name: EmberNameService,
     /// `builds`: the newest build of the app per platform.
     pub builds: BuildService,
     /// `threads`, `followed` and `t3Running`: the coding-thread app's threads.
@@ -244,6 +247,7 @@ impl StateService {
             projects: plan.projects,
             goals: plan.goals,
             theme: Some(self.sections.theme.choice().await?),
+            ember_name: Some(self.sections.ember_name.name().await?),
             ui: Some(self.sections.display.ui().await?),
             account: Some(self.sections.accounts.state_account().await?),
             auth: Some(self.auth_info().await?),

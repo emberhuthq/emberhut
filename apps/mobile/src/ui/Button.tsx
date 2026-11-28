@@ -8,6 +8,8 @@ export type ButtonVariant = "primary" | "secondary" | "plain" | "destructive";
 export interface ButtonProps {
   label: string;
   onPress: () => void;
+  /** As the finger lands, before a text field it takes the focus from hears of it. */
+  onPressIn?: () => void;
   variant?: ButtonVariant;
   icon?: IconName;
   disabled?: boolean;
@@ -21,6 +23,7 @@ export interface ButtonProps {
 export function Button({
   label,
   onPress,
+  onPressIn,
   variant = "primary",
   icon,
   disabled = false,
@@ -35,6 +38,7 @@ export function Button({
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={onPressIn}
       disabled={inactive}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}

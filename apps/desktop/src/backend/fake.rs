@@ -14,6 +14,7 @@ use emberhut_api::approvals::{
 use emberhut_api::auth::PairingCode;
 use emberhut_api::calls::RecordCallRequest;
 use emberhut_api::chat::{ChatFile, ChatPage, FileKind};
+use emberhut_api::ember_name::EmberName;
 use emberhut_api::headers::ETag;
 use emberhut_api::ids::{ApprovalId, DeviceId, MessageId, RoomId, TaskId};
 use emberhut_api::live::LiveEvent;
@@ -104,8 +105,10 @@ pub(crate) enum Call {
     PairWithMachine(String, emberhut_identity::MachineId),
     /// A link statement asked of the server.
     LinkStatement(emberhut_api::connect::LinkStatementRequest),
-    /// A theme change: its preset, and whether it was only a preview.
-    ChangeTheme(Option<String>, bool),
+    /// A theme change, as sent.
+    ChangeTheme(ThemeChange),
+    /// A rename of the ember: the name sent (none: back to the default).
+    RenameEmber(Option<String>),
     /// The machines.
     Machines,
     /// A file, by its path.
@@ -186,6 +189,8 @@ pub(crate) enum Call {
     CheckUsage,
     /// The assistant's account picked.
     UseAccount(UseAccountRequest),
+    /// `join_waitlist`.
+    JoinWaitlist(String),
     /// The jobs read, fresh or not.
     Jobs(bool),
     /// A job stopped or cleared.
@@ -677,9 +682,9 @@ impl Backend for FakeBackend {
         Self::unavailable()
     }
 
-    /// The built-in theme, with the change's preset and appearance.
+    /// The built-in theme, with the change's preset, appearance and tint.
     fn change_theme(&self, change: &ThemeChange) -> Result<ThemePage, Error> {
-        self.record(Call::ChangeTheme(change.preset.clone(), change.preview));
+        self.record(Call::ChangeTheme(change.clone()));
         let mut page = crate::theme::built_in();
         if let Some(preset) = &change.preset {
             page.choice.preset.clone_from(preset);
@@ -687,7 +692,15 @@ impl Backend for FakeBackend {
         if let Some(appearance) = &change.appearance {
             page.choice.appearance = appearance.clone();
         }
+        if let Some(tint) = &change.ember_tint {
+            page.choice.ember_tint.clone_from(tint);
+        }
         Ok(page)
+    }
+
+    fn rename_ember(&self, name: Option<&str>) -> Result<EmberName, Error> {
+        self.record(Call::RenameEmber(name.map(str::to_owned)));
+        self.replies.rename(name)
     }
 
     fn machines(&self) -> Result<MachinesPage, Error> {
@@ -1022,6 +1035,18 @@ impl Backend for FakeBackend {
     fn check_usage(&self) -> Result<(), Error> {
         self.record(Call::CheckUsage);
         Ok(())
+    }
+
+    fn join_waitlist(&self, list: &str) -> Result<(), Error> {
+        self.record(Call::JoinWaitlist(list.to_owned()));
+        Ok(())
+    }
+
+    fn agent_accounts(&self) -> Result<emberhut_api::agent_accounts::AgentAccounts, Error> {
+        Ok(emberhut_api::agent_accounts::AgentAccounts {
+            accounts: Vec::new(),
+            moves: false,
+        })
     }
 
     fn use_account(&self, request: &UseAccountRequest) -> Result<UseAccountReply, Error> {

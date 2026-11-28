@@ -5,7 +5,7 @@ use emberhut_api::error::ErrorBody;
 use emberhut_api::paths;
 use emberhut_api::state::State;
 use emberhut_api::theme::{Appearance, ThemeChoice, ThemePage, ThemeSetReply};
-use emberhut_db::Database;
+use emberhut_db::{Database, SettingKey};
 use serde_json::json;
 
 use crate::common::{Call, TestApp, fixture};
@@ -43,6 +43,7 @@ pub(crate) async fn the_theme_page_matches_its_fixture() {
         contrast,
         presets,
         names,
+        tints,
     } = reply.page;
     assert_eq!(version, expected.version);
     assert_eq!(tokens, expected.tokens);
@@ -56,6 +57,7 @@ pub(crate) async fn the_theme_page_matches_its_fixture() {
         );
     }
     assert_eq!(names, expected.names);
+    assert_eq!(tints, expected.tints, "every tint, the default first");
     assert_eq!(
         (choice.preset, choice.appearance, choice.accent),
         (
@@ -139,6 +141,92 @@ pub(crate) async fn a_change_is_kept_and_the_state_carries_it() {
 }
 
 #[tokio::test]
+pub(crate) async fn the_embers_tint_is_kept_with_the_theme() {
+    let app = TestApp::new().await;
+    let session = app.sign_in().await;
+    let page: ThemePage = app
+        .call(Call::get(paths::THEME).token(&session))
+        .await
+        .read_as();
+    assert_eq!(page.choice.ember_tint, "ember", "the brand's own colours");
+    let ids: Vec<&str> = page.tints.iter().map(|tint| tint.id.as_str()).collect();
+    assert_eq!(ids, ["ember", "amber", "coral", "blue"]);
+
+    let reply: ThemeSetReply = app
+        .call(
+            Call::post(paths::THEME)
+                .token(&session)
+                .json(&json!({ "preset": "green" })),
+        )
+        .await
+        .read_as();
+    assert_eq!(reply.page.choice.ember_tint, "ember", "kept by a preset");
+    let reply: ThemeSetReply = app
+        .call(
+            Call::post(paths::THEME)
+                .token(&session)
+                .json(&json!({ "emberTint": " Coral " })),
+        )
+        .await
+        .read_as();
+    let choice = reply.page.choice;
+    assert_eq!(
+        (choice.preset.as_str(), choice.ember_tint.as_str()),
+        ("green", "coral"),
+        "the tint changes, the preset stays"
+    );
+    let state: State = app
+        .call(Call::get(paths::STATE).token(&session))
+        .await
+        .read_as();
+    assert_eq!(
+        state.theme.map(|theme| theme.ember_tint).as_deref(),
+        Some("coral")
+    );
+
+    let db = Database::connect(&app.url).await.unwrap();
+    let log: Vec<String> = db
+        .log()
+        .recent(10)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|line| line.text)
+        .collect();
+    assert!(
+        log.iter()
+            .any(|line| line == "The theme is now green, system, the ember in coral"),
+        "{log:?}"
+    );
+    // Rose and Sage, the first tints, are no longer offered: asked, they are refused; saved,
+    // they read as Ember.
+    let refused = app
+        .call(
+            Call::post(paths::THEME)
+                .token(&session)
+                .json(&json!({ "emberTint": "sage" })),
+        )
+        .await;
+    assert_eq!(refused.status, 400, "{}", refused.text);
+    let saved = ThemeChoice {
+        ember_tint: "rose".to_owned(),
+        ..ThemeChoice::default()
+    };
+    db.settings()
+        .set(&SettingKey::<ThemeChoice>::new("theme"), &saved)
+        .await
+        .unwrap();
+    let page: ThemePage = app
+        .call(Call::get(paths::THEME).token(&session))
+        .await
+        .read_as();
+    assert_eq!(
+        page.choice.ember_tint, "ember",
+        "an early tint reads as the default"
+    );
+}
+
+#[tokio::test]
 pub(crate) async fn a_preview_saves_nothing() {
     let app = TestApp::new().await;
     let session = app.sign_in().await;
@@ -189,7 +277,18 @@ pub(crate) async fn a_value_the_theme_does_not_take_is_400_and_changes_nothing()
             json!({ "accent": 12 }),
             "accent: a hex colour like #3366FF (or null for the preset's own)",
         ),
-        (json!([]), "theme: { preset?, appearance?, accent? }"),
+        (
+            json!({ "emberTint": "teal" }),
+            "emberTint: one of ember, amber, coral, blue",
+        ),
+        (
+            json!({ "emberTint": null }),
+            "emberTint: one of ember, amber, coral, blue",
+        ),
+        (
+            json!([]),
+            "theme: { preset?, appearance?, accent?, emberTint? }",
+        ),
     ] {
         let answer = app
             .call(Call::post(paths::THEME).token(&session).json(&body))

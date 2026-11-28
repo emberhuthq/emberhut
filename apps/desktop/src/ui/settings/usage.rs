@@ -22,7 +22,7 @@ use crate::store::working::usage::{
 };
 use crate::ui::a11y::{self, Accessible as _};
 use crate::ui::controls::tab_stop;
-use crate::ui::palette::{Pal, category_color};
+use crate::ui::palette::Pal;
 use crate::ui::widgets::share;
 
 /// The section.
@@ -109,7 +109,7 @@ fn runs_on_row(
                     div()
                         .flex_1()
                         .text_size(px(13.))
-                        .child("Your ember runs on"),
+                        .child(format!("{} runs on", store.read(cx).ember_name())),
                 )
                 .child(
                     Button::new("usage-runs-on")
@@ -167,7 +167,7 @@ fn account_row(
         )
         .when(row.best, |d| d.child(tag("most room", p.success)))
         .when(on == Some(row.id.as_str()), |d| {
-            d.child(tag("Your ember", category_color(0)))
+            d.child(tag("In use", p.muted))
         })
         .child(div().flex_1())
         .child(Icon::new(chevron).size(px(12.)).text_color(p.faint));
@@ -252,7 +252,7 @@ fn account_words(row: &UsageRow, on: Option<&str>, (now, zone): (Timestamp, &Tim
         ]),
     };
     let theirs = if on == Some(row.id.as_str()) {
-        "Your ember runs on it".to_owned()
+        "in use".to_owned()
     } else {
         String::new()
     };

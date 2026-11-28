@@ -14,6 +14,7 @@
 //! time. The processes, the loopback and the folders are given to [`LocalHut::new`]
 //! ([`Spawner`], [`HutNet`], [`HutPaths`]), so the tests run all of it against fakes.
 
+mod accounts;
 mod error;
 mod net;
 mod pair;
@@ -35,6 +36,7 @@ use emberhut_identity::MachineId;
 use gpui_kit::AppContext as _;
 use gpui_kit::{App, Task};
 
+pub(crate) use self::accounts::HutAccount;
 pub(crate) use self::error::HutError;
 pub(crate) use self::net::{Heard, HutNet, LoopbackNet};
 pub(crate) use self::paths::{HutPaths, Manager, Place};
@@ -163,6 +165,8 @@ struct Inner {
     machine: Mutex<Option<MachineId>>,
     /// Held by the call running, so calls run one at a time.
     busy: Mutex<()>,
+    /// The accounts' sign-ins under way (the CLI waits for the browser, then exits).
+    logins: Mutex<Vec<Box<dyn Running>>>,
 }
 
 /// Takes `mutex` whatever an earlier holder did.
@@ -189,6 +193,7 @@ impl LocalHut {
                 child: Mutex::new(None),
                 machine: Mutex::new(None),
                 busy: Mutex::new(()),
+                logins: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -714,14 +719,15 @@ impl LocalHut {
         }
     }
 
-    /// [`LocalHut::checked`], tried three times: right after an unload, launchd may refuse a
-    /// load for a moment (as ADR 0024's installer found).
+    /// [`LocalHut::checked`], tried up to eight times, waiting a little longer each time:
+    /// right after an unload, launchd refuses a load ("Input/output error") until the old job
+    /// is gone, which takes seconds on a real Mac (as ADR 0024's installer found).
     fn retried(&self, run: &Run, what: &'static str) -> Result<(), HutError> {
         let mut tries = 0;
         loop {
             tries += 1;
             match self.checked(run, what) {
-                Err(_) if tries < 3 => std::thread::sleep(self.inner.options.poll * 2),
+                Err(_) if tries < 8 => std::thread::sleep(self.inner.options.poll * 2 * tries),
                 outcome => return outcome,
             }
         }
@@ -747,6 +753,9 @@ impl LocalHut {
         let agent = paths.agent();
         if let Some(agent) = agent.as_deref().and_then(Path::to_str) {
             args.extend(["--agent-command".to_owned(), agent.to_owned()]);
+        }
+        if let Some(accounts) = self.account_flags() {
+            args.extend(["--agent-accounts".to_owned(), accounts]);
         }
         Ok(Serve {
             program: server.to_path_buf(),

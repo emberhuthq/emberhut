@@ -24,10 +24,18 @@ describe("Android tab icons", () => {
 });
 
 describe("Your ember's tab icon", () => {
-  it("ships and bundles the ember, as it is and off duty", () => {
-    for (const name of ["emberhut-face", "emberhut-face-off"]) {
+  const faces = readFileSync(new URL("../ui/emberFaces.ts", import.meta.url), "utf8");
+  // The tints the server lists (the API's fixture), the default drawn as the brand's own face.
+  const page = JSON.parse(
+    readFileSync(new URL("../../../../crates/emberhut-api/tests/fixtures/theme_page.json", import.meta.url), "utf8"),
+  ) as { tints: { id: string }[] };
+
+  it("ships and bundles the ember in every tint the server lists, and off duty", () => {
+    const names = [...page.tints.map((t) => (t.id === "ember" ? "emberhut-face" : `emberhut-face-${t.id}`)), "emberhut-face-off"];
+    expect(names).toContain("emberhut-face-blue");
+    for (const name of names) {
       expect(existsSync(new URL(`../../assets/${name}.png`, import.meta.url)), name).toBe(true);
-      expect(source).toContain(`require("../../assets/${name}.png")`);
+      expect(faces).toContain(`require("../../assets/${name}.png")`);
     }
   });
 });

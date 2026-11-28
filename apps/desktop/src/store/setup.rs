@@ -8,9 +8,9 @@
 //! `setup.json`, so it never comes back: an ember that goes out later gets a quiet line over
 //! the chat instead.
 //!
-//! The ember beside the steps glows a little more with each one done ([`Setup::glow`]). Where
-//! the setup begins is one choice ([`DIRECTION`]); Emberhut on this computer is a port
-//! ([`LocalHome`]) the app hands the store at launch.
+//! A rail beside the open step lists every step with what it unlocks, or what came of it once
+//! done. Where the setup begins is one choice ([`DIRECTION`]); Emberhut on this computer is a
+//! port ([`LocalHome`]) the app hands the store at launch.
 //!
 //! "Here, on this computer" starts Emberhut here; when it answers at another address than the
 //! one the app talks to (its port was taken), the app moves there as it runs
@@ -20,9 +20,11 @@
 //! again when the app talks to it and it is out ([`Store::relight_home`]).
 
 mod home;
+mod plans;
 mod relight;
 #[cfg(test)]
 pub(crate) mod tests;
+mod yours;
 
 use std::collections::BTreeSet;
 use std::rc::Rc;
@@ -35,7 +37,9 @@ use serde::{Deserialize, Serialize};
 pub(crate) use self::home::{
     CANT_HERE, DevHome, HutHome, LocalHome, NoLocalHome, Relit, on_this_computer,
 };
+pub(crate) use self::plans::Plans;
 pub(crate) use self::relight::Relighting;
+pub(crate) use self::yours::{SUGGESTED_NAME, SUGGESTIONS};
 
 use super::{Store, update_or_log};
 use crate::backend::Error;
@@ -88,6 +92,8 @@ pub(crate) enum SetupStep {
     Home,
     /// Light it: the model it thinks with.
     Light,
+    /// Make it yours: its name and its look.
+    Yours,
     /// Let it reach you: a phone paired with a QR code.
     Reach,
     /// Show it your world: Calendar, Gmail, Slack and Chrome.
@@ -98,9 +104,10 @@ pub(crate) enum SetupStep {
 
 impl SetupStep {
     /// Every step, in order.
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 6] = [
         Self::Home,
         Self::Light,
+        Self::Yours,
         Self::Reach,
         Self::World,
         Self::Share,
@@ -112,9 +119,10 @@ impl SetupStep {
         match self {
             Self::Home => 0,
             Self::Light => 1,
-            Self::Reach => 2,
-            Self::World => 3,
-            Self::Share => 4,
+            Self::Yours => 2,
+            Self::Reach => 3,
+            Self::World => 4,
+            Self::Share => 5,
         }
     }
 
@@ -128,8 +136,9 @@ impl SetupStep {
     #[must_use]
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::Home => "Give your ember a home",
+            Self::Home => "Give your ember a hut",
             Self::Light => "Light it",
+            Self::Yours => "Make it yours",
             Self::Reach => "Let it reach you",
             Self::World => "Show it your world",
             Self::Share => "Share your ember",
@@ -140,18 +149,32 @@ impl SetupStep {
     #[must_use]
     pub(crate) fn line(self) -> &'static str {
         match self {
-            Self::Home => "Pick the computer it lives on. It runs there in the background.",
+            Self::Home => "Pick its hut, where it lives. It runs there in the background.",
             Self::Light => "Choose the model your ember thinks with.",
+            Self::Yours => "Give it a name and pick its look.",
             Self::Reach => "Pair your phone with one QR code.",
             Self::World => "Connect Slack, Gmail, Calendar and Chrome, one at a time.",
             Self::Share => "Let someone else talk to it in Slack.",
         }
     }
 
+    /// What it unlocks, for the rail beside the step.
+    #[must_use]
+    pub(crate) fn unlocks(self) -> &'static str {
+        match self {
+            Self::Home => "Works while you're away",
+            Self::Light => "It can think",
+            Self::Yours => "Name and look",
+            Self::Reach => "Reaches your phone",
+            Self::World => "Sees your mail and calendar",
+            Self::Share => "Others can talk to it",
+        }
+    }
+
     /// Whether the ember gets going without it.
     #[must_use]
     pub(crate) fn optional(self) -> bool {
-        matches!(self, Self::Reach | Self::World | Self::Share)
+        matches!(self, Self::Yours | Self::Reach | Self::World | Self::Share)
     }
 
     /// The headline while it is open: the words before the ember's word, and its word.
@@ -160,6 +183,7 @@ impl SetupStep {
         match self {
             Self::Home => ("Set up your ", "ember"),
             Self::Light => ("Now, ", "light it"),
+            Self::Yours => ("Make it ", "yours"),
             Self::Reach => ("Let it ", "reach you"),
             Self::World => ("Show it your ", "world"),
             Self::Share => ("Share your ", "ember"),
@@ -230,11 +254,18 @@ pub(crate) enum Ending {
 }
 
 /// `setup.json`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 struct SetupFile {
     /// How the setup ended, once it did.
     ended: Option<Ending>,
+    /// The person asked to hear when renting a home in the cloud is ready (kept on their
+    /// server too, once there is one).
+    #[serde(rename = "cloudWaitlist", skip_serializing_if = "std::ops::Not::not")]
+    cloud_waitlist: bool,
+    /// The ember's name, once given in "Make it yours".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
 }
 
 /// A connection on the "Show it your world" step.
@@ -335,7 +366,7 @@ pub(crate) struct Setup {
     /// The step open; `None` once every step is behind (the "lit" screen).
     open: Option<SetupStep>,
     /// How each step stands, by its index.
-    steps: [StepState; 5],
+    steps: [StepState; 6],
     /// Whether the store looks at the setup checklist (the app does; most tests don't).
     watching: bool,
     /// Whether the ember thinks.
@@ -357,6 +388,10 @@ pub(crate) struct Setup {
     keep: Keeping,
     /// Emberhut here started again at launch.
     relighting: Relighting,
+    /// The plans' accounts ("Light it").
+    plans: Plans,
+    /// Why the name typed in "Make it yours" can't be the ember's.
+    name_problem: Option<String>,
 }
 
 /// How Emberhut here is kept lit, and the sheet that changes it.
@@ -397,6 +432,8 @@ impl Setup {
             asked: BTreeSet::new(),
             keep: Keeping::default(),
             relighting: Relighting::default(),
+            plans: Plans::default(),
+            name_problem: None,
         }
     }
 
@@ -433,6 +470,7 @@ impl Setup {
     /// it has a home, lit once it thinks, warmer once it can reach the user or see their
     /// world, and brightest when the setup is done.
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn glow(&self) -> u8 {
         if self.showing && self.open.is_none() {
             return BRIGHTEST;
@@ -443,8 +481,9 @@ impl Setup {
         u8::from(home) + u8::from(lit) + u8::from(warmer)
     }
 
-    /// The note beside the ember.
+    /// The note the ember had beside it, by its glow.
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn note(&self) -> &'static str {
         NOTES[usize::from(self.glow())]
     }
@@ -570,7 +609,7 @@ pub(crate) fn lit_line(saved: Option<&emberhut_api::agent_provider::AgentProvide
 #[must_use]
 pub(crate) fn place(server: &ServerUrl) -> &'static str {
     if !on_this_computer(server) {
-        "another computer"
+        "another hut"
     } else if cfg!(target_os = "macos") {
         "this Mac"
     } else {
@@ -612,7 +651,8 @@ impl Store {
         for earlier in &SetupStep::ALL[..until] {
             let line = match earlier {
                 SetupStep::Home => self.home_line(),
-                SetupStep::Light => lit_line(self.credentials().saved()),
+                SetupStep::Light => self.light_line(),
+                SetupStep::Yours => format!("Called {}.", self.setup_name()),
                 SetupStep::Reach | SetupStep::World | SetupStep::Share => {
                     self.setup.steps[earlier.index()] = StepState::Skipped;
                     continue;
@@ -634,14 +674,17 @@ impl Store {
     fn enter(&mut self, step: Option<SetupStep>, cx: &mut Context<'_, Self>) {
         self.setup.open = step;
         match step {
-            Some(SetupStep::Light) => self.open_credentials(cx),
+            Some(SetupStep::Light) => {
+                self.open_credentials(cx);
+                self.load_plans(cx);
+            }
             Some(SetupStep::Reach) => {
                 // Without a state yet, the first one to come says who was signed in already.
                 self.setup.known_devices = self.state.is_some().then(|| self.signed_in_devices());
                 self.make_pairing_code(cx);
             }
             Some(SetupStep::World) => self.read_setup_page(cx),
-            Some(SetupStep::Home | SetupStep::Share) | None => {}
+            Some(SetupStep::Home | SetupStep::Yours | SetupStep::Share) | None => {}
         }
         cx.notify();
     }
@@ -685,15 +728,61 @@ impl Store {
         self.setup.showing = false;
         self.setup.open = None;
         self.setup.kept.ended = Some(ending);
+        self.keep_setup_file(cx);
+        cx.notify();
+    }
+
+    /// "Lit it" step's line: the plan's account it is lit with, else the provider saved.
+    fn light_line(&self) -> String {
+        self.setup
+            .plans
+            .lit_line()
+            .unwrap_or_else(|| lit_line(self.credentials().saved()))
+    }
+
+    /// "Tell me when it's ready" on renting a home in the cloud: kept in `setup.json`, and on
+    /// the server once there is one (nothing is paid or sent anywhere else).
+    pub(crate) fn join_cloud_waitlist(&mut self, cx: &mut Context<'_, Self>) {
+        if self.setup.kept.cloud_waitlist {
+            return;
+        }
+        self.setup.kept.cloud_waitlist = true;
+        self.keep_setup_file(cx);
+        self.tell_server_waitlist(cx);
+        cx.notify();
+    }
+
+    /// Tells the server the person is on the cloud waitlist, when they are and it is signed in
+    /// (again at every sign-in: the server keeps the first time).
+    fn tell_server_waitlist(&self, cx: &mut Context<'_, Self>) {
+        if !self.setup.kept.cloud_waitlist || !self.is_signed_in() {
+            return;
+        }
+        let backend = Arc::clone(&self.backend);
+        cx.background_spawn(async move {
+            if let Err(error) = backend.join_waitlist("cloud-home") {
+                log::info!("the server didn't keep the cloud waitlist: {error}");
+            }
+        })
+        .detach();
+    }
+
+    /// Whether the person asked to hear when renting a home in the cloud is ready.
+    #[must_use]
+    pub(crate) fn on_cloud_waitlist(&self) -> bool {
+        self.setup.kept.cloud_waitlist
+    }
+
+    /// Writes `setup.json`.
+    fn keep_setup_file(&mut self, cx: &mut Context<'_, Self>) {
         if let Some(files) = self.files.clone() {
-            let kept = self.setup.kept;
+            let kept = self.setup.kept.clone();
             let (number, written) = self.setup.writes.next();
             cx.background_spawn(async move {
                 json_file::write(&files.setup(), &kept, number, &written, "the setup's state");
             })
             .detach();
         }
-        cx.notify();
     }
 
     /// The user picks where the ember lives.
@@ -830,10 +919,10 @@ impl Store {
         let place = place(self.server());
         match self.setup.keep.kept {
             Some(keep) if keep.by_service() => {
-                format!("It lives on {place} and stays lit when the window is closed.")
+                format!("Its hut is {place}, and it stays lit when the window is closed.")
             }
-            Some(_) => format!("It lives on {place} while Emberhut is open."),
-            None => format!("It lives on {place}."),
+            Some(_) => format!("Its hut is {place}, lit while Emberhut is open."),
+            None => format!("Its hut is {place}."),
         }
     }
 
@@ -887,6 +976,7 @@ impl Store {
     /// This device paired (from the setup's form, or the sign-in screen's): step 1 is done if
     /// it is open.
     pub(super) fn setup_signed_in(&mut self, cx: &mut Context<'_, Self>) {
+        self.tell_server_waitlist(cx);
         if self.setup.showing && self.setup.open == Some(SetupStep::Home) {
             self.home_given(cx);
         } else {
@@ -894,10 +984,22 @@ impl Store {
         }
     }
 
+    /// Continue on "Light it" once lit with a plan's accounts: the step is done.
+    pub(crate) fn continue_lit(&mut self, cx: &mut Context<'_, Self>) {
+        let line = self.light_line();
+        self.step_done(SetupStep::Light, line, cx);
+    }
+
+    /// Whether the ember is lit (as last read).
+    #[must_use]
+    pub(crate) fn setup_is_lit(&self) -> bool {
+        self.setup.lit == LitCheck::Lit
+    }
+
     /// A provider was saved from "Light it": the step is done.
     pub(crate) fn setup_lit(&mut self, cx: &mut Context<'_, Self>) {
         self.setup.lit = LitCheck::Lit;
-        let line = lit_line(self.credentials().saved());
+        let line = self.light_line();
         self.step_done(SetupStep::Light, line, cx);
     }
 
@@ -982,8 +1084,12 @@ impl Store {
             self.setup.steps[SetupStep::Home.index()] = StepState::Done(self.home_line());
             self.show_setup(SetupStep::Light, cx);
         } else if !unlit && self.setup.open == Some(SetupStep::Light) {
-            let line = lit_line(self.credentials().saved());
-            self.step_done(SetupStep::Light, line, cx);
+            // Lit with a plan's accounts: the step stays, showing them, until Continue (more
+            // accounts can be added first).
+            if self.setup.plans.signed_in().next().is_none() {
+                let line = self.light_line();
+                self.step_done(SetupStep::Light, line, cx);
+            }
         }
         cx.notify();
     }

@@ -18,6 +18,14 @@ pub const AGENT_PROVIDER: &str = "/api/agent/provider";
 /// `POST`: check a provider ([`crate::agent_provider::ProviderRequest`]) and list its models
 /// ([`crate::agent_provider::ProviderTest`]), saving nothing. A signed-in device only.
 pub const AGENT_PROVIDER_TEST: &str = "/api/agent/provider/test";
+/// `GET`: the agent CLI accounts the sessions run on and whether each can take work
+/// ([`crate::agent_accounts::AgentAccounts`]).
+pub const AGENT_CLI_ACCOUNTS: &str = "/api/agent/accounts";
+/// `GET`: the waitlists and whether the owner is on each ([`crate::waitlist::Waitlists`]).
+pub const WAITLISTS: &str = "/api/waitlist";
+/// `PUT`: join a waitlist ([`crate::waitlist::Waitlist`]); `{list}` is its id. A signed-in
+/// device only.
+pub const WAITLIST: &str = "/api/waitlist/{list}";
 /// `POST`: where the server pushes this phone's alerts ([`crate::push::PushRegistration`]).
 pub const DEVICES: &str = "/api/devices";
 /// `GET`: a one-time secret link's page; `POST`: its form. `{token}` is the link's token.
@@ -46,6 +54,8 @@ pub const SEEN: &str = "/api/seen";
 pub const MACHINES: &str = "/api/machines";
 /// `GET`: the theme; `POST`: change it.
 pub const THEME: &str = "/api/theme";
+/// `GET`: the ember's name; `POST`: change it ([`crate::ember_name`]).
+pub const EMBER_NAME: &str = "/api/ember/name";
 /// `POST`: the person's changes, one route for all of them
 /// ([`crate::settings::SettingsAction`]).
 pub const SETTINGS: &str = "/api/settings";

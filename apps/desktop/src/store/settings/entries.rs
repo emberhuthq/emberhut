@@ -14,7 +14,7 @@ use crate::store::AgentsPlace;
 /// A group of Settings: a chip on the front door, and a page of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Group {
-    /// The agent itself: on duty, what it thinks with, what it knows.
+    /// The agent itself: on duty, what it thinks with, what it knows, its look.
     Ember,
     /// Light or dark, and the colour.
     Appearance,
@@ -106,7 +106,8 @@ impl Group {
     #[must_use]
     pub(crate) fn status(self, now: &Now) -> String {
         match self {
-            Self::Ember => now.doing_word(),
+            // The hero says what it is doing.
+            Self::Ember => String::new(),
             Self::Appearance => now.appearance_word(),
             Self::Devices => match now.devices {
                 Some(1) => "1 can reach your ember".to_owned(),
@@ -275,6 +276,9 @@ impl PartialEq for Entry {
 
 impl Eq for Entry {}
 
+/// Your ember's look's id: Appearance opens it too.
+pub(crate) const LOOK: &str = "ember-look";
+
 /// The entry with id `id`.
 #[must_use]
 pub(crate) fn entry(id: &str) -> Option<&'static Entry> {
@@ -351,6 +355,26 @@ pub(crate) const ENTRIES: &[Entry] = &[
         "wake",
         "status",
         "connection",
+    ]),
+    everyday(
+        "ember-name",
+        "Name",
+        Line::Live(|now| match &now.ember_name {
+            Some(name) => format!("Called {name} · rename it"),
+            None => "Give your ember a name of your own".to_owned(),
+        }),
+        Group::Ember,
+        Destination::Group,
+        IconName::Pencil,
+    )
+    .also(&[
+        "name",
+        "rename",
+        "call it",
+        "nickname",
+        "what to call",
+        "assistant name",
+        "change name",
     ]),
     everyday(
         "thinks-with",
@@ -432,6 +456,22 @@ pub(crate) const ENTRIES: &[Entry] = &[
     )
     .at("What it knows")
     .also(&["trial", "corrections", "keep", "drop", "trying out"]),
+    everyday(
+        LOOK,
+        "Look",
+        Line::Live(|now| {
+            let line = "Your ember's theme, picked by how it looks";
+            if now.theme.is_empty() {
+                line.to_owned()
+            } else {
+                format!("{line} · now {}", now.theme)
+            }
+        }),
+        Group::Ember,
+        Destination::Group,
+        IconName::Palette,
+    )
+    .also(&["theme", "colour", "color", "look", "style", "dark", "tint"]),
     everyday(
         "models",
         "Technical details",
@@ -824,6 +864,7 @@ mod tests {
         ("Provider picker", "thinks-with", Group::Ember),
         ("About you", "about-you", Group::Ember),
         ("About you › trying out + Drop", "lessons", Group::Ember),
+        ("Your ember › Look", "ember-look", Group::Ember),
         ("Fix a fact", "about-you", Group::Ember),
         ("Skills", "skills", Group::Connections),
         ("Data sources rows", "sources", Group::Connections),
@@ -903,6 +944,19 @@ mod tests {
             );
             assert!(!entry.title.is_empty() && !entry.line(&Now::default()).is_empty());
         }
+    }
+
+    #[test]
+    fn your_embers_page_leaves_what_it_is_doing_to_its_hero() {
+        let busy = Now {
+            on_duty: true,
+            working: true,
+            jobs: 1,
+            doing: "Watching · 1 job".to_owned(),
+            ..Now::default()
+        };
+        assert_eq!(Group::Ember.status(&busy), "", "said once, by the hero");
+        assert_eq!(Group::Sharing.status(&busy), "Only you");
     }
 
     #[test]

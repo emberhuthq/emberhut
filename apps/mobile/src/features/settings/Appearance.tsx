@@ -34,7 +34,7 @@ const agentsPlaces: readonly { value: AgentsPlace; label: string }[] = [
 
 /**
  * Emberhut's look, kept on the server so every app signed in to it follows one choice: light or dark, a preset's
- * colour, or a custom one held to AA. A preset works offline (sent when Emberhut's back); a custom colour needs the server.
+ * colour (or Your ember's look, the same choice drawn as cards), or a custom one held to AA. A preset works offline (sent when Emberhut's back); a custom colour needs the server.
  */
 export function Appearance() {
   const { spacing } = useTheme();
@@ -44,6 +44,7 @@ export function Appearance() {
   const held = usePrefs((s) => s.themePending !== null);
   const error = useThemeStore((s) => s.error);
   const choose = themeStore.getState().choose;
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   useEffect(() => inBackground(themeStore.getState().refresh(), "Appearance: refresh"), []);
 
@@ -63,6 +64,13 @@ export function Appearance() {
         />
       </View>
       <Presets key="presets" page={page} />
+      <ListRow
+        key="look"
+        icon="color-palette-outline"
+        title="Your ember's look"
+        subtitle="Pick the theme by how it looks"
+        onPress={() => navigation.navigate("SettingsGroup", { group: "ember" })}
+      />
       {/* A new saved colour (here or from another device) starts the field again. */}
       <CustomAccent key={`custom:${page.choice.accent ?? ""}`} page={page} />
     </Section>

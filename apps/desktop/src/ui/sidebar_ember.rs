@@ -1,10 +1,12 @@
-//! The sidebar's first row, your ember: the assistant's little picture and its name. A click
-//! (or Return or Space) opens the main room, lit while it is open, with a dot while it has
-//! something unread. Its menu (On duty, what it knows about the user, Settings) opens on a
+//! The sidebar's first row, your ember: the assistant's little picture and its name (the one
+//! the user gave it, cut with an ellipsis when it is long and said in full in the row's tip,
+//! else "Your ember"). A click (or Return or Space) opens the main room, lit while it is open,
+//! with a dot while it has something unread. Its menu (On duty, what it knows about the user, Settings) opens on a
 //! right-click and from the ellipsis inside the row, which shows on hover and keyboard focus.
 //! Off duty the picture is dimmed and grey; while it works a soft glow breathes around it
-//! (still under Reduce Motion). A second line says Off duty, what it is doing or what is wrong,
-//! or that a new answer waits; otherwise the row is one line high.
+//! (still under Reduce Motion). The picture is the ember in the tint its look names. A second
+//! line says Off duty, what it is doing or what is wrong, or that a new answer waits; otherwise
+//! the row is one line high.
 
 use std::time::Duration;
 
@@ -15,7 +17,7 @@ use gpui_kit::component::menu::{ContextMenuExt as _, DropdownMenu as _, PopupMen
 use gpui_kit::component::{Icon, Sizable as _};
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Animation, AnimationExt as _, AnyElement, BoxShadow, Entity, FontWeight, Hsla,
+    Animation, AnimationExt as _, AnyElement, BoxShadow, ElementId, Entity, FontWeight, Hsla,
     TestSupportExt as _, Window, div, img, pulsating_between, px,
 };
 
@@ -26,15 +28,12 @@ use super::routes;
 use super::sidebar::row;
 use super::widgets::dot;
 use super::window::{MainWindow, Room0};
-use crate::assets::FACE;
+use crate::assets::face;
 use crate::motion;
 use crate::store::settings::SettingsPane;
 use crate::store::status::{StatusLine, Tone};
 use crate::store::{Page, Store};
 use crate::ui::a11y;
-
-/// What the sidebar calls the assistant.
-pub(crate) const NAME: &str = "Your ember";
 
 /// The hover group of the row, which shows its menu button.
 const GROUP: &str = "ember-row";
@@ -106,15 +105,19 @@ pub(crate) fn row_with_menu(
     let unread = main.is_some_and(|room| room.unread > 0);
     let on_duty = store.is_on_duty();
     let working = on_duty && store.is_working();
+    let tint = store.theme().page().choice.ember_tint.clone();
     let status = store.status();
+    let name = store.ember_name().to_owned();
+    // The tip starts with the name in full: the row cuts a long one.
+    let called = store.ember_called();
     let help = format!(
-        "Opens your ember's chat · {}\nOn duty: when off, your ember does nothing and wakes for \
+        "{name} · {}\nOpens the chat. On duty: when off, {called} does nothing and wakes for \
          nothing; it still answers you in the chat.",
         status.text
     );
     let note = Note::of(on_duty, working, status, unread);
     let spoken = a11y::line(&[
-        NAME,
+        &name,
         note.as_ref().map_or("", Note::text),
         if unread && note != Some(Note::New) {
             "new answer"
@@ -132,7 +135,7 @@ pub(crate) fn row_with_menu(
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_size(px(13.5))
                 .truncate()
-                .child(NAME),
+                .child(name.clone()),
         )
         .when_some(note, |d, note| {
             d.child(
@@ -151,10 +154,10 @@ pub(crate) fn row_with_menu(
         .h_auto()
         .min_h(px(28.))
         .py(px(3.))
-        .child(picture(on_duty, working, p, motion::reduced(cx)))
+        .child(picture(&tint, on_duty, working, p, motion::reduced(cx)))
         .child(text)
         .when(unread, |d| d.child(dot(p.accent, 6.)))
-        .child(menu_button(&window.store, on_duty, p))
+        .child(menu_button(&window.store, &name, on_duty, p))
         .on_click(cx.listener(move |this, _, window, cx| this.open(Page::Room(id), window, cx)))
         .test_support();
     div()
@@ -166,19 +169,22 @@ pub(crate) fn row_with_menu(
         .into_any_element()
 }
 
-/// The little ember: dimmed off duty; while it works, a glow around it that breathes, or holds
-/// still when the system asks for `reduced` motion.
-fn picture(on_duty: bool, working: bool, p: &Pal, reduced: bool) -> impl IntoElement {
+/// The little ember in its `tint`: dimmed off duty; while it works, a glow around it that
+/// breathes, or holds still when the system asks for `reduced` motion.
+fn picture(tint: &str, on_duty: bool, working: bool, p: &Pal, reduced: bool) -> impl IntoElement {
     div()
+        .id(ElementId::Name(format!("ember-face-{tint}").into()))
         .relative()
         .flex_none()
         .size(px(PICTURE))
         .when(working, |d| d.child(glow(p, reduced)))
         .child(
-            img(FACE)
+            img(face(tint))
                 .size_full()
                 .when(!on_duty, |picture| picture.grayscale(true).opacity(0.5)),
         )
+        // Seen by the headless tests (a no-op outside them).
+        .test_support()
 }
 
 /// The working glow: a soft halo in the palette's glow colour, under the picture.
@@ -211,7 +217,8 @@ fn glow(p: &Pal, reduced: bool) -> AnyElement {
 
 /// The ellipsis inside the row that opens its menu: hidden until the row is under the pointer
 /// or the button has the keyboard.
-fn menu_button(store: &Entity<Store>, on_duty: bool, p: &Pal) -> impl IntoElement {
+fn menu_button(store: &Entity<Store>, name: &str, on_duty: bool, p: &Pal) -> impl IntoElement {
+    let label = format!("{name}'s menu");
     Button::new("ember-menu")
         .icon(
             Icon::new(AssetIcon::Ellipsis)
@@ -220,8 +227,8 @@ fn menu_button(store: &Entity<Store>, on_duty: bool, p: &Pal) -> impl IntoElemen
         )
         .ghost()
         .xsmall()
-        .tooltip("Your ember's menu")
-        .accessibility_label("Your ember's menu")
+        .tooltip(label.clone())
+        .accessibility_label(label)
         .opacity(0.)
         .group_hover(GROUP, |style| style.opacity(1.))
         .focus_visible(|style| style.opacity(1.))
@@ -398,7 +405,38 @@ mod tests {
     #[gpui_kit::test]
     fn ready_the_row_is_one_line_without_a_glow(cx: &mut TestAppContext) {
         let (_, _, cx) = open(json!({}), json!({}), cx);
-        assert_eq!(shown(cx), (NAME.to_owned(), false, false));
+        assert_eq!(shown(cx), ("Your ember".to_owned(), false, false));
+    }
+
+    #[gpui_kit::test]
+    fn the_row_shows_the_name_the_user_gave(cx: &mut TestAppContext) {
+        let ember = json!({ "emberName": { "name": "Juniper", "custom": true, "at": null } });
+        let (_, _, cx) = open(json!({"unread": 1}), ember, cx);
+        assert_eq!(shown(cx), ("Juniper, New answer".to_owned(), true, false));
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            assert_eq!(
+                window.find("ember-menu").label(),
+                Some("Juniper's menu"),
+                "its menu too"
+            );
+        });
+    }
+
+    #[gpui_kit::test]
+    fn a_long_name_is_cut_with_an_ellipsis(cx: &mut TestAppContext) {
+        let long = "W".repeat(24);
+        let ember = json!({ "emberName": { "name": long, "custom": true, "at": null } });
+        let (_, _, cx) = open(json!({}), ember, cx);
+        assert_eq!(shown(cx).0, long, "the whole name is read out");
+        cx.update(|window, cx| {
+            window.render_frame(cx);
+            let row = window.find("ember").bounds();
+            assert!(
+                row.size.width < px(400.),
+                "the row keeps the sidebar's width"
+            );
+        });
     }
 
     #[gpui_kit::test]
@@ -420,6 +458,24 @@ mod tests {
             shown(cx),
             ("Your ember, New answer".to_owned(), true, false)
         );
+    }
+
+    #[gpui_kit::test]
+    fn the_picture_is_the_ember_in_the_tint_of_its_look(cx: &mut TestAppContext) {
+        let (store, _, cx) = open(json!({}), json!({}), cx);
+        let drawn = |cx: &mut VisualTestContext, tint: &str| {
+            cx.update(|window, cx| {
+                window.render_frame(cx);
+                window
+                    .try_find(ElementId::Name(format!("ember-face-{tint}").into()))
+                    .is_some()
+            })
+        };
+        assert!(drawn(cx, "ember"), "the brand's own colours at first");
+        store.update(cx, |store, cx| store.pick_ember_tint("coral".into(), cx));
+        cx.run_until_parked();
+        assert!(drawn(cx, "coral"), "the tint picked");
+        assert!(!drawn(cx, "ember"));
     }
 
     #[test]

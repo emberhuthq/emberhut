@@ -55,11 +55,26 @@ fn here_title() -> &'static str {
 /// What "Here" says under its name.
 fn here_line() -> &'static str {
     if cfg!(target_os = "macos") {
-        "Best on a Mac that's on most of the day. About two minutes."
+        "Your hut runs here while your Mac is awake. About two minutes."
     } else {
-        "Best on a computer that's on most of the day. About two minutes."
+        "Your hut runs here while this computer is awake. About two minutes."
     }
 }
+
+/// Why an always-on home matters, under the homes.
+fn always_on_line() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "More huts keep it lit. With its only hut on this Mac, your ember stops when the Mac \
+         sleeps or is off; an always-on hut (a PC, a home server or a VPS) keeps it working."
+    } else {
+        "More huts keep it lit. With its only hut on this computer, your ember stops when it \
+         sleeps or is off; an always-on hut (a PC, a home server or a VPS) keeps it working."
+    }
+}
+
+/// What to do on the always-on computer, over the pairing form.
+pub(crate) const ALWAYS_ON_HOW: &str = "On that hut, run Emberhut's server, then \
+     emberhut-server pair: type the code it prints here.";
 
 impl SetupView {
     /// The ladder: every step's row, the open one with what it asks.
@@ -70,13 +85,9 @@ impl SetupView {
         window: &mut Window,
         cx: &mut Context<'_, Self>,
     ) -> AnyElement {
-        let rows: Vec<AnyElement> = SetupStep::ALL
-            .into_iter()
-            .map(|step| {
-                let body = (step == open).then(|| self.body(step, p, window, cx));
-                self.row(step, open, body, p, cx).into_any_element()
-            })
-            .collect();
+        // Only the open step: the rail beside it shows every step and what each unlocks.
+        let body = self.body(open, p, window, cx);
+        let rows = vec![self.row(open, open, Some(body), p, cx).into_any_element()];
         div()
             .id("setup-ladder")
             .flex()
@@ -172,9 +183,6 @@ impl SetupView {
             .flex()
             .gap(px(14.))
             .py(px(16.))
-            .when(step != SetupStep::Home, |d| {
-                d.border_t_1().border_dashed().border_color(p.border)
-            })
             .child(mark(step, &state, is_open, p))
             .child(
                 div()
@@ -199,7 +207,8 @@ impl SetupView {
     ) -> AnyElement {
         match step {
             SetupStep::Home => self.home(p, cx).into_any_element(),
-            SetupStep::Light => self.light(p).into_any_element(),
+            SetupStep::Light => self.light(p, cx).into_any_element(),
+            SetupStep::Yours => self.yours(p, window, cx).into_any_element(),
             SetupStep::Reach => self.reach(p, window, cx).into_any_element(),
             SetupStep::World => self.world(p, cx).into_any_element(),
             SetupStep::Share => share(&self.store, p).into_any_element(),
@@ -214,7 +223,7 @@ impl SetupView {
         let busy = matches!(here, Here::Starting | Here::Pairing);
         let status: Option<AnyElement> = match &here {
             Here::Idle => None,
-            Here::Starting => Some(working(p, "Starting Emberhut here…").into_any_element()),
+            Here::Starting => Some(working(p, "Starting your hut…").into_any_element()),
             Here::Pairing => Some(working(p, "Pairing this app with it…").into_any_element()),
             Here::TypeCode => Some(
                 note(
@@ -252,7 +261,7 @@ impl SetupView {
                 div()
                     .id("setup-home-choices")
                     .role(Role::RadioGroup)
-                    .aria_label("Where your ember lives")
+                    .aria_label("Your ember's hut")
                     .flex()
                     .flex_col()
                     .gap(px(10.))
@@ -270,13 +279,19 @@ impl SetupView {
                         &self.store,
                         HomeChoice::Elsewhere,
                         choice,
-                        IconName::Monitor,
-                        "On another computer I already set up",
+                        IconName::Server,
+                        "Another hut",
                         None,
-                        "A PC at home or a server with Emberhut. You'll need a code from it.",
+                        "A PC, home server or VPS that's always on. You'll need a code from it.",
                         p,
                     )),
             )
+            .child(cloud_card(
+                &self.store,
+                self.store.read(cx).on_cloud_waitlist(),
+                p,
+            ))
+            .child(always_on(&self.store, p))
             .children(status)
             .when(here != Here::TypeCode, |d| {
                 d.child(div().flex().pt(px(4.)).child(continue_button))
@@ -295,6 +310,7 @@ impl SetupView {
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .child(FIND_TITLE),
                         )
+                        .child(note(p, ALWAYS_ON_HOW).text_size(px(12.5)))
                         .child(self.find.clone())
                         .test_support(),
                 )
@@ -302,13 +318,13 @@ impl SetupView {
     }
 
     /// Step 2: the picker of what the ember thinks with, and Later.
-    fn light(&self, p: &Pal) -> Div {
+    fn light(&self, p: &Pal, cx: &Context<'_, Self>) -> Div {
         let store = self.store.clone();
         div()
             .flex()
             .flex_col()
             .gap(px(10.))
-            .child(self.credentials.clone())
+            .child(self.plans(p, cx))
             .child(
                 div()
                     .flex()
@@ -515,8 +531,8 @@ fn choice_card(
         .py(px(12.))
         .rounded(px(12.))
         .border_1()
-        .border_color(if on { p.text } else { p.border })
-        .bg(p.surface)
+        .border_color(if on { p.accent } else { p.border })
+        .bg(if on { p.accent_soft } else { p.surface })
         .cursor_pointer()
         .hover(|d| d.bg(p.hover))
         .on_click(move |_, _, cx| store.update(cx, |store, cx| store.choose_home(choice, cx)))
@@ -552,6 +568,171 @@ fn choice_card(
                         .children(tag_words.map(|words| tag(words, p.accent))),
                 )
                 .child(div().text_size(px(12.5)).text_color(p.muted).child(line)),
+        )
+        .test_support()
+}
+
+/// Renting a home in the cloud: coming, not a choice yet. "Tell me when it's ready" puts the
+/// person on the waitlist (kept on their server), and then says so.
+fn cloud_card(store: &Entity<Store>, joined: bool, p: &Pal) -> impl IntoElement {
+    let store = store.clone();
+    let action: AnyElement = if joined {
+        div()
+            .id("setup-cloud-joined")
+            .role(Role::Status)
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .text_size(px(12.5))
+            .text_color(p.success)
+            .child(Icon::new(IconName::CircleCheck).size(px(14.)))
+            .child("You're on the list")
+            .into_any_element()
+    } else {
+        Button::new("setup-cloud-notify")
+            .ghost()
+            .small()
+            .label("Tell me when it's ready")
+            .on_click(move |_, _, cx| store.update(cx, Store::join_cloud_waitlist))
+            .into_any_element()
+    };
+    div()
+        .id("setup-home-cloud")
+        .role(Role::Group)
+        .aria_label("Rent a hut in the cloud, coming soon")
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .px(px(16.))
+        .py(px(12.))
+        .rounded(px(12.))
+        .border_1()
+        .border_dashed()
+        .border_color(p.border)
+        .child(div().w(px(17.)))
+        .child(Icon::new(IconName::Cloud).size(px(17.)).text_color(p.faint))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_w_0()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(14.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(p.muted)
+                                .child("Rent a hut in the cloud"),
+                        )
+                        .child(tag("Coming soon", p.muted)),
+                )
+                .child(
+                    div()
+                        .text_size(px(12.5))
+                        .text_color(p.muted)
+                        .child("An always-on hut we run for you. Nothing to set up."),
+                ),
+        )
+        .child(action)
+        .test_support()
+}
+
+/// Why an always-on home matters: a small picture (this computer asleep, an always-on one
+/// lit) and a line.
+fn always_on(store: &Entity<Store>, p: &Pal) -> impl IntoElement {
+    let store = store.clone();
+    let place =
+        |glyph: IconName, badge: Option<IconName>, color, badge_color, words: &'static str| {
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap(px(3.))
+                .child(
+                    div()
+                        .relative()
+                        .size(px(30.))
+                        .child(Icon::new(glyph).size(px(26.)).text_color(color))
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(-4.))
+                                .right(px(-6.))
+                                .child(match badge {
+                                    // Asleep: a moon.
+                                    Some(badge) => Icon::new(badge)
+                                        .size(px(13.))
+                                        .text_color(badge_color)
+                                        .into_any_element(),
+                                    // On: a lit dot (a flame on a server would read as a fire).
+                                    None => div()
+                                        .mt(px(3.))
+                                        .size(px(8.))
+                                        .rounded_full()
+                                        .bg(badge_color)
+                                        .into_any_element(),
+                                }),
+                        ),
+                )
+                .child(div().text_size(px(10.5)).text_color(p.muted).child(words))
+        };
+    div()
+        .id("setup-always-on")
+        .role(Role::Note)
+        .aria_label(always_on_line())
+        .flex()
+        .items_center()
+        .gap(px(14.))
+        .px(px(4.))
+        .pt(px(2.))
+        .child(
+            div()
+                .flex()
+                .items_end()
+                .gap(px(14.))
+                .flex_none()
+                .child(place(
+                    IconName::Laptop,
+                    Some(IconName::Moon),
+                    p.faint,
+                    p.muted,
+                    "Asleep",
+                ))
+                .child(place(
+                    IconName::Server,
+                    None,
+                    p.text,
+                    p.success,
+                    "Always on",
+                )),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .text_size(px(12.5))
+                .text_color(p.muted)
+                .child(always_on_line()),
+        )
+        .child(
+            Button::new("setup-add-hut")
+                .ghost()
+                .small()
+                .label("Add another hut")
+                .tooltip("Pair an always-on computer with a code from it")
+                .on_click(move |_, _, cx| {
+                    store.update(cx, |store, cx| {
+                        store.choose_home(HomeChoice::Elsewhere, cx);
+                        store.continue_home(cx);
+                    });
+                }),
         )
         .test_support()
 }

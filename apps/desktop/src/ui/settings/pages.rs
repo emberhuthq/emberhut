@@ -1,9 +1,9 @@
 //! What each group page holds, built of the rows and sections Settings already had: Your
-//! ember (on duty, what it thinks with and the usage, what it knows, the models under
-//! Technical details), Devices, Connections (data sources and Chrome, the tool servers and the
-//! skills folded), Sharing, Privacy (what it knows, archived rooms, the dark room, where data
-//! goes), Advanced (updates, the server, diagnostics folded, where the agent works) and the
-//! account.
+//! ember (its name as the hero's title with on duty, what it thinks with and the usage, what it
+//! knows, its look, the models under Technical details), Devices, Connections (data sources and
+//! Chrome, the tool servers and the skills folded), Sharing, Privacy (what it knows, archived
+//! rooms, the dark room, where data goes), Advanced (updates, the server, diagnostics folded,
+//! where the agent works) and the account.
 
 use gpui_kit::TestSupportExt as _;
 use gpui_kit::assets::IconName;
@@ -17,7 +17,7 @@ use super::SettingsView;
 use super::group::{Block, block, plain};
 use super::parts::{nav_row, note, problem_line, section, tag};
 use super::{account, places, switches, thinks_with_row, updates, usage};
-use crate::assets::FACE;
+use crate::assets::face;
 use crate::store::settings::SettingsPane;
 use crate::store::settings::chrome::{self as chrome_words, Health};
 use crate::store::settings::entries::{Fold, duty_word};
@@ -33,6 +33,9 @@ const DATA_FLOW: &str = "Your messages, and what your ember reads to answer them
     you, mail, pages), go to the model you picked. Gmail and Slack are read from their own \
     servers. Phone alerts pass through Apple's push service.";
 
+/// What the Look block says under its title.
+const LOOK: &str = "Also in Appearance. Syncs to your other devices.";
+
 /// Sharing's one honest line.
 const SHARING: &str = "Today sharing is set up through your server's API, for developers. \
     Inviting someone from here comes next.";
@@ -45,11 +48,12 @@ impl SettingsView {
         p: &Pal,
         cx: &mut Context<'_, Self>,
     ) -> Vec<Block> {
+        let hero = self.hero(now, p, cx);
         let store = self.store.read(cx);
         let problem = store.on_duty_problem().map(str::to_owned);
-        let hero = self.hero(now, p);
+        let called = store.ember_called().to_owned();
         let mut blocks = vec![block(
-            &["on-duty"],
+            &["on-duty", "ember-name"],
             div()
                 .flex()
                 .flex_col()
@@ -61,7 +65,7 @@ impl SettingsView {
             &["thinks-with"],
             section(
                 p,
-                "What it thinks with",
+                format!("What {called} thinks with"),
                 None,
                 vec![thinks_with_row(store, p)],
                 None,
@@ -85,7 +89,8 @@ impl SettingsView {
             "about-you-row",
             p,
             (IconName::BookOpen, category_color(0)),
-            crate::store::settings::about::TITLE,
+            // Under "What Juniper knows": the row needn't say it again.
+            "About you",
             (knows, health),
             "",
         )
@@ -95,9 +100,24 @@ impl SettingsView {
             &["about-you", "lessons"],
             section(
                 p,
-                "What it knows",
+                format!("What {called} knows"),
                 None,
                 vec![about.into_any_element()],
+                None,
+            ),
+        ));
+        blocks.push(block(
+            &["ember-look"],
+            section(
+                p,
+                div().flex().flex_col().gap(px(2.)).child("Look").child(
+                    div()
+                        .font_weight(FontWeight::NORMAL)
+                        .text_color(p.faint)
+                        .child(LOOK),
+                ),
+                None,
+                vec![self.look.clone().into_any_element()],
                 None,
             ),
         ));
@@ -123,10 +143,13 @@ impl SettingsView {
         blocks
     }
 
-    /// Your ember's hero: its face, what it is doing, and the On duty switch.
-    fn hero(&self, now: &Now, p: &Pal) -> Div {
+    /// Your ember's hero: its face in its tint; its name as the title, renamed in place; what it
+    /// is doing and what On duty means; the On duty switch, which a long name doesn't push out.
+    fn hero(&self, now: &Now, p: &Pal, cx: &mut Context<'_, Self>) -> Div {
+        let tint = self.store.read(cx).theme().page().choice.ember_tint.clone();
         let on = now.on_duty;
         let duty = self.store.clone();
+        let reset = self.name.update(cx, |name, cx| name.reset_link(p, cx));
         div()
             .flex()
             .items_center()
@@ -136,37 +159,47 @@ impl SettingsView {
             .border_1()
             .border_color(p.border)
             .bg(p.card)
-            .child(img(FACE).size(px(44.)).rounded_full().flex_none())
+            .child(img(face(&tint)).size(px(44.)).rounded_full().flex_none())
             .child(
                 div()
                     .flex()
                     .flex_col()
+                    .gap(px(2.))
                     .flex_1()
                     .min_w_0()
+                    .child(self.name.clone())
                     .child(
                         div()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_size(px(15.))
+                            .text_size(px(12.5))
+                            .text_color(p.muted)
                             .child(now.doing.clone()),
                     )
                     .child(div().text_size(px(12.5)).text_color(p.muted).child(if on {
                         "Works on its own, and answers when you message it."
                     } else {
                         "Stops working on its own. Still answers when you message it."
-                    })),
+                    }))
+                    .children(reset.map(|reset| div().pt(px(4.)).child(reset))),
             )
             .child(
                 div()
-                    .text_size(px(13.))
-                    .text_color(p.muted)
-                    .child(duty_word(on)),
-            )
-            .child(
-                Switch::new("on-duty-switch")
-                    .checked(on)
-                    .on_click(move |on, _, cx| {
-                        duty.update(cx, |store, cx| store.set_on_duty(*on, cx));
-                    }),
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .text_size(px(13.))
+                            .text_color(p.muted)
+                            .child(duty_word(on)),
+                    )
+                    .child(
+                        Switch::new("on-duty-switch")
+                            .checked(on)
+                            .on_click(move |on, _, cx| {
+                                duty.update(cx, |store, cx| store.set_on_duty(*on, cx));
+                            }),
+                    ),
             )
     }
 

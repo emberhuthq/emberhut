@@ -225,6 +225,12 @@ impl HutPaths {
         }
     }
 
+    /// The variable `name` as this place reads it.
+    #[must_use]
+    pub(crate) fn var(&self, name: &str) -> Option<OsString> {
+        (self.var)(name)
+    }
+
     /// The data folder: the database, the machine's key, the secrets and the hut's own state.
     #[must_use]
     pub(crate) fn data(&self) -> &Path {

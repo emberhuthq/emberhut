@@ -200,7 +200,9 @@ mod tests {
             ("MCP", "tools"),
             ("model", "thinks-with"),
             ("pause", "on-duty"),
-            ("theme", "appearance-mode"),
+            ("theme", "ember-look"),
+            ("look", "ember-look"),
+            ("style", "ember-look"),
             ("dark mode", "appearance-mode"),
             ("pair", "pair"),
             ("QR", "pair"),
@@ -212,6 +214,10 @@ mod tests {
             ("agents", "show-agents"),
             ("agents below rooms", "agents-place"),
             ("move agents", "agents-place"),
+            ("name", "ember-name"),
+            ("rename", "ember-name"),
+            ("call it", "ember-name"),
+            ("nickname", "ember-name"),
         ] {
             assert_eq!(first(query), id, "{query}");
         }

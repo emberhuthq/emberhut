@@ -5,6 +5,7 @@
 //! One test binary with a module per area, so the helpers in `common` are shared without being
 //! compiled (and warned about) once per file.
 
+mod agent_accounts;
 mod agent_desk;
 mod agent_guard;
 mod agent_inbound;
@@ -29,6 +30,7 @@ mod coding_app;
 mod common;
 mod contract;
 mod dark;
+mod ember_name_route;
 mod end_to_end;
 mod events_route;
 mod failover;

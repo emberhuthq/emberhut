@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { ApiError, followRoomLive, type ApprovalsQuery, type EmberhutState, type SettingsChange, type TasksQuery } from "@/api";
+import { renameEmber, type RenameOutcome } from "@/features/ember/name";
 import { inBackground } from "@/log";
 import { api, chatStore, connectionStore, liveStore, themeStore } from "@/services";
 import { usePrefs, useServerInUse, useSession } from "./hooks";
@@ -186,6 +187,30 @@ export function useRenameTask() {
         client.invalidateQueries({ queryKey: queryKeys.allTasks }),
       ]);
     },
+  });
+}
+
+/**
+ * Renames the ember (blank: back to "Your ember"): every state on hand shows the new name at once, and goes back to the
+ * old one when the server refuses (`renameEmber`'s outcome says why). The states are fetched again either way.
+ */
+export function useRenameEmber() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (typed: string): Promise<RenameOutcome> => {
+      await client.cancelQueries({ queryKey: queryKeys.allStates });
+      return renameEmber(typed, {
+        current: () =>
+          client
+            .getQueriesData<EmberhutState>({ queryKey: queryKeys.allStates })
+            .map(([, state]) => state?.emberName)
+            .find((name) => name !== undefined && name !== null) ?? undefined,
+        show: (name) =>
+          client.setQueriesData<EmberhutState>({ queryKey: queryKeys.allStates }, (state) => state && { ...state, emberName: name }),
+        send: (name) => api.ember.rename(name),
+      });
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: queryKeys.allStates }),
   });
 }
 

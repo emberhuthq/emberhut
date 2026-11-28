@@ -904,6 +904,106 @@
         ]
       }
     },
+    "/api/ember/name": {
+      "get": {
+        "tags": [
+          "ember"
+        ],
+        "summary": "The ember's name: the owner's, or \"Your ember\" (`custom: false`).",
+        "operationId": "name",
+        "responses": {
+          "200": {
+            "description": "The ember's name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmberName"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "ember"
+        ],
+        "summary": "Renames the ember: `{ \"name\": \"Pip\" }`, or `{ \"name\": null }` (or `\"\"`) for the default.\nThe name is trimmed, its runs of spaces made one, and must be one line of at most 24\ncharacters, an emoji counting as one.",
+        "operationId": "set_name",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmberNameChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Renamed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmberNameReply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name the server doesn't take, or a body that isn't `{ name }` (`{ ok: false, error }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is over the server's limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/mcp/emberhut": {
       "post": {
         "tags": [
@@ -1581,6 +1681,135 @@
           },
           "502": {
             "description": "The provider didn't answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/agent/accounts": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "The accounts, each with when it takes work again if it is out, and which one the main room\nruns on.",
+        "operationId": "accounts",
+        "responses": {
+          "200": {
+            "description": "The accounts, in the order they are tried",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAccounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/waitlist": {
+      "get": {
+        "tags": [
+          "setup"
+        ],
+        "summary": "Every list, and whether the owner is on it.",
+        "operationId": "lists",
+        "responses": {
+          "200": {
+            "description": "The lists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Waitlists"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is enforced and there is no session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/waitlist/{list}": {
+      "put": {
+        "tags": [
+          "setup"
+        ],
+        "summary": "Puts the owner on a list (`cloud-home`); joining again keeps the first time.",
+        "operationId": "join",
+        "parameters": [
+          {
+            "name": "list",
+            "in": "path",
+            "description": "The list: `cloud-home`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "On the list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Waitlist"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No such list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in device (in either auth mode)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9095,6 +9324,67 @@
           }
         }
       },
+      "AgentAccountState": {
+        "type": "object",
+        "description": "One account and whether it can take work.",
+        "required": [
+          "id",
+          "canWork"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id, as the configuration names it."
+          },
+          "canWork": {
+            "type": "boolean",
+            "description": "It can take work now."
+          },
+          "restingUntil": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "It is out until then; none while it can take work."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "why": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it is out, in a few words (\"hit its five-hour limit\")."
+          },
+          "on": {
+            "type": "boolean",
+            "description": "The assistant's main room runs on it now."
+          }
+        }
+      },
+      "AgentAccounts": {
+        "type": "object",
+        "description": "`GET /api/agent/accounts`.",
+        "required": [
+          "accounts",
+          "moves"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentAccountState"
+            },
+            "description": "The accounts, in the order they are tried; empty when none is configured (the agent\nruns on the CLI's own login or the saved provider)."
+          },
+          "moves": {
+            "type": "boolean",
+            "description": "A session whose account runs out moves to the next that can take work: there is more\nthan one account."
+          }
+        }
+      },
       "AgentChange": {
         "type": "object",
         "description": "`PATCH /api/agents/{id}`: only the fields given change.",
@@ -12987,6 +13277,87 @@
               "null"
             ],
             "description": "Hide the projects."
+          }
+        }
+      },
+      "EmberName": {
+        "type": "object",
+        "description": "The ember's name as every device shows it.",
+        "required": [
+          "name",
+          "custom"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name to show: the person's, or \"Your ember\"."
+          },
+          "custom": {
+            "type": "boolean",
+            "description": "The person gave it; `false`: the default."
+          },
+          "at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When it last changed; none: never."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "EmberNameChange": {
+        "type": "object",
+        "description": "`POST /api/ember/name`: the new name, or `null` (or `\"\"`) for the default.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One line of 1 to 24 characters (an emoji is one) once trimmed, runs of spaces made one;\n`null` or blank: back to \"Your ember\"."
+          }
+        }
+      },
+      "EmberNameReply": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EmberName",
+            "description": "The name."
+          },
+          {
+            "type": "object",
+            "required": [
+              "ok"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean",
+                "description": "Always `true`."
+              }
+            }
+          }
+        ],
+        "description": "`POST /api/ember/name`'s answer: `{ ok: true }` and the name as it is now. A name the server\ndoesn't take is refused with 400 and an `ErrorBody` (`{ ok: false, error }`)."
+      },
+      "EmberTint": {
+        "type": "object",
+        "description": "A tint the ember's face can be drawn in. The apps hold the face drawn in each tint they know;\none they don't know draws as the default.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name, as shown."
           }
         }
       },
@@ -19930,6 +20301,17 @@
               }
             ]
           },
+          "emberName": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EmberName",
+                "description": "What the person calls their ember; none from an older server: \"Your ember\"."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ui": {
             "oneOf": [
               {
@@ -20920,6 +21302,13 @@
             ],
             "description": "The custom accent: left out to keep it, `null` for the preset's own, or a colour."
           },
+          "emberTint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ember's tint's id. Lower-case ASCII, 1 to 32 characters (the server trims and\nlower-cases)."
+          },
           "preview": {
             "type": "boolean",
             "description": "Work the page out without saving it."
@@ -20928,7 +21317,7 @@
       },
       "ThemeChoice": {
         "type": "object",
-        "description": "A theme choice: a preset (its accent family on its neutrals), an appearance, and an optional\ncustom accent.",
+        "description": "A theme choice: a preset (its accent family on its neutrals), an appearance, an optional\ncustom accent, and the ember's tint.",
         "required": [
           "preset",
           "appearance"
@@ -20948,6 +21337,10 @@
               "null"
             ],
             "description": "A custom accent (`#RRGGBB`) in place of the preset's; none: the preset's own."
+          },
+          "emberTint": {
+            "type": "string",
+            "description": "The tint the ember's face is drawn in (`ember`, `amber`, `coral` or `blue`); a choice saved\nbefore tints, or naming one no longer offered, reads as the default, `ember`."
           },
           "at": {
             "oneOf": [
@@ -21005,6 +21398,13 @@
               "type": "string"
             },
             "description": "The token names, in order."
+          },
+          "tints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmberTint"
+            },
+            "description": "The ember's tints, the default first; a server before tints lists none."
           }
         }
       },
@@ -22259,6 +22659,51 @@
           }
         }
       },
+      "Waitlist": {
+        "type": "object",
+        "description": "One list (`PUT /api/waitlist/{list}` answers with it).",
+        "required": [
+          "id",
+          "joined"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id ([`CLOUD_HOME`])."
+          },
+          "joined": {
+            "type": "boolean",
+            "description": "The owner asked to hear about it."
+          },
+          "joinedAt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp",
+                "description": "When they first asked."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Waitlists": {
+        "type": "object",
+        "description": "`GET /api/waitlist`: every list the server knows, and whether the owner is on it.",
+        "required": [
+          "lists"
+        ],
+        "properties": {
+          "lists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Waitlist"
+            },
+            "description": "The lists."
+          }
+        }
+      },
       "WalkTask": {
         "type": "object",
         "description": "A walk task and its target.",
@@ -23478,6 +23923,10 @@
     {
       "name": "theme",
       "description": "The colour theme, the same on every device"
+    },
+    {
+      "name": "ember",
+      "description": "What the person calls their ember, the same on every device"
     },
     {
       "name": "mcp",

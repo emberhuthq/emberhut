@@ -22,6 +22,10 @@ pub(crate) struct HutState {
     pub(crate) pid: Option<u32>,
     /// Whether it stays lit while the app is closed, and from login.
     pub(crate) keep: KeepLit,
+    /// The Claude accounts, by id, in the order the server tries them (`accounts/<id>`).
+    pub(crate) accounts: Vec<String>,
+    /// Whether the ember moves to an account with room when one runs out.
+    pub(crate) moves: bool,
 }
 
 impl HutState {

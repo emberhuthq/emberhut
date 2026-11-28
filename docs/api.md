@@ -266,6 +266,36 @@ a model, and for finding a local Ollama. 200 is `ProviderTest`:
 | `ollama` | `GET <base>/api/version` (0.14 or later), then `GET <base>/api/tags` |
 | `claude` | nothing (`checked: false`): only the CLI can check its own login |
 
+### GET /api/agent/accounts
+
+The agent CLI accounts the sessions run on (`EMBERHUT_AGENT_ACCOUNTS`), in the order they are
+tried, as the server's failover sees them (`AgentAccounts`). It reads no token and asks no
+provider: an account is out once a turn on it ran out of usage, until the time the service gave
+(an hour when it gave none). Any session (`Viewer`).
+
+```json
+{ "moves": true, "accounts": [
+  { "id": "first", "canWork": false, "restingUntil": "<instant>", "why": "hit its five-hour limit", "on": false },
+  { "id": "second", "canWork": true, "restingUntil": null, "why": null, "on": true }
+] }
+```
+
+`moves` is `true` with more than one account: a session whose account runs out moves to the next
+that can take work. `on` marks the account the main room runs on now. With no account
+configured, `accounts` is empty and `moves` is `false`.
+
+## Waitlists
+
+What the owner asked to hear about once it exists. Only one list is known: `cloud-home`, a home
+rented in the cloud. It is kept in this server's settings until a central list exists: nothing is
+sent anywhere and nothing is paid.
+
+- `GET /api/waitlist` (any session): `{ "lists": [ { "id": "cloud-home", "joined": true, "joinedAt": "<instant>" } ] }`;
+  `joinedAt` is `null` until the owner joins.
+- `PUT /api/waitlist/{list}` (a signed-in device, in either auth mode; no body): joins the list
+  and answers with it. Joining again keeps the first `joinedAt`. 400 `{ "error": "There is no such
+  waitlist." }` for any other list.
+
 ## The state
 
 ### GET /api/state?room=
@@ -304,6 +334,7 @@ request and fingerprints it:
 | `areas` | `Area[]` | each project's areas: `status`, the `state` rolled up from its tasks, `counts`, `questions`, `findings` and its `tree` of tasks with their steps; a done area comes bare |
 | `report` | `WeekReport` | the weekly report: `concern`, `weeks` (finished per week, this one last), `weekStarts`, `since`, `goals` with their projects, `done` |
 | `theme` | `ThemeChoice` | the theme choice only: a newer `at` than the client's means `GET /api/theme` |
+| `emberName` | `EmberName` | what the person calls their ember: `{ name, custom, at }`; `name` is "Your ember" and `custom` false when they gave none (an older server leaves it out: "Your ember") |
 | `ui` | `{ hideGoals, hideProjects }` | screens to hide (by default both `true`) |
 | `account` | `Account` | the assistant's account and its use (`used5h`, `used7d` 0 to 1); every field `null` until the first turn |
 | `auth` | `{ mode, bound, devices[] }` | sign-in mode and the signed-in devices (`id`, `name`, `model`, `created`, `seen`; no tokens) |
@@ -853,29 +884,64 @@ unknown thread); 401 `{ signIn: true }` without a session.
 
 ### GET /api/theme
 
-`ThemePage`: `{ version, choice, tokens: { light, dark }, contrast: { light, dark, aa }, presets: [{ id, name, light, dark }], names }`.
+`ThemePage`: `{ version, choice, tokens: { light, dark }, contrast: { light, dark, aa }, presets: [{ id, name, light, dark }], names, tints: [{ id, name }] }`.
 
-- `choice`: `{ preset, appearance (system | light | dark), accent ("#RRGGBB" or null), at (null: never set) }`.
-  The default is `paper`, `system`; a saved choice keeps the preset it names.
+- `choice`: `{ preset, appearance (system | light | dark), accent ("#RRGGBB" or null), emberTint, at (null: never set) }`.
+  The default is `paper`, `system`, `ember`; a saved choice keeps the preset it names, and one
+  saved before tints, or naming one no longer offered (the early `rose` and `sage`), reads as `ember`.
 - `tokens`: the choice's 14 colours per appearance, `#RRGGBB`: `accent`, `accentSoft`,
   `onAccent`, `background`, `surface`, `surfaceRaised`, `border`, `text`, `muted`, `faint`,
   `success`, `warn`, `danger`, `info` (`names` lists them in this order).
 - `contrast`: per appearance `{ accentOnBackground, accentOnSurface, onAccent, adjusted, asked }`
   (WCAG ratios rounded down to 2 places; `adjusted`: the asked accent was darkened or lightened to
   reach 4.5:1), and `aa` when every ratio is 4.5 or more.
+- `tints`: the colours the ember's face can be drawn in, the default (`ember`, the brand's own)
+  first, then `amber`, `coral`, `blue` (Blue flame). The apps ship the face drawn in each tint they know and draw
+  one they don't know as the default.
 - `version` is the presets' version: a client keeps its cache per version.
 
 ### POST /api/theme
 
 ```json
-{ "preset": "teal", "appearance": "dark", "accent": null, "preview": true }
+{ "preset": "teal", "appearance": "dark", "accent": null, "emberTint": "blue", "preview": true }
 ```
 
 `ThemeChange`: only the fields given change. `accent` left out keeps it, `null` goes back to the
 preset's own, a colour (`#RGB` or `#RRGGBB`, `#` optional) sets it. `preview: true` works the page
 out without saving. 200 `{ "ok": true, ...ThemePage }` (`ThemeSetReply`); 400
 `{ "ok": false, "error": "preset: one of paper, graphite, blue, ..." }`,
-`"appearance: system, light or dark"` or `"accent: a hex colour like #3366FF (or null for the preset's own)"`.
+`"appearance: system, light or dark"`, `"accent: a hex colour like #3366FF (or null for the preset's own)"`
+or `"emberTint: one of ember, amber, coral, blue"`.
+
+## The ember's name
+
+What the person calls their ember ("Pip", "Juniper"): one name for every device, kept per person
+(the owner), and the state's `emberName`, so every app shows a new name at its next poll. The
+assistant's prompt names it (its session starts again on the same conversation at its next turn
+after a rename), and the owner's reply alerts are titled with it in place of "Emberhut". Without a
+name, everything says "Your ember" (alerts: "Emberhut"), as before.
+
+### GET /api/ember/name
+
+`EmberName`: `{ "name": "Pip", "custom": true, "at": "2026-11-28T10:00:00.000Z" }`. Without a
+name: `{ "name": "Your ember", "custom": false, "at": null }`.
+
+### POST /api/ember/name
+
+```json
+{ "name": "Pip" }
+```
+
+`EmberNameChange`: the name is trimmed, each run of spaces inside it made one, and must be one
+line of 1 to 24 characters as a person counts them (grapheme clusters: an emoji, even one joined of
+several, is one), with no line breaks, control characters or characters that hide or reorder text
+(the joiner inside an emoji is fine). `null`, `""` (or only spaces) and "Your ember" (any case,
+any spacing) go back to the default. 200
+`{ "ok": true, "name": "Pip", "custom": true, "at": "2026-11-28T10:00:00.000Z" }`
+(`EmberNameReply`; a reset: `{ "ok": true, "name": "Your ember", "custom": false, "at": ... }`);
+400 `{ "ok": false, "error": "name: 24 characters at most" }`, `"name: one line of plain text"` or,
+for a body without `name` as text or `null`, `"name: text, or null for the default"`. Nothing
+changes on a 400.
 
 ## The MCP endpoint
 
