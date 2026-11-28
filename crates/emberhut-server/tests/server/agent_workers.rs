@@ -140,10 +140,13 @@ async fn an_agents_workers_file_tools_reach_only_its_folders() {
         gate(&desk, task, "Glob", json!({ "pattern": "*.md" }), &cwd).await,
         None
     );
+    // Held on Windows, whose paths hold backslashes, which a glob never may.
     let mine_glob = format!("{}/**/*.pdf", desk.folder().display());
     assert_eq!(
-        gate(&desk, task, "Glob", json!({ "pattern": mine_glob }), &cwd).await,
-        None,
+        gate(&desk, task, "Glob", json!({ "pattern": mine_glob }), &cwd)
+            .await
+            .is_none(),
+        cfg!(unix),
         "an absolute pattern in its own folder"
     );
     let owners_glob = format!("{}/**/*.pdf", desk.app.dir().display());

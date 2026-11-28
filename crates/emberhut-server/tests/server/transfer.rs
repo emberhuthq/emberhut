@@ -232,7 +232,11 @@ pub(crate) async fn the_servers_own_database_keys_and_tokens_are_never_sent() {
         .into_iter()
         .chain(PRIVATE_FILES)
     {
-        std::fs::write(dir.join(name), "secret").unwrap();
+        // On Windows the live database's -wal and -shm can't be written over while it has them
+        // mapped; they are there already.
+        if let Err(error) = std::fs::write(dir.join(name), "secret") {
+            assert!(cfg!(windows) && dir.join(name).exists(), "{name}: {error}");
+        }
     }
     for name in [
         "emberhut.db",
