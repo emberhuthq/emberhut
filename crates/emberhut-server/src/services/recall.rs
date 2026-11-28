@@ -872,7 +872,9 @@ fn walk(root: &Path, dir: &Path, found: &mut Vec<(PathBuf, String, u64)>) {
                 .ok()
                 .and_then(|relative| relative.components().next())
                 .map_or_default(|first| first.as_os_str().to_string_lossy().into_owned());
-            let size = entry.metadata().map_or(0, |meta| meta.len());
+            // Read from the file, not the folder's listing: on Windows the listing's size of a
+            // file still open for writing (a transcript being written) lags behind.
+            let size = std::fs::symlink_metadata(&path).map_or(0, |meta| meta.len());
             found.push((path, folder, size));
         }
     }

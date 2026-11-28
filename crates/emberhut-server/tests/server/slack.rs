@@ -233,7 +233,10 @@ async fn slack_file_fetches_a_file_and_hands_a_picture_back() {
     assert_eq!(file["workspace"], "Acme");
     assert_eq!(file["type"], "PNG");
     let path = file["path"].as_str().unwrap();
-    assert!(path.ends_with("files/slack/F7-shot_one.png"), "{path}");
+    assert!(
+        std::path::Path::new(path).ends_with("files/slack/F7-shot_one.png"),
+        "{path}"
+    );
     assert_eq!(std::fs::read(path).unwrap(), b"\x89PNG");
 
     let wrong = kit
