@@ -274,7 +274,7 @@ function useChatHeader(
                     id: "sessions",
                     symbol: "terminal" as const,
                     label: `Sessions, ${running} running`,
-                    onPress: () => navigation.navigate("Sessions"),
+                    onPress: () => (plans ? navigation.navigate("SessionList") : navigation.navigate("Sessions")),
                     count: running,
                     badge: { color: colors.background, background: colors.done },
                   },
