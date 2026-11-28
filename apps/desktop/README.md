@@ -451,6 +451,16 @@ finds tasks (by key, title or text, done and archived ones too), projects and pe
 latest tasks with nothing typed; ↑ and ↓ move the pick, Return opens it, Esc or a click outside
 closes it. A task opens over what the column shows; a project or a person on a page of its own.
 
+On a server that keeps task plans, Move to task… puts a session's work on another task: a
+session's head has it, as do the right-click menus of its rows (Sessions, the Tasks list's
+sessions with no task, a task page's Sessions) and a task page's session lines (its head, its
+Activity's turns). It brings a card like the spotlight's, with the open tasks the session isn't
+on, the latest first, found by key or title; Return or a click moves it
+(`POST /api/runner/sessions/{id}/task`, `{ "task": <id> }`; the route's word is in
+`src/wire.rs`), then opens that task over the column. A refusal (an unknown session or task, a
+task done or archived) shows the server's reason on the card. Sessions with no task shows only
+while a session has none; All sessions stays under More.
+
 In a quick note: ⌘↩ saves it, Esc closes it (what was written waits for the next one). In the
 diary: ⌘N a new note. In the calendar: ⌘T today, ⌘← and ⌘→ the previous and next day, week
 or month (a sideways drag or two-finger swipe too), Esc closes an event's details.
@@ -542,6 +552,7 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/need_card.rs` | what a Needs you card says: its kind, tier chip, asked or outdated, and its quick answers |
 | `store/decision.rs` | a decision on its task's page: why and by when, asked and checked, the draft, option cards and rows |
 | `store/spotlight.rs` | the spotlight: what it finds (projects, people, tasks), in order, and the pick |
+| `store/tasks/moving.rs` | Move to task…: the tasks a session can move to and the move itself |
 | `store/places.rs` | what a project's and a person's pages fetch while they show |
 | `store/projects.rs` | a project's page: progress, its asks, its work by area as lanes, the filter, its changes |
 | `store/goals.rs` | a goal's ring and label, and the weekly report's bars |
@@ -629,6 +640,7 @@ test platform against a scripted backend (`backend/fake.rs`). Where each decisio
 | `store/sessions/view.rs`, `store/sessions/watch.rs` | a session followed live: its first load, its stream from the last step, a message, Stop and settings |
 | `store/sessions/turns.rs` | a transcript laid out: turns, said, tool calls with their results and helpers' steps, the fold of a finished turn |
 | `store/sessions/sheet.rs` | a new session's choices, its folders and branches, and the draft its first message opens |
+| `ui/move_to_task.rs` | Move to task…'s picker over a window, and its button, link and menu item |
 | `ui/sessions/` | the Sessions screen, a session's page, the new-session sheet, an external thread's page and the Sessions window |
 | `store/working/environments.rs` | where the assistant works and what it reads through: fetched every 10 s while Settings' front door, Connections, Advanced or a row's page shows in front, one action at a time, what an action made kept for its page |
 | `store/working/usage.rs` | the Claude accounts' use as the usage card words it, the account the assistant runs on, the checks at launch and on coming to the front |
