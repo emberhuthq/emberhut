@@ -41,10 +41,10 @@ drive the owner's logged-in sites, and must keep working while the server change
 - No server address is built in. The server comes from pairing. A pairing link on the server the
   profile is already paired with pairs by itself; a link on any other server is offered first,
   because any page can show something that looks like a pairing link, and the server a profile
-  pairs with is the one that drives it: as a notification and in the popup before the profile is
-  paired, in the popup only once it is, each server at most once per browser session. The
-  pairing message carries only the code (and the profile's old token only for the same server);
-  the profile's version, account and system go only in the hello to the server it paired with.
+  pairs with is the one that drives it: on the extension's consent page before the profile is
+  paired (ADR 0031), in the popup only once it is, each server at most once per browser session.
+  The pairing message carries only the code (and the profile's old token only for the same
+  server); the profile's version and system go only in the hello to the server it paired with.
 
 ### What the extension lets through
 
@@ -107,6 +107,8 @@ drive the owner's logged-in sites, and must keep working while the server change
 - Not the Chrome Web Store: the extension's job is to drive the owner's own logins for one
   owner's server; a store listing would publish it, put a review between a fix and the owner's
   browsers, and update it on the store's schedule rather than with the server it must match.
+  **Replaced by [ADR 0031](0031-extension-on-the-chrome-web-store.md):** one public store listing
+  that every hut pairs with; the folder kept by the Mac helper stays for unpacked builds.
 - Not a CRX installed by policy (`ExtensionInstallForcelist` with an update URL on the owner's
   server): on macOS and Windows, Chrome honours off-store force-installs only on managed
   machines (enrolled in a device management service or joined to a domain), which the owner's
