@@ -12,7 +12,7 @@ use gpui_kit::component::{Icon, IconName};
 use gpui_kit::prelude::*;
 use gpui_kit::{
     AnyElement, Div, DragMoveEvent, ElementId, Empty, FontWeight, MouseButton, MouseUpEvent, Role,
-    Stateful, Window, div, px,
+    SharedString, Stateful, Window, div, px,
 };
 
 use super::controls::{tab_stop, tip, tip_for};
@@ -515,8 +515,7 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
                     window_help(kind),
                 )
                 .child(icon(window_icon(kind), p.muted, 14.))
-                .child(kind.title())
-                .child(div().flex_1())
+                .child(label(kind.title()))
                 .when_some(window_note(kind), |d, note| {
                     d.child(div().text_size(px(11.5)).text_color(p.faint).child(note))
                 })
@@ -534,7 +533,7 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
                 &OpenMachines,
             )
             .child(icon(IconName::Cpu, p.muted, 14.))
-            .child("Machines")
+            .child(label("Machines"))
             .on_click(cx.listener(|this, _, window, cx| this.open(Page::Machines, window, cx))),
         );
         let in_settings = matches!(column, Some(Page::Settings | Page::SettingsPane(_)));
@@ -542,7 +541,7 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
         rows.push(
             tip_for(settings, "Settings", &OpenSettings)
                 .child(icon(IconName::Settings, p.muted, 14.))
-                .child("Settings")
+                .child(label("Settings"))
                 .on_click(cx.listener(|this, _, window, cx| this.open(Page::Settings, window, cx))),
         );
         rows.push(about_row(column, p));
@@ -553,17 +552,24 @@ fn more(window: &MainWindow, p: &Pal, cx: &Context<'_, MainWindow>) -> Vec<State
 /// About you, under More: it opens that page of Settings.
 fn about_row(column: Option<Page>, p: &Pal) -> Stateful<Div> {
     let about = column == Some(Page::SettingsPane(SettingsPane::AboutYou));
-    row("about-you", about, p)
-        .pl(px(26.))
-        .child(
-            Icon::new(AssetIcon::Contact)
-                .size(px(14.))
-                .text_color(p.muted),
-        )
-        .child(ABOUT_TITLE)
-        .on_click(|_, window, cx| {
-            routes::open_settings(Some(SettingsPane::AboutYou), window, cx);
-        })
+    // The page's full title is long for a sidebar row: the row says "About you" and its tip the
+    // whole title.
+    tip(
+        row("about-you", about, p)
+            .debug_selector(|| "about-you".to_owned())
+            .pl(px(26.)),
+        ABOUT_TITLE,
+    )
+    .aria_label(ABOUT_TITLE)
+    .child(
+        Icon::new(AssetIcon::Contact)
+            .size(px(14.))
+            .text_color(p.muted),
+    )
+    .child(label(ABOUT_SHORT).debug_selector(|| ABOUT_LABEL.to_owned()))
+    .on_click(|_, window, cx| {
+        routes::open_settings(Some(SettingsPane::AboutYou), window, cx);
+    })
 }
 
 /// A window of its own's tip in the sidebar.
@@ -603,6 +609,27 @@ fn window_note(kind: WindowKind) -> Option<String> {
 }
 
 /// A one-line row.
+/// A sidebar row's words: they take the room left in the row and end in an ellipsis when it is
+/// not enough. A bare text child of a flex row is as wide as its whole text and cannot shrink,
+/// so a long label would run past the row and be cut off at the sidebar's edge.
+pub(super) fn label(text: impl Into<SharedString>) -> Div {
+    div()
+        .debug_selector(|| LABEL.to_owned())
+        .flex_1()
+        .min_w_0()
+        .truncate()
+        .child(text.into())
+}
+
+/// A row's words, for tests to find.
+pub(super) const LABEL: &str = "sidebar-label";
+
+/// About you's words in its row, for tests to find.
+pub(super) const ABOUT_LABEL: &str = "about-you-label";
+
+/// What your ember knows about you, as its sidebar row says it.
+pub(super) const ABOUT_SHORT: &str = "About you";
+
 pub(super) fn row(id: impl Into<ElementId>, selected: bool, p: &Pal) -> Stateful<Div> {
     let row = div()
         .id(id)
@@ -622,4 +649,61 @@ pub(super) fn row(id: impl Into<ElementId>, selected: bool, p: &Pal) -> Stateful
         .when(!selected, |d| d.hover(|d| d.bg(p.hover)))
         .cursor_pointer();
     tab_stop(row, p)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use gpui_kit::test::TestWindowExt as _;
+    use gpui_kit::{TestAppContext, size};
+    use serde_json::json;
+
+    use super::*;
+    use crate::backend::fake::FakeBackend;
+    use crate::store::SIDEBAR_WIDTHS;
+    use crate::ui::palette::Pal;
+    use crate::ui::report::ReportSize;
+
+    /// At the narrowest the sidebar can be dragged, More's longest row (About you) keeps its
+    /// words inside the row, and the row inside the sidebar.
+    #[gpui_kit::test]
+    fn more_rows_fit_the_narrowest_sidebar(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            cx.set_global(Pal::new(&crate::theme::built_in(), false));
+        });
+        let backend = Arc::new(FakeBackend::new([])) as Arc<dyn crate::backend::Backend>;
+        let store = cx.new(|_| Store::for_tests(backend));
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            MainWindow::new(store.clone(), ReportSize::default(), window, cx)
+        });
+        cx.simulate_resize(size(px(1200.), px(1400.)));
+        store.update(cx, |store, cx| {
+            store.take_state_for_tests(crate::fixtures::state(json!({})), cx);
+            store.drag_sidebar_to(SIDEBAR_WIDTHS.0, cx);
+        });
+        view.update(cx, |main, cx| {
+            main.more_open = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.update(Window::render_frame);
+        // The sidebar starts at the window's left edge.
+        let edge = px(SIDEBAR_WIDTHS.0);
+        let about = cx
+            .debug_bounds("about-you")
+            .expect("About you's row is drawn");
+        assert!(
+            about.right() <= edge,
+            "the row ends inside the sidebar: {about:?}"
+        );
+        let words = cx
+            .debug_bounds(ABOUT_LABEL)
+            .expect("About you's words are drawn");
+        assert!(
+            words.right() <= edge,
+            "its words end inside the sidebar: {words:?}"
+        );
+    }
 }
